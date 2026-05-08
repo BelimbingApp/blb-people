@@ -70,19 +70,24 @@ class Index extends Component
                 ->leftJoin('companies', 'employees.company_id', '=', 'companies.id')
                 ->leftJoin('employee_types', 'employees.employee_type', '=', 'employee_types.code')
                 ->whereIn('employees.company_id', $companyIds)
-                ->when($this->search, function ($query, $search): void {
-                    $query->where(function (Builder $q) use ($search): void {
-                        $q->where('employees.full_name', 'like', '%'.$search.'%')
-                            ->orWhere('employees.short_name', 'like', '%'.$search.'%')
-                            ->orWhere('employees.employee_number', 'like', '%'.$search.'%')
-                            ->orWhere('employees.email', 'like', '%'.$search.'%')
-                            ->orWhere('employees.designation', 'like', '%'.$search.'%');
-                    });
+                ->when($this->search !== '', function (Builder $query): void {
+                    $this->applySearch($query, $this->search);
                 })
                 ->orderBy($sortColumn, $this->sortDir)
                 ->orderByDesc('employees.id')
                 ->paginate(15),
         ]);
+    }
+
+    private function applySearch(Builder $query, string $search): void
+    {
+        $query->where(function (Builder $q) use ($search): void {
+            $q->where('employees.full_name', 'like', '%'.$search.'%')
+                ->orWhere('employees.short_name', 'like', '%'.$search.'%')
+                ->orWhere('employees.employee_number', 'like', '%'.$search.'%')
+                ->orWhere('employees.email', 'like', '%'.$search.'%')
+                ->orWhere('employees.designation', 'like', '%'.$search.'%');
+        });
     }
 
     /**
