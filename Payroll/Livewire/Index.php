@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Modules\People\Payroll\Livewire;
 
 use App\Base\Authz\Contracts\AuthorizationService;
@@ -14,6 +15,7 @@ use App\Modules\People\Payroll\Models\PayrollPayItemClassification;
 use App\Modules\People\Payroll\Models\PayrollRun;
 use App\Modules\People\Payroll\Models\PayrollStatutoryRuleRow;
 use App\Modules\People\Payroll\Models\PayrollStatutoryRuleSet;
+use App\Modules\People\Payroll\Services\PayrollCountryPackRegistry;
 use App\Modules\People\Payroll\Services\PayrollPayslipBuilder;
 use App\Modules\People\Payroll\Services\PayrollRunCalculator;
 use Illuminate\Contracts\View\View;
@@ -424,6 +426,7 @@ class Index extends Component
             'employeeProfiles' => $this->employeeProfiles(),
             'ruleSets' => $this->ruleSets(),
             'employees' => $this->employees(),
+            'countryPacks' => $this->countryPacks(),
             'canManage' => $canManage,
             'tabs' => [
                 ['id' => 'runs', 'label' => __('Runs'), 'icon' => 'heroicon-o-play-circle'],
@@ -540,6 +543,29 @@ class Index extends Component
             ->where('status', 'active')
             ->orderBy('full_name')
             ->get();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function countryPacks(): array
+    {
+        return collect(app(PayrollCountryPackRegistry::class)->all())
+            ->map(function ($pack): array {
+                $manifest = $pack->manifest();
+
+                return [
+                    'country_iso' => $manifest->normalizedCountryIso(),
+                    'pack_identifier' => $manifest->packIdentifier,
+                    'pack_version' => $manifest->packVersion,
+                    'statutory_data_versions' => $manifest->statutoryDataVersions,
+                    'employer_schema' => $pack->profileSchemas()->employerSchema(),
+                    'employee_schema' => $pack->profileSchemas()->employeeSchema(),
+                    'exports' => $pack->exports()->definitions(),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**
