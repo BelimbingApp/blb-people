@@ -7,19 +7,14 @@ use App\Base\Authz\DTO\Actor;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Payroll\Exceptions\ClosedPayrollRunException;
-use App\Modules\People\Payroll\Models\PayrollEmployeeStatutoryProfile;
-use App\Modules\People\Payroll\Models\PayrollEmployerStatutoryProfile;
 use App\Modules\People\Payroll\Models\PayrollInput;
 use App\Modules\People\Payroll\Models\PayrollPayItem;
 use App\Modules\People\Payroll\Models\PayrollPayItemClassification;
 use App\Modules\People\Payroll\Models\PayrollRun;
 use App\Modules\People\Payroll\Models\PayrollStatutoryRuleRow;
 use App\Modules\People\Payroll\Models\PayrollStatutoryRuleSet;
-use App\Modules\People\Payroll\Services\PayrollCountryPackRegistry;
-use App\Modules\People\Payroll\Services\PayrollPayslipBuilder;
 use App\Modules\People\Payroll\Services\PayrollRunCalculator;
 use Illuminate\Contracts\View\View;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -151,7 +146,7 @@ class Index extends Component
         $this->authorizeManage();
 
         try {
-            $run = $this->runQuery()->findOrFail($runId);
+            $run = PayrollIndexWorkbenchData::runQuery($this->companyId(), $this->search)->findOrFail($runId);
             app(PayrollRunCalculator::class)->calculate($run);
             $this->selectedRunId = $runId;
             session()->flash('success', __('Payroll run calculated.'));
@@ -160,24 +155,30 @@ class Index extends Component
         }
     }
 
-    public function reviewRun(int $runId): void
+    public function transitionPayrollRun(string $transition, int $runId): void
     {
-        $this->transitionRun($runId, 'markReviewed', __('Payroll run reviewed.'));
-    }
+        $map = [
+            'review' => ['markReviewed', __('Payroll run reviewed.')],
+            'approve' => ['approve', __('Payroll run approved.')],
+            'close' => ['close', __('Payroll run closed.')],
+            'void' => ['void', __('Payroll run voided.')],
+        ];
 
-    public function approveRun(int $runId): void
-    {
-        $this->transitionRun($runId, 'approve', __('Payroll run approved.'));
-    }
+        if (! isset($map[$transition])) {
+            return;
+        }
 
-    public function closeRun(int $runId): void
-    {
-        $this->transitionRun($runId, 'close', __('Payroll run closed.'));
-    }
+        [$method, $message] = $map[$transition];
+        $this->authorizeManage();
 
-    public function voidRun(int $runId): void
-    {
-        $this->transitionRun($runId, 'void', __('Payroll run voided.'));
+        try {
+            $run = PayrollIndexWorkbenchData::runQuery($this->companyId(), $this->search)->findOrFail($runId);
+            $run->{$method}();
+            $this->selectedRunId = $runId;
+            session()->flash('success', $message);
+        } catch (ClosedPayrollRunException $exception) {
+            session()->flash('error', $exception->getMessage());
+        }
     }
 
     public function createPayItem(): void
@@ -272,7 +273,7 @@ class Index extends Component
             [
                 'source_pack' => $validated['employerProfileSourcePack'],
                 'source_version' => $validated['employerProfileSourceVersion'],
-                'profile_data' => $this->jsonPayload($validated['employerProfileData'], 'employerProfileData'),
+                'profile_data' => PayrollWorkbenchFormNormalizer::jsonPayload($validated['employerProfileData'], 'employerProfileData'),
                 'validation_messages' => [],
                 'metadata' => ['source' => 'payroll-workbench'],
             ],
@@ -304,7 +305,7 @@ class Index extends Component
             [
                 'source_pack' => $validated['employeeProfileSourcePack'],
                 'source_version' => $validated['employeeProfileSourceVersion'],
-                'profile_data' => $this->jsonPayload($validated['employeeProfileData'], 'employeeProfileData'),
+                'profile_data' => PayrollWorkbenchFormNormalizer::jsonPayload($validated['employeeProfileData'], 'employeeProfileData'),
                 'validation_messages' => [],
                 'metadata' => ['source' => 'payroll-workbench'],
             ],
@@ -337,7 +338,7 @@ class Index extends Component
             ],
             [
                 'name' => $validated['ruleSetName'],
-                'rounding_policy' => $this->optionalJsonPayload($validated['ruleSetRoundingPolicy'] ?? null, 'ruleSetRoundingPolicy'),
+                'rounding_policy' => PayrollWorkbenchFormNormalizer::optionalJsonPayload($validated['ruleSetRoundingPolicy'] ?? null, 'ruleSetRoundingPolicy'),
                 'metadata' => ['source' => 'payroll-workbench'],
             ],
         );
@@ -367,12 +368,12 @@ class Index extends Component
         PayrollStatutoryRuleRow::query()->create([
             'payroll_statutory_rule_set_id' => (int) $validated['ruleRowRuleSetId'],
             'sort_order' => $nextOrder,
-            'row_key' => $this->blankToNull($validated['ruleRowKey']),
-            'min_wage' => $this->blankToNull($validated['ruleRowMinWage']),
-            'max_wage' => $this->blankToNull($validated['ruleRowMaxWage']),
-            'employee_rate' => $this->blankToNull($validated['ruleRowEmployeeRate']),
-            'employer_rate' => $this->blankToNull($validated['ruleRowEmployerRate']),
-            'levy_rate' => $this->blankToNull($validated['ruleRowLevyRate']),
+            'row_key' => PayrollWorkbenchFormNormalizer::blankToNull($validated['ruleRowKey']),
+            'min_wage' => PayrollWorkbenchFormNormalizer::blankToNull($validated['ruleRowMinWage']),
+            'max_wage' => PayrollWorkbenchFormNormalizer::blankToNull($validated['ruleRowMaxWage']),
+            'employee_rate' => PayrollWorkbenchFormNormalizer::blankToNull($validated['ruleRowEmployeeRate']),
+            'employer_rate' => PayrollWorkbenchFormNormalizer::blankToNull($validated['ruleRowEmployerRate']),
+            'levy_rate' => PayrollWorkbenchFormNormalizer::blankToNull($validated['ruleRowLevyRate']),
             'metadata' => ['source' => 'payroll-workbench'],
         ]);
 
@@ -398,14 +399,15 @@ class Index extends Component
             ->can($authActor, 'people.payroll.manage')
             ->allowed;
 
-        $runs = $this->runQuery()
+        $companyId = $this->companyId();
+        $runs = PayrollIndexWorkbenchData::runQuery($companyId, $this->search)
             ->with(['calendar', 'period'])
             ->withCount(['participants', 'inputs', 'resultLines'])
             ->latest('id')
             ->paginate(10);
 
         $selectedRun = $this->selectedRunId !== null
-            ? $this->runQuery()
+            ? PayrollIndexWorkbenchData::runQuery($companyId, $this->search)
                 ->with([
                     'calendar',
                     'period',
@@ -420,13 +422,13 @@ class Index extends Component
         return view('livewire.people.payroll.index', [
             'runs' => $runs,
             'selectedRun' => $selectedRun,
-            'payslips' => $this->payslips($selectedRun),
-            'payItems' => $this->payItems(),
-            'employerProfiles' => $this->employerProfiles(),
-            'employeeProfiles' => $this->employeeProfiles(),
-            'ruleSets' => $this->ruleSets(),
-            'employees' => $this->employees(),
-            'countryPacks' => $this->countryPacks(),
+            'payslips' => PayrollIndexWorkbenchData::payslips($selectedRun),
+            'payItems' => PayrollIndexWorkbenchData::payItems($companyId),
+            'employerProfiles' => PayrollIndexWorkbenchData::employerProfiles($companyId),
+            'employeeProfiles' => PayrollIndexWorkbenchData::employeeProfiles($companyId),
+            'ruleSets' => PayrollIndexWorkbenchData::ruleSets(),
+            'employees' => PayrollIndexWorkbenchData::employees($companyId),
+            'countryPacks' => PayrollIndexWorkbenchData::countryPacks(),
             'canManage' => $canManage,
             'tabs' => [
                 ['id' => 'runs', 'label' => __('Runs'), 'icon' => 'heroicon-o-play-circle'],
@@ -435,20 +437,6 @@ class Index extends Component
                 ['id' => 'rules', 'label' => __('Rule Tables'), 'icon' => 'heroicon-o-table-cells'],
             ],
         ]);
-    }
-
-    private function transitionRun(int $runId, string $method, string $message): void
-    {
-        $this->authorizeManage();
-
-        try {
-            $run = $this->runQuery()->findOrFail($runId);
-            $run->{$method}();
-            $this->selectedRunId = $runId;
-            session()->flash('success', $message);
-        } catch (ClosedPayrollRunException $exception) {
-            session()->flash('error', $exception->getMessage());
-        }
     }
 
     private function companyId(): int
@@ -462,146 +450,5 @@ class Index extends Component
             Actor::forUser(Auth::user()),
             'people.payroll.manage',
         );
-    }
-
-    /**
-     * @return Builder<PayrollRun>
-     */
-    private function runQuery(): Builder
-    {
-        return PayrollRun::query()
-            ->where('company_id', $this->companyId())
-            ->when($this->search !== '', function (Builder $query): void {
-                $query->where(function (Builder $q): void {
-                    $q->where('code', 'like', '%'.$this->search.'%')
-                        ->orWhere('name', 'like', '%'.$this->search.'%')
-                        ->orWhere('status', 'like', '%'.$this->search.'%');
-                });
-            });
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function payslips(?PayrollRun $run): array
-    {
-        if ($run === null) {
-            return [];
-        }
-
-        $builder = app(PayrollPayslipBuilder::class);
-
-        return $run->participants
-            ->map(fn ($participant): array => $builder->build($participant))
-            ->all();
-    }
-
-    private function payItems()
-    {
-        return PayrollPayItem::query()
-            ->with('classifications')
-            ->where(function (Builder $query): void {
-                $query->where('company_id', $this->companyId())
-                    ->orWhereNull('company_id');
-            })
-            ->orderBy('code')
-            ->get();
-    }
-
-    private function employerProfiles()
-    {
-        return PayrollEmployerStatutoryProfile::query()
-            ->where('company_id', $this->companyId())
-            ->latest('effective_from')
-            ->get();
-    }
-
-    private function employeeProfiles()
-    {
-        return PayrollEmployeeStatutoryProfile::query()
-            ->with('employee')
-            ->where('company_id', $this->companyId())
-            ->latest('effective_from')
-            ->limit(25)
-            ->get();
-    }
-
-    private function ruleSets()
-    {
-        return PayrollStatutoryRuleSet::query()
-            ->with('rows')
-            ->orderBy('country_iso')
-            ->orderBy('rule_key')
-            ->latest('effective_from')
-            ->get();
-    }
-
-    private function employees()
-    {
-        return Employee::query()
-            ->where('company_id', $this->companyId())
-            ->where('status', 'active')
-            ->orderBy('full_name')
-            ->get();
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function countryPacks(): array
-    {
-        return collect(app(PayrollCountryPackRegistry::class)->all())
-            ->map(function ($pack): array {
-                $manifest = $pack->manifest();
-
-                return [
-                    'country_iso' => $manifest->normalizedCountryIso(),
-                    'pack_identifier' => $manifest->packIdentifier,
-                    'pack_version' => $manifest->packVersion,
-                    'statutory_data_versions' => $manifest->statutoryDataVersions,
-                    'employer_schema' => $pack->profileSchemas()->employerSchema(),
-                    'employee_schema' => $pack->profileSchemas()->employeeSchema(),
-                    'exports' => $pack->exports()->definitions(),
-                ];
-            })
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function jsonPayload(string $payload, string $field): array
-    {
-        $decoded = json_decode($payload, true);
-
-        if (! is_array($decoded)) {
-            throw ValidationException::withMessages([
-                $field => __('Enter a valid JSON object.'),
-            ]);
-        }
-
-        return $decoded;
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function optionalJsonPayload(?string $payload, string $field): ?array
-    {
-        if ($payload === null || trim($payload) === '') {
-            return null;
-        }
-
-        return $this->jsonPayload($payload, $field);
-    }
-
-    private function blankToNull(?string $value): ?string
-    {
-        if ($value === null || trim($value) === '') {
-            return null;
-        }
-
-        return $value;
     }
 }

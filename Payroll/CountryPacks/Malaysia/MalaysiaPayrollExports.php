@@ -31,6 +31,17 @@ class MalaysiaPayrollExports implements ProvidesPayrollExports
                 format: 'csv',
                 metadata: ['status' => 'planned'],
             ),
+            new PayrollExportDefinition(
+                key: 'bank_payment_placeholder',
+                label: 'Bank payment placeholder',
+                frequency: 'per_payroll_run',
+                format: 'csv',
+                metadata: [
+                    'status' => 'placeholder',
+                    'not_bank_submittable' => true,
+                    'notes' => 'Internal review export until the SBG bank payment format is confirmed.',
+                ],
+            ),
         ];
     }
 }

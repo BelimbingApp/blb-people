@@ -53,8 +53,8 @@ class DevPayrollSeeder extends DevSeeder
             return;
         }
 
-        $this->seedRun($company, $calendar, $january, 'MY-2026-01-MAIN', 'January 2026 Main Payroll', $employees, $payItems, close: true);
-        $this->seedRun($company, $calendar, $february, 'MY-2026-02-MAIN', 'February 2026 Main Payroll', $employees, $payItems, close: false);
+        $this->seedRun(new DevPayrollSeedRunContext($company, $calendar, $january, 'MY-2026-01-MAIN', 'January 2026 Main Payroll', $employees, $payItems, true));
+        $this->seedRun(new DevPayrollSeedRunContext($company, $calendar, $february, 'MY-2026-02-MAIN', 'February 2026 Main Payroll', $employees, $payItems, false));
     }
 
     /**
@@ -267,25 +267,17 @@ class DevPayrollSeeder extends DevSeeder
         );
     }
 
-    private function seedRun(
-        Company $company,
-        PayrollCalendar $calendar,
-        PayrollPeriod $period,
-        string $code,
-        string $name,
-        $employees,
-        array $payItems,
-        bool $close,
-    ): void {
+    private function seedRun(DevPayrollSeedRunContext $ctx): void
+    {
         $run = PayrollRun::query()->firstOrCreate(
             [
-                'company_id' => $company->id,
-                'code' => $code,
+                'company_id' => $ctx->company->id,
+                'code' => $ctx->code,
             ],
             [
-                'payroll_calendar_id' => $calendar->id,
-                'payroll_period_id' => $period->id,
-                'name' => $name,
+                'payroll_calendar_id' => $ctx->calendar->id,
+                'payroll_period_id' => $ctx->period->id,
+                'name' => $ctx->name,
                 'status' => PayrollRun::STATUS_DRAFT,
                 'currency' => 'MYR',
                 'metadata' => ['scenario' => 'browser-demo'],
@@ -297,9 +289,9 @@ class DevPayrollSeeder extends DevSeeder
         }
 
         $run->forceFill([
-            'payroll_calendar_id' => $calendar->id,
-            'payroll_period_id' => $period->id,
-            'name' => $name,
+            'payroll_calendar_id' => $ctx->calendar->id,
+            'payroll_period_id' => $ctx->period->id,
+            'name' => $ctx->name,
             'status' => PayrollRun::STATUS_DRAFT,
             'currency' => 'MYR',
             'calculated_at' => null,
@@ -315,22 +307,22 @@ class DevPayrollSeeder extends DevSeeder
         $run->participants()->delete();
         $run->auditEvents()->delete();
 
-        foreach ($employees->values() as $index => $employee) {
+        foreach ($ctx->employees->values() as $index => $employee) {
             $participant = PayrollRunParticipant::query()->create([
                 'payroll_run_id' => $run->id,
-                'company_id' => $company->id,
+                'company_id' => $ctx->company->id,
                 'employee_id' => $employee->id,
                 'status' => 'included',
                 'currency' => 'MYR',
                 'metadata' => ['scenario' => 'browser-demo'],
             ]);
 
-            $this->seedInputsForParticipant($run, $participant, $employee, $index, $payItems);
+            $this->seedInputsForParticipant($run, $participant, $employee, $index, $ctx->payItems);
         }
 
         app(PayrollRunCalculator::class)->calculate($run->refresh());
 
-        if ($close) {
+        if ($ctx->close) {
             $run->refresh()->markReviewed();
             $run->refresh()->approve();
             $run->refresh()->close();

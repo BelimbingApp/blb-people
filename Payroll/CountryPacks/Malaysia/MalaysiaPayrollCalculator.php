@@ -22,45 +22,66 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
             'pack_version' => MalaysiaPayrollCountryPack::PACK_VERSION,
         ];
         $payDate = $context->payDate() ?? now()->toDateString();
-        $wageUnits = $this->statutoryWageUnits($context);
         $resultLines = [];
         $warnings = [];
+        $blockingErrors = [];
+        $categorySnapshot = $this->categorySnapshot($context);
 
         foreach ($this->contributionDefinitions() as $definition) {
-            $calculation = $this->calculateContributionPair($context, $definition, $wageUnits, $payDate, $metadata);
+            $calculation = $this->calculateContributionPair($context, $definition, $payDate, $metadata, $categorySnapshot);
 
             $resultLines = array_merge($resultLines, $calculation['resultLines']);
             $warnings = array_merge($warnings, $calculation['warnings']);
+            $blockingErrors = array_merge($blockingErrors, $calculation['blockingErrors']);
             $metadata[$definition['metadata_key']] = $calculation['metadata'];
         }
 
-        $hrdLevy = $this->calculateHrdLevy($context, $wageUnits, $payDate, $metadata);
+        $hrdLevy = $this->calculateHrdLevy($context, $payDate, $metadata, $categorySnapshot);
         $resultLines = array_merge($resultLines, $hrdLevy['resultLines']);
         $warnings = array_merge($warnings, $hrdLevy['warnings']);
+        $blockingErrors = array_merge($blockingErrors, $hrdLevy['blockingErrors']);
         $metadata['hrd_levy'] = $hrdLevy['metadata'];
 
         return new PayrollCalculationResult(
             resultLines: $resultLines,
             warnings: $warnings,
+            blockingErrors: $blockingErrors,
             metadata: $metadata + [
                 'status' => $resultLines === [] ? 'no_statutory_contributions' : 'statutory_contributions_calculated',
-                'statutory_wage_base' => $this->moneyString($wageUnits),
+                'employee_category' => $categorySnapshot,
             ],
         );
     }
 
     /**
-     * @param  array<string, string>  $definition
+     * @param  array<string, mixed>  $definition
      * @param  array<string, mixed>  $baseMetadata
-     * @return array{resultLines: list<PayrollProposedResultLine>, warnings: list<array<string, mixed>>, metadata: array<string, mixed>}
+     * @param  array<string, mixed>  $categorySnapshot
+     * @return array{resultLines: list<PayrollProposedResultLine>, warnings: list<array<string, mixed>>, blockingErrors: list<array<string, mixed>>, metadata: array<string, mixed>}
      */
     private function calculateContributionPair(
         PayrollCalculationContext $context,
         array $definition,
-        int $wageUnits,
         string $payDate,
         array $baseMetadata,
+        array $categorySnapshot,
     ): array {
+        $wageUnits = $this->statutoryWageUnits($context, $definition['wage_base_keys']);
+
+        if ($wageUnits <= 0) {
+            return [
+                'resultLines' => [],
+                'warnings' => [],
+                'blockingErrors' => [],
+                'metadata' => [
+                    'status' => 'no_wage_base',
+                    'wage_base' => $this->moneyString($wageUnits),
+                    'wage_base_keys' => $definition['wage_base_keys'],
+                    'employee_category' => $categorySnapshot,
+                ],
+            ];
+        }
+
         $ruleSet = $this->ruleSets->resolve(
             MalaysiaPayrollCountryPack::COUNTRY_ISO,
             $definition['rule_key'],
@@ -70,23 +91,32 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
         if ($ruleSet === null) {
             return [
                 'resultLines' => [],
-                'warnings' => [[
+                'warnings' => [],
+                'blockingErrors' => [[
                     'code' => $definition['missing_warning_code'],
                     'message' => $definition['missing_warning_message'],
                 ]],
-                'metadata' => ['status' => 'missing_rule_set'],
+                'metadata' => [
+                    'status' => 'missing_rule_set',
+                    'wage_base' => $this->moneyString($wageUnits),
+                    'wage_base_keys' => $definition['wage_base_keys'],
+                    'employee_category' => $categorySnapshot,
+                ],
             ];
         }
 
-        $row = $this->matchingRow($ruleSet->rows, $wageUnits);
+        $row = $this->matchingRow($ruleSet->rows, $wageUnits, $categorySnapshot, $definition['metadata_key']);
 
-        if ($wageUnits <= 0 || $row === null) {
+        if ($row === null) {
             return [
                 'resultLines' => [],
                 'warnings' => [],
+                'blockingErrors' => [],
                 'metadata' => [
-                    'status' => 'no_wage_base',
+                    'status' => 'no_matching_rule_row',
                     'wage_base' => $this->moneyString($wageUnits),
+                    'wage_base_keys' => $definition['wage_base_keys'],
+                    'employee_category' => $categorySnapshot,
                 ],
             ];
         }
@@ -101,8 +131,12 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
             'rule_row_key' => $row->row_key,
             'source_version' => $ruleSet->source_version,
             'wage_base' => $this->moneyString($wageUnits),
+            'wage_base_keys' => $definition['wage_base_keys'],
+            'employee_category' => $categorySnapshot,
             'employee_rate' => $row->employee_rate,
             'employer_rate' => $row->employer_rate,
+            'employee_amount' => $row->employee_amount,
+            'employer_amount' => $row->employer_amount,
             'rounding_policy' => $ruleSet->rounding_policy,
             'employer_profile_id' => $context->employerProfile?->id,
             'employee_profile_id' => $context->employeeProfile?->id,
@@ -132,11 +166,14 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
                 ),
             ],
             'warnings' => [],
+            'blockingErrors' => [],
             'metadata' => [
                 'status' => 'calculated',
                 'wage_base' => $this->moneyString($wageUnits),
+                'wage_base_keys' => $definition['wage_base_keys'],
                 'rule_set_id' => $ruleSet->id,
                 'rule_row_id' => $row->id,
+                'employee_category' => $categorySnapshot,
                 'employee_amount' => $this->moneyString($employeeContribution),
                 'employer_amount' => $this->moneyString($employerContribution),
             ],
@@ -145,15 +182,34 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
 
     /**
      * @param  array<string, mixed>  $baseMetadata
-     * @return array{resultLines: list<PayrollProposedResultLine>, warnings: list<array<string, mixed>>, metadata: array<string, mixed>}
+     * @param  array<string, mixed>  $categorySnapshot
+     * @return array{resultLines: list<PayrollProposedResultLine>, warnings: list<array<string, mixed>>, blockingErrors: list<array<string, mixed>>, metadata: array<string, mixed>}
      */
-    private function calculateHrdLevy(PayrollCalculationContext $context, int $wageUnits, string $payDate, array $baseMetadata): array
+    private function calculateHrdLevy(PayrollCalculationContext $context, string $payDate, array $baseMetadata, array $categorySnapshot): array
     {
         if (($context->employerProfile?->profile_data['hrd_levy_applicable'] ?? false) !== true) {
             return [
                 'resultLines' => [],
                 'warnings' => [],
+                'blockingErrors' => [],
                 'metadata' => ['status' => 'not_applicable'],
+            ];
+        }
+
+        $wageBaseKeys = ['hrd_levy_wage_base', 'statutory_wage_base'];
+        $wageUnits = $this->statutoryWageUnits($context, $wageBaseKeys);
+
+        if ($wageUnits <= 0) {
+            return [
+                'resultLines' => [],
+                'warnings' => [],
+                'blockingErrors' => [],
+                'metadata' => [
+                    'status' => 'no_wage_base',
+                    'wage_base' => $this->moneyString($wageUnits),
+                    'wage_base_keys' => $wageBaseKeys,
+                    'employee_category' => $categorySnapshot,
+                ],
             ];
         }
 
@@ -166,23 +222,32 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
         if ($ruleSet === null) {
             return [
                 'resultLines' => [],
-                'warnings' => [[
+                'warnings' => [],
+                'blockingErrors' => [[
                     'code' => 'my_hrd_levy_rule_set_missing',
                     'message' => 'Malaysia HRD levy schedule is not configured for this pay date.',
                 ]],
-                'metadata' => ['status' => 'missing_rule_set'],
+                'metadata' => [
+                    'status' => 'missing_rule_set',
+                    'wage_base' => $this->moneyString($wageUnits),
+                    'wage_base_keys' => $wageBaseKeys,
+                    'employee_category' => $categorySnapshot,
+                ],
             ];
         }
 
-        $row = $this->matchingRow($ruleSet->rows, $wageUnits);
+        $row = $this->matchingRow($ruleSet->rows, $wageUnits, $categorySnapshot, 'hrd_levy');
 
-        if ($wageUnits <= 0 || $row === null) {
+        if ($row === null) {
             return [
                 'resultLines' => [],
                 'warnings' => [],
+                'blockingErrors' => [],
                 'metadata' => [
-                    'status' => 'no_wage_base',
+                    'status' => 'no_matching_rule_row',
                     'wage_base' => $this->moneyString($wageUnits),
+                    'wage_base_keys' => $wageBaseKeys,
+                    'employee_category' => $categorySnapshot,
                 ],
             ];
         }
@@ -196,6 +261,8 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
             'rule_row_key' => $row->row_key,
             'source_version' => $ruleSet->source_version,
             'wage_base' => $this->moneyString($wageUnits),
+            'wage_base_keys' => $wageBaseKeys,
+            'employee_category' => $categorySnapshot,
             'levy_rate' => $row->levy_rate,
             'rounding_policy' => $ruleSet->rounding_policy,
             'employer_profile_id' => $context->employerProfile?->id,
@@ -216,20 +283,29 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
                 ),
             ],
             'warnings' => [],
+            'blockingErrors' => [],
             'metadata' => [
                 'status' => 'calculated',
                 'wage_base' => $this->moneyString($wageUnits),
+                'wage_base_keys' => $wageBaseKeys,
                 'rule_set_id' => $ruleSet->id,
                 'rule_row_id' => $row->id,
+                'employee_category' => $categorySnapshot,
                 'levy_amount' => $this->moneyString($levyAmount),
             ],
         ];
     }
 
-    private function statutoryWageUnits(PayrollCalculationContext $context): int
+    /**
+     * @param  list<string>  $classificationKeys
+     */
+    private function statutoryWageUnits(PayrollCalculationContext $context, array $classificationKeys): int
     {
-        return $context->inputs->sum(function ($input) use ($context): int {
-            $classification = $context->classifications[(string) $input->id]['statutory_wage_base']['value'] ?? null;
+        return $context->inputs->sum(function ($input) use ($context, $classificationKeys): int {
+            $classification = $this->firstClassificationValue(
+                $context->classifications[(string) $input->id] ?? [],
+                $classificationKeys,
+            );
 
             if (! in_array($classification, ['ordinary_wage', 'additional_wage'], true)) {
                 return 0;
@@ -240,7 +316,7 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
     }
 
     /**
-     * @return list<array<string, string>>
+     * @return list<array<string, mixed>>
      */
     private function contributionDefinitions(): array
     {
@@ -248,6 +324,7 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
             [
                 'rule_key' => 'epf_contribution_schedule',
                 'metadata_key' => 'epf',
+                'wage_base_keys' => ['epf_wage_base', 'statutory_wage_base'],
                 'employee_code' => 'my_epf_employee',
                 'employee_label' => 'EPF Employee Contribution',
                 'employer_code' => 'my_epf_employer',
@@ -258,6 +335,7 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
             [
                 'rule_key' => 'socso_contribution_schedule',
                 'metadata_key' => 'socso',
+                'wage_base_keys' => ['socso_wage_base', 'statutory_wage_base'],
                 'employee_code' => 'my_socso_employee',
                 'employee_label' => 'SOCSO Employee Contribution',
                 'employer_code' => 'my_socso_employer',
@@ -268,6 +346,7 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
             [
                 'rule_key' => 'eis_contribution_schedule',
                 'metadata_key' => 'eis',
+                'wage_base_keys' => ['eis_wage_base', 'statutory_wage_base'],
                 'employee_code' => 'my_eis_employee',
                 'employee_label' => 'EIS Employee Contribution',
                 'employer_code' => 'my_eis_employer',
@@ -278,14 +357,74 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
         ];
     }
 
-    private function matchingRow($rows, int $wageUnits): ?PayrollStatutoryRuleRow
+    /**
+     * @param  array<string, mixed>  $categorySnapshot
+     */
+    private function matchingRow($rows, int $wageUnits, array $categorySnapshot, string $component): ?PayrollStatutoryRuleRow
     {
-        return $rows->first(function (PayrollStatutoryRuleRow $row) use ($wageUnits): bool {
+        return $rows->first(function (PayrollStatutoryRuleRow $row) use ($wageUnits, $categorySnapshot, $component): bool {
             $min = $this->moneyUnits($row->min_wage);
             $max = $row->max_wage === null ? null : $this->moneyUnits($row->max_wage);
 
-            return $wageUnits >= $min && ($max === null || $wageUnits <= $max);
+            return $wageUnits >= $min
+                && ($max === null || $wageUnits <= $max)
+                && $this->rowMatchesCategory($row, $categorySnapshot, $component);
         });
+    }
+
+    /**
+     * @param  array<string, mixed>  $categorySnapshot
+     */
+    private function rowMatchesCategory(PayrollStatutoryRuleRow $row, array $categorySnapshot, string $component): bool
+    {
+        $rowData = $row->row_data ?? [];
+
+        if (($rowData['component'] ?? $component) !== $component) {
+            return false;
+        }
+
+        foreach (['employee_category', 'citizenship_status', 'age_category'] as $key) {
+            if (array_key_exists($key, $rowData) && $rowData[$key] !== ($categorySnapshot[$key] ?? null)) {
+                return false;
+            }
+        }
+
+        $componentCategoryKey = $component.'_category';
+
+        return ! array_key_exists($componentCategoryKey, $rowData)
+            || $rowData[$componentCategoryKey] === ($categorySnapshot[$componentCategoryKey] ?? null);
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $classifications
+     * @param  list<string>  $classificationKeys
+     */
+    private function firstClassificationValue(array $classifications, array $classificationKeys): ?string
+    {
+        foreach ($classificationKeys as $key) {
+            if (isset($classifications[$key]['value'])) {
+                return (string) $classifications[$key]['value'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function categorySnapshot(PayrollCalculationContext $context): array
+    {
+        $profile = $context->employeeProfile?->profile_data ?? [];
+
+        return [
+            'employee_category' => $profile['employee_category'] ?? $profile['citizenship_status'] ?? 'unspecified',
+            'citizenship_status' => $profile['citizenship_status'] ?? 'unspecified',
+            'age_category' => $profile['age_category'] ?? 'unspecified',
+            'epf_category' => $profile['epf_category'] ?? $profile['citizenship_status'] ?? 'unspecified',
+            'socso_category' => $profile['socso_category'] ?? $profile['citizenship_status'] ?? 'unspecified',
+            'eis_category' => $profile['eis_category'] ?? $profile['citizenship_status'] ?? 'unspecified',
+        ];
     }
 
     private function contributionAmount(int $wageUnits, string|int|float|null $rate, string|int|float|null $fixedAmount): int
