@@ -2,8 +2,11 @@
 
 namespace App\Modules\People\Payroll;
 
+use App\Base\Pdf\Events\PdfArtifactRendered;
 use App\Modules\People\Payroll\CountryPacks\Malaysia\MalaysiaPayrollCountryPack;
+use App\Modules\People\Payroll\Listeners\StorePayrollPdfArtifact;
 use App\Modules\People\Payroll\Services\PayrollCountryPackRegistry;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
 
 class ServiceProvider extends BaseServiceProvider
@@ -19,5 +22,7 @@ class ServiceProvider extends BaseServiceProvider
         $this->app
             ->make(PayrollCountryPackRegistry::class)
             ->register($this->app->make(MalaysiaPayrollCountryPack::class));
+
+        Event::listen(PdfArtifactRendered::class, StorePayrollPdfArtifact::class);
     }
 }

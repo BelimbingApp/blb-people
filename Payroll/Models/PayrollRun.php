@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Modules\People\Payroll\Models;
 
 use App\Modules\Core\Company\Models\Company;
@@ -10,10 +11,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class PayrollRun extends Model
 {
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_CALCULATED = 'calculated';
+
     public const STATUS_REVIEWED = 'reviewed';
+
     public const STATUS_APPROVED = 'approved';
+
     public const STATUS_CLOSED = 'closed';
+
     public const STATUS_VOIDED = 'voided';
 
     protected $table = 'payroll_runs';
@@ -99,6 +105,14 @@ class PayrollRun extends Model
     public function auditEvents(): HasMany
     {
         return $this->hasMany(PayrollRunAuditEvent::class, 'payroll_run_id');
+    }
+
+    /**
+     * @return HasMany<PayrollPdfArtifact, $this>
+     */
+    public function pdfArtifacts(): HasMany
+    {
+        return $this->hasMany(PayrollPdfArtifact::class, 'payroll_run_id');
     }
 
     public function isClosed(): bool

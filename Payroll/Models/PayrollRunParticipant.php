@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Modules\People\Payroll\Models;
 
 use App\Modules\Core\Company\Models\Company;
@@ -83,6 +84,14 @@ class PayrollRunParticipant extends Model
     public function resultLines(): HasMany
     {
         return $this->hasMany(PayrollResultLine::class, 'payroll_run_participant_id');
+    }
+
+    /**
+     * @return HasMany<PayrollPdfArtifact, $this>
+     */
+    public function pdfArtifacts(): HasMany
+    {
+        return $this->hasMany(PayrollPdfArtifact::class, 'payroll_run_participant_id');
     }
 
     private function runForMutationGuard(): ?PayrollRun
