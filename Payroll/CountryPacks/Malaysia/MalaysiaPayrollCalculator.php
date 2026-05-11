@@ -21,83 +21,212 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
             'pack_identifier' => MalaysiaPayrollCountryPack::PACK_IDENTIFIER,
             'pack_version' => MalaysiaPayrollCountryPack::PACK_VERSION,
         ];
+        $payDate = $context->payDate() ?? now()->toDateString();
+        $wageUnits = $this->statutoryWageUnits($context);
+        $resultLines = [];
+        $warnings = [];
 
-        $epfRuleSet = $this->ruleSets->resolve(
-            MalaysiaPayrollCountryPack::COUNTRY_ISO,
-            'epf_contribution_schedule',
-            $context->payDate() ?? now()->toDateString(),
-        );
+        foreach ($this->contributionDefinitions() as $definition) {
+            $calculation = $this->calculateContributionPair($context, $definition, $wageUnits, $payDate, $metadata);
 
-        if ($epfRuleSet === null) {
-            return new PayrollCalculationResult(
-                warnings: [[
-                    'code' => 'my_epf_rule_set_missing',
-                    'message' => 'Malaysia EPF contribution schedule is not configured for this pay date.',
-                ]],
-                metadata: $metadata + ['status' => 'missing_epf_rule_set'],
-            );
+            $resultLines = array_merge($resultLines, $calculation['resultLines']);
+            $warnings = array_merge($warnings, $calculation['warnings']);
+            $metadata[$definition['metadata_key']] = $calculation['metadata'];
         }
 
-        $epfWageUnits = $this->epfWageUnits($context);
-        $epfRow = $this->matchingRow($epfRuleSet->rows, $epfWageUnits);
-
-        if ($epfWageUnits <= 0 || $epfRow === null) {
-            return new PayrollCalculationResult(metadata: $metadata + [
-                'status' => 'no_epf_wage_base',
-                'epf_wage_base' => $this->moneyString($epfWageUnits),
-            ]);
-        }
-
-        $employeeContribution = $this->contributionAmount($epfWageUnits, $epfRow->employee_rate, $epfRow->employee_amount);
-        $employerContribution = $this->contributionAmount($epfWageUnits, $epfRow->employer_rate, $epfRow->employer_amount);
-        $explanation = [
-            'country_iso' => MalaysiaPayrollCountryPack::COUNTRY_ISO,
-            'pack_identifier' => MalaysiaPayrollCountryPack::PACK_IDENTIFIER,
-            'pack_version' => MalaysiaPayrollCountryPack::PACK_VERSION,
-            'rule_key' => $epfRuleSet->rule_key,
-            'rule_set_id' => $epfRuleSet->id,
-            'rule_row_id' => $epfRow->id,
-            'rule_row_key' => $epfRow->row_key,
-            'source_version' => $epfRuleSet->source_version,
-            'wage_base' => $this->moneyString($epfWageUnits),
-            'employee_rate' => $epfRow->employee_rate,
-            'employer_rate' => $epfRow->employer_rate,
-            'rounding_policy' => $epfRuleSet->rounding_policy,
-            'employer_profile_id' => $context->employerProfile?->id,
-            'employee_profile_id' => $context->employeeProfile?->id,
-        ];
+        $hrdLevy = $this->calculateHrdLevy($context, $wageUnits, $payDate, $metadata);
+        $resultLines = array_merge($resultLines, $hrdLevy['resultLines']);
+        $warnings = array_merge($warnings, $hrdLevy['warnings']);
+        $metadata['hrd_levy'] = $hrdLevy['metadata'];
 
         return new PayrollCalculationResult(
-            resultLines: [
-                new PayrollProposedResultLine(
-                    lineType: PayrollResultLine::TYPE_EMPLOYEE_CONTRIBUTION,
-                    code: 'my_epf_employee',
-                    label: 'EPF Employee Contribution',
-                    amount: $this->moneyString($employeeContribution),
-                    currency: $context->run->currency,
-                    sourceRule: $epfRuleSet->rule_key,
-                    sourceVersion: $epfRuleSet->source_version,
-                    explanation: $explanation + ['share' => 'employee'],
-                ),
-                new PayrollProposedResultLine(
-                    lineType: PayrollResultLine::TYPE_EMPLOYER_CONTRIBUTION,
-                    code: 'my_epf_employer',
-                    label: 'EPF Employer Contribution',
-                    amount: $this->moneyString($employerContribution),
-                    currency: $context->run->currency,
-                    sourceRule: $epfRuleSet->rule_key,
-                    sourceVersion: $epfRuleSet->source_version,
-                    explanation: $explanation + ['share' => 'employer'],
-                ),
-            ],
+            resultLines: $resultLines,
+            warnings: $warnings,
             metadata: $metadata + [
-                'status' => 'epf_calculated',
-                'epf_wage_base' => $this->moneyString($epfWageUnits),
+                'status' => $resultLines === [] ? 'no_statutory_contributions' : 'statutory_contributions_calculated',
+                'statutory_wage_base' => $this->moneyString($wageUnits),
             ],
         );
     }
 
-    private function epfWageUnits(PayrollCalculationContext $context): int
+    /**
+     * @param  array<string, string>  $definition
+     * @param  array<string, mixed>  $baseMetadata
+     * @return array{resultLines: list<PayrollProposedResultLine>, warnings: list<array<string, mixed>>, metadata: array<string, mixed>}
+     */
+    private function calculateContributionPair(
+        PayrollCalculationContext $context,
+        array $definition,
+        int $wageUnits,
+        string $payDate,
+        array $baseMetadata,
+    ): array {
+        $ruleSet = $this->ruleSets->resolve(
+            MalaysiaPayrollCountryPack::COUNTRY_ISO,
+            $definition['rule_key'],
+            $payDate,
+        );
+
+        if ($ruleSet === null) {
+            return [
+                'resultLines' => [],
+                'warnings' => [[
+                    'code' => $definition['missing_warning_code'],
+                    'message' => $definition['missing_warning_message'],
+                ]],
+                'metadata' => ['status' => 'missing_rule_set'],
+            ];
+        }
+
+        $row = $this->matchingRow($ruleSet->rows, $wageUnits);
+
+        if ($wageUnits <= 0 || $row === null) {
+            return [
+                'resultLines' => [],
+                'warnings' => [],
+                'metadata' => [
+                    'status' => 'no_wage_base',
+                    'wage_base' => $this->moneyString($wageUnits),
+                ],
+            ];
+        }
+
+        $employeeContribution = $this->contributionAmount($wageUnits, $row->employee_rate, $row->employee_amount);
+        $employerContribution = $this->contributionAmount($wageUnits, $row->employer_rate, $row->employer_amount);
+        $explanation = [
+            ...$baseMetadata,
+            'rule_key' => $ruleSet->rule_key,
+            'rule_set_id' => $ruleSet->id,
+            'rule_row_id' => $row->id,
+            'rule_row_key' => $row->row_key,
+            'source_version' => $ruleSet->source_version,
+            'wage_base' => $this->moneyString($wageUnits),
+            'employee_rate' => $row->employee_rate,
+            'employer_rate' => $row->employer_rate,
+            'rounding_policy' => $ruleSet->rounding_policy,
+            'employer_profile_id' => $context->employerProfile?->id,
+            'employee_profile_id' => $context->employeeProfile?->id,
+        ];
+
+        return [
+            'resultLines' => [
+                new PayrollProposedResultLine(
+                    lineType: PayrollResultLine::TYPE_EMPLOYEE_CONTRIBUTION,
+                    code: $definition['employee_code'],
+                    label: $definition['employee_label'],
+                    amount: $this->moneyString($employeeContribution),
+                    currency: $context->run->currency,
+                    sourceRule: $ruleSet->rule_key,
+                    sourceVersion: $ruleSet->source_version,
+                    explanation: $explanation + ['share' => 'employee'],
+                ),
+                new PayrollProposedResultLine(
+                    lineType: PayrollResultLine::TYPE_EMPLOYER_CONTRIBUTION,
+                    code: $definition['employer_code'],
+                    label: $definition['employer_label'],
+                    amount: $this->moneyString($employerContribution),
+                    currency: $context->run->currency,
+                    sourceRule: $ruleSet->rule_key,
+                    sourceVersion: $ruleSet->source_version,
+                    explanation: $explanation + ['share' => 'employer'],
+                ),
+            ],
+            'warnings' => [],
+            'metadata' => [
+                'status' => 'calculated',
+                'wage_base' => $this->moneyString($wageUnits),
+                'rule_set_id' => $ruleSet->id,
+                'rule_row_id' => $row->id,
+                'employee_amount' => $this->moneyString($employeeContribution),
+                'employer_amount' => $this->moneyString($employerContribution),
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $baseMetadata
+     * @return array{resultLines: list<PayrollProposedResultLine>, warnings: list<array<string, mixed>>, metadata: array<string, mixed>}
+     */
+    private function calculateHrdLevy(PayrollCalculationContext $context, int $wageUnits, string $payDate, array $baseMetadata): array
+    {
+        if (($context->employerProfile?->profile_data['hrd_levy_applicable'] ?? false) !== true) {
+            return [
+                'resultLines' => [],
+                'warnings' => [],
+                'metadata' => ['status' => 'not_applicable'],
+            ];
+        }
+
+        $ruleSet = $this->ruleSets->resolve(
+            MalaysiaPayrollCountryPack::COUNTRY_ISO,
+            'hrd_levy_schedule',
+            $payDate,
+        );
+
+        if ($ruleSet === null) {
+            return [
+                'resultLines' => [],
+                'warnings' => [[
+                    'code' => 'my_hrd_levy_rule_set_missing',
+                    'message' => 'Malaysia HRD levy schedule is not configured for this pay date.',
+                ]],
+                'metadata' => ['status' => 'missing_rule_set'],
+            ];
+        }
+
+        $row = $this->matchingRow($ruleSet->rows, $wageUnits);
+
+        if ($wageUnits <= 0 || $row === null) {
+            return [
+                'resultLines' => [],
+                'warnings' => [],
+                'metadata' => [
+                    'status' => 'no_wage_base',
+                    'wage_base' => $this->moneyString($wageUnits),
+                ],
+            ];
+        }
+
+        $levyAmount = $this->contributionAmount($wageUnits, $row->levy_rate, null);
+        $explanation = [
+            ...$baseMetadata,
+            'rule_key' => $ruleSet->rule_key,
+            'rule_set_id' => $ruleSet->id,
+            'rule_row_id' => $row->id,
+            'rule_row_key' => $row->row_key,
+            'source_version' => $ruleSet->source_version,
+            'wage_base' => $this->moneyString($wageUnits),
+            'levy_rate' => $row->levy_rate,
+            'rounding_policy' => $ruleSet->rounding_policy,
+            'employer_profile_id' => $context->employerProfile?->id,
+            'employee_profile_id' => $context->employeeProfile?->id,
+        ];
+
+        return [
+            'resultLines' => [
+                new PayrollProposedResultLine(
+                    lineType: PayrollResultLine::TYPE_EMPLOYER_LEVY,
+                    code: 'my_hrd_levy',
+                    label: 'HRD Levy',
+                    amount: $this->moneyString($levyAmount),
+                    currency: $context->run->currency,
+                    sourceRule: $ruleSet->rule_key,
+                    sourceVersion: $ruleSet->source_version,
+                    explanation: $explanation + ['share' => 'employer'],
+                ),
+            ],
+            'warnings' => [],
+            'metadata' => [
+                'status' => 'calculated',
+                'wage_base' => $this->moneyString($wageUnits),
+                'rule_set_id' => $ruleSet->id,
+                'rule_row_id' => $row->id,
+                'levy_amount' => $this->moneyString($levyAmount),
+            ],
+        ];
+    }
+
+    private function statutoryWageUnits(PayrollCalculationContext $context): int
     {
         return $context->inputs->sum(function ($input) use ($context): int {
             $classification = $context->classifications[(string) $input->id]['statutory_wage_base']['value'] ?? null;
@@ -108,6 +237,45 @@ class MalaysiaPayrollCalculator implements CalculatesPayrollRun
 
             return $this->moneyUnits($input->amount);
         });
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function contributionDefinitions(): array
+    {
+        return [
+            [
+                'rule_key' => 'epf_contribution_schedule',
+                'metadata_key' => 'epf',
+                'employee_code' => 'my_epf_employee',
+                'employee_label' => 'EPF Employee Contribution',
+                'employer_code' => 'my_epf_employer',
+                'employer_label' => 'EPF Employer Contribution',
+                'missing_warning_code' => 'my_epf_rule_set_missing',
+                'missing_warning_message' => 'Malaysia EPF contribution schedule is not configured for this pay date.',
+            ],
+            [
+                'rule_key' => 'socso_contribution_schedule',
+                'metadata_key' => 'socso',
+                'employee_code' => 'my_socso_employee',
+                'employee_label' => 'SOCSO Employee Contribution',
+                'employer_code' => 'my_socso_employer',
+                'employer_label' => 'SOCSO Employer Contribution',
+                'missing_warning_code' => 'my_socso_rule_set_missing',
+                'missing_warning_message' => 'Malaysia SOCSO contribution schedule is not configured for this pay date.',
+            ],
+            [
+                'rule_key' => 'eis_contribution_schedule',
+                'metadata_key' => 'eis',
+                'employee_code' => 'my_eis_employee',
+                'employee_label' => 'EIS Employee Contribution',
+                'employer_code' => 'my_eis_employer',
+                'employer_label' => 'EIS Employer Contribution',
+                'missing_warning_code' => 'my_eis_rule_set_missing',
+                'missing_warning_message' => 'Malaysia EIS contribution schedule is not configured for this pay date.',
+            ],
+        ];
     }
 
     private function matchingRow($rows, int $wageUnits): ?PayrollStatutoryRuleRow

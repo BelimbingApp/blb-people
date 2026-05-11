@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Modules\People\Payroll\Database\Seeders\Dev;
 
 use App\Base\Database\Seeders\DevSeeder;
@@ -160,35 +161,71 @@ class DevPayrollSeeder extends DevSeeder
 
     private function seedStatutoryRuleSets(): void
     {
-        $epf = PayrollStatutoryRuleSet::query()->updateOrCreate(
+        $this->seedContributionRuleSet(
+            ruleKey: 'epf_contribution_schedule',
+            name: 'EPF contribution schedule — dev fixture',
+            rows: [
+                ['band-1', 10, '0.0000', '5000.0000', '0.11000000', '0.13000000'],
+                ['band-2', 20, '5000.0100', null, '0.11000000', '0.12000000'],
+            ],
+        );
+        $this->seedContributionRuleSet(
+            ruleKey: 'socso_contribution_schedule',
+            name: 'SOCSO contribution schedule — dev fixture',
+            rows: [
+                ['standard', 10, '0.0000', null, '0.00500000', '0.01750000'],
+            ],
+        );
+        $this->seedContributionRuleSet(
+            ruleKey: 'eis_contribution_schedule',
+            name: 'EIS contribution schedule — dev fixture',
+            rows: [
+                ['standard', 10, '0.0000', null, '0.00200000', '0.00200000'],
+            ],
+        );
+        $this->seedContributionRuleSet(
+            ruleKey: 'hrd_levy_schedule',
+            name: 'HRD levy schedule — dev fixture',
+            rows: [
+                ['standard', 10, '0.0000', null, null, null, '0.01000000'],
+            ],
+        );
+    }
+
+    /**
+     * @param  list<array{0: string, 1: int, 2: string, 3: string|null, 4: string|null, 5: string|null, 6?: string|null}>  $rows
+     */
+    private function seedContributionRuleSet(string $ruleKey, string $name, array $rows): void
+    {
+        $ruleSet = PayrollStatutoryRuleSet::query()->updateOrCreate(
             [
                 'country_iso' => 'MY',
-                'rule_key' => 'epf_contribution_schedule',
+                'rule_key' => $ruleKey,
                 'source_pack' => 'belimbing/payroll-my',
                 'source_version' => '2026.dev',
                 'effective_from' => '2026-01-01',
             ],
             [
-                'name' => 'EPF contribution schedule — dev fixture',
+                'name' => $name,
                 'effective_to' => null,
                 'rounding_policy' => ['mode' => 'ceiling', 'precision' => '0.01'],
                 'metadata' => ['scenario' => 'browser-demo', 'official' => false],
             ],
         );
 
-        $epf->rows()->delete();
-        foreach ([
-            ['band-1', 10, '0.0000', '5000.0000', '0.11000000', '0.13000000'],
-            ['band-2', 20, '5000.0100', null, '0.11000000', '0.12000000'],
-        ] as [$key, $order, $min, $max, $employeeRate, $employerRate]) {
+        $ruleSet->rows()->delete();
+        foreach ($rows as $row) {
+            [$key, $order, $min, $max, $employeeRate, $employerRate] = $row;
+
             PayrollStatutoryRuleRow::query()->create([
-                'payroll_statutory_rule_set_id' => $epf->id,
+                'payroll_statutory_rule_set_id' => $ruleSet->id,
                 'sort_order' => $order,
                 'row_key' => $key,
                 'min_wage' => $min,
                 'max_wage' => $max,
                 'employee_rate' => $employeeRate,
                 'employer_rate' => $employerRate,
+                'levy_rate' => $row[6] ?? null,
                 'row_data' => ['category' => 'standard-dev-fixture'],
             ]);
         }
