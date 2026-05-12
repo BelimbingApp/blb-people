@@ -1,12 +1,17 @@
 <?php
+
 namespace App\Modules\People\Employees\Livewire;
 
 use App\Base\Foundation\Livewire\Concerns\ResetsPaginationOnSearch;
 use App\Base\Foundation\Livewire\Concerns\TogglesSort;
 use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
+use App\Modules\People\Employees\Services\EmployeePayrollReadinessService;
+use App\Modules\People\Employees\Services\EmployeeWorkbenchQuery;
+use App\Modules\People\Settings\Models\PeopleReferenceEntry;
+use App\Modules\People\Settings\Models\PeopleSavedEmployeeView;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -18,6 +23,36 @@ class Index extends Component
 
     public string $search = '';
 
+    public string $status = '';
+
+    public string $companyId = '';
+
+    public string $organizationUnitId = '';
+
+    public string $costCenterId = '';
+
+    public string $employmentGroupId = '';
+
+    public string $jobTitleId = '';
+
+    public string $workforceClassId = '';
+
+    public string $jobGradeId = '';
+
+    public string $workCalendarId = '';
+
+    public string $payRateType = '';
+
+    public string $portalAccessStatus = '';
+
+    public string $readinessState = '';
+
+    public string $readinessBlocker = '';
+
+    public string $savedViewName = '';
+
+    public string $savedViewVisibility = 'private';
+
     public string $sortBy = 'full_name';
 
     public string $sortDir = 'asc';
@@ -27,7 +62,19 @@ class Index extends Component
         'company_name' => 'companies.name',
         'employee_type_label' => 'employee_types.label',
         'status' => 'employees.status',
+        'organization_unit_name' => 'organization_units.name',
+        'cost_center_name' => 'cost_centers.name',
+        'job_title_name' => 'job_titles.name',
+        'work_profile_pay_basis' => 'employee_work_profiles.pay_rate_type',
+        'portal_access_status' => 'employee_portal_accesses.status',
     ];
+
+    public function updated(string $property): void
+    {
+        if (in_array($property, $this->filterProperties(), true)) {
+            $this->resetPage();
+        }
+    }
 
     public function sort(string $column): void
     {
@@ -39,8 +86,89 @@ class Index extends Component
                 'company_name' => 'asc',
                 'employee_type_label' => 'asc',
                 'status' => 'asc',
+                'organization_unit_name' => 'asc',
+                'cost_center_name' => 'asc',
+                'job_title_name' => 'asc',
+                'work_profile_pay_basis' => 'asc',
+                'portal_access_status' => 'asc',
             ],
         );
+    }
+
+    public function clearFilters(): void
+    {
+        $this->reset([
+            'search',
+            'status',
+            'companyId',
+            'organizationUnitId',
+            'costCenterId',
+            'employmentGroupId',
+            'jobTitleId',
+            'workforceClassId',
+            'jobGradeId',
+            'workCalendarId',
+            'payRateType',
+            'portalAccessStatus',
+            'readinessState',
+            'readinessBlocker',
+        ]);
+
+        $this->resetPage();
+    }
+
+    public function saveCurrentView(): void
+    {
+        $validated = $this->validate([
+            'savedViewName' => ['required', 'string', 'max:255'],
+            'savedViewVisibility' => ['required', 'in:private,company'],
+        ]);
+
+        PeopleSavedEmployeeView::query()->updateOrCreate(
+            [
+                'company_id' => $this->currentCompanyId(),
+                'user_id' => Auth::id(),
+                'name' => $validated['savedViewName'],
+            ],
+            [
+                'visibility' => $validated['savedViewVisibility'],
+                'status' => 'active',
+                'filters' => $this->filters(),
+                'sort' => [
+                    'by' => $this->sortBy,
+                    'dir' => $this->sortDir,
+                ],
+                'metadata' => [
+                    'surface' => 'employee_workbench',
+                    'scope_company_id' => $this->currentCompanyId(),
+                ],
+            ],
+        );
+
+        $this->savedViewName = '';
+        session()->flash('success', __('Saved employee view updated.'));
+    }
+
+    public function applySavedView(int $viewId): void
+    {
+        $view = $this->savedViewsQuery()->findOrFail($viewId);
+        $filters = is_array($view->filters) ? $view->filters : [];
+        $sort = is_array($view->sort) ? $view->sort : [];
+
+        foreach ($this->filterProperties() as $property) {
+            $filterKey = $this->filterKeyForProperty($property);
+            $value = $filters[$filterKey] ?? '';
+            $this->{$property} = is_scalar($value) ? (string) $value : '';
+        }
+
+        $sortBy = (string) ($sort['by'] ?? '');
+        if (array_key_exists($sortBy, self::SORTABLE)) {
+            $this->sortBy = $sortBy;
+        }
+
+        $sortDir = strtolower((string) ($sort['dir'] ?? 'asc'));
+        $this->sortDir = $sortDir === 'desc' ? 'desc' : 'asc';
+        $this->resetPage();
     }
 
     public function statusVariant(string $status): string
@@ -54,50 +182,154 @@ class Index extends Component
         };
     }
 
-    public function render(): View
+    public function portalAccessVariant(?string $status): string
     {
-        $companyIds = $this->licenseeGroupIds();
+        return match ($status) {
+            'active' => 'success',
+            'pending' => 'warning',
+            'revoked' => 'danger',
+            null, '' => 'default',
+            default => 'default',
+        };
+    }
+
+    public function readinessVariant(string $state): string
+    {
+        return $state === EmployeePayrollReadinessService::STATE_READY ? 'success' : 'warning';
+    }
+
+    public function render(
+        EmployeeWorkbenchQuery $workbenchQuery,
+        EmployeePayrollReadinessService $readiness,
+    ): View {
+        $companyIds = $this->companyTreeIds();
+        $query = $workbenchQuery->build($companyIds);
+        $workbenchQuery->applyFilters($query, $this->filters(), $readiness);
+
         $sortColumn = self::SORTABLE[$this->sortBy] ?? 'employees.full_name';
+        $employees = $query
+            ->orderBy($sortColumn, $this->sortDir)
+            ->orderBy('employees.id')
+            ->paginate(15);
+
+        $employees->getCollection()->transform(function ($employee) use ($readiness) {
+            $employee->setAttribute('payroll_readiness', $readiness->summarize($employee));
+
+            return $employee;
+        });
 
         return view('livewire.people.employees.index', [
-            'employees' => Employee::query()
-                ->select('employees.*')
-                ->with('company', 'department.type', 'employeeType')
-                ->leftJoin('companies', 'employees.company_id', '=', 'companies.id')
-                ->leftJoin('employee_types', 'employees.employee_type', '=', 'employee_types.code')
-                ->whereIn('employees.company_id', $companyIds)
-                ->when($this->search !== '', function (Builder $query): void {
-                    $this->applySearch($query, $this->search);
-                })
-                ->orderBy($sortColumn, $this->sortDir)
-                ->orderByDesc('employees.id')
-                ->paginate(15),
+            'employees' => $employees,
+            'companies' => Company::query()
+                ->whereIn('id', $companyIds)
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'organizationUnits' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT),
+            'costCenters' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_COST_CENTER),
+            'employmentGroups' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_EMPLOYMENT_GROUP),
+            'jobTitles' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_JOB_TITLE),
+            'workforceClasses' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_WORKFORCE_CLASS),
+            'jobGrades' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_JOB_GRADE),
+            'workCalendars' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_WORK_CALENDAR),
+            'savedViews' => $this->savedViewsQuery()->get(),
+            'readinessBlockers' => EmployeePayrollReadinessService::blockerLabels(),
+            'exportUrl' => route('people.employees.export.csv', $this->filters()),
         ]);
     }
 
-    private function applySearch(Builder $query, string $search): void
+    /**
+     * @return array<string, string>
+     */
+    private function filters(): array
     {
-        $query->where(function (Builder $q) use ($search): void {
-            $q->where('employees.full_name', 'like', '%'.$search.'%')
-                ->orWhere('employees.short_name', 'like', '%'.$search.'%')
-                ->orWhere('employees.employee_number', 'like', '%'.$search.'%')
-                ->orWhere('employees.email', 'like', '%'.$search.'%')
-                ->orWhere('employees.designation', 'like', '%'.$search.'%');
-        });
+        return [
+            'search' => $this->search,
+            'status' => $this->status,
+            'company_id' => $this->companyId,
+            'organization_unit_id' => $this->organizationUnitId,
+            'cost_center_id' => $this->costCenterId,
+            'employment_group_id' => $this->employmentGroupId,
+            'job_title_id' => $this->jobTitleId,
+            'workforce_class_id' => $this->workforceClassId,
+            'job_grade_id' => $this->jobGradeId,
+            'work_calendar_id' => $this->workCalendarId,
+            'pay_rate_type' => $this->payRateType,
+            'portal_access_status' => $this->portalAccessStatus,
+            'readiness_state' => $this->readinessState,
+            'readiness_blocker' => $this->readinessBlocker,
+        ];
     }
 
     /**
-     * BFS over the licensee company tree.
-     *
-     * Returns the licensee company ID plus all descendant IDs so employees
-     * from subsidiaries are included without relying on recursive SQL.
-     *
+     * @return array<int, string>
+     */
+    private function filterProperties(): array
+    {
+        return [
+            'search',
+            'status',
+            'companyId',
+            'organizationUnitId',
+            'costCenterId',
+            'employmentGroupId',
+            'jobTitleId',
+            'workforceClassId',
+            'jobGradeId',
+            'workCalendarId',
+            'payRateType',
+            'portalAccessStatus',
+            'readinessState',
+            'readinessBlocker',
+        ];
+    }
+
+    private function filterKeyForProperty(string $property): string
+    {
+        return match ($property) {
+            'companyId' => 'company_id',
+            'organizationUnitId' => 'organization_unit_id',
+            'costCenterId' => 'cost_center_id',
+            'employmentGroupId' => 'employment_group_id',
+            'jobTitleId' => 'job_title_id',
+            'workforceClassId' => 'workforce_class_id',
+            'jobGradeId' => 'job_grade_id',
+            'workCalendarId' => 'work_calendar_id',
+            'payRateType' => 'pay_rate_type',
+            'portalAccessStatus' => 'portal_access_status',
+            'readinessState' => 'readiness_state',
+            'readinessBlocker' => 'readiness_blocker',
+            default => $property,
+        };
+    }
+
+    /**
+     * @return Builder<PeopleSavedEmployeeView>
+     */
+    private function savedViewsQuery(): Builder
+    {
+        return PeopleSavedEmployeeView::query()
+            ->where('company_id', $this->currentCompanyId())
+            ->where('status', 'active')
+            ->where(function (Builder $query): void {
+                $query->where('user_id', Auth::id())
+                    ->orWhere('visibility', 'company');
+            })
+            ->orderBy('visibility')
+            ->orderBy('name');
+    }
+
+    private function currentCompanyId(): int
+    {
+        return (int) (Auth::user()?->company_id ?? Company::LICENSEE_ID);
+    }
+
+    /**
      * @return list<int>
      */
-    private function licenseeGroupIds(): array
+    private function companyTreeIds(): array
     {
         $ids = [];
-        $queue = [Company::LICENSEE_ID];
+        $queue = [$this->currentCompanyId()];
 
         while ($queue !== []) {
             $batch = $queue;
@@ -112,6 +344,6 @@ class Index extends Component
             array_push($queue, ...$children);
         }
 
-        return $ids;
+        return array_values(array_unique($ids));
     }
 }

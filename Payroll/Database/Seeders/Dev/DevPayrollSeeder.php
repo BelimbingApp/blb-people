@@ -18,11 +18,13 @@ use App\Modules\People\Payroll\Models\PayrollRunParticipant;
 use App\Modules\People\Payroll\Models\PayrollStatutoryRuleRow;
 use App\Modules\People\Payroll\Models\PayrollStatutoryRuleSet;
 use App\Modules\People\Payroll\Services\PayrollRunCalculator;
+use App\Modules\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
 
 class DevPayrollSeeder extends DevSeeder
 {
     protected array $dependencies = [
         DevEmployeeSeeder::class,
+        DevPeopleSettingsSeeder::class,
     ];
 
     protected function seed(): void
