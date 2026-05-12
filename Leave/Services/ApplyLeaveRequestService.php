@@ -17,6 +17,7 @@ class ApplyLeaveRequestService
     public function __construct(
         private readonly LeaveBalanceLedgerService $ledger,
         private readonly LeavePayrollHandoffService $payrollHandoff,
+        private readonly LeaveNotificationDispatcher $notifications,
     ) {}
 
     public function apply(LeaveRequest $request, ?int $actorUserId = null): LeaveRequest
@@ -64,6 +65,8 @@ class ApplyLeaveRequestService
             if ($leaveType?->interacts_with_payroll) {
                 $this->payrollHandoff->onLeaveApplied($request, $entry);
             }
+
+            $this->notifications->dispatch(LeaveNotificationDispatcher::EVENT_APPLIED, $request);
 
             return $request;
         });

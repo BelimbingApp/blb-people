@@ -5,6 +5,8 @@ namespace App\Modules\People\Leave\Services;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveType;
 use App\Modules\People\Payroll\Models\PayrollInput;
+use App\Modules\People\Payroll\Models\PayrollRun;
+use App\Modules\People\Payroll\Models\PayrollRunParticipant;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -15,6 +17,11 @@ use RuntimeException;
  */
 class LeaveEncashmentService
 {
+    private const OPEN_RUN_STATUSES = [
+        PayrollRun::STATUS_DRAFT,
+        PayrollRun::STATUS_CALCULATED,
+    ];
+
     public function __construct(
         private readonly LeaveBalanceLedgerService $ledger,
     ) {}
@@ -44,6 +51,16 @@ class LeaveEncashmentService
 
         return DB::transaction(function () use ($companyId, $employeeId, $leaveTypeId, $leaveYear, $days, $actorUserId, $note, $currency): LeaveBalanceLedgerEntry {
             $leaveType = LeaveType::query()->findOrFail($leaveTypeId);
+            $run = $this->findOpenRunFor($companyId);
+
+            if ($run === null) {
+                throw new RuntimeException(sprintf(
+                    'Cannot encash leave for company %d without an open payroll run.',
+                    $companyId,
+                ));
+            }
+
+            $participant = $this->ensureParticipant($run, $employeeId);
 
             $entry = $this->ledger->record(
                 companyId: $companyId,
@@ -62,6 +79,8 @@ class LeaveEncashmentService
             );
 
             PayrollInput::query()->create([
+                'payroll_run_id' => $run->getKey(),
+                'payroll_run_participant_id' => $participant->getKey(),
                 'employee_id' => $employeeId,
                 'source_type' => 'leave_encashment',
                 'source_id' => $entry->getKey(),
@@ -70,7 +89,7 @@ class LeaveEncashmentService
                 'input_type' => PayrollInput::TYPE_EARNING,
                 'quantity' => $days,
                 'amount' => 0,
-                'currency' => $currency,
+                'currency' => $run->currency ?: $currency,
                 'occurred_on' => now(),
                 'metadata' => [
                     'leave_type_code' => $leaveType->code,
@@ -80,5 +99,34 @@ class LeaveEncashmentService
 
             return $entry;
         });
+    }
+
+    private function findOpenRunFor(int $companyId): ?PayrollRun
+    {
+        return PayrollRun::query()
+            ->where('company_id', $companyId)
+            ->whereIn('status', self::OPEN_RUN_STATUSES)
+            ->orderBy('id')
+            ->first();
+    }
+
+    private function ensureParticipant(PayrollRun $run, int $employeeId): PayrollRunParticipant
+    {
+        $participant = PayrollRunParticipant::query()
+            ->where('payroll_run_id', $run->getKey())
+            ->where('employee_id', $employeeId)
+            ->first();
+
+        if ($participant !== null) {
+            return $participant;
+        }
+
+        return PayrollRunParticipant::query()->create([
+            'payroll_run_id' => $run->getKey(),
+            'company_id' => $run->company_id,
+            'employee_id' => $employeeId,
+            'status' => 'included',
+            'currency' => $run->currency,
+        ]);
     }
 }

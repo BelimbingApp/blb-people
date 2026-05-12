@@ -4,6 +4,7 @@ namespace App\Modules\People\Leave\Services;
 
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
+use App\Modules\People\Leave\Models\LeaveRequest;
 use App\Modules\People\Leave\Models\LeaveRequestPolicy;
 
 /**
@@ -79,5 +80,26 @@ class LeaveBalanceLedgerService
             ->where('leave_year', $leaveYear)
             ->where('entry_type', LeaveBalanceLedgerEntry::ENTRY_TAKEN)
             ->sum('quantity'));
+    }
+
+    /**
+     * Encumbered = consumed balance plus active submitted/approved requests
+     * that have not yet been applied to the ledger.
+     */
+    public function encumberedFor(int $employeeId, int $leaveTypeId, int $leaveYear): float
+    {
+        $consumed = $this->consumedFor($employeeId, $leaveTypeId, $leaveYear);
+
+        $pending = (float) LeaveRequest::query()
+            ->where('employee_id', $employeeId)
+            ->where('leave_type_id', $leaveTypeId)
+            ->whereYear('starts_on', $leaveYear)
+            ->whereIn('status', [
+                LeaveRequest::STATUS_SUBMITTED,
+                LeaveRequest::STATUS_APPROVED,
+            ])
+            ->sum('quantity');
+
+        return $consumed + $pending;
     }
 }
