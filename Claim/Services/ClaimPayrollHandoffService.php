@@ -16,6 +16,10 @@ class ClaimPayrollHandoffService
         PayrollRun::STATUS_CALCULATED,
     ];
 
+    public function __construct(
+        private readonly ClaimNotificationDispatcher $notifications,
+    ) {}
+
     /**
      * @return array{eligible: int, queued: int, pending: int, skipped: int}
      */
@@ -65,6 +69,10 @@ class ClaimPayrollHandoffService
                 'reason' => 'queued_for_payroll',
                 'occurred_at' => now(),
                 'metadata' => $summary,
+            ]);
+
+            $this->notifications->dispatch(ClaimNotificationDispatcher::EVENT_PAYROLL_QUEUED, $request, $summary + [
+                'actor_user_id' => $actorUserId,
             ]);
         }
 

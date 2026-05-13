@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\DB;
 
 class RejectClaimRequestService
 {
+    public function __construct(
+        private readonly ClaimNotificationDispatcher $notifications,
+    ) {}
+
     public function reject(ClaimRequest $request, ?int $actorUserId = null, ?string $reason = null): ClaimRequest
     {
         if (! in_array($request->status, [ClaimRequest::STATUS_SUBMITTED, ClaimRequest::STATUS_RESUBMITTED], true)) {
@@ -31,7 +35,13 @@ class RejectClaimRequestService
                 'occurred_at' => now(),
             ]);
 
-            return $request->refresh();
+            $request = $request->refresh();
+            $this->notifications->dispatch(ClaimNotificationDispatcher::EVENT_REJECTED, $request, [
+                'actor_user_id' => $actorUserId,
+                'reason' => $reason,
+            ]);
+
+            return $request;
         });
     }
 }

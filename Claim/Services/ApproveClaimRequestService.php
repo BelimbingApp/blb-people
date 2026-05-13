@@ -12,6 +12,7 @@ class ApproveClaimRequestService
 {
     public function __construct(
         private readonly ClaimPayrollHandoffService $payrollHandoff,
+        private readonly ClaimNotificationDispatcher $notifications,
     ) {}
 
     public function approve(ClaimRequest $request, ?int $actorUserId = null, ?string $reason = null): ClaimRequest
@@ -60,6 +61,11 @@ class ApproveClaimRequestService
                 'reason' => $reason,
                 'occurred_at' => now(),
                 'metadata' => ['approved_amount' => $request->approved_amount],
+            ]);
+
+            $this->notifications->dispatch(ClaimNotificationDispatcher::EVENT_APPROVED, $request, [
+                'actor_user_id' => $actorUserId,
+                'reason' => $reason,
             ]);
 
             $this->payrollHandoff->queueApprovedRequest($request, $actorUserId);

@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\DB;
 
 class RequestClaimMoreInfoService
 {
+    public function __construct(
+        private readonly ClaimNotificationDispatcher $notifications,
+    ) {}
+
     public function requestMoreInfo(ClaimRequest $request, ?int $actorUserId = null, ?string $reason = null): ClaimRequest
     {
         if (! in_array($request->status, [ClaimRequest::STATUS_SUBMITTED, ClaimRequest::STATUS_RESUBMITTED], true)) {
@@ -31,7 +35,13 @@ class RequestClaimMoreInfoService
                 'metadata' => ['action' => 'request_more_info'],
             ]);
 
-            return $request->refresh();
+            $request = $request->refresh();
+            $this->notifications->dispatch(ClaimNotificationDispatcher::EVENT_MORE_INFO, $request, [
+                'actor_user_id' => $actorUserId,
+                'reason' => $reason,
+            ]);
+
+            return $request;
         });
     }
 }

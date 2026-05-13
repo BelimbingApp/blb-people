@@ -659,6 +659,12 @@ class Index extends Component
             'surface' => $this->surface,
             'surfaceTitle' => $surfaceTitle,
             'surfaceSubtitle' => $surfaceSubtitle,
+            'operationsExportUrl' => route('people.claim.operations.export.csv', [
+                'search' => $this->search,
+                'status' => $this->operationsStatus,
+                'risk' => $this->operationsRisk,
+                'payroll' => $this->operationsPayroll,
+            ]),
             'canManage' => $canManage,
             'canApprove' => $canApprove,
             'currentEmployeeId' => $currentEmployeeId,

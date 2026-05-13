@@ -19,6 +19,7 @@ class SubmitClaimRequestService
     public function __construct(
         private readonly ClaimPolicyEvaluationService $policyEvaluation,
         private readonly ClaimDuplicateRiskService $duplicateRisks,
+        private readonly ClaimNotificationDispatcher $notifications,
     ) {}
 
     /**
@@ -150,7 +151,12 @@ class SubmitClaimRequestService
                 'metadata' => ['requested_amount' => $requestedAmount],
             ]);
 
-            return $request->refresh();
+            $request = $request->refresh();
+            $this->notifications->dispatch(ClaimNotificationDispatcher::EVENT_SUBMITTED, $request, [
+                'submitted_by_user_id' => $options['submitted_by_user_id'] ?? null,
+            ]);
+
+            return $request;
         });
     }
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\People\Claim\Http\Controllers\ClaimOperationsExportController;
 use App\Modules\People\Claim\Livewire\Index;
 use Illuminate\Support\Facades\Route;
 
@@ -18,6 +19,9 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('people/claims/operations', Index::class)
             ->defaults('surface', 'operations')
             ->name('people.claim.operations');
+
+        Route::get('people/claims/operations/export.csv', ClaimOperationsExportController::class)
+            ->name('people.claim.operations.export.csv');
 
         Route::get('people/claims/settings', Index::class)
             ->defaults('surface', 'settings')
