@@ -82,6 +82,54 @@ class PayrollContributionIntake
     }
 
     /**
+     * Materialise all pending contributions whose period_anchor falls inside the
+     * given run's period. Called automatically when a PayrollRun is created
+     * (model `created` event) and exposed via the `payroll:materialize-pending`
+     * Artisan command for safety-net scheduling.
+     *
+     * Returns a summary count of materialisations per state transition.
+     *
+     * @return array{candidates: int, materialised: int, rejected_locked: int, skipped: int}
+     */
+    public function materializePendingForRun(PayrollRun $run): array
+    {
+        $run->loadMissing('period');
+        $period = $run->period;
+        if ($period === null) {
+            return ['candidates' => 0, 'materialised' => 0, 'rejected_locked' => 0, 'skipped' => 0];
+        }
+
+        $candidates = PayrollPendingContribution::query()
+            ->where('company_id', $run->company_id)
+            ->where('state', PayrollContributionState::PENDING)
+            ->whereDate('period_anchor', '>=', $period->starts_on)
+            ->whereDate('period_anchor', '<=', $period->ends_on)
+            ->get();
+
+        $materialised = 0;
+        $rejected = 0;
+        $skipped = 0;
+
+        foreach ($candidates as $pending) {
+            $payload = $this->payloadFromPending($pending);
+            $outcome = $this->ingest($payload);
+
+            match (true) {
+                $outcome->isMaterialized() => $materialised++,
+                $outcome->isRejected() => $rejected++,
+                default => $skipped++,
+            };
+        }
+
+        return [
+            'candidates' => $candidates->count(),
+            'materialised' => $materialised,
+            'rejected_locked' => $rejected,
+            'skipped' => $skipped,
+        ];
+    }
+
+    /**
      * Reverse a previously ingested contribution by composite key.
      *
      * - pending row not yet materialized → marked reversed, no PayrollInput touched.
@@ -300,5 +348,33 @@ class PayrollContributionIntake
     private function isUniqueViolation(Throwable $e): bool
     {
         return $e instanceof QueryException && (string) $e->getCode() === '23000';
+    }
+
+    private function payloadFromPending(PayrollPendingContribution $pending): PayrollContributionPayload
+    {
+        $anchor = $pending->period_anchor instanceof \DateTimeInterface
+            ? \DateTimeImmutable::createFromInterface($pending->period_anchor)
+            : new \DateTimeImmutable((string) $pending->period_anchor);
+        $occurred = $pending->occurred_on instanceof \DateTimeInterface
+            ? \DateTimeImmutable::createFromInterface($pending->occurred_on)
+            : new \DateTimeImmutable((string) $pending->occurred_on);
+
+        return new PayrollContributionPayload(
+            sourceType: (string) $pending->source_type,
+            sourceId: (int) $pending->source_id,
+            payItemCode: (string) $pending->pay_item_code,
+            periodAnchor: $anchor,
+            companyId: (int) $pending->company_id,
+            employeeId: (int) $pending->employee_id,
+            currency: (string) $pending->currency,
+            occurredOn: $occurred,
+            inputType: (string) $pending->input_type,
+            amount: $pending->amount !== null ? (float) $pending->amount : null,
+            quantity: $pending->quantity !== null ? (float) $pending->quantity : null,
+            rate: $pending->rate !== null ? (float) $pending->rate : null,
+            label: (string) $pending->label,
+            accountingSnapshot: is_array($pending->accounting_snapshot) ? $pending->accounting_snapshot : [],
+            metadata: is_array($pending->metadata) ? $pending->metadata : [],
+        );
     }
 }

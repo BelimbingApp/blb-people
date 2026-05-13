@@ -24,6 +24,16 @@ class PayrollRun extends Model
 
     protected $table = 'people_payroll_runs';
 
+    protected static function booted(): void
+    {
+        static::created(function (PayrollRun $run): void {
+            // Materialise any pending payroll contributions whose period_anchor
+            // falls inside the new run's period. See docs/architecture/payroll-intake.md.
+            app(\App\Modules\People\Payroll\Services\PayrollContributionIntake::class)
+                ->materializePendingForRun($run);
+        });
+    }
+
     /**
      * @var array<int, string>
      */
