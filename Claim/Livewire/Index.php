@@ -35,6 +35,8 @@ class Index extends Component
 
     public string $search = '';
 
+    public string $operationsStatus = '';
+
     public string $categoryCode = '';
 
     public string $categoryName = '';
@@ -139,7 +141,7 @@ class Index extends Component
 
     public function mount(?string $surface = null, ?string $section = null): void
     {
-        $this->surface = in_array($surface, ['my', 'approvals', 'settings'], true) ? $surface : 'my';
+        $this->surface = in_array($surface, ['my', 'approvals', 'operations', 'settings'], true) ? $surface : 'my';
 
         if ($this->surface === 'settings') {
             $allowed = ['categories', 'types', 'policies', 'assignments', 'contexts'];
@@ -147,6 +149,7 @@ class Index extends Component
         } else {
             $this->tab = match ($this->surface) {
                 'approvals' => 'approvals',
+                'operations' => 'operations',
                 default => 'submit',
             };
         }
@@ -159,6 +162,7 @@ class Index extends Component
     {
         return match ($this->surface) {
             'approvals' => ['approvals'],
+            'operations' => ['operations'],
             'settings' => [$this->tab],
             default => ['submit'],
         };
@@ -556,6 +560,7 @@ class Index extends Component
 
         $surfaceTitle = match ($this->surface) {
             'approvals' => __('Claim Approvals'),
+            'operations' => __('Claim Operations'),
             'settings' => $settingsSectionTitle[$this->tab] ?? __('Claim Settings'),
             default => __('My Claims'),
         };
@@ -570,6 +575,7 @@ class Index extends Component
 
         $surfaceSubtitle = match ($this->surface) {
             'approvals' => __('Review submitted claims, inspect line evidence and risks, then approve or reject.'),
+            'operations' => __('Search claim requests, monitor duplicate risks, and track payroll handoff readiness.'),
             'settings' => $settingsSectionSubtitle[$this->tab] ?? __('Configure claim setup and SBG migration references.'),
             default => __('Submit reimbursement claims, track approval status, and review payroll handoff readiness.'),
         };
@@ -592,6 +598,24 @@ class Index extends Component
             ->limit(50)
             ->get();
 
+        $operationsRequests = ClaimRequest::query()
+            ->where('company_id', $companyId)
+            ->with(['employee', 'lines.type'])
+            ->when($this->operationsStatus !== '', fn ($query) => $query->where('status', $this->operationsStatus))
+            ->when($search !== '', fn ($query) => $query->where(function ($query) use ($search): void {
+                $query->where('reference_number', 'like', "%{$search}%")
+                    ->orWhereHas('employee', fn ($employeeQuery) => $employeeQuery
+                        ->where('employee_number', 'like', "%{$search}%")
+                        ->orWhere('full_name', 'like', "%{$search}%"))
+                    ->orWhereHas('lines', fn ($lineQuery) => $lineQuery
+                        ->where('receipt_number', 'like', "%{$search}%")
+                        ->orWhere('provider_name', 'like', "%{$search}%"));
+            }))
+            ->latest('submitted_at')
+            ->latest('id')
+            ->limit(100)
+            ->get();
+
         $selectedRequest = $this->selectedRequestId !== null
             ? ClaimRequest::query()
                 ->where('company_id', $companyId)
@@ -608,6 +632,8 @@ class Index extends Component
             'currentEmployeeId' => $currentEmployeeId,
             'myRequests' => $myRequests,
             'pendingRequests' => $pendingRequests,
+            'operationsRequests' => $operationsRequests,
+            'claimStatusOptions' => $this->claimStatusOptions(),
             'selectedRequest' => $selectedRequest,
             'categories' => ClaimCategory::query()
                 ->where('company_id', $companyId)
@@ -676,6 +702,24 @@ class Index extends Component
     private function companyId(): int
     {
         return auth()->user()?->company_id ?? Company::LICENSEE_ID;
+    }
+
+    /** @return array<string, string> */
+    private function claimStatusOptions(): array
+    {
+        return [
+            ClaimRequest::STATUS_DRAFT => __('Draft'),
+            ClaimRequest::STATUS_SUBMITTED => __('Submitted'),
+            ClaimRequest::STATUS_NEEDS_MORE_INFO => __('Needs more info'),
+            ClaimRequest::STATUS_RESUBMITTED => __('Resubmitted'),
+            ClaimRequest::STATUS_APPROVED => __('Approved'),
+            ClaimRequest::STATUS_REJECTED => __('Rejected'),
+            ClaimRequest::STATUS_WITHDRAWN => __('Withdrawn'),
+            ClaimRequest::STATUS_CANCELLED => __('Cancelled'),
+            ClaimRequest::STATUS_QUEUED_FOR_PAYROLL => __('Queued for payroll'),
+            ClaimRequest::STATUS_REIMBURSED => __('Reimbursed'),
+            ClaimRequest::STATUS_SETTLED => __('Settled'),
+        ];
     }
 
     private function currentEmployeeId(): ?int

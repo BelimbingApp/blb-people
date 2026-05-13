@@ -15,6 +15,10 @@ Route::middleware(['auth'])->group(function (): void {
         ->name('people.claim.approvals');
 
     Route::middleware('authz:people.claim.manage')->group(function (): void {
+        Route::get('people/claims/operations', Index::class)
+            ->defaults('surface', 'operations')
+            ->name('people.claim.operations');
+
         Route::get('people/claims/settings', Index::class)
             ->defaults('surface', 'settings')
             ->defaults('section', 'categories')

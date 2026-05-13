@@ -25,6 +25,14 @@ return [
             'parent' => 'people.claim',
         ],
         [
+            'id' => 'people.claim.operations',
+            'label' => 'Claim Operations',
+            'icon' => 'heroicon-o-clipboard-document-check',
+            'route' => 'people.claim.operations',
+            'permission' => 'people.claim.manage',
+            'parent' => 'people.claim',
+        ],
+        [
             'id' => 'people.claim.settings',
             'label' => 'Claim Settings',
             'icon' => 'heroicon-o-cog-6-tooth',
