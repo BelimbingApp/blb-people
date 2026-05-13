@@ -11,18 +11,9 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('payroll_employer_statutory_profiles', function (Blueprint $table): void {
-            $table->id();
+        $this->createRegisteredTable('payroll_employer_statutory_profiles', function (Blueprint $table): void {
+            $this->addCommonStatutoryProfileColumns($table);
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
-            $table->char('country_iso', 2);
-            $table->string('source_pack');
-            $table->string('source_version');
-            $table->date('effective_from');
-            $table->date('effective_to')->nullable();
-            $table->json('profile_data');
-            $table->json('validation_messages')->nullable();
-            $table->json('metadata')->nullable();
-            $table->timestamps();
 
             $table->index([
                 'company_id',
@@ -31,21 +22,11 @@ return new class extends Migration
                 'effective_to',
             ], 'payroll_employer_statutory_profiles_effective_index');
         });
-        $this->registerTable('payroll_employer_statutory_profiles');
 
-        Schema::create('payroll_employee_statutory_profiles', function (Blueprint $table): void {
-            $table->id();
+        $this->createRegisteredTable('payroll_employee_statutory_profiles', function (Blueprint $table): void {
+            $this->addCommonStatutoryProfileColumns($table);
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
             $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
-            $table->char('country_iso', 2);
-            $table->string('source_pack');
-            $table->string('source_version');
-            $table->date('effective_from');
-            $table->date('effective_to')->nullable();
-            $table->json('profile_data');
-            $table->json('validation_messages')->nullable();
-            $table->json('metadata')->nullable();
-            $table->timestamps();
 
             $table->index([
                 'employee_id',
@@ -55,15 +36,36 @@ return new class extends Migration
             ], 'payroll_employee_statutory_profiles_effective_index');
             $table->index(['company_id', 'country_iso'], 'payroll_employee_statutory_profiles_company_country_index');
         });
-        $this->registerTable('payroll_employee_statutory_profiles');
     }
 
     public function down(): void
     {
-        $this->unregisterTable('payroll_employee_statutory_profiles');
-        $this->unregisterTable('payroll_employer_statutory_profiles');
+        foreach (['payroll_employee_statutory_profiles', 'payroll_employer_statutory_profiles'] as $tableName) {
+            $this->unregisterTable($tableName);
+            Schema::dropIfExists($tableName);
+        }
+    }
 
-        Schema::dropIfExists('payroll_employee_statutory_profiles');
-        Schema::dropIfExists('payroll_employer_statutory_profiles');
+    private function addCommonStatutoryProfileColumns(Blueprint $table): void
+    {
+        $table->id();
+        $table->char('country_iso', 2);
+        $table->string('source_pack');
+        $table->string('source_version');
+        $table->date('effective_from');
+        $table->date('effective_to')->nullable();
+        $table->json('profile_data');
+        $table->json('validation_messages')->nullable();
+        $table->json('metadata')->nullable();
+        $table->timestamps();
+    }
+
+    /**
+     * @param  callable(Blueprint):void  $blueprint
+     */
+    private function createRegisteredTable(string $tableName, callable $blueprint): void
+    {
+        Schema::create($tableName, $blueprint);
+        $this->registerTable($tableName);
     }
 };

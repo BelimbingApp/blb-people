@@ -11,7 +11,7 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('payroll_pay_items', function (Blueprint $table): void {
+        $this->createRegisteredTable('payroll_pay_items', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->nullable()->constrained('companies')->cascadeOnDelete();
             $table->string('code');
@@ -24,9 +24,8 @@ return new class extends Migration
             $table->unique(['company_id', 'code']);
             $table->index(['company_id', 'status']);
         });
-        $this->registerTable('payroll_pay_items');
 
-        Schema::create('payroll_pay_item_classifications', function (Blueprint $table): void {
+        $this->createRegisteredTable('payroll_pay_item_classifications', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('payroll_pay_item_id')->constrained('payroll_pay_items')->cascadeOnDelete();
             $table->char('country_iso', 2)->nullable();
@@ -53,15 +52,22 @@ return new class extends Migration
                 'effective_to',
             ], 'payroll_pay_item_classifications_effective_index');
         });
-        $this->registerTable('payroll_pay_item_classifications');
     }
 
     public function down(): void
     {
-        $this->unregisterTable('payroll_pay_item_classifications');
-        $this->unregisterTable('payroll_pay_items');
+        foreach (['payroll_pay_item_classifications', 'payroll_pay_items'] as $tableName) {
+            $this->unregisterTable($tableName);
+            Schema::dropIfExists($tableName);
+        }
+    }
 
-        Schema::dropIfExists('payroll_pay_item_classifications');
-        Schema::dropIfExists('payroll_pay_items');
+    /**
+     * @param  callable(Blueprint):void  $blueprint
+     */
+    private function createRegisteredTable(string $tableName, callable $blueprint): void
+    {
+        Schema::create($tableName, $blueprint);
+        $this->registerTable($tableName);
     }
 };
