@@ -16,7 +16,7 @@ class AttendanceRosterPattern extends Model
 
     public const STATUS_PUBLISHED = 'published';
 
-    protected $table = 'attendance_roster_patterns';
+    protected $table = 'people_attendance_roster_patterns';
 
     protected $fillable = [
         'company_id',

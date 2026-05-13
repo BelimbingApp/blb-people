@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LeaveRequestPolicy extends Model
 {
-    protected $table = 'leave_request_policies';
+    protected $table = 'people_leave_request_policies';
 
     /** @var list<string> */
     protected $fillable = [

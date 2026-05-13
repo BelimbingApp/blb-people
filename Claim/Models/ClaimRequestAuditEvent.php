@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClaimRequestAuditEvent extends Model
 {
-    protected $table = 'claim_request_audit_events';
+    protected $table = 'people_claim_request_audit_events';
 
     /** @var list<string> */
     protected $fillable = [

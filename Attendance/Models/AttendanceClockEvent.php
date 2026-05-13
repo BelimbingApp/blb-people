@@ -25,7 +25,7 @@ class AttendanceClockEvent extends Model
 
     public const SOURCE_IMPORT = 'import';
 
-    protected $table = 'attendance_clock_events';
+    protected $table = 'people_attendance_clock_events';
 
     protected $fillable = [
         'company_id',

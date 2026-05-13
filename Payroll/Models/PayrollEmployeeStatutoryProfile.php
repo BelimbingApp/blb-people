@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PayrollEmployeeStatutoryProfile extends Model
 {
-    protected $table = 'payroll_employee_statutory_profiles';
+    protected $table = 'people_payroll_employee_statutory_profiles';
 
     /**
      * @var array<int, string>

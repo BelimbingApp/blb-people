@@ -15,7 +15,7 @@ class AttendanceAbsenceBatch extends Model
 
     public const STATUS_FINALIZED = 'finalized';
 
-    protected $table = 'attendance_absence_batches';
+    protected $table = 'people_attendance_absence_batches';
 
     protected $fillable = [
         'company_id',

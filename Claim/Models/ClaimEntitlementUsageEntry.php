@@ -16,7 +16,7 @@ class ClaimEntitlementUsageEntry extends Model
     public const ENTRY_RELEASED = 'released';
     public const ENTRY_REVERSED = 'reversed';
 
-    protected $table = 'claim_entitlement_usage_entries';
+    protected $table = 'people_claim_entitlement_usage_entries';
 
     /** @var list<string> */
     protected $fillable = [

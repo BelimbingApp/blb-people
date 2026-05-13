@@ -8,14 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('payroll_pdf_artifacts', function (Blueprint $table): void {
+        Schema::table('people_payroll_pdf_artifacts', function (Blueprint $table): void {
             $table->dropUnique(['disk', 'path']);
         });
     }
 
     public function down(): void
     {
-        Schema::table('payroll_pdf_artifacts', function (Blueprint $table): void {
+        Schema::table('people_payroll_pdf_artifacts', function (Blueprint $table): void {
             $table->unique(['disk', 'path']);
         });
     }

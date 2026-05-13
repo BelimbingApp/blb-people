@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClaimPolicyBand extends Model
 {
-    protected $table = 'claim_policy_bands';
+    protected $table = 'people_claim_policy_bands';
 
     /** @var list<string> */
     protected $fillable = [

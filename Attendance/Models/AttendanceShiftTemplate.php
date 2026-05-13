@@ -13,7 +13,7 @@ class AttendanceShiftTemplate extends Model
 
     public const STATUS_INACTIVE = 'inactive';
 
-    protected $table = 'attendance_shift_templates';
+    protected $table = 'people_attendance_shift_templates';
 
     protected $fillable = [
         'company_id',

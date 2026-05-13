@@ -22,7 +22,7 @@ class PayrollRun extends Model
 
     public const STATUS_VOIDED = 'voided';
 
-    protected $table = 'payroll_runs';
+    protected $table = 'people_payroll_runs';
 
     /**
      * @var array<int, string>

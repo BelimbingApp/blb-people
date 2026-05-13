@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PayrollStatutoryRuleRow extends Model
 {
-    protected $table = 'payroll_statutory_rule_rows';
+    protected $table = 'people_payroll_statutory_rule_rows';
 
     /**
      * @var array<int, string>

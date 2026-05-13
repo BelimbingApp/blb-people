@@ -11,7 +11,7 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('claim_categories', function (Blueprint $table): void {
+        Schema::create('people_claim_categories', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->nullable()->constrained('companies')->cascadeOnDelete();
             $table->string('code');
@@ -27,12 +27,12 @@ return new class extends Migration
             $table->unique(['company_id', 'code']);
             $table->index(['company_id', 'status']);
         });
-        $this->registerTable('claim_categories');
+        $this->registerTable('people_claim_categories');
 
-        Schema::create('claim_types', function (Blueprint $table): void {
+        Schema::create('people_claim_types', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->nullable()->constrained('companies')->cascadeOnDelete();
-            $table->foreignId('claim_category_id')->nullable()->constrained('claim_categories')->nullOnDelete();
+            $table->foreignId('claim_category_id')->nullable()->constrained('people_claim_categories')->nullOnDelete();
             $table->string('code');
             $table->string('name');
             $table->string('default_unit')->default('amount');
@@ -62,9 +62,9 @@ return new class extends Migration
             $table->index(['company_id', 'claim_category_id', 'status']);
             $table->index(['company_id', 'payroll_pay_item_code']);
         });
-        $this->registerTable('claim_types');
+        $this->registerTable('people_claim_types');
 
-        Schema::create('claim_policies', function (Blueprint $table): void {
+        Schema::create('people_claim_policies', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
             $table->string('code');
@@ -92,11 +92,11 @@ return new class extends Migration
             $table->unique(['company_id', 'code']);
             $table->index(['company_id', 'item_mode', 'effective_from']);
         });
-        $this->registerTable('claim_policies');
+        $this->registerTable('people_claim_policies');
 
-        Schema::create('claim_policy_bands', function (Blueprint $table): void {
+        Schema::create('people_claim_policy_bands', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('claim_policy_id')->constrained('claim_policies')->cascadeOnDelete();
+            $table->foreignId('claim_policy_id')->constrained('people_claim_policies')->cascadeOnDelete();
             $table->string('logical_operator')->default('<=');
             $table->decimal('threshold_value', 12, 4)->nullable();
             $table->decimal('rate', 12, 4)->default(0);
@@ -110,9 +110,9 @@ return new class extends Migration
 
             $table->index(['claim_policy_id', 'sort_order']);
         });
-        $this->registerTable('claim_policy_bands');
+        $this->registerTable('people_claim_policy_bands');
 
-        Schema::create('claim_contexts', function (Blueprint $table): void {
+        Schema::create('people_claim_contexts', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
             $table->string('code');
@@ -128,9 +128,9 @@ return new class extends Migration
             $table->unique(['company_id', 'code']);
             $table->index(['company_id', 'status']);
         });
-        $this->registerTable('claim_contexts');
+        $this->registerTable('people_claim_contexts');
 
-        Schema::create('claim_assignments', function (Blueprint $table): void {
+        Schema::create('people_claim_assignments', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
             $table->string('code');
@@ -148,13 +148,13 @@ return new class extends Migration
             $table->unique(['company_id', 'code']);
             $table->index(['company_id', 'status', 'effective_from']);
         });
-        $this->registerTable('claim_assignments');
+        $this->registerTable('people_claim_assignments');
 
-        Schema::create('claim_assignment_lines', function (Blueprint $table): void {
+        Schema::create('people_claim_assignment_lines', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('claim_assignment_id')->constrained('claim_assignments')->cascadeOnDelete();
-            $table->foreignId('claim_type_id')->constrained('claim_types')->cascadeOnDelete();
-            $table->foreignId('claim_policy_id')->constrained('claim_policies')->cascadeOnDelete();
+            $table->foreignId('claim_assignment_id')->constrained('people_claim_assignments')->cascadeOnDelete();
+            $table->foreignId('claim_type_id')->constrained('people_claim_types')->cascadeOnDelete();
+            $table->foreignId('claim_policy_id')->constrained('people_claim_policies')->cascadeOnDelete();
             $table->string('combine_tag')->nullable();
             $table->boolean('uses_combined_cap')->default(false);
             $table->boolean('hidden_from_application')->default(false);
@@ -166,14 +166,14 @@ return new class extends Migration
             $table->unique(['claim_assignment_id', 'claim_type_id']);
             $table->index(['claim_assignment_id', 'status', 'sort_order']);
         });
-        $this->registerTable('claim_assignment_lines');
+        $this->registerTable('people_claim_assignment_lines');
 
-        Schema::create('claim_requests', function (Blueprint $table): void {
+        Schema::create('people_claim_requests', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies');
             $table->foreignId('employee_id')->constrained('employees');
-            $table->foreignId('claim_assignment_id')->nullable()->constrained('claim_assignments')->nullOnDelete();
-            $table->foreignId('claim_context_id')->nullable()->constrained('claim_contexts')->nullOnDelete();
+            $table->foreignId('claim_assignment_id')->nullable()->constrained('people_claim_assignments')->nullOnDelete();
+            $table->foreignId('claim_context_id')->nullable()->constrained('people_claim_contexts')->nullOnDelete();
             $table->string('reference_number')->nullable()->index();
             $table->string('status')->default('draft')->index();
             $table->string('currency', 3)->default('MYR');
@@ -201,14 +201,14 @@ return new class extends Migration
             $table->index(['company_id', 'employee_id', 'status']);
             $table->index(['company_id', 'status', 'submitted_at']);
         });
-        $this->registerTable('claim_requests');
+        $this->registerTable('people_claim_requests');
 
-        Schema::create('claim_lines', function (Blueprint $table): void {
+        Schema::create('people_claim_lines', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('claim_request_id')->constrained('claim_requests')->cascadeOnDelete();
-            $table->foreignId('claim_type_id')->constrained('claim_types');
-            $table->foreignId('claim_policy_id')->nullable()->constrained('claim_policies')->nullOnDelete();
-            $table->foreignId('claim_assignment_line_id')->nullable()->constrained('claim_assignment_lines')->nullOnDelete();
+            $table->foreignId('claim_request_id')->constrained('people_claim_requests')->cascadeOnDelete();
+            $table->foreignId('claim_type_id')->constrained('people_claim_types');
+            $table->foreignId('claim_policy_id')->nullable()->constrained('people_claim_policies')->nullOnDelete();
+            $table->foreignId('claim_assignment_line_id')->nullable()->constrained('people_claim_assignment_lines')->nullOnDelete();
             $table->date('incurred_on');
             $table->string('description')->nullable();
             $table->string('unit')->default('amount');
@@ -234,15 +234,15 @@ return new class extends Migration
             $table->index(['claim_type_id', 'incurred_on']);
             $table->index(['receipt_number']);
         });
-        $this->registerTable('claim_lines');
+        $this->registerTable('people_claim_lines');
 
-        Schema::create('claim_entitlement_usage_entries', function (Blueprint $table): void {
+        Schema::create('people_claim_entitlement_usage_entries', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies');
             $table->foreignId('employee_id')->constrained('employees');
-            $table->foreignId('claim_type_id')->constrained('claim_types');
-            $table->foreignId('claim_policy_id')->nullable()->constrained('claim_policies')->nullOnDelete();
-            $table->foreignId('claim_line_id')->nullable()->constrained('claim_lines')->nullOnDelete();
+            $table->foreignId('claim_type_id')->constrained('people_claim_types');
+            $table->foreignId('claim_policy_id')->nullable()->constrained('people_claim_policies')->nullOnDelete();
+            $table->foreignId('claim_line_id')->nullable()->constrained('people_claim_lines')->nullOnDelete();
             $table->unsignedSmallInteger('claim_year');
             $table->string('entry_type');
             $table->decimal('amount', 12, 2);
@@ -258,11 +258,11 @@ return new class extends Migration
             $table->index(['company_id', 'occurred_on']);
             $table->index(['source_type', 'source_id']);
         });
-        $this->registerTable('claim_entitlement_usage_entries');
+        $this->registerTable('people_claim_entitlement_usage_entries');
 
-        Schema::create('claim_request_audit_events', function (Blueprint $table): void {
+        Schema::create('people_claim_request_audit_events', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('claim_request_id')->constrained('claim_requests')->cascadeOnDelete();
+            $table->foreignId('claim_request_id')->constrained('people_claim_requests')->cascadeOnDelete();
             $table->string('from_status')->nullable();
             $table->string('to_status');
             $table->foreignId('actor_user_id')->nullable()->constrained('users')->nullOnDelete();
@@ -273,23 +273,23 @@ return new class extends Migration
 
             $table->index(['claim_request_id', 'occurred_at']);
         });
-        $this->registerTable('claim_request_audit_events');
+        $this->registerTable('people_claim_request_audit_events');
     }
 
     public function down(): void
     {
         foreach ([
-            'claim_request_audit_events',
-            'claim_entitlement_usage_entries',
-            'claim_lines',
-            'claim_requests',
-            'claim_assignment_lines',
-            'claim_assignments',
-            'claim_contexts',
-            'claim_policy_bands',
-            'claim_policies',
-            'claim_types',
-            'claim_categories',
+            'people_claim_request_audit_events',
+            'people_claim_entitlement_usage_entries',
+            'people_claim_lines',
+            'people_claim_requests',
+            'people_claim_assignment_lines',
+            'people_claim_assignments',
+            'people_claim_contexts',
+            'people_claim_policy_bands',
+            'people_claim_policies',
+            'people_claim_types',
+            'people_claim_categories',
         ] as $table) {
             $this->unregisterTable($table);
             Schema::dropIfExists($table);

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LeaveAssignment extends Model
 {
-    protected $table = 'leave_assignments';
+    protected $table = 'people_leave_assignments';
 
     /** @var list<string> */
     protected $fillable = [

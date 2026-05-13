@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PayrollRunAuditEvent extends Model
 {
-    protected $table = 'payroll_run_audit_events';
+    protected $table = 'people_payroll_run_audit_events';
 
     /**
      * @var array<int, string>

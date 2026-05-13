@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PayrollRunParticipant extends Model
 {
-    protected $table = 'payroll_run_participants';
+    protected $table = 'people_payroll_run_participants';
 
     protected static function booted(): void
     {

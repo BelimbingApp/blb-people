@@ -22,7 +22,7 @@ class ClaimRequest extends Model
     public const STATUS_REIMBURSED = 'reimbursed';
     public const STATUS_SETTLED = 'settled';
 
-    protected $table = 'claim_requests';
+    protected $table = 'people_claim_requests';
 
     /** @var list<string> */
     protected $fillable = [

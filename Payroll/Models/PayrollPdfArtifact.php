@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PayrollPdfArtifact extends Model
 {
-    protected $table = 'payroll_pdf_artifacts';
+    protected $table = 'people_payroll_pdf_artifacts';
 
     /**
      * @var array<int, string>

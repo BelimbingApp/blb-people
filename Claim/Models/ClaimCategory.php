@@ -12,7 +12,7 @@ class ClaimCategory extends Model
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
 
-    protected $table = 'claim_categories';
+    protected $table = 'people_claim_categories';
 
     /** @var list<string> */
     protected $fillable = [

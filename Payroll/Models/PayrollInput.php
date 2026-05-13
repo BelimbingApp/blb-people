@@ -11,7 +11,7 @@ class PayrollInput extends Model
     public const TYPE_DEDUCTION = 'deduction';
     public const TYPE_REIMBURSEMENT = 'reimbursement';
 
-    protected $table = 'payroll_inputs';
+    protected $table = 'people_payroll_inputs';
 
     protected static function booted(): void
     {

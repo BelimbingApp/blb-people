@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttendanceRosterAssignment extends Model
 {
-    protected $table = 'attendance_roster_assignments';
+    protected $table = 'people_attendance_roster_assignments';
 
     protected $fillable = [
         'company_id',

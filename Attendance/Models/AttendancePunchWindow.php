@@ -15,7 +15,7 @@ class AttendancePunchWindow extends Model
 
     public const TYPE_OUT = 'out';
 
-    protected $table = 'attendance_punch_windows';
+    protected $table = 'people_attendance_punch_windows';
 
     protected $fillable = [
         'attendance_shift_template_id',

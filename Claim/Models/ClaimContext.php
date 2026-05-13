@@ -11,7 +11,7 @@ class ClaimContext extends Model
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
 
-    protected $table = 'claim_contexts';
+    protected $table = 'people_claim_contexts';
 
     /** @var list<string> */
     protected $fillable = [

@@ -18,7 +18,7 @@ class AttendanceAllowanceRule extends Model
 
     public const RESOLUTION_MAX = 'max';
 
-    protected $table = 'attendance_allowance_rules';
+    protected $table = 'people_attendance_allowance_rules';
 
     protected $fillable = [
         'company_id',

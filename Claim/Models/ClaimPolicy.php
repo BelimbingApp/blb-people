@@ -16,7 +16,7 @@ class ClaimPolicy extends Model
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
 
-    protected $table = 'claim_policies';
+    protected $table = 'people_claim_policies';
 
     /** @var list<string> */
     protected $fillable = [

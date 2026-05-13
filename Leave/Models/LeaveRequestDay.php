@@ -17,7 +17,7 @@ class LeaveRequestDay extends Model
     public const DAYTYPE_OFF_DAY = 'off_day';
     public const DAYTYPE_REST_DAY = 'rest_day';
 
-    protected $table = 'leave_request_days';
+    protected $table = 'people_leave_request_days';
 
     /** @var list<string> */
     protected $fillable = [

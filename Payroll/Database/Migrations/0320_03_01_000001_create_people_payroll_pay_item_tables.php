@@ -11,7 +11,7 @@ return new class extends Migration
 
     public function up(): void
     {
-        $this->createRegisteredTable('payroll_pay_items', function (Blueprint $table): void {
+        $this->createRegisteredTable('people_payroll_pay_items', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->nullable()->constrained('companies')->cascadeOnDelete();
             $table->string('code');
@@ -25,9 +25,9 @@ return new class extends Migration
             $table->index(['company_id', 'status']);
         });
 
-        $this->createRegisteredTable('payroll_pay_item_classifications', function (Blueprint $table): void {
+        $this->createRegisteredTable('people_payroll_pay_item_classifications', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('payroll_pay_item_id')->constrained('payroll_pay_items')->cascadeOnDelete();
+            $table->foreignId('payroll_pay_item_id')->constrained('people_payroll_pay_items')->cascadeOnDelete();
             $table->char('country_iso', 2)->nullable();
             $table->string('classification_key');
             $table->string('classification_value');
@@ -43,20 +43,20 @@ return new class extends Migration
                 'country_iso',
                 'classification_key',
                 'effective_from',
-            ], 'payroll_pay_item_classifications_unique_effective_key');
+            ], 'people_payroll_pay_item_classifications_unique_effective_key');
             $table->index([
                 'payroll_pay_item_id',
                 'country_iso',
                 'classification_key',
                 'effective_from',
                 'effective_to',
-            ], 'payroll_pay_item_classifications_effective_index');
+            ], 'people_payroll_pay_item_classifications_effective_index');
         });
     }
 
     public function down(): void
     {
-        foreach (['payroll_pay_item_classifications', 'payroll_pay_items'] as $tableName) {
+        foreach (['people_payroll_pay_item_classifications', 'people_payroll_pay_items'] as $tableName) {
             $this->unregisterTable($tableName);
             Schema::dropIfExists($tableName);
         }

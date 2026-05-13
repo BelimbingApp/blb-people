@@ -22,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PayrollPendingContribution extends Model
 {
-    protected $table = 'payroll_pending_contributions';
+    protected $table = 'people_payroll_pending_contributions';
 
     /** @var array<int, string> */
     protected $fillable = [

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttendanceAbsenceBatchEntry extends Model
 {
-    protected $table = 'attendance_absence_batch_entries';
+    protected $table = 'people_attendance_absence_batch_entries';
 
     protected $fillable = [
         'attendance_absence_batch_id',

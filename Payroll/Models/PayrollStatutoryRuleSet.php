@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PayrollStatutoryRuleSet extends Model
 {
-    protected $table = 'payroll_statutory_rule_sets';
+    protected $table = 'people_payroll_statutory_rule_sets';
 
     /**
      * @var array<int, string>

@@ -11,7 +11,7 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('payroll_statutory_rule_sets', function (Blueprint $table): void {
+        Schema::create('people_payroll_statutory_rule_sets', function (Blueprint $table): void {
             $table->id();
             $table->char('country_iso', 2);
             $table->string('rule_key');
@@ -38,11 +38,11 @@ return new class extends Migration
                 'effective_to',
             ], 'payroll_statutory_rule_sets_effective_index');
         });
-        $this->registerTable('payroll_statutory_rule_sets');
+        $this->registerTable('people_payroll_statutory_rule_sets');
 
-        Schema::create('payroll_statutory_rule_rows', function (Blueprint $table): void {
+        Schema::create('people_payroll_statutory_rule_rows', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('payroll_statutory_rule_set_id')->constrained('payroll_statutory_rule_sets')->cascadeOnDelete();
+            $table->foreignId('payroll_statutory_rule_set_id')->constrained('people_payroll_statutory_rule_sets')->cascadeOnDelete();
             $table->unsignedInteger('sort_order')->default(0);
             $table->string('row_key')->nullable();
             $table->decimal('min_wage', 19, 4)->nullable();
@@ -59,15 +59,15 @@ return new class extends Migration
             $table->index(['payroll_statutory_rule_set_id', 'sort_order'], 'payroll_statutory_rule_rows_set_order_index');
             $table->index(['payroll_statutory_rule_set_id', 'min_wage', 'max_wage'], 'payroll_statutory_rule_rows_wage_band_index');
         });
-        $this->registerTable('payroll_statutory_rule_rows');
+        $this->registerTable('people_payroll_statutory_rule_rows');
     }
 
     public function down(): void
     {
-        $this->unregisterTable('payroll_statutory_rule_rows');
-        $this->unregisterTable('payroll_statutory_rule_sets');
+        $this->unregisterTable('people_payroll_statutory_rule_rows');
+        $this->unregisterTable('people_payroll_statutory_rule_sets');
 
-        Schema::dropIfExists('payroll_statutory_rule_rows');
-        Schema::dropIfExists('payroll_statutory_rule_sets');
+        Schema::dropIfExists('people_payroll_statutory_rule_rows');
+        Schema::dropIfExists('people_payroll_statutory_rule_sets');
     }
 };

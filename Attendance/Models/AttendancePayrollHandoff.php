@@ -17,7 +17,7 @@ class AttendancePayrollHandoff extends Model
 
     public const STATUS_REVERSED = 'reversed';
 
-    protected $table = 'attendance_payroll_handoffs';
+    protected $table = 'people_attendance_payroll_handoffs';
 
     protected $fillable = [
         'company_id',

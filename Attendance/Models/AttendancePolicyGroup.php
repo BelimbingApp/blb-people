@@ -13,7 +13,7 @@ class AttendancePolicyGroup extends Model
 
     public const STATUS_INACTIVE = 'inactive';
 
-    protected $table = 'attendance_policy_groups';
+    protected $table = 'people_attendance_policy_groups';
 
     protected $fillable = [
         'company_id',

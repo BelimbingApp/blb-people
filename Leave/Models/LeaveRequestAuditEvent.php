@@ -9,7 +9,7 @@ class LeaveRequestAuditEvent extends Model
 {
     public $timestamps = false;
 
-    protected $table = 'leave_request_audit_events';
+    protected $table = 'people_leave_request_audit_events';
 
     /** @var list<string> */
     protected $fillable = [

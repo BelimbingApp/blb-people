@@ -31,7 +31,7 @@ class LeaveRequest extends Model
     public const UNIT_HALF_DAY = 'half_day';
     public const UNIT_HOUR = 'hour';
 
-    protected $table = 'leave_requests';
+    protected $table = 'people_leave_requests';
 
     /** @var list<string> */
     protected $fillable = [

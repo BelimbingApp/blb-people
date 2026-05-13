@@ -11,7 +11,7 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('leave_types', function (Blueprint $table): void {
+        Schema::create('people_leave_types', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->nullable()->constrained('companies')->cascadeOnDelete();
             $table->string('code');
@@ -34,12 +34,12 @@ return new class extends Migration
             $table->unique(['company_id', 'code']);
             $table->index(['company_id', 'status']);
         });
-        $this->registerTable('leave_types');
+        $this->registerTable('people_leave_types');
 
-        Schema::create('leave_entitlement_policies', function (Blueprint $table): void {
+        Schema::create('people_leave_entitlement_policies', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
-            $table->foreignId('leave_type_id')->constrained('leave_types')->cascadeOnDelete();
+            $table->foreignId('leave_type_id')->constrained('people_leave_types')->cascadeOnDelete();
             $table->string('code');
             $table->string('name');
             $table->string('accrual_method');
@@ -63,12 +63,12 @@ return new class extends Migration
             $table->unique(['company_id', 'code']);
             $table->index(['company_id', 'leave_type_id', 'effective_from']);
         });
-        $this->registerTable('leave_entitlement_policies');
+        $this->registerTable('people_leave_entitlement_policies');
 
-        Schema::create('leave_entitlement_policy_bands', function (Blueprint $table): void {
+        Schema::create('people_leave_entitlement_policy_bands', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('leave_entitlement_policy_id')
-                ->constrained('leave_entitlement_policies')
+                ->constrained('people_leave_entitlement_policies')
                 ->cascadeOnDelete();
             $table->decimal('min_years_of_service', 6, 2)->default(0);
             $table->decimal('max_years_of_service', 6, 2)->nullable();
@@ -80,12 +80,12 @@ return new class extends Migration
 
             $table->unique(['leave_entitlement_policy_id', 'min_years_of_service']);
         });
-        $this->registerTable('leave_entitlement_policy_bands');
+        $this->registerTable('people_leave_entitlement_policy_bands');
 
-        Schema::create('leave_request_policies', function (Blueprint $table): void {
+        Schema::create('people_leave_request_policies', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
-            $table->foreignId('leave_type_id')->nullable()->constrained('leave_types')->cascadeOnDelete();
+            $table->foreignId('leave_type_id')->nullable()->constrained('people_leave_types')->cascadeOnDelete();
             $table->string('code');
             $table->string('name');
             $table->boolean('allow_negative_balance')->default(false);
@@ -111,19 +111,19 @@ return new class extends Migration
             $table->unique(['company_id', 'code']);
             $table->index(['company_id', 'leave_type_id', 'effective_from']);
         });
-        $this->registerTable('leave_request_policies');
+        $this->registerTable('people_leave_request_policies');
 
-        Schema::create('leave_assignments', function (Blueprint $table): void {
+        Schema::create('people_leave_assignments', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
             $table->string('code');
             $table->string('name');
-            $table->foreignId('leave_type_id')->constrained('leave_types')->cascadeOnDelete();
+            $table->foreignId('leave_type_id')->constrained('people_leave_types')->cascadeOnDelete();
             $table->foreignId('leave_entitlement_policy_id')
-                ->constrained('leave_entitlement_policies')
+                ->constrained('people_leave_entitlement_policies')
                 ->cascadeOnDelete();
             $table->foreignId('leave_request_policy_id')
-                ->constrained('leave_request_policies')
+                ->constrained('people_leave_request_policies')
                 ->cascadeOnDelete();
             $table->json('cohort_predicate')->nullable();
             $table->date('effective_from');
@@ -135,13 +135,13 @@ return new class extends Migration
             $table->unique(['company_id', 'code']);
             $table->index(['company_id', 'leave_type_id', 'effective_from']);
         });
-        $this->registerTable('leave_assignments');
+        $this->registerTable('people_leave_assignments');
 
-        Schema::create('leave_balance_ledger_entries', function (Blueprint $table): void {
+        Schema::create('people_leave_balance_ledger_entries', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies');
             $table->foreignId('employee_id')->constrained('employees');
-            $table->foreignId('leave_type_id')->constrained('leave_types');
+            $table->foreignId('leave_type_id')->constrained('people_leave_types');
             $table->unsignedSmallInteger('leave_year');
             $table->string('entry_type');
             $table->decimal('quantity', 10, 4);
@@ -165,14 +165,14 @@ return new class extends Migration
             $table->index(['company_id', 'occurred_on']);
             $table->index(['source_type', 'source_id']);
         });
-        $this->registerTable('leave_balance_ledger_entries');
+        $this->registerTable('people_leave_balance_ledger_entries');
 
-        Schema::create('leave_requests', function (Blueprint $table): void {
+        Schema::create('people_leave_requests', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies');
             $table->foreignId('employee_id')->constrained('employees');
-            $table->foreignId('leave_type_id')->constrained('leave_types');
-            $table->foreignId('leave_assignment_id')->nullable()->constrained('leave_assignments')->nullOnDelete();
+            $table->foreignId('leave_type_id')->constrained('people_leave_types');
+            $table->foreignId('leave_assignment_id')->nullable()->constrained('people_leave_assignments')->nullOnDelete();
             $table->unsignedBigInteger('leave_request_policy_id')->nullable();
             $table->unsignedInteger('leave_request_policy_version')->nullable();
             $table->string('status')->default('draft')->index();
@@ -201,11 +201,11 @@ return new class extends Migration
             $table->index(['company_id', 'employee_id', 'starts_on', 'ends_on']);
             $table->index(['company_id', 'leave_type_id', 'status']);
         });
-        $this->registerTable('leave_requests');
+        $this->registerTable('people_leave_requests');
 
-        Schema::create('leave_request_days', function (Blueprint $table): void {
+        Schema::create('people_leave_request_days', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('leave_request_id')->constrained('leave_requests')->cascadeOnDelete();
+            $table->foreignId('leave_request_id')->constrained('people_leave_requests')->cascadeOnDelete();
             $table->date('occurs_on');
             $table->string('portion')->default('full');
             $table->decimal('hours_count', 5, 2)->nullable();
@@ -217,11 +217,11 @@ return new class extends Migration
             $table->unique(['leave_request_id', 'occurs_on', 'portion']);
             $table->index(['occurs_on']);
         });
-        $this->registerTable('leave_request_days');
+        $this->registerTable('people_leave_request_days');
 
-        Schema::create('leave_request_audit_events', function (Blueprint $table): void {
+        Schema::create('people_leave_request_audit_events', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('leave_request_id')->constrained('leave_requests')->cascadeOnDelete();
+            $table->foreignId('leave_request_id')->constrained('people_leave_requests')->cascadeOnDelete();
             $table->string('from_status')->nullable();
             $table->string('to_status');
             $table->foreignId('actor_user_id')->nullable()->constrained('users')->nullOnDelete();
@@ -232,19 +232,19 @@ return new class extends Migration
 
             $table->index(['leave_request_id', 'occurred_at']);
         });
-        $this->registerTable('leave_request_audit_events');
+        $this->registerTable('people_leave_request_audit_events');
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('leave_request_audit_events');
-        Schema::dropIfExists('leave_request_days');
-        Schema::dropIfExists('leave_requests');
-        Schema::dropIfExists('leave_balance_ledger_entries');
-        Schema::dropIfExists('leave_assignments');
-        Schema::dropIfExists('leave_request_policies');
-        Schema::dropIfExists('leave_entitlement_policy_bands');
-        Schema::dropIfExists('leave_entitlement_policies');
-        Schema::dropIfExists('leave_types');
+        Schema::dropIfExists('people_leave_request_audit_events');
+        Schema::dropIfExists('people_leave_request_days');
+        Schema::dropIfExists('people_leave_requests');
+        Schema::dropIfExists('people_leave_balance_ledger_entries');
+        Schema::dropIfExists('people_leave_assignments');
+        Schema::dropIfExists('people_leave_request_policies');
+        Schema::dropIfExists('people_leave_entitlement_policy_bands');
+        Schema::dropIfExists('people_leave_entitlement_policies');
+        Schema::dropIfExists('people_leave_types');
     }
 };

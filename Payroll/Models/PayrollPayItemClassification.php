@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PayrollPayItemClassification extends Model
 {
-    protected $table = 'payroll_pay_item_classifications';
+    protected $table = 'people_payroll_pay_item_classifications';
 
     /**
      * @var array<int, string>

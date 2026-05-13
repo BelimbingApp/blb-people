@@ -17,7 +17,7 @@ class PayrollResultLine extends Model
     public const TYPE_NET_PAY = 'net_pay';
     public const TYPE_INFORMATIONAL = 'informational';
 
-    protected $table = 'payroll_result_lines';
+    protected $table = 'people_payroll_result_lines';
 
     protected static function booted(): void
     {

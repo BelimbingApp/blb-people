@@ -11,7 +11,7 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('payroll_pending_contributions', function (Blueprint $table): void {
+        Schema::create('people_payroll_pending_contributions', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
             $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
@@ -28,7 +28,7 @@ return new class extends Migration
             $table->string('label');
             $table->json('accounting_snapshot')->nullable();
             $table->string('state')->default('pending')->index();
-            $table->foreignId('payroll_input_id')->nullable()->constrained('payroll_inputs')->nullOnDelete();
+            $table->foreignId('payroll_input_id')->nullable()->constrained('people_payroll_inputs')->nullOnDelete();
             $table->string('reason')->nullable();
             $table->timestamp('materialized_at')->nullable();
             $table->timestamp('reversed_at')->nullable();
@@ -37,17 +37,17 @@ return new class extends Migration
 
             $table->unique(
                 ['source_type', 'source_id', 'pay_item_code', 'period_anchor'],
-                'payroll_pending_contributions_source_unique',
+                'people_payroll_pending_contributions_source_unique',
             );
             $table->index(['company_id', 'state', 'period_anchor']);
             $table->index(['employee_id', 'occurred_on']);
         });
-        $this->registerTable('payroll_pending_contributions');
+        $this->registerTable('people_payroll_pending_contributions');
     }
 
     public function down(): void
     {
-        $this->unregisterTable('payroll_pending_contributions');
-        Schema::dropIfExists('payroll_pending_contributions');
+        $this->unregisterTable('people_payroll_pending_contributions');
+        Schema::dropIfExists('people_payroll_pending_contributions');
     }
 };

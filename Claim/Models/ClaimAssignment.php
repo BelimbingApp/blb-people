@@ -12,7 +12,7 @@ class ClaimAssignment extends Model
     public const STATUS_ACTIVE = 'active';
     public const STATUS_INACTIVE = 'inactive';
 
-    protected $table = 'claim_assignments';
+    protected $table = 'people_claim_assignments';
 
     /** @var list<string> */
     protected $fillable = [

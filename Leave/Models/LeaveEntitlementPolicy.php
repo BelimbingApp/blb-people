@@ -20,7 +20,7 @@ class LeaveEntitlementPolicy extends Model
     public const ANCHOR_YEAR_START = 'year_start';
     public const ANCHOR_ANNIVERSARY = 'anniversary';
 
-    protected $table = 'leave_entitlement_policies';
+    protected $table = 'people_leave_entitlement_policies';
 
     /** @var list<string> */
     protected $fillable = [

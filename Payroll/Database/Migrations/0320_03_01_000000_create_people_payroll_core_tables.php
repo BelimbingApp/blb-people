@@ -11,7 +11,7 @@ return new class extends Migration
 
     public function up(): void
     {
-        $this->createRegisteredTable('payroll_calendars', function (Blueprint $table): void {
+        $this->createRegisteredTable('people_payroll_calendars', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies');
             $table->string('code');
@@ -27,9 +27,9 @@ return new class extends Migration
             $table->index(['company_id', 'status']);
         });
 
-        $this->createRegisteredTable('payroll_periods', function (Blueprint $table): void {
+        $this->createRegisteredTable('people_payroll_periods', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('payroll_calendar_id')->constrained('payroll_calendars')->cascadeOnDelete();
+            $table->foreignId('payroll_calendar_id')->constrained('people_payroll_calendars')->cascadeOnDelete();
             $table->string('code');
             $table->string('name');
             $table->date('starts_on');
@@ -43,11 +43,11 @@ return new class extends Migration
             $table->index(['payroll_calendar_id', 'starts_on', 'ends_on']);
         });
 
-        $this->createRegisteredTable('payroll_runs', function (Blueprint $table): void {
+        $this->createRegisteredTable('people_payroll_runs', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies');
-            $table->foreignId('payroll_calendar_id')->constrained('payroll_calendars');
-            $table->foreignId('payroll_period_id')->constrained('payroll_periods');
+            $table->foreignId('payroll_calendar_id')->constrained('people_payroll_calendars');
+            $table->foreignId('payroll_period_id')->constrained('people_payroll_periods');
             $table->string('code');
             $table->string('name');
             $table->string('status')->default('draft')->index();
@@ -65,9 +65,9 @@ return new class extends Migration
             $table->index(['payroll_period_id', 'status']);
         });
 
-        $this->createRegisteredTable('payroll_run_participants', function (Blueprint $table): void {
+        $this->createRegisteredTable('people_payroll_run_participants', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('payroll_run_id')->constrained('payroll_runs')->cascadeOnDelete();
+            $table->foreignId('payroll_run_id')->constrained('people_payroll_runs')->cascadeOnDelete();
             $table->foreignId('company_id')->constrained('companies');
             $table->foreignId('employee_id')->constrained('employees');
             $table->string('status')->default('included')->index();
@@ -83,10 +83,10 @@ return new class extends Migration
             $table->index(['company_id', 'employee_id']);
         });
 
-        $this->createRegisteredTable('payroll_inputs', function (Blueprint $table): void {
+        $this->createRegisteredTable('people_payroll_inputs', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('payroll_run_id')->constrained('payroll_runs')->cascadeOnDelete();
-            $table->foreignId('payroll_run_participant_id')->constrained('payroll_run_participants')->cascadeOnDelete();
+            $table->foreignId('payroll_run_id')->constrained('people_payroll_runs')->cascadeOnDelete();
+            $table->foreignId('payroll_run_participant_id')->constrained('people_payroll_run_participants')->cascadeOnDelete();
             $table->foreignId('employee_id')->constrained('employees');
             $table->string('source_type')->nullable();
             $table->unsignedBigInteger('source_id')->nullable();
@@ -105,12 +105,12 @@ return new class extends Migration
             $table->index(['source_type', 'source_id']);
         });
 
-        $this->createRegisteredTable('payroll_result_lines', function (Blueprint $table): void {
+        $this->createRegisteredTable('people_payroll_result_lines', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('payroll_run_id')->constrained('payroll_runs')->cascadeOnDelete();
-            $table->foreignId('payroll_run_participant_id')->constrained('payroll_run_participants')->cascadeOnDelete();
+            $table->foreignId('payroll_run_id')->constrained('people_payroll_runs')->cascadeOnDelete();
+            $table->foreignId('payroll_run_participant_id')->constrained('people_payroll_run_participants')->cascadeOnDelete();
             $table->foreignId('employee_id')->constrained('employees');
-            $table->foreignId('payroll_input_id')->nullable()->constrained('payroll_inputs')->nullOnDelete();
+            $table->foreignId('payroll_input_id')->nullable()->constrained('people_payroll_inputs')->nullOnDelete();
             $table->string('line_type')->index();
             $table->string('code')->index();
             $table->string('label');
@@ -126,9 +126,9 @@ return new class extends Migration
             $table->index(['payroll_run_participant_id', 'line_type']);
         });
 
-        $this->createRegisteredTable('payroll_run_audit_events', function (Blueprint $table): void {
+        $this->createRegisteredTable('people_payroll_run_audit_events', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('payroll_run_id')->constrained('payroll_runs')->cascadeOnDelete();
+            $table->foreignId('payroll_run_id')->constrained('people_payroll_runs')->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('action')->index();
             $table->string('message')->nullable();
@@ -143,13 +143,13 @@ return new class extends Migration
     public function down(): void
     {
         foreach ([
-            'payroll_run_audit_events',
-            'payroll_result_lines',
-            'payroll_inputs',
-            'payroll_run_participants',
-            'payroll_runs',
-            'payroll_periods',
-            'payroll_calendars',
+            'people_payroll_run_audit_events',
+            'people_payroll_result_lines',
+            'people_payroll_inputs',
+            'people_payroll_run_participants',
+            'people_payroll_runs',
+            'people_payroll_periods',
+            'people_payroll_calendars',
         ] as $tableName) {
             $this->unregisterTable($tableName);
             Schema::dropIfExists($tableName);

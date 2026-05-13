@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PayrollPeriod extends Model
 {
-    protected $table = 'payroll_periods';
+    protected $table = 'people_payroll_periods';
 
     /**
      * @var array<int, string>

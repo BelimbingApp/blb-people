@@ -25,7 +25,7 @@ class AttendanceOvertimeRequest extends Model
 
     public const STATUS_PAID = 'paid';
 
-    protected $table = 'attendance_overtime_requests';
+    protected $table = 'people_attendance_overtime_requests';
 
     protected $fillable = [
         'company_id',

@@ -11,7 +11,7 @@ return new class extends Migration
 
     public function up(): void
     {
-        $this->createRegisteredTable('payroll_employer_statutory_profiles', function (Blueprint $table): void {
+        $this->createRegisteredTable('people_payroll_employer_statutory_profiles', function (Blueprint $table): void {
             $this->addCommonStatutoryProfileColumns($table);
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
 
@@ -20,10 +20,10 @@ return new class extends Migration
                 'country_iso',
                 'effective_from',
                 'effective_to',
-            ], 'payroll_employer_statutory_profiles_effective_index');
+            ], 'people_payroll_employer_statutory_profiles_effective_index');
         });
 
-        $this->createRegisteredTable('payroll_employee_statutory_profiles', function (Blueprint $table): void {
+        $this->createRegisteredTable('people_payroll_employee_statutory_profiles', function (Blueprint $table): void {
             $this->addCommonStatutoryProfileColumns($table);
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
             $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
@@ -33,14 +33,14 @@ return new class extends Migration
                 'country_iso',
                 'effective_from',
                 'effective_to',
-            ], 'payroll_employee_statutory_profiles_effective_index');
-            $table->index(['company_id', 'country_iso'], 'payroll_employee_statutory_profiles_company_country_index');
+            ], 'people_payroll_employee_statutory_profiles_effective_index');
+            $table->index(['company_id', 'country_iso'], 'people_payroll_employee_statutory_profiles_company_country_index');
         });
     }
 
     public function down(): void
     {
-        foreach (['payroll_employee_statutory_profiles', 'payroll_employer_statutory_profiles'] as $tableName) {
+        foreach (['people_payroll_employee_statutory_profiles', 'people_payroll_employer_statutory_profiles'] as $tableName) {
             $this->unregisterTable($tableName);
             Schema::dropIfExists($tableName);
         }

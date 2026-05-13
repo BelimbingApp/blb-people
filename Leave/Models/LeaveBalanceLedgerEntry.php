@@ -28,7 +28,7 @@ class LeaveBalanceLedgerEntry extends Model
 
     public $timestamps = false;
 
-    protected $table = 'leave_balance_ledger_entries';
+    protected $table = 'people_leave_balance_ledger_entries';
 
     /** @var list<string> */
     protected $fillable = [

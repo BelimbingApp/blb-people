@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class AttendanceGeofenceGroup extends Model
 {
-    protected $table = 'attendance_geofence_groups';
+    protected $table = 'people_attendance_geofence_groups';
 
     protected $fillable = [
         'company_id',

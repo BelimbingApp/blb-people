@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttendanceGeofence extends Model
 {
-    protected $table = 'attendance_geofences';
+    protected $table = 'people_attendance_geofences';
 
     protected $fillable = [
         'company_id',

@@ -251,7 +251,7 @@ class Index extends Component
         $canManage = $authz->can($actor, 'people.attendance.manage')->allowed;
         $canApprove = $authz->can($actor, 'people.attendance.approve')->allowed;
         $canClock = $authz->can($actor, 'people.attendance.execute')->allowed;
-        $schemaReady = Schema::hasTable('attendance_days');
+        $schemaReady = Schema::hasTable('people_attendance_days');
 
         $surfaceTitle = match ($this->surface) {
             'approvals' => __('Attendance Approvals'),
@@ -435,7 +435,7 @@ class Index extends Component
 
     private function ensureSchemaReady(): bool
     {
-        if (Schema::hasTable('attendance_days')) {
+        if (Schema::hasTable('people_attendance_days')) {
             return true;
         }
 

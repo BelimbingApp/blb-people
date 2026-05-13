@@ -19,7 +19,7 @@ class LeaveType extends Model
     public const PAYROLL_CODE_LEAVE_ENCASHMENT = 'leave_encashment';
     public const PAYROLL_CODE_REPLACEMENT_LEAVE_PAYOUT = 'replacement_leave_payout';
 
-    protected $table = 'leave_types';
+    protected $table = 'people_leave_types';
 
     /** @var list<string> */
     protected $fillable = [

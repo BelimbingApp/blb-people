@@ -11,10 +11,10 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('payroll_pdf_artifacts', function (Blueprint $table): void {
+        Schema::create('people_payroll_pdf_artifacts', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('payroll_run_id')->constrained('payroll_runs')->cascadeOnDelete();
-            $table->foreignId('payroll_run_participant_id')->nullable()->constrained('payroll_run_participants')->nullOnDelete();
+            $table->foreignId('payroll_run_id')->constrained('people_payroll_runs')->cascadeOnDelete();
+            $table->foreignId('payroll_run_participant_id')->nullable()->constrained('people_payroll_run_participants')->nullOnDelete();
             $table->foreignId('employee_id')->nullable()->constrained('employees')->nullOnDelete();
             $table->string('report_type')->index();
             $table->string('disk');
@@ -32,13 +32,13 @@ return new class extends Migration
             $table->index(['payroll_run_participant_id', 'report_type']);
             $table->unique(['disk', 'path']);
         });
-        $this->registerTable('payroll_pdf_artifacts');
+        $this->registerTable('people_payroll_pdf_artifacts');
     }
 
     public function down(): void
     {
-        $this->unregisterTable('payroll_pdf_artifacts');
+        $this->unregisterTable('people_payroll_pdf_artifacts');
 
-        Schema::dropIfExists('payroll_pdf_artifacts');
+        Schema::dropIfExists('people_payroll_pdf_artifacts');
     }
 };

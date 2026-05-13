@@ -24,7 +24,7 @@ class AttendanceDay extends Model
 
     public const STATUS_LOCKED = 'locked';
 
-    protected $table = 'attendance_days';
+    protected $table = 'people_attendance_days';
 
     protected $fillable = [
         'company_id',

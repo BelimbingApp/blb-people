@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ClaimLine extends Model
 {
-    protected $table = 'claim_lines';
+    protected $table = 'people_claim_lines';
 
     /** @var list<string> */
     protected $fillable = [
