@@ -16,6 +16,7 @@ use App\Modules\People\Claim\Models\ClaimRequest;
 use App\Modules\People\Claim\Models\ClaimType;
 use App\Modules\People\Claim\Services\ApproveClaimRequestService;
 use App\Modules\People\Claim\Services\RejectClaimRequestService;
+use App\Modules\People\Claim\Services\RequestClaimMoreInfoService;
 use App\Modules\People\Claim\Services\SubmitClaimRequestService;
 use App\Modules\People\Claim\Services\WithdrawClaimRequestService;
 use DateTimeImmutable;
@@ -275,6 +276,23 @@ class Index extends Component
             app(RejectClaimRequestService::class)->reject($request, Auth::id(), $this->approvalReason ?: null);
             $this->approvalReason = '';
             session()->flash('success', __('Claim request rejected.'));
+        } catch (Throwable $e) {
+            session()->flash('error', $e->getMessage());
+        }
+    }
+
+    public function requestMoreInfo(int $requestId): void
+    {
+        $this->authorizeApprove();
+
+        try {
+            $request = ClaimRequest::query()
+                ->where('company_id', $this->companyId())
+                ->findOrFail($requestId);
+
+            app(RequestClaimMoreInfoService::class)->requestMoreInfo($request, Auth::id(), $this->approvalReason ?: null);
+            $this->approvalReason = '';
+            session()->flash('success', __('Claim request sent back for more information.'));
         } catch (Throwable $e) {
             session()->flash('error', $e->getMessage());
         }
