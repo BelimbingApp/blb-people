@@ -27,7 +27,9 @@ use Throwable;
 
 class Index extends Component
 {
-    public string $tab = 'requests';
+    public string $surface = 'my';
+
+    public string $tab = 'submit';
 
     public string $search = '';
 
@@ -129,20 +131,45 @@ class Index extends Component
 
     public string $applyAttachmentCount = '0';
 
+    public ?int $selectedRequestId = null;
+
     public string $approvalReason = '';
 
-    public function mount(): void
+    public function mount(?string $surface = null, ?string $section = null): void
     {
+        $this->surface = in_array($surface, ['my', 'approvals', 'settings'], true) ? $surface : 'my';
+
+        if ($this->surface === 'settings') {
+            $allowed = ['categories', 'types', 'policies', 'assignments', 'contexts'];
+            $this->tab = in_array($section, $allowed, true) ? $section : 'categories';
+        } else {
+            $this->tab = match ($this->surface) {
+                'approvals' => 'approvals',
+                default => 'submit',
+            };
+        }
+
         $this->applyIncurredOn = now()->toDateString();
+    }
+
+    /** @return list<string> */
+    private function tabsForSurface(): array
+    {
+        return match ($this->surface) {
+            'approvals' => ['approvals'],
+            'settings' => [$this->tab],
+            default => ['submit', 'history'],
+        };
     }
 
     public function setTab(string $tab): void
     {
-        if (! in_array($tab, ['requests', 'categories', 'types', 'policies', 'assignments', 'contexts'], true)) {
+        if (! in_array($tab, $this->tabsForSurface(), true)) {
             return;
         }
 
         $this->tab = $tab;
+        $this->selectedRequestId = null;
     }
 
     public function updatedSearch(): void
@@ -260,6 +287,12 @@ class Index extends Component
         } catch (Throwable $e) {
             session()->flash('error', $e->getMessage());
         }
+    }
+
+    public function selectRequest(int $requestId): void
+    {
+        $this->selectedRequestId = $requestId;
+        $this->tab = 'approvals';
     }
 
     public function createCategory(): void
@@ -510,20 +543,86 @@ class Index extends Component
             ->allowed;
         $currentEmployeeId = $this->currentEmployeeId();
 
-        $tabs = [
-            ['id' => 'requests', 'label' => __('Requests'), 'icon' => 'heroicon-o-inbox-stack'],
-            ['id' => 'categories', 'label' => __('Categories'), 'icon' => 'heroicon-o-folder'],
-            ['id' => 'types', 'label' => __('Claim Types'), 'icon' => 'heroicon-o-tag'],
-            ['id' => 'policies', 'label' => __('Policies'), 'icon' => 'heroicon-o-document-text'],
-            ['id' => 'assignments', 'label' => __('Assignments'), 'icon' => 'heroicon-o-user-group'],
-            ['id' => 'contexts', 'label' => __('Contexts'), 'icon' => 'heroicon-o-building-office-2'],
+        $allTabs = [
+            'submit' => ['id' => 'submit', 'label' => __('Submit Claim'), 'icon' => 'heroicon-o-paper-airplane'],
+            'history' => ['id' => 'history', 'label' => __('My Claims'), 'icon' => 'heroicon-o-inbox-stack'],
+            'approvals' => ['id' => 'approvals', 'label' => __('Approvals'), 'icon' => 'heroicon-o-check-badge'],
+            'categories' => ['id' => 'categories', 'label' => __('Categories'), 'icon' => 'heroicon-o-folder'],
+            'types' => ['id' => 'types', 'label' => __('Claim Types'), 'icon' => 'heroicon-o-tag'],
+            'policies' => ['id' => 'policies', 'label' => __('Policies'), 'icon' => 'heroicon-o-document-text'],
+            'assignments' => ['id' => 'assignments', 'label' => __('Assignments'), 'icon' => 'heroicon-o-user-group'],
+            'contexts' => ['id' => 'contexts', 'label' => __('Contexts'), 'icon' => 'heroicon-o-building-office-2'],
         ];
+
+        $tabs = array_values(array_map(
+            fn (string $id) => $allTabs[$id],
+            $this->tabsForSurface(),
+        ));
+
+        $settingsSectionTitle = [
+            'categories' => __('Claim Categories'),
+            'types' => __('Claim Types'),
+            'policies' => __('Claim Policies'),
+            'assignments' => __('Claim Assignments'),
+            'contexts' => __('Claim Contexts'),
+        ];
+
+        $surfaceTitle = match ($this->surface) {
+            'approvals' => __('Claim Approvals'),
+            'settings' => $settingsSectionTitle[$this->tab] ?? __('Claim Settings'),
+            default => __('My Claims'),
+        };
+
+        $settingsSectionSubtitle = [
+            'categories' => __('Group claim types into SBG/iPayroll-compatible categories.'),
+            'types' => __('Configure claim items, receipt/provider rules, payroll codes, and accounting mappings.'),
+            'policies' => __('Configure effective-dated caps, thresholds, and approval profile selectors.'),
+            'assignments' => __('Bind claim types and policies into employee-visible claim groups.'),
+            'contexts' => __('Maintain shallow claim context/client references and max claim limits.'),
+        ];
+
+        $surfaceSubtitle = match ($this->surface) {
+            'approvals' => __('Review submitted claims, inspect line evidence and risks, then approve or reject.'),
+            'settings' => $settingsSectionSubtitle[$this->tab] ?? __('Configure claim setup and SBG migration references.'),
+            default => __('Submit reimbursement claims, track approval status, and review payroll handoff readiness.'),
+        };
+
+        $myRequests = $currentEmployeeId !== null
+            ? ClaimRequest::query()
+                ->where('company_id', $companyId)
+                ->where('employee_id', $currentEmployeeId)
+                ->with(['employee', 'lines.type'])
+                ->latest('id')
+                ->limit(50)
+                ->get()
+            : collect();
+
+        $pendingRequests = ClaimRequest::query()
+            ->where('company_id', $companyId)
+            ->whereIn('status', [ClaimRequest::STATUS_SUBMITTED, ClaimRequest::STATUS_RESUBMITTED])
+            ->with(['employee', 'lines.type'])
+            ->latest('submitted_at')
+            ->limit(50)
+            ->get();
+
+        $selectedRequest = $this->selectedRequestId !== null
+            ? ClaimRequest::query()
+                ->where('company_id', $companyId)
+                ->with(['employee', 'assignment', 'context', 'lines.type', 'lines.policy', 'auditEvents'])
+                ->find($this->selectedRequestId)
+            : null;
 
         return view('livewire.people.claim.index', [
             'tabs' => $tabs,
+            'surface' => $this->surface,
+            'surfaceTitle' => $surfaceTitle,
+            'surfaceSubtitle' => $surfaceSubtitle,
             'canManage' => $canManage,
             'canApprove' => $canApprove,
             'currentEmployeeId' => $currentEmployeeId,
+            'myRequests' => $myRequests,
+            'pendingRequests' => $pendingRequests,
+            'selectedRequest' => $selectedRequest,
             'categories' => ClaimCategory::query()
                 ->where('company_id', $companyId)
                 ->when($search !== '' && $this->tab === 'categories', fn ($query) => $query->where(fn ($query) => $query->where('code', 'like', "%{$search}%")->orWhere('name', 'like', "%{$search}%")))
