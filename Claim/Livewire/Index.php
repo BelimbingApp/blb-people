@@ -37,6 +37,10 @@ class Index extends Component
 
     public string $operationsStatus = '';
 
+    public string $operationsRisk = '';
+
+    public string $operationsPayroll = '';
+
     public string $categoryCode = '';
 
     public string $categoryName = '';
@@ -616,6 +620,16 @@ class Index extends Component
             ->limit(100)
             ->get();
 
+        if ($this->operationsRisk === 'duplicate') {
+            $operationsRequests = $operationsRequests->filter(fn (ClaimRequest $request): bool => ($request->metadata['duplicate_risks'] ?? []) !== []);
+        } elseif ($this->operationsRisk === 'clear') {
+            $operationsRequests = $operationsRequests->filter(fn (ClaimRequest $request): bool => ($request->metadata['duplicate_risks'] ?? []) === []);
+        }
+
+        if ($this->operationsPayroll !== '') {
+            $operationsRequests = $operationsRequests->filter(fn (ClaimRequest $request): bool => $this->payrollOperationsState($request) === $this->operationsPayroll);
+        }
+
         $selectedRequest = $this->selectedRequestId !== null
             ? ClaimRequest::query()
                 ->where('company_id', $companyId)
@@ -634,6 +648,7 @@ class Index extends Component
             'pendingRequests' => $pendingRequests,
             'operationsRequests' => $operationsRequests,
             'claimStatusOptions' => $this->claimStatusOptions(),
+            'payrollOperationsOptions' => $this->payrollOperationsOptions(),
             'selectedRequest' => $selectedRequest,
             'categories' => ClaimCategory::query()
                 ->where('company_id', $companyId)
@@ -720,6 +735,41 @@ class Index extends Component
             ClaimRequest::STATUS_REIMBURSED => __('Reimbursed'),
             ClaimRequest::STATUS_SETTLED => __('Settled'),
         ];
+    }
+
+    /** @return array<string, string> */
+    private function payrollOperationsOptions(): array
+    {
+        return [
+            'eligible' => __('Payroll eligible'),
+            'pending' => __('Pending handoff'),
+            'queued' => __('Queued'),
+            'not_eligible' => __('Not payroll eligible'),
+        ];
+    }
+
+    private function payrollOperationsState(ClaimRequest $request): string
+    {
+        $eligibleLines = $request->lines->filter(fn ($line): bool => (bool) $line->type?->payroll_eligible && $line->payroll_pay_item_code !== null);
+
+        if ($eligibleLines->isEmpty()) {
+            return 'not_eligible';
+        }
+
+        $handoff = $request->metadata['payroll_handoff'] ?? null;
+        if (! is_array($handoff)) {
+            return 'eligible';
+        }
+
+        if (($handoff['pending'] ?? 0) > 0) {
+            return 'pending';
+        }
+
+        if (($handoff['queued'] ?? 0) > 0) {
+            return 'queued';
+        }
+
+        return 'eligible';
     }
 
     private function currentEmployeeId(): ?int
