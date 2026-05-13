@@ -51,6 +51,7 @@ class SubmitClaimRequestService
                 requestedAmount: $requestedAmount,
                 attachmentCount: $attachmentCount,
                 providerName: $providerName,
+                combinedClaimTypeIds: $this->combinedClaimTypeIds($assignmentLine),
             );
 
             if ($policyEvaluation['blocking'] !== []) {
@@ -204,6 +205,24 @@ class SubmitClaimRequestService
             ->where('company_id', $companyId)
             ->where('status', ClaimContext::STATUS_ACTIVE)
             ->findOrFail((int) $contextId);
+    }
+
+    /** @return list<int> */
+    private function combinedClaimTypeIds(ClaimAssignmentLine $assignmentLine): array
+    {
+        if (! (bool) $assignmentLine->uses_combined_cap || $assignmentLine->combine_tag === null || trim($assignmentLine->combine_tag) === '') {
+            return [];
+        }
+
+        return ClaimAssignmentLine::query()
+            ->where('claim_assignment_id', $assignmentLine->claim_assignment_id)
+            ->where('status', ClaimAssignmentLine::STATUS_ACTIVE)
+            ->where('uses_combined_cap', true)
+            ->where('combine_tag', $assignmentLine->combine_tag)
+            ->pluck('claim_type_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
     }
 
     private function nextReferenceNumber(int $companyId): string
