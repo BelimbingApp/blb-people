@@ -227,13 +227,21 @@ class SubmitClaimRequestService
 
     private function nextReferenceNumber(int $companyId): string
     {
-        $sequence = ClaimRequest::query()
-            ->where('company_id', $companyId)
-            ->whereYear('created_at', now()->year)
-            ->lockForUpdate()
-            ->count() + 1;
+        $year = (int) now()->year;
+        $prefix = sprintf('CLM-%d-', $year);
 
-        return sprintf('CLM-%d-%05d', now()->year, $sequence);
+        $latest = ClaimRequest::query()
+            ->where('company_id', $companyId)
+            ->where('reference_number', 'like', $prefix.'%')
+            ->orderByDesc('id')
+            ->lockForUpdate()
+            ->value('reference_number');
+
+        $sequence = $latest === null
+            ? 1
+            : ((int) substr((string) $latest, strrpos((string) $latest, '-') + 1)) + 1;
+
+        return sprintf('CLM-%d-%05d', $year, $sequence);
     }
 
     private function blankToNull(mixed $value): ?string

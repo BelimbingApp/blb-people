@@ -100,7 +100,7 @@ class ClaimPolicyEvaluationService
                 '<' => $requestedAmount < $threshold,
                 '>=' => $requestedAmount >= $threshold,
                 '>' => $requestedAmount > $threshold,
-                '=' => $requestedAmount === $threshold,
+                '=' => abs($requestedAmount - $threshold) < 0.005,
                 default => $requestedAmount <= $threshold,
             };
         });
