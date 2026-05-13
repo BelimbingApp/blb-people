@@ -22,6 +22,14 @@ use App\Modules\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
 
 class DevPayrollSeeder extends DevSeeder
 {
+    private const PAYROLL_MY_SOURCE_PACK = 'belimbing/payroll-my';
+
+    private const PAYROLL_DEV_VERSION = '2026.dev';
+
+    private const EFFECTIVE_FROM = '2026-01-01';
+
+    private const ZERO_MONEY = '0.0000';
+
     protected array $dependencies = [
         DevEmployeeSeeder::class,
         DevPeopleSettingsSeeder::class,
@@ -40,7 +48,7 @@ class DevPayrollSeeder extends DevSeeder
         $this->seedStatutoryRuleSets();
 
         $calendar = $this->seedCalendar($company);
-        $january = $this->seedPeriod($calendar, '2026-01', 'January 2026', '2026-01-01', '2026-01-31');
+        $january = $this->seedPeriod($calendar, '2026-01', 'January 2026', self::EFFECTIVE_FROM, '2026-01-31');
         $february = $this->seedPeriod($calendar, '2026-02', 'February 2026', '2026-02-01', '2026-02-28');
 
         $employees = Employee::query()
@@ -110,11 +118,11 @@ class DevPayrollSeeder extends DevSeeder
             [
                 'company_id' => $company->id,
                 'country_iso' => 'MY',
-                'effective_from' => '2026-01-01',
+                'effective_from' => self::EFFECTIVE_FROM,
             ],
             [
-                'source_pack' => 'belimbing/payroll-my',
-                'source_version' => '2026.dev',
+                'source_pack' => self::PAYROLL_MY_SOURCE_PACK,
+                'source_version' => self::PAYROLL_DEV_VERSION,
                 'effective_to' => null,
                 'profile_data' => [
                     'epf_employer_number' => 'KWSP-DEV-001',
@@ -140,11 +148,11 @@ class DevPayrollSeeder extends DevSeeder
                         'company_id' => $company->id,
                         'employee_id' => $employee->id,
                         'country_iso' => 'MY',
-                        'effective_from' => '2026-01-01',
+                        'effective_from' => self::EFFECTIVE_FROM,
                     ],
                     [
-                        'source_pack' => 'belimbing/payroll-my',
-                        'source_version' => '2026.dev',
+                        'source_pack' => self::PAYROLL_MY_SOURCE_PACK,
+                        'source_version' => self::PAYROLL_DEV_VERSION,
                         'effective_to' => null,
                         'profile_data' => [
                             'citizenship_status' => $index === 3 ? 'permanent_resident' : 'citizen',
@@ -167,7 +175,7 @@ class DevPayrollSeeder extends DevSeeder
             ruleKey: 'epf_contribution_schedule',
             name: 'EPF contribution schedule — dev fixture',
             rows: [
-                ['band-1', 10, '0.0000', '5000.0000', '0.11000000', '0.13000000'],
+                ['band-1', 10, self::ZERO_MONEY, '5000.0000', '0.11000000', '0.13000000'],
                 ['band-2', 20, '5000.0100', null, '0.11000000', '0.12000000'],
             ],
         );
@@ -175,21 +183,21 @@ class DevPayrollSeeder extends DevSeeder
             ruleKey: 'socso_contribution_schedule',
             name: 'SOCSO contribution schedule — dev fixture',
             rows: [
-                ['standard', 10, '0.0000', null, '0.00500000', '0.01750000'],
+                ['standard', 10, self::ZERO_MONEY, null, '0.00500000', '0.01750000'],
             ],
         );
         $this->seedContributionRuleSet(
             ruleKey: 'eis_contribution_schedule',
             name: 'EIS contribution schedule — dev fixture',
             rows: [
-                ['standard', 10, '0.0000', null, '0.00200000', '0.00200000'],
+                ['standard', 10, self::ZERO_MONEY, null, '0.00200000', '0.00200000'],
             ],
         );
         $this->seedContributionRuleSet(
             ruleKey: 'hrd_levy_schedule',
             name: 'HRD levy schedule — dev fixture',
             rows: [
-                ['standard', 10, '0.0000', null, null, null, '0.01000000'],
+                ['standard', 10, self::ZERO_MONEY, null, null, null, '0.01000000'],
             ],
         );
     }
@@ -203,9 +211,9 @@ class DevPayrollSeeder extends DevSeeder
             [
                 'country_iso' => 'MY',
                 'rule_key' => $ruleKey,
-                'source_pack' => 'belimbing/payroll-my',
-                'source_version' => '2026.dev',
-                'effective_from' => '2026-01-01',
+                'source_pack' => self::PAYROLL_MY_SOURCE_PACK,
+                'source_version' => self::PAYROLL_DEV_VERSION,
+                'effective_from' => self::EFFECTIVE_FROM,
             ],
             [
                 'name' => $name,
@@ -391,7 +399,7 @@ class DevPayrollSeeder extends DevSeeder
                     'country_iso' => null,
                     'classification_key' => 'payroll_input_family',
                     'classification_value' => $family,
-                    'effective_from' => '2026-01-01',
+                    'effective_from' => self::EFFECTIVE_FROM,
                     'source_pack' => 'payroll-core',
                     'source_version' => 'v0',
                 ],
@@ -399,9 +407,9 @@ class DevPayrollSeeder extends DevSeeder
                     'country_iso' => 'MY',
                     'classification_key' => 'statutory_wage_base',
                     'classification_value' => $wageBase,
-                    'effective_from' => '2026-01-01',
-                    'source_pack' => 'belimbing/payroll-my',
-                    'source_version' => '2026.dev',
+                    'effective_from' => self::EFFECTIVE_FROM,
+                    'source_pack' => self::PAYROLL_MY_SOURCE_PACK,
+                    'source_version' => self::PAYROLL_DEV_VERSION,
                     'metadata' => ['scenario' => 'browser-demo'],
                 ],
             ],
