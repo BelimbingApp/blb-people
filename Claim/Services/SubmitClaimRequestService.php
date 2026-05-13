@@ -16,6 +16,11 @@ use Illuminate\Support\Facades\DB;
 
 class SubmitClaimRequestService
 {
+    public function __construct(
+        private readonly ClaimPolicyEvaluationService $policyEvaluation,
+        private readonly ClaimDuplicateRiskService $duplicateRisks,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $options  Optional: claim_context_id, description, provider_name, receipt_number, attachment_count, submitted_by_user_id, on_behalf_actor_user_id, on_behalf_reason, currency.
      */
@@ -33,6 +38,32 @@ class SubmitClaimRequestService
             $policy = $assignmentLine->policy;
 
             $this->validateSubmission($employee, $assignment, $assignmentLine, $requestedAmount, $options);
+            $attachmentCount = (int) ($options['attachment_count'] ?? 0);
+            $providerName = $this->blankToNull($options['provider_name'] ?? null);
+            $receiptNumber = $this->blankToNull($options['receipt_number'] ?? null);
+
+            $policyEvaluation = $this->policyEvaluation->evaluateBeforeSubmission(
+                employeeId: (int) $employee->getKey(),
+                claimType: $claimType,
+                policy: $policy,
+                incurredOn: $incurredOn,
+                requestedAmount: $requestedAmount,
+                attachmentCount: $attachmentCount,
+                providerName: $providerName,
+            );
+
+            if ($policyEvaluation['blocking'] !== []) {
+                throw ClaimRequestLifecycleException::invalidSubmission(implode(' ', $policyEvaluation['blocking']));
+            }
+
+            $duplicateRisks = $this->duplicateRisks->findRisks(
+                employeeId: (int) $employee->getKey(),
+                claimTypeId: (int) $claimType->getKey(),
+                incurredOn: $incurredOn,
+                requestedAmount: $requestedAmount,
+                providerName: $providerName,
+                receiptNumber: $receiptNumber,
+            );
 
             $context = $this->resolveContext($assignment->company_id, $options['claim_context_id'] ?? null);
             if ($context !== null && $context->max_claim_limit !== null && $requestedAmount > (float) $context->max_claim_limit) {
@@ -71,7 +102,10 @@ class SubmitClaimRequestService
                 'on_behalf_actor_user_id' => $options['on_behalf_actor_user_id'] ?? null,
                 'on_behalf_reason' => $options['on_behalf_reason'] ?? null,
                 'submitted_at' => now(),
-                'metadata' => ['source' => 'claim-workbench'],
+                'metadata' => [
+                    'source' => 'claim-workbench',
+                    'duplicate_risks' => $duplicateRisks,
+                ],
             ]);
 
             ClaimLine::query()->create([
@@ -88,24 +122,22 @@ class SubmitClaimRequestService
                 'approved_amount' => 0,
                 'reimbursed_amount' => 0,
                 'currency' => $currency,
-                'provider_name' => $options['provider_name'] ?? null,
-                'receipt_number' => $options['receipt_number'] ?? null,
-                'attachment_count' => (int) ($options['attachment_count'] ?? 0),
+                'provider_name' => $providerName,
+                'receipt_number' => $receiptNumber,
+                'attachment_count' => $attachmentCount,
                 'payroll_pay_item_code' => $claimType->payroll_pay_item_code,
                 'debit_account_code' => $claimType->debit_account_code,
                 'credit_account_code' => $claimType->credit_account_code,
-                'policy_snapshot' => [
-                    'claim_policy_id' => $policy?->getKey(),
-                    'claim_policy_code' => $policy?->code,
-                    'claim_policy_version' => $policy?->version,
-                    'item_mode' => $policy?->item_mode,
-                ],
+                'policy_snapshot' => $policyEvaluation['snapshot'],
                 'accounting_snapshot' => [
                     'payroll_pay_item_code' => $claimType->payroll_pay_item_code,
                     'debit_account_code' => $claimType->debit_account_code,
                     'credit_account_code' => $claimType->credit_account_code,
                 ],
-                'metadata' => ['source' => 'claim-workbench'],
+                'metadata' => [
+                    'source' => 'claim-workbench',
+                    'duplicate_risks' => $duplicateRisks,
+                ],
             ]);
 
             ClaimRequestAuditEvent::query()->create([
@@ -154,14 +186,6 @@ class SubmitClaimRequestService
             throw ClaimRequestLifecycleException::invalidSubmission('The selected claim type is not open for employee submission.');
         }
 
-        if ((bool) $claimType->provider_required && trim((string) ($options['provider_name'] ?? '')) === '') {
-            throw ClaimRequestLifecycleException::invalidSubmission(sprintf('%s requires a provider name.', $claimType->name));
-        }
-
-        $attachmentCount = (int) ($options['attachment_count'] ?? 0);
-        if ($claimType->receipt_requirement === ClaimType::RECEIPT_ALWAYS && $attachmentCount < 1) {
-            throw ClaimRequestLifecycleException::invalidSubmission(sprintf('%s requires a receipt attachment.', $claimType->name));
-        }
     }
 
     private function resolveContext(int $companyId, mixed $contextId): ?ClaimContext
@@ -185,5 +209,16 @@ class SubmitClaimRequestService
             ->count() + 1;
 
         return sprintf('CLM-%d-%05d', now()->year, $sequence);
+    }
+
+    private function blankToNull(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 }
