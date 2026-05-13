@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\DB;
 
 class ApproveClaimRequestService
 {
+    public function __construct(
+        private readonly ClaimPayrollHandoffService $payrollHandoff,
+    ) {}
+
     public function approve(ClaimRequest $request, ?int $actorUserId = null, ?string $reason = null): ClaimRequest
     {
         if (! in_array($request->status, [ClaimRequest::STATUS_SUBMITTED, ClaimRequest::STATUS_RESUBMITTED], true)) {
@@ -57,6 +61,8 @@ class ApproveClaimRequestService
                 'occurred_at' => now(),
                 'metadata' => ['approved_amount' => $request->approved_amount],
             ]);
+
+            $this->payrollHandoff->queueApprovedRequest($request, $actorUserId);
 
             return $request->refresh();
         });
