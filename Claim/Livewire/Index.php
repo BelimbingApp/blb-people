@@ -160,7 +160,7 @@ class Index extends Component
         return match ($this->surface) {
             'approvals' => ['approvals'],
             'settings' => [$this->tab],
-            default => ['submit', 'history'],
+            default => ['submit'],
         };
     }
 
@@ -546,22 +546,6 @@ class Index extends Component
             ->allowed;
         $currentEmployeeId = $this->currentEmployeeId();
 
-        $allTabs = [
-            'submit' => ['id' => 'submit', 'label' => __('Submit Claim'), 'icon' => 'heroicon-o-paper-airplane'],
-            'history' => ['id' => 'history', 'label' => __('My Claims'), 'icon' => 'heroicon-o-inbox-stack'],
-            'approvals' => ['id' => 'approvals', 'label' => __('Approvals'), 'icon' => 'heroicon-o-check-badge'],
-            'categories' => ['id' => 'categories', 'label' => __('Categories'), 'icon' => 'heroicon-o-folder'],
-            'types' => ['id' => 'types', 'label' => __('Claim Types'), 'icon' => 'heroicon-o-tag'],
-            'policies' => ['id' => 'policies', 'label' => __('Policies'), 'icon' => 'heroicon-o-document-text'],
-            'assignments' => ['id' => 'assignments', 'label' => __('Assignments'), 'icon' => 'heroicon-o-user-group'],
-            'contexts' => ['id' => 'contexts', 'label' => __('Contexts'), 'icon' => 'heroicon-o-building-office-2'],
-        ];
-
-        $tabs = array_values(array_map(
-            fn (string $id) => $allTabs[$id],
-            $this->tabsForSurface(),
-        ));
-
         $settingsSectionTitle = [
             'categories' => __('Claim Categories'),
             'types' => __('Claim Types'),
@@ -616,7 +600,6 @@ class Index extends Component
             : null;
 
         return view('livewire.people.claim.index', [
-            'tabs' => $tabs,
             'surface' => $this->surface,
             'surfaceTitle' => $surfaceTitle,
             'surfaceSubtitle' => $surfaceSubtitle,
