@@ -374,17 +374,19 @@ class DevPeopleSettingsSeeder extends DevSeeder
     private function seedCalendarExceptions(Collection $workCalendars): void
     {
         $workCalendars->each(function (PeopleReferenceEntry $calendar): void {
-            PeopleCalendarException::query()->updateOrCreate(
-                [
-                    'work_calendar_id' => $calendar->id,
-                    'occurs_on' => '2026-02-17',
-                    'kind' => 'non_working_day',
-                ],
-                [
-                    'name' => $calendar->code === 'MY-SHIFT' ? 'Shift roster maintenance day' : 'Replacement holiday',
-                    'metadata' => ['source_system' => 'dev-seeder'],
-                ],
-            );
+            $exception = PeopleCalendarException::query()
+                ->where('work_calendar_id', $calendar->id)
+                ->whereDate('occurs_on', '2026-02-17')
+                ->where('kind', 'non_working_day')
+                ->first() ?? new PeopleCalendarException;
+
+            $exception->forceFill([
+                'work_calendar_id' => $calendar->id,
+                'occurs_on' => '2026-02-17',
+                'kind' => 'non_working_day',
+                'name' => $calendar->code === 'MY-SHIFT' ? 'Shift roster maintenance day' : 'Replacement holiday',
+                'metadata' => ['source_system' => 'dev-seeder'],
+            ])->save();
         });
     }
 

@@ -40,7 +40,7 @@ class AttendanceGeofenceGroup extends Model
     {
         return $this->belongsToMany(
             AttendanceGeofence::class,
-            'attendance_geofence_group_fences',
+            'people_attendance_geofence_group_fences',
             'attendance_geofence_group_id',
             'attendance_geofence_id',
         )->withPivot(['sort_order', 'metadata'])->withTimestamps();
