@@ -197,6 +197,7 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
+            $table->unique(['company_id', 'reference_number'], 'claim_requests_company_reference_unique');
             $table->index(['company_id', 'employee_id', 'status']);
             $table->index(['company_id', 'status', 'submitted_at']);
         });
