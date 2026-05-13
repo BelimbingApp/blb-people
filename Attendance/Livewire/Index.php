@@ -17,9 +17,15 @@ use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
 use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
 use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
+use App\Modules\People\Attendance\Services\AttendanceDayResolverService;
+use App\Modules\People\Attendance\Services\AttendanceLifecycleService;
+use App\Modules\People\Attendance\Services\AttendanceOvertimeService;
 use App\Modules\People\Attendance\Services\ClockEventIngestionService;
+use DateTimeImmutable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 
 class Index extends Component
@@ -30,9 +36,26 @@ class Index extends Component
 
     public string $status = '';
 
+    public bool $showOvertimeModal = false;
+
+    public string $overtimeDate = '';
+
+    public string $overtimeStartsAt = '';
+
+    public string $overtimeEndsAt = '';
+
+    public string $overtimeRequestedHours = '1.00';
+
+    public string $overtimeReason = '';
+
+    public string $decisionReason = '';
+
     public function mount(?string $surface = null): void
     {
         $this->surface = in_array($surface, ['my', 'approvals', 'operations', 'settings'], true) ? $surface : 'my';
+        $this->overtimeDate = now()->toDateString();
+        $this->overtimeStartsAt = now()->setTime(17, 0)->format('H:i');
+        $this->overtimeEndsAt = now()->setTime(18, 0)->format('H:i');
     }
 
     public function updatedSearch(): void
@@ -42,6 +65,10 @@ class Index extends Component
 
     public function clock(string $eventType): void
     {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
         if (! in_array($eventType, [AttendanceClockEvent::TYPE_IN, AttendanceClockEvent::TYPE_OUT], true)) {
             return;
         }
@@ -73,6 +100,147 @@ class Index extends Component
         session()->flash('success', __('Clock event recorded.'));
     }
 
+    public function openOvertimeModal(): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->resetValidation();
+        $this->showOvertimeModal = true;
+    }
+
+    public function submitOvertimeRequest(): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        app(AuthorizationService::class)->authorize(
+            Actor::forUser(Auth::user()),
+            'people.attendance.execute',
+        );
+
+        $employeeId = $this->currentEmployeeId();
+        if ($employeeId === null) {
+            session()->flash('error', __('Your user account is not linked to an employee record.'));
+
+            return;
+        }
+
+        $validated = $this->validate([
+            'overtimeDate' => ['required', 'date'],
+            'overtimeStartsAt' => ['required', 'date_format:H:i'],
+            'overtimeEndsAt' => ['required', 'date_format:H:i'],
+            'overtimeRequestedHours' => ['required', 'numeric', 'min:0.25', 'max:24'],
+            'overtimeReason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $employee = Employee::query()
+            ->where('company_id', $this->companyId())
+            ->findOrFail($employeeId);
+        $day = app(AttendanceDayResolverService::class)->resolve($employee, $validated['overtimeDate']);
+        $startsAt = new DateTimeImmutable($validated['overtimeDate'].' '.$validated['overtimeStartsAt']);
+        $endsAt = new DateTimeImmutable($validated['overtimeDate'].' '.$validated['overtimeEndsAt']);
+        if ($endsAt <= $startsAt) {
+            $endsAt = $endsAt->modify('+1 day');
+        }
+
+        $request = AttendanceOvertimeRequest::query()->create([
+            'company_id' => $employee->company_id,
+            'employee_id' => $employee->id,
+            'attendance_day_id' => $day->id,
+            'request_mode' => 'post_work_actual',
+            'status' => AttendanceOvertimeRequest::STATUS_DRAFT,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'requested_minutes' => (int) round(((float) $validated['overtimeRequestedHours']) * 60),
+            'reason' => $this->blankToNull($validated['overtimeReason'] ?? null),
+            'submitted_by_user_id' => Auth::id(),
+        ]);
+
+        app(AttendanceOvertimeService::class)->submit($request, (int) Auth::id());
+
+        $this->showOvertimeModal = false;
+        $this->overtimeReason = '';
+        session()->flash('success', __('Overtime request submitted.'));
+    }
+
+    public function approveOvertime(int $requestId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.approve');
+
+        $request = $this->overtimeRequest($requestId);
+        app(AttendanceOvertimeService::class)->approve($request, decisionReason: $this->blankToNull($this->decisionReason));
+        $this->decisionReason = '';
+
+        session()->flash('success', __('Overtime request approved.'));
+    }
+
+    public function rejectOvertime(int $requestId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.approve');
+
+        $request = $this->overtimeRequest($requestId);
+        app(AttendanceOvertimeService::class)->reject($request, $this->blankToNull($this->decisionReason));
+        $this->decisionReason = '';
+
+        session()->flash('success', __('Overtime request rejected.'));
+    }
+
+    public function queueOvertimePayroll(int $requestId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.approve');
+
+        $request = $this->overtimeRequest($requestId);
+        $handoff = app(AttendanceOvertimeService::class)->queuePayrollHandoff($request);
+
+        session()->flash(
+            $handoff === null ? 'error' : 'success',
+            $handoff === null
+                ? __('No open payroll run covers this overtime date.')
+                : __('Overtime queued to payroll.'),
+        );
+    }
+
+    public function finalizeDay(int $dayId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        app(AttendanceLifecycleService::class)->finalize($this->attendanceDay($dayId));
+
+        session()->flash('success', __('Attendance day finalized.'));
+    }
+
+    public function lockDay(int $dayId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        app(AttendanceLifecycleService::class)->lock($this->attendanceDay($dayId));
+
+        session()->flash('success', __('Attendance day locked.'));
+    }
+
     public function render(): View
     {
         $companyId = $this->companyId();
@@ -83,6 +251,7 @@ class Index extends Component
         $canManage = $authz->can($actor, 'people.attendance.manage')->allowed;
         $canApprove = $authz->can($actor, 'people.attendance.approve')->allowed;
         $canClock = $authz->can($actor, 'people.attendance.execute')->allowed;
+        $schemaReady = Schema::hasTable('attendance_days');
 
         $surfaceTitle = match ($this->surface) {
             'approvals' => __('Attendance Approvals'),
@@ -98,10 +267,23 @@ class Index extends Component
             default => __('Review your timecard and record web clock events where enabled.'),
         };
 
+        if (! $schemaReady) {
+            return view('livewire.people.attendance.index', $this->emptyViewData(
+                surface: $this->surface,
+                surfaceTitle: $surfaceTitle,
+                surfaceSubtitle: $surfaceSubtitle,
+                canManage: $canManage,
+                canApprove: $canApprove,
+                canClock: $canClock,
+                currentEmployeeId: $currentEmployeeId,
+            ));
+        }
+
         return view('livewire.people.attendance.index', [
             'surface' => $this->surface,
             'surfaceTitle' => $surfaceTitle,
             'surfaceSubtitle' => $surfaceSubtitle,
+            'schemaReady' => true,
             'canManage' => $canManage,
             'canApprove' => $canApprove,
             'canClock' => $canClock,
@@ -123,6 +305,17 @@ class Index extends Component
                 ->with(['employee', 'attendanceDay'])
                 ->latest('submitted_at')
                 ->limit(40)
+                ->get(),
+            'overtimeRequests' => AttendanceOvertimeRequest::query()
+                ->where('company_id', $companyId)
+                ->whereIn('status', [
+                    AttendanceOvertimeRequest::STATUS_SUBMITTED,
+                    AttendanceOvertimeRequest::STATUS_APPROVED,
+                    AttendanceOvertimeRequest::STATUS_QUEUED_FOR_PAYROLL,
+                ])
+                ->with(['employee', 'attendanceDay'])
+                ->latest('submitted_at')
+                ->limit(60)
                 ->get(),
             'clockEvents' => AttendanceClockEvent::query()
                 ->where('company_id', $companyId)
@@ -207,5 +400,87 @@ class Index extends Component
         $id = auth()->user()?->employee_id;
 
         return $id === null ? null : (int) $id;
+    }
+
+    private function authorizeAttendance(string $capability): void
+    {
+        app(AuthorizationService::class)->authorize(
+            Actor::forUser(Auth::user()),
+            $capability,
+        );
+    }
+
+    private function attendanceDay(int $dayId): AttendanceDay
+    {
+        return AttendanceDay::query()
+            ->where('company_id', $this->companyId())
+            ->findOrFail($dayId);
+    }
+
+    private function overtimeRequest(int $requestId): AttendanceOvertimeRequest
+    {
+        return AttendanceOvertimeRequest::query()
+            ->where('company_id', $this->companyId())
+            ->findOrFail($requestId);
+    }
+
+    private function blankToNull(mixed $value): mixed
+    {
+        if (is_string($value) && trim($value) === '') {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private function ensureSchemaReady(): bool
+    {
+        if (Schema::hasTable('attendance_days')) {
+            return true;
+        }
+
+        session()->flash('error', __('Attendance database tables are not installed yet. Run the Attendance migration first.'));
+
+        return false;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyViewData(
+        string $surface,
+        string $surfaceTitle,
+        string $surfaceSubtitle,
+        bool $canManage,
+        bool $canApprove,
+        bool $canClock,
+        ?int $currentEmployeeId,
+    ): array {
+        /** @var Collection<int, mixed> $empty */
+        $empty = collect();
+
+        return [
+            'surface' => $surface,
+            'surfaceTitle' => $surfaceTitle,
+            'surfaceSubtitle' => $surfaceSubtitle,
+            'schemaReady' => false,
+            'canManage' => $canManage,
+            'canApprove' => $canApprove,
+            'canClock' => $canClock,
+            'currentEmployeeId' => $currentEmployeeId,
+            'attendanceDays' => $empty,
+            'pendingOvertime' => $empty,
+            'overtimeRequests' => $empty,
+            'clockEvents' => $empty,
+            'absenceBatches' => $empty,
+            'shiftTemplates' => $empty,
+            'policyGroups' => $empty,
+            'allowanceRules' => $empty,
+            'rosterPatterns' => $empty,
+            'rosterAssignments' => $empty,
+            'geofences' => $empty,
+            'geofenceGroups' => $empty,
+            'statusOptions' => $this->statusOptions(),
+        ];
     }
 }
