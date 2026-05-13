@@ -1,0 +1,411 @@
+<?php
+
+use App\Base\Database\Concerns\RegistersTables;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    use RegistersTables;
+
+    public function up(): void
+    {
+        Schema::create('attendance_shift_templates', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->string('code');
+            $table->string('name');
+            $table->time('starts_at');
+            $table->time('ends_at');
+            $table->boolean('crosses_midnight')->default(false);
+            $table->unsignedSmallInteger('expected_work_minutes')->default(480);
+            $table->json('break_windows')->nullable();
+            $table->json('day_type_overrides')->nullable();
+            $table->string('payroll_attribution')->default('shift_start_date');
+            $table->date('effective_from');
+            $table->date('effective_to')->nullable();
+            $table->string('status')->default('active')->index();
+            $table->string('source_system')->nullable()->index();
+            $table->string('source_label')->nullable();
+            $table->string('source_code')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->unique(['company_id', 'code']);
+            $table->index(['company_id', 'status', 'effective_from']);
+        });
+        $this->registerTable('attendance_shift_templates');
+
+        Schema::create('attendance_punch_windows', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('attendance_shift_template_id')->constrained('attendance_shift_templates')->cascadeOnDelete();
+            $table->string('event_type');
+            $table->time('expected_at');
+            $table->time('earliest_at')->nullable();
+            $table->time('latest_at')->nullable();
+            $table->boolean('required')->default(true);
+            $table->boolean('exception_on_unmatched')->default(true);
+            $table->unsignedSmallInteger('sort_order')->default(0);
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->index(['attendance_shift_template_id', 'event_type']);
+        });
+        $this->registerTable('attendance_punch_windows');
+
+        Schema::create('attendance_policy_groups', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->string('code');
+            $table->string('name');
+            $table->json('cohort_predicate')->nullable();
+            $table->json('work_hour_rules')->nullable();
+            $table->json('lateness_rules')->nullable();
+            $table->json('overtime_rules')->nullable();
+            $table->json('overtime_export_rules')->nullable();
+            $table->json('lateness_export_rules')->nullable();
+            $table->json('payroll_defaults')->nullable();
+            $table->date('effective_from');
+            $table->date('effective_to')->nullable();
+            $table->unsignedInteger('version')->default(1);
+            $table->string('status')->default('active')->index();
+            $table->string('source_system')->nullable()->index();
+            $table->string('source_label')->nullable();
+            $table->string('source_code')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->unique(['company_id', 'code']);
+            $table->index(['company_id', 'status', 'effective_from']);
+        });
+        $this->registerTable('attendance_policy_groups');
+
+        Schema::create('attendance_allowance_rules', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->foreignId('attendance_policy_group_id')->nullable()->constrained('attendance_policy_groups')->nullOnDelete();
+            $table->string('code');
+            $table->string('name');
+            $table->string('allowance_type')->default('daily');
+            $table->string('payroll_pay_item_code')->nullable();
+            $table->decimal('ceiling_amount', 12, 2)->nullable();
+            $table->string('resolution_method')->default('sum');
+            $table->json('condition_rows')->nullable();
+            $table->text('source_script')->nullable();
+            $table->date('effective_from');
+            $table->date('effective_to')->nullable();
+            $table->string('status')->default('active')->index();
+            $table->string('source_system')->nullable()->index();
+            $table->string('source_label')->nullable();
+            $table->string('source_code')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->unique(['company_id', 'code']);
+            $table->index(['company_id', 'status', 'allowance_type']);
+        });
+        $this->registerTable('attendance_allowance_rules');
+
+        Schema::create('attendance_roster_patterns', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->string('code');
+            $table->string('name');
+            $table->string('pattern_type')->default('fixed_weekly');
+            $table->json('pattern_definition');
+            $table->string('status')->default('draft')->index();
+            $table->string('source_system')->nullable()->index();
+            $table->string('source_label')->nullable();
+            $table->string('source_code')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->unique(['company_id', 'code']);
+            $table->index(['company_id', 'status', 'pattern_type']);
+        });
+        $this->registerTable('attendance_roster_patterns');
+
+        Schema::create('attendance_roster_assignments', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->foreignId('employee_id')->nullable()->constrained('employees')->cascadeOnDelete();
+            $table->foreignId('attendance_roster_pattern_id')->nullable()->constrained('attendance_roster_patterns')->nullOnDelete();
+            $table->foreignId('attendance_shift_template_id')->nullable()->constrained('attendance_shift_templates')->nullOnDelete();
+            $table->foreignId('attendance_policy_group_id')->nullable()->constrained('attendance_policy_groups')->nullOnDelete();
+            $table->json('cohort_predicate')->nullable();
+            $table->date('effective_from');
+            $table->date('effective_to')->nullable();
+            $table->string('publish_state')->default('draft')->index();
+            $table->string('lock_state')->default('open')->index();
+            $table->unsignedInteger('revision')->default(1);
+            $table->json('exceptions')->nullable();
+            $table->string('source_system')->nullable()->index();
+            $table->string('source_label')->nullable();
+            $table->string('source_code')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->index(['company_id', 'employee_id', 'effective_from']);
+            $table->index(['company_id', 'publish_state', 'lock_state']);
+        });
+        $this->registerTable('attendance_roster_assignments');
+
+        Schema::create('attendance_geofences', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->string('code');
+            $table->string('name');
+            $table->string('location_label')->nullable();
+            $table->decimal('latitude', 10, 7)->nullable();
+            $table->decimal('longitude', 10, 7)->nullable();
+            $table->unsignedInteger('radius_meters')->nullable();
+            $table->string('status')->default('active')->index();
+            $table->string('source_system')->nullable()->index();
+            $table->string('source_label')->nullable();
+            $table->string('source_code')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->unique(['company_id', 'code']);
+        });
+        $this->registerTable('attendance_geofences');
+
+        Schema::create('attendance_geofence_groups', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->string('code');
+            $table->string('name');
+            $table->json('cohort_predicate')->nullable();
+            $table->string('status')->default('active')->index();
+            $table->string('source_system')->nullable()->index();
+            $table->string('source_label')->nullable();
+            $table->string('source_code')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->unique(['company_id', 'code']);
+        });
+        $this->registerTable('attendance_geofence_groups');
+
+        Schema::create('attendance_geofence_group_fences', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('attendance_geofence_group_id')->constrained('attendance_geofence_groups')->cascadeOnDelete();
+            $table->foreignId('attendance_geofence_id')->constrained('attendance_geofences')->cascadeOnDelete();
+            $table->unsignedSmallInteger('sort_order')->default(0);
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->unique(['attendance_geofence_group_id', 'attendance_geofence_id']);
+        });
+        $this->registerTable('attendance_geofence_group_fences');
+
+        Schema::create('attendance_days', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
+            $table->foreignId('attendance_roster_assignment_id')->nullable()->constrained('attendance_roster_assignments')->nullOnDelete();
+            $table->foreignId('attendance_shift_template_id')->nullable()->constrained('attendance_shift_templates')->nullOnDelete();
+            $table->foreignId('attendance_policy_group_id')->nullable()->constrained('attendance_policy_groups')->nullOnDelete();
+            $table->date('attendance_date');
+            $table->string('status')->default('scheduled')->index();
+            $table->string('day_type')->default('normal')->index();
+            $table->timestamp('shift_starts_at')->nullable();
+            $table->timestamp('shift_ends_at')->nullable();
+            $table->unsignedSmallInteger('expected_minutes')->default(0);
+            $table->unsignedSmallInteger('worked_minutes')->default(0);
+            $table->unsignedSmallInteger('payable_minutes')->default(0);
+            $table->unsignedSmallInteger('late_minutes')->default(0);
+            $table->unsignedSmallInteger('early_out_minutes')->default(0);
+            $table->unsignedSmallInteger('absent_minutes')->default(0);
+            $table->unsignedSmallInteger('break_minutes')->default(0);
+            $table->unsignedSmallInteger('overtime_candidate_minutes')->default(0);
+            $table->date('payroll_period_date')->nullable();
+            $table->json('exception_tags')->nullable();
+            $table->json('projection_snapshot')->nullable();
+            $table->timestamp('finalized_at')->nullable();
+            $table->timestamp('exported_to_payroll_at')->nullable();
+            $table->timestamp('locked_at')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->unique(['employee_id', 'attendance_date']);
+            $table->index(['company_id', 'attendance_date', 'status']);
+            $table->index(['company_id', 'payroll_period_date']);
+        });
+        $this->registerTable('attendance_days');
+
+        Schema::create('attendance_clock_events', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
+            $table->foreignId('attendance_day_id')->nullable()->constrained('attendance_days')->nullOnDelete();
+            $table->foreignId('attendance_geofence_id')->nullable()->constrained('attendance_geofences')->nullOnDelete();
+            $table->foreignId('attendance_geofence_group_id')->nullable()->constrained('attendance_geofence_groups')->nullOnDelete();
+            $table->string('event_type');
+            $table->timestamp('occurred_at');
+            $table->string('source')->default('web_clock')->index();
+            $table->foreignId('actor_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('card_number')->nullable();
+            $table->string('device_identifier')->nullable();
+            $table->string('outlet_label')->nullable();
+            $table->string('ip_address')->nullable();
+            $table->decimal('latitude', 10, 7)->nullable();
+            $table->decimal('longitude', 10, 7)->nullable();
+            $table->string('geofence_result')->nullable();
+            $table->boolean('photo_evidence_present')->default(false);
+            $table->foreignId('corrects_clock_event_id')->nullable()->constrained('attendance_clock_events')->nullOnDelete();
+            $table->string('source_system')->nullable()->index();
+            $table->string('source_label')->nullable();
+            $table->string('source_code')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->index(['employee_id', 'occurred_at']);
+            $table->index(['attendance_day_id', 'event_type']);
+            $table->index(['source', 'occurred_at']);
+        });
+        $this->registerTable('attendance_clock_events');
+
+        Schema::create('attendance_adjustments', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
+            $table->foreignId('attendance_day_id')->nullable()->constrained('attendance_days')->nullOnDelete();
+            $table->string('adjustment_type');
+            $table->string('status')->default('draft')->index();
+            $table->json('requested_changes');
+            $table->text('reason')->nullable();
+            $table->foreignId('requested_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('reviewed_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('submitted_at')->nullable();
+            $table->timestamp('approved_at')->nullable();
+            $table->timestamp('rejected_at')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->index(['company_id', 'status']);
+            $table->index(['employee_id', 'adjustment_type']);
+        });
+        $this->registerTable('attendance_adjustments');
+
+        Schema::create('attendance_overtime_requests', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
+            $table->foreignId('attendance_day_id')->nullable()->constrained('attendance_days')->nullOnDelete();
+            $table->string('request_mode')->default('post_work_actual');
+            $table->string('status')->default('draft')->index();
+            $table->timestamp('starts_at')->nullable();
+            $table->timestamp('ends_at')->nullable();
+            $table->unsignedSmallInteger('requested_minutes')->default(0);
+            $table->unsignedSmallInteger('approved_minutes')->default(0);
+            $table->unsignedSmallInteger('payable_minutes')->default(0);
+            $table->text('reason')->nullable();
+            $table->unsignedSmallInteger('attachment_count')->default(0);
+            $table->string('approval_profile_key')->nullable();
+            $table->json('approval_route_snapshot')->nullable();
+            $table->json('policy_snapshot')->nullable();
+            $table->foreignId('submitted_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('submitted_at')->nullable();
+            $table->timestamp('approved_at')->nullable();
+            $table->timestamp('rejected_at')->nullable();
+            $table->timestamp('cancelled_at')->nullable();
+            $table->timestamp('withdrawn_at')->nullable();
+            $table->timestamp('queued_for_payroll_at')->nullable();
+            $table->timestamp('paid_at')->nullable();
+            $table->text('decision_reason')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->index(['company_id', 'status', 'submitted_at']);
+            $table->index(['employee_id', 'starts_at']);
+        });
+        $this->registerTable('attendance_overtime_requests');
+
+        Schema::create('attendance_absence_batches', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->string('reference')->nullable()->index();
+            $table->string('status')->default('draft')->index();
+            $table->date('period_starts_on');
+            $table->date('period_ends_on');
+            $table->date('lock_date')->nullable();
+            $table->json('filters')->nullable();
+            $table->foreignId('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('generated_at')->nullable();
+            $table->timestamp('finalized_at')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->index(['company_id', 'status', 'period_starts_on']);
+        });
+        $this->registerTable('attendance_absence_batches');
+
+        Schema::create('attendance_absence_batch_entries', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('attendance_absence_batch_id')->constrained('attendance_absence_batches')->cascadeOnDelete();
+            $table->foreignId('attendance_day_id')->nullable()->constrained('attendance_days')->nullOnDelete();
+            $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
+            $table->date('absence_date');
+            $table->string('day_type')->default('normal');
+            $table->string('absence_code')->default('unauthorized_absence');
+            $table->string('status')->default('candidate')->index();
+            $table->text('reason')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->unique(['attendance_absence_batch_id', 'employee_id', 'absence_date']);
+            $table->index(['employee_id', 'absence_date', 'status']);
+        });
+        $this->registerTable('attendance_absence_batch_entries');
+
+        Schema::create('attendance_payroll_handoffs', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
+            $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
+            $table->nullableMorphs('source');
+            $table->foreignId('payroll_input_id')->nullable()->constrained('payroll_inputs')->nullOnDelete();
+            $table->string('pay_item_code');
+            $table->string('input_type');
+            $table->decimal('quantity', 12, 4)->default(0);
+            $table->decimal('amount', 12, 2)->nullable();
+            $table->date('occurred_on');
+            $table->date('payroll_period_date')->nullable();
+            $table->string('status')->default('pending')->index();
+            $table->json('transformation_snapshot')->nullable();
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+
+            $table->unique(['source_type', 'source_id', 'pay_item_code', 'payroll_period_date'], 'attendance_payroll_handoff_unique_source');
+            $table->index(['company_id', 'status', 'payroll_period_date']);
+            $table->index(['employee_id', 'occurred_on']);
+        });
+        $this->registerTable('attendance_payroll_handoffs');
+    }
+
+    public function down(): void
+    {
+        foreach ([
+            'attendance_payroll_handoffs',
+            'attendance_absence_batch_entries',
+            'attendance_absence_batches',
+            'attendance_overtime_requests',
+            'attendance_adjustments',
+            'attendance_clock_events',
+            'attendance_days',
+            'attendance_geofence_group_fences',
+            'attendance_geofence_groups',
+            'attendance_geofences',
+            'attendance_roster_assignments',
+            'attendance_roster_patterns',
+            'attendance_allowance_rules',
+            'attendance_policy_groups',
+            'attendance_punch_windows',
+            'attendance_shift_templates',
+        ] as $table) {
+            $this->unregisterTable($table);
+            Schema::dropIfExists($table);
+        }
+    }
+};
