@@ -27,6 +27,8 @@ class Index extends Component
 
     public string $search = '';
 
+    public bool $showReferenceEntryModal = false;
+
     public string $referenceType = PeopleReferenceEntry::TYPE_COST_CENTER;
 
     public string $entryCode = '';
@@ -76,6 +78,7 @@ class Index extends Component
         );
 
         $this->reset('entryCode', 'entryName', 'entryLevel', 'entrySourceLabel');
+        $this->showReferenceEntryModal = false;
         session()->flash('success', __('Reference entry saved.'));
     }
 

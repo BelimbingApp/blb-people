@@ -31,6 +31,8 @@ class Index extends Component
 
     public string $tab = 'submit';
 
+    public bool $showClaimModal = false;
+
     public string $search = '';
 
     public string $categoryCode = '';
@@ -229,6 +231,7 @@ class Index extends Component
 
             $this->reset('applyAssignmentLineId', 'applyDescription', 'applyRequestedAmount', 'applyProviderName', 'applyReceiptNumber');
             $this->applyAttachmentCount = '0';
+            $this->showClaimModal = false;
             session()->flash('success', __('Claim request submitted for approval.'));
         } catch (Throwable $e) {
             session()->flash('error', $e->getMessage());

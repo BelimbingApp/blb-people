@@ -37,6 +37,20 @@ class Index extends Component
 
     public string $tab = 'apply';
 
+    public bool $showApplyModal = false;
+
+    public bool $showLeaveTypeModal = false;
+
+    public bool $showEntitlementPolicyModal = false;
+
+    public bool $showRequestPolicyModal = false;
+
+    public bool $showEntitlementBandModal = false;
+
+    public bool $showAssignmentModal = false;
+
+    public bool $showAdjustmentModal = false;
+
     public string $search = '';
 
     // Leave type form
@@ -133,15 +147,19 @@ class Index extends Component
     /** @var list<array<string, mixed>> */
     public array $carryForwardPreview = [];
 
-    public function mount(?string $surface = null): void
+    public function mount(?string $surface = null, ?string $section = null): void
     {
-        $this->surface = in_array($surface, ['my', 'approvals', 'admin'], true) ? $surface : 'my';
+        $this->surface = in_array($surface, ['my', 'approvals', 'settings'], true) ? $surface : 'my';
 
-        $this->tab = match ($this->surface) {
-            'approvals' => 'approvals',
-            'admin' => 'types',
-            default => 'apply',
-        };
+        if ($this->surface === 'settings') {
+            $allowed = ['types', 'policies', 'assignments', 'balances', 'adjustments', 'carry-forward'];
+            $this->tab = in_array($section, $allowed, true) ? $section : 'types';
+        } else {
+            $this->tab = match ($this->surface) {
+                'approvals' => 'approvals',
+                default => 'apply',
+            };
+        }
 
         $this->calendarYear = (int) now()->year;
         $this->balanceYear = $this->calendarYear;
@@ -156,7 +174,7 @@ class Index extends Component
     {
         return match ($this->surface) {
             'approvals' => ['approvals'],
-            'admin' => ['types', 'policies', 'assignments', 'balances', 'adjustments', 'carry-forward', 'calendar'],
+            'settings' => [$this->tab],
             default => ['apply', 'my-balance', 'calendar'],
         };
     }
@@ -198,6 +216,7 @@ class Index extends Component
             );
 
             $this->reset('applyNote', 'applyHoursCount', 'applyShortNotice');
+            $this->showApplyModal = false;
             session()->flash('success', __('Leave request submitted for approval.'));
         } catch (Throwable $e) {
             session()->flash('error', $e->getMessage());
@@ -276,6 +295,7 @@ class Index extends Component
         $this->typePaid = true;
         $this->typeInteractsWithPayroll = false;
         $this->typeCompulsoryAttachment = false;
+        $this->showLeaveTypeModal = false;
 
         session()->flash('success', __('Leave type created.'));
     }
@@ -315,6 +335,7 @@ class Index extends Component
         ]);
 
         $this->reset('entitlementCode', 'entitlementName', 'entitlementBringForwardCap', 'entitlementBringForwardExpiryMonth');
+        $this->showEntitlementPolicyModal = false;
         session()->flash('success', __('Entitlement policy created.'));
     }
 
@@ -351,6 +372,7 @@ class Index extends Component
         ]);
 
         $this->reset('requestCode', 'requestName', 'requestMaxDaysPerApplication');
+        $this->showRequestPolicyModal = false;
         session()->flash('success', __('Request policy created.'));
     }
 
@@ -389,6 +411,7 @@ class Index extends Component
         ]);
 
         $this->reset('assignmentCode', 'assignmentName', 'assignmentCohortGender', 'assignmentCohortMaritalStatus', 'assignmentCohortCitizenship');
+        $this->showAssignmentModal = false;
         session()->flash('success', __('Leave assignment created.'));
     }
 
@@ -420,6 +443,7 @@ class Index extends Component
 
         $this->reset('bandMinYears', 'bandMaxYears', 'bandDays', 'bandCarryForwardOverride');
         $this->bandMinYears = '0';
+        $this->showEntitlementBandModal = false;
         session()->flash('success', __('Entitlement band added.'));
     }
 
@@ -464,6 +488,7 @@ class Index extends Component
             );
 
             $this->reset('adjustmentQuantity', 'adjustmentNote');
+            $this->showAdjustmentModal = false;
             session()->flash('success', __('Ledger adjustment recorded.'));
         } catch (Throwable $e) {
             session()->flash('error', $e->getMessage());
@@ -746,15 +771,33 @@ class Index extends Component
             $this->tabsForSurface(),
         ));
 
+        $settingsSectionTitle = [
+            'types' => __('Leave Types'),
+            'policies' => __('Leave Policies'),
+            'assignments' => __('Leave Assignments'),
+            'balances' => __('Balance Statement'),
+            'adjustments' => __('Manual Adjustments'),
+            'carry-forward' => __('Year-End Carry-Forward'),
+        ];
+
         $surfaceTitle = match ($this->surface) {
             'approvals' => __('Leave Approvals'),
-            'admin' => __('Leave Administration'),
+            'settings' => $settingsSectionTitle[$this->tab] ?? __('Leave Settings'),
             default => __('My Leave'),
         };
 
+        $settingsSectionSubtitle = [
+            'types' => __('Neutral leave-type catalog. Country packs and the SBG seeder layer statutory and licensee-specific types on top.'),
+            'policies' => __('Effective-dated entitlement bands and request-side rules (notice, attachments, day-counting).'),
+            'assignments' => __('Bind employee cohorts to a (leave type, entitlement, request policy) triple.'),
+            'balances' => __('Per-employee balance projected from the append-only ledger.'),
+            'adjustments' => __('Append a ledger fact — opening balance, correction, or manual accrual. Original entries are never mutated.'),
+            'carry-forward' => __('Preview and commit year-end carry-forward. Writes carried_forward + expired ledger facts; the from-year nets to zero above the cap.'),
+        ];
+
         $surfaceSubtitle = match ($this->surface) {
             'approvals' => __('Review and act on leave requests awaiting your approval.'),
-            'admin' => __('Configure leave types, policies, assignments, balances, and year-end carry-forward.'),
+            'settings' => $settingsSectionSubtitle[$this->tab] ?? __('Configure leave types, policies, assignments, balances, and year-end carry-forward.'),
             default => __('Apply for leave, review your balance and history, and see your team\'s schedule.'),
         };
 
