@@ -12,6 +12,10 @@ class EmployeePayrollReadinessService
 
     public const STATE_BLOCKED = 'blocked';
 
+    private const BANK_NAME_METADATA_PATH = 'employees.metadata->payroll_bank->bank_name';
+
+    private const BANK_ACCOUNT_NUMBER_METADATA_PATH = 'employees.metadata->payroll_bank->bank_account_number';
+
     /**
      * @return array<string, string>
      */
@@ -109,10 +113,10 @@ class EmployeePayrollReadinessService
                 ->whereNotNull('employee_work_profiles.pay_rate_type')
                 ->where('employee_work_profiles.pay_rate_type', '!=', '')
                 ->where('employees.status', 'active')
-                ->whereNotNull('employees.metadata->payroll_bank->bank_name')
-                ->where('employees.metadata->payroll_bank->bank_name', '!=', '')
-                ->whereNotNull('employees.metadata->payroll_bank->bank_account_number')
-                ->where('employees.metadata->payroll_bank->bank_account_number', '!=', '')
+                ->whereNotNull(self::BANK_NAME_METADATA_PATH)
+                ->where(self::BANK_NAME_METADATA_PATH, '!=', '')
+                ->whereNotNull(self::BANK_ACCOUNT_NUMBER_METADATA_PATH)
+                ->where(self::BANK_ACCOUNT_NUMBER_METADATA_PATH, '!=', '')
                 ->whereHas('statutoryProfiles', function (Builder $statutoryQuery): void {
                     $statutoryQuery->where(function (Builder $validationQuery): void {
                         $validationQuery->whereNull('validation_messages')
@@ -147,10 +151,10 @@ class EmployeePayrollReadinessService
                     ->orWhere('employee_work_profiles.pay_rate_type', '');
             }),
             'missing_bank_details' => $query->where(function (Builder $bankQuery): void {
-                $bankQuery->whereNull('employees.metadata->payroll_bank->bank_name')
-                    ->orWhere('employees.metadata->payroll_bank->bank_name', '')
-                    ->orWhereNull('employees.metadata->payroll_bank->bank_account_number')
-                    ->orWhere('employees.metadata->payroll_bank->bank_account_number', '');
+                $bankQuery->whereNull(self::BANK_NAME_METADATA_PATH)
+                    ->orWhere(self::BANK_NAME_METADATA_PATH, '')
+                    ->orWhereNull(self::BANK_ACCOUNT_NUMBER_METADATA_PATH)
+                    ->orWhere(self::BANK_ACCOUNT_NUMBER_METADATA_PATH, '');
             }),
             'missing_statutory_profile' => $query->whereDoesntHave('statutoryProfiles'),
             'statutory_profile_has_issues' => $query->whereHas('statutoryProfiles', function (Builder $statutoryQuery): void {

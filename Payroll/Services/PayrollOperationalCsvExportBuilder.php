@@ -6,6 +6,8 @@ use App\Modules\People\Payroll\Models\PayrollRun;
 
 class PayrollOperationalCsvExportBuilder
 {
+    private const ZERO_AMOUNT = '0.0000';
+
     private const PAYROLL_SUMMARY_HEADERS = [
         'payroll_run_code',
         'period_code',
@@ -73,12 +75,12 @@ class PayrollOperationalCsvExportBuilder
                 'period_code' => $report['run']['period'] ?? '',
                 'employee_number' => $participant['employee']['number'] ?? '',
                 'employee_name' => $participant['employee']['name'] ?? '',
-                'gross_pay' => $participant['gross_pay'] ?? '0.0000',
-                'employee_deductions' => $participant['employee_deductions'] ?? '0.0000',
-                'employee_contributions' => $participant['employee_contributions'] ?? '0.0000',
-                'taxes' => $participant['taxes'] ?? '0.0000',
-                'reimbursements' => $participant['reimbursements'] ?? '0.0000',
-                'net_pay' => $participant['net_pay'] ?? '0.0000',
+                'gross_pay' => $participant['gross_pay'] ?? self::ZERO_AMOUNT,
+                'employee_deductions' => $participant['employee_deductions'] ?? self::ZERO_AMOUNT,
+                'employee_contributions' => $participant['employee_contributions'] ?? self::ZERO_AMOUNT,
+                'taxes' => $participant['taxes'] ?? self::ZERO_AMOUNT,
+                'reimbursements' => $participant['reimbursements'] ?? self::ZERO_AMOUNT,
+                'net_pay' => $participant['net_pay'] ?? self::ZERO_AMOUNT,
             ])
             ->all();
 
@@ -103,7 +105,7 @@ class PayrollOperationalCsvExportBuilder
                     'label' => $line['label'] ?? '',
                     'source_rule' => $line['source_rule'] ?? '',
                     'source_version' => $line['source_version'] ?? '',
-                    'amount' => $line['amount'] ?? '0.0000',
+                    'amount' => $line['amount'] ?? self::ZERO_AMOUNT,
                 ])
                 ->all())
             ->values()
@@ -124,11 +126,11 @@ class PayrollOperationalCsvExportBuilder
                 'period_code' => $report['run']['period'] ?? '',
                 'employee_number' => $participant['employee']['number'] ?? '',
                 'employee_name' => $participant['employee']['name'] ?? '',
-                'gross_pay' => $participant['gross_pay'] ?? '0.0000',
-                'reimbursements' => $participant['reimbursements'] ?? '0.0000',
-                'employer_contributions' => $participant['employer_contributions'] ?? '0.0000',
-                'employer_levies' => $participant['employer_levies'] ?? '0.0000',
-                'total_employer_cost' => $participant['total_employer_cost'] ?? '0.0000',
+                'gross_pay' => $participant['gross_pay'] ?? self::ZERO_AMOUNT,
+                'reimbursements' => $participant['reimbursements'] ?? self::ZERO_AMOUNT,
+                'employer_contributions' => $participant['employer_contributions'] ?? self::ZERO_AMOUNT,
+                'employer_levies' => $participant['employer_levies'] ?? self::ZERO_AMOUNT,
+                'total_employer_cost' => $participant['total_employer_cost'] ?? self::ZERO_AMOUNT,
             ])
             ->all();
 

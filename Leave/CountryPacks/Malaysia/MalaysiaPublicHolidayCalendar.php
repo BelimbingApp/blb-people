@@ -12,6 +12,8 @@ class MalaysiaPublicHolidayCalendar implements ProvidesPublicHolidayCalendar
 
     private const STATE_SELANGOR = 'SGR';
 
+    private const FEBRUARY_1_2026 = '2026-02-01';
+
     /**
      * 2026 federal gazetted holidays.
      *
@@ -46,11 +48,11 @@ class MalaysiaPublicHolidayCalendar implements ProvidesPublicHolidayCalendar
      */
     private const STATE_2026 = [
         self::STATE_KUALA_LUMPUR => [
-            ['date' => '2026-02-01', 'name' => 'Federal Territory Day'],
-            ['date' => '2026-02-01', 'name' => 'Thaipusam'],
+            ['date' => self::FEBRUARY_1_2026, 'name' => 'Federal Territory Day'],
+            ['date' => self::FEBRUARY_1_2026, 'name' => 'Thaipusam'],
         ],
         self::STATE_SELANGOR => [
-            ['date' => '2026-02-01', 'name' => 'Thaipusam'],
+            ['date' => self::FEBRUARY_1_2026, 'name' => 'Thaipusam'],
             ['date' => '2026-03-07', 'name' => 'Nuzul Al-Quran'],
             ['date' => '2026-12-11', 'name' => "Sultan of Selangor's Birthday"],
         ],

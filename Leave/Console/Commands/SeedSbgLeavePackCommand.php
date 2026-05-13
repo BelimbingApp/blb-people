@@ -26,6 +26,8 @@ use Symfony\Component\Console\Attribute\AsCommand;
 #[AsCommand(name: 'blb:leave:seed-sbg-pack')]
 class SeedSbgLeavePackCommand extends Command
 {
+    private const DEFAULT_EFFECTIVE_FROM = '2026-01-01';
+
     protected $description = 'Seed SBG private leave-pack data (non-statutory types, AL bands, FM/FW/MM/SINGLE cohorts)';
 
     protected $signature = 'blb:leave:seed-sbg-pack
@@ -150,7 +152,7 @@ class SeedSbgLeavePackCommand extends Command
             'advance_notice' => ['standard_days' => 3],
             'back_date' => ['allowed' => false],
             'replacement_expiry' => null,
-            'effective_from' => '2026-01-01',
+            'effective_from' => self::DEFAULT_EFFECTIVE_FROM,
             'version' => 1,
             'status' => 'active',
         ];
@@ -306,7 +308,7 @@ class SeedSbgLeavePackCommand extends Command
                     'bring_forward_expiry_month' => $config['bring_forward_expiry_month'] ?? null,
                     'bring_forward_anchor' => $config['bring_forward_anchor'] ?? null,
                     'eligibility_predicate' => $config['eligibility_predicate'] ?? null,
-                    'effective_from' => '2026-01-01',
+                    'effective_from' => self::DEFAULT_EFFECTIVE_FROM,
                     'statutory_floor_pack_identifier' => 'belimbing/leave-my',
                     'statutory_floor_pack_version' => '2026.dev',
                     'version' => 1,
@@ -408,7 +410,7 @@ class SeedSbgLeavePackCommand extends Command
                         'leave_entitlement_policy_id' => $entitlement->getKey(),
                         'leave_request_policy_id' => $requestPolicy->getKey(),
                         'cohort_predicate' => $cohorts[$cohort],
-                        'effective_from' => '2026-01-01',
+                        'effective_from' => self::DEFAULT_EFFECTIVE_FROM,
                         'status' => 'active',
                     ],
                 );

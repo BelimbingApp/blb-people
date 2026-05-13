@@ -25,6 +25,12 @@ class Index extends Component
 {
     use WithPagination;
 
+    private const DEFAULT_EFFECTIVE_FROM = '2026-01-01';
+
+    private const DEFAULT_SOURCE_PACK = 'belimbing/payroll-my';
+
+    private const DEFAULT_SOURCE_VERSION = '2026.dev';
+
     public string $tab = 'runs';
 
     public string $search = '';
@@ -45,19 +51,19 @@ class Index extends Component
 
     public string $classificationValue = '';
 
-    public string $classificationEffectiveFrom = '2026-01-01';
+    public string $classificationEffectiveFrom = self::DEFAULT_EFFECTIVE_FROM;
 
-    public string $classificationSourcePack = 'belimbing/payroll-my';
+    public string $classificationSourcePack = self::DEFAULT_SOURCE_PACK;
 
-    public string $classificationSourceVersion = '2026.dev';
+    public string $classificationSourceVersion = self::DEFAULT_SOURCE_VERSION;
 
     public string $employerProfileCountryIso = 'MY';
 
-    public string $employerProfileSourcePack = 'belimbing/payroll-my';
+    public string $employerProfileSourcePack = self::DEFAULT_SOURCE_PACK;
 
-    public string $employerProfileSourceVersion = '2026.dev';
+    public string $employerProfileSourceVersion = self::DEFAULT_SOURCE_VERSION;
 
-    public string $employerProfileEffectiveFrom = '2026-01-01';
+    public string $employerProfileEffectiveFrom = self::DEFAULT_EFFECTIVE_FROM;
 
     public string $employerProfileData = '{
     "epf_employer_number": "",
@@ -70,11 +76,11 @@ class Index extends Component
 
     public string $employeeProfileCountryIso = 'MY';
 
-    public string $employeeProfileSourcePack = 'belimbing/payroll-my';
+    public string $employeeProfileSourcePack = self::DEFAULT_SOURCE_PACK;
 
-    public string $employeeProfileSourceVersion = '2026.dev';
+    public string $employeeProfileSourceVersion = self::DEFAULT_SOURCE_VERSION;
 
-    public string $employeeProfileEffectiveFrom = '2026-01-01';
+    public string $employeeProfileEffectiveFrom = self::DEFAULT_EFFECTIVE_FROM;
 
     public string $employeeProfileData = '{
     "citizenship_status": "citizen",
@@ -90,11 +96,11 @@ class Index extends Component
 
     public string $ruleSetName = '';
 
-    public string $ruleSetSourcePack = 'belimbing/payroll-my';
+    public string $ruleSetSourcePack = self::DEFAULT_SOURCE_PACK;
 
-    public string $ruleSetSourceVersion = '2026.dev';
+    public string $ruleSetSourceVersion = self::DEFAULT_SOURCE_VERSION;
 
-    public string $ruleSetEffectiveFrom = '2026-01-01';
+    public string $ruleSetEffectiveFrom = self::DEFAULT_EFFECTIVE_FROM;
 
     public string $ruleSetRoundingPolicy = '{"mode":"ceiling","precision":"0.01"}';
 

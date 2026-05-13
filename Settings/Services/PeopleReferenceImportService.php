@@ -12,6 +12,10 @@ use ZipArchive;
 
 class PeopleReferenceImportService
 {
+    private const XLSX_MAIN_NAMESPACE = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+
+    private const XLSX_DEFAULT_FIRST_SHEET_PATH = 'xl/worksheets/sheet1.xml';
+
     /**
      * @return list<array<string, string>>
      */
@@ -139,7 +143,7 @@ class PeopleReferenceImportService
             'source_label' => $sourceLabel,
             'target_type' => $targetType,
             'dry_run' => $dryRun,
-            'status' => $errors > 0 ? PeopleImportJob::STATUS_FAILED : ($dryRun ? PeopleImportJob::STATUS_VALIDATED : PeopleImportJob::STATUS_IMPORTED),
+            'status' => $this->jobStatus($errors, $dryRun),
             'summary' => [
                 'total_rows' => count($rows),
                 'accepted_rows' => $accepted,
@@ -257,6 +261,15 @@ class PeopleReferenceImportService
         return $value === '' ? null : $value;
     }
 
+    private function jobStatus(int $errors, bool $dryRun): string
+    {
+        if ($errors > 0) {
+            return PeopleImportJob::STATUS_FAILED;
+        }
+
+        return $dryRun ? PeopleImportJob::STATUS_VALIDATED : PeopleImportJob::STATUS_IMPORTED;
+    }
+
     /**
      * @return list<array<string, string>>
      */
@@ -311,11 +324,11 @@ class PeopleReferenceImportService
         }
 
         $root = new SimpleXMLElement($xml);
-        $root->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $root->registerXPathNamespace('m', self::XLSX_MAIN_NAMESPACE);
         $strings = [];
 
         foreach ($root->xpath('//m:si') ?: [] as $node) {
-            $node->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+            $node->registerXPathNamespace('m', self::XLSX_MAIN_NAMESPACE);
             $texts = [];
 
             foreach ($node->xpath('.//m:t') ?: [] as $text) {
@@ -334,16 +347,16 @@ class PeopleReferenceImportService
         $rels = $zip->getFromName('xl/_rels/workbook.xml.rels');
 
         if ($workbook === false || $rels === false) {
-            return 'xl/worksheets/sheet1.xml';
+            return self::XLSX_DEFAULT_FIRST_SHEET_PATH;
         }
 
         $workbookXml = new SimpleXMLElement($workbook);
-        $workbookXml->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $workbookXml->registerXPathNamespace('m', self::XLSX_MAIN_NAMESPACE);
         $workbookXml->registerXPathNamespace('r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships');
         $sheet = ($workbookXml->xpath('//m:sheets/m:sheet') ?: [])[0] ?? null;
 
         if ($sheet === null) {
-            return 'xl/worksheets/sheet1.xml';
+            return self::XLSX_DEFAULT_FIRST_SHEET_PATH;
         }
 
         $attributes = $sheet->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships');
@@ -360,7 +373,7 @@ class PeopleReferenceImportService
             return str_starts_with($target, 'xl/') ? $target : 'xl/'.ltrim($target, '/');
         }
 
-        return 'xl/worksheets/sheet1.xml';
+        return self::XLSX_DEFAULT_FIRST_SHEET_PATH;
     }
 
     /**
@@ -370,11 +383,11 @@ class PeopleReferenceImportService
     private function rowsFromSheetXml(string $xml, array $sharedStrings): array
     {
         $root = new SimpleXMLElement($xml);
-        $root->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $root->registerXPathNamespace('m', self::XLSX_MAIN_NAMESPACE);
         $rawRows = [];
 
         foreach ($root->xpath('//m:sheetData/m:row') ?: [] as $rowNode) {
-            $rowNode->registerXPathNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+            $rowNode->registerXPathNamespace('m', self::XLSX_MAIN_NAMESPACE);
             $row = [];
 
             foreach ($rowNode->xpath('m:c') ?: [] as $cell) {
