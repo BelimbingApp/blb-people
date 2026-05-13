@@ -111,26 +111,14 @@ class ClockEventIngestionService
         $attendanceDate = $occurred->setTimezone($resolvedTimezone)->toDateString();
 
         return DB::transaction(function () use ($employee, $eventType, $source, $occurred, $resolvedTimezone, $actorUserId, $sourceSystem, $sourceLabel, $sourceCode, $correctsClockEventId, $evidence, $metadata, $attendanceDate): AttendanceClockEvent {
-            $day = AttendanceDay::query()
-                ->where('employee_id', $employee->id)
-                ->whereDate('attendance_date', $attendanceDate)
-                ->first();
-
-            if ($day === null) {
-                $day = AttendanceDay::query()->create([
-                    'company_id' => $employee->company_id,
-                    'employee_id' => $employee->id,
-                    'attendance_date' => $attendanceDate,
-                    'status' => AttendanceDay::STATUS_IN_PROGRESS,
-                    'day_type' => 'normal',
-                    'expected_minutes' => 480,
-                    'payroll_period_date' => $attendanceDate,
-                    'metadata' => ['source' => 'clock-event-ingestion'],
-                ]);
-            }
+            $day = app(AttendanceDayResolverService::class)->resolve($employee, $attendanceDate);
 
             if ($day->locked_at !== null || $day->status === AttendanceDay::STATUS_LOCKED) {
                 throw AttendanceClockEventIngestionException::lockedAttendanceDay($day->id);
+            }
+
+            if ($day->status === AttendanceDay::STATUS_SCHEDULED) {
+                $day->forceFill(['status' => AttendanceDay::STATUS_IN_PROGRESS])->save();
             }
 
             $clockEvent = AttendanceClockEvent::query()->create([
