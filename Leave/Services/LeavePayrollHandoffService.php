@@ -4,31 +4,29 @@ namespace App\Modules\People\Leave\Services;
 
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveRequest;
-use App\Modules\People\Payroll\Models\PayrollInput;
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Models\PayrollRunParticipant;
+use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionOutcome;
+use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
+use App\Modules\People\Payroll\Services\PayrollContributionIntake;
+use DateTimeImmutable;
 
 /**
- * Bridges Leave Core → Payroll Core via the neutral PayrollInput surface.
+ * Hands applied leave to Payroll via the neutral intake contract.
  *
- * Strategy: find an open draft PayrollRun (status in draft/calculated) whose
- * period covers the leave start date. If found, write a PayrollInput row
- * attached to the run and the matching participant; otherwise, record the
- * pending handoff on the ledger entry metadata so a future
- * {@see LeavePayrollPendingDrainer} can attach it when a run is opened.
- *
- * Each unpaid-leave or encashment row carries the source leave request ID;
- * (source_type, source_id) is queried to deduplicate so a re-apply cannot
- * double-count.
+ * Each applied unpaid-leave (or other payroll-interacting leave) request
+ * produces one PayrollContributionPayload keyed on
+ * (source_type='leave_request', source_id=request.id, pay_item_code,
+ * period_anchor=starts_on). Payroll decides whether to materialise a
+ * PayrollInput row immediately or hold it as pending until a run opens.
  */
 class LeavePayrollHandoffService
 {
-    private const OPEN_RUN_STATUSES = [
-        PayrollRun::STATUS_DRAFT,
-        PayrollRun::STATUS_CALCULATED,
-    ];
+    public const SOURCE_TYPE = 'leave_request';
 
-    public function onLeaveApplied(LeaveRequest $request, LeaveBalanceLedgerEntry $entry): ?PayrollInput
+    public function __construct(
+        private readonly PayrollContributionIntake $intake,
+    ) {}
+
+    public function onLeaveApplied(LeaveRequest $request, LeaveBalanceLedgerEntry $entry): ?PayrollContributionOutcome
     {
         $leaveType = $request->leaveType;
         if ($leaveType === null || ! $leaveType->interacts_with_payroll) {
@@ -40,74 +38,37 @@ class LeavePayrollHandoffService
             return null;
         }
 
-        $existing = PayrollInput::query()
-            ->where('source_type', 'leave_request')
-            ->where('source_id', $request->getKey())
-            ->first();
-        if ($existing !== null) {
-            return $existing;
-        }
+        $anchor = $this->anchorOf($request);
 
-        $run = $this->findOpenRunFor($request);
-        if ($run === null) {
-            return null;
-        }
-
-        $participant = $this->ensureParticipant($run, (int) $request->employee_id);
-
-        return PayrollInput::query()->create([
-            'payroll_run_id' => $run->getKey(),
-            'payroll_run_participant_id' => $participant->getKey(),
-            'employee_id' => $request->employee_id,
-            'source_type' => 'leave_request',
-            'source_id' => $request->getKey(),
-            'pay_item_code' => $payItemCode,
-            'label' => $leaveType->name,
-            'input_type' => PayrollInput::TYPE_DEDUCTION,
-            'quantity' => (float) $request->quantity,
-            'rate' => null,
-            'amount' => 0,
-            'currency' => $run->currency,
-            'occurred_on' => $request->starts_on,
-            'metadata' => [
+        return $this->intake->ingest(new PayrollContributionPayload(
+            sourceType: self::SOURCE_TYPE,
+            sourceId: (int) $request->getKey(),
+            payItemCode: $payItemCode,
+            periodAnchor: $anchor,
+            companyId: (int) $request->company_id,
+            employeeId: (int) $request->employee_id,
+            currency: 'MYR',
+            occurredOn: $anchor,
+            inputType: 'deduction',
+            amount: 0.0,
+            quantity: (float) $request->quantity,
+            rate: null,
+            label: (string) $leaveType->name,
+            metadata: [
                 'leave_type_code' => $leaveType->code,
                 'leave_ledger_entry_id' => $entry->getKey(),
                 'leave_unit' => $request->unit,
                 'audit_tag' => $leaveType->audit_tag,
             ],
-        ]);
+        ));
     }
 
-    private function findOpenRunFor(LeaveRequest $request): ?PayrollRun
+    private function anchorOf(LeaveRequest $request): DateTimeImmutable
     {
-        return PayrollRun::query()
-            ->where('company_id', $request->company_id)
-            ->whereIn('status', self::OPEN_RUN_STATUSES)
-            ->whereHas('period', function ($q) use ($request): void {
-                $q->where('starts_on', '<=', $request->starts_on)
-                    ->where('ends_on', '>=', $request->starts_on);
-            })
-            ->orderBy('id')
-            ->first();
-    }
+        $starts = $request->starts_on instanceof \DateTimeInterface
+            ? $request->starts_on->format('Y-m-d')
+            : (string) $request->starts_on;
 
-    private function ensureParticipant(PayrollRun $run, int $employeeId): PayrollRunParticipant
-    {
-        $participant = PayrollRunParticipant::query()
-            ->where('payroll_run_id', $run->getKey())
-            ->where('employee_id', $employeeId)
-            ->first();
-
-        if ($participant !== null) {
-            return $participant;
-        }
-
-        return PayrollRunParticipant::query()->create([
-            'payroll_run_id' => $run->getKey(),
-            'company_id' => $run->company_id,
-            'employee_id' => $employeeId,
-            'status' => 'included',
-            'currency' => $run->currency,
-        ]);
+        return new DateTimeImmutable($starts);
     }
 }

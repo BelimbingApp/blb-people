@@ -4,26 +4,24 @@ namespace App\Modules\People\Leave\Services;
 
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveType;
-use App\Modules\People\Payroll\Models\PayrollInput;
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Models\PayrollRunParticipant;
+use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
+use App\Modules\People\Payroll\Services\PayrollContributionIntake;
+use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
  * Encash a remaining annual-leave (or similar) balance: writes a debit
- * `encashed` ledger entry and produces a matching PayrollInput line for
- * the next draft run.
+ * `encashed` ledger entry and hands the corresponding payroll contribution
+ * to Payroll via the intake contract.
  */
 class LeaveEncashmentService
 {
-    private const OPEN_RUN_STATUSES = [
-        PayrollRun::STATUS_DRAFT,
-        PayrollRun::STATUS_CALCULATED,
-    ];
+    public const SOURCE_TYPE = 'leave_encashment';
 
     public function __construct(
         private readonly LeaveBalanceLedgerService $ledger,
+        private readonly PayrollContributionIntake $intake,
     ) {}
 
     public function encash(
@@ -51,16 +49,7 @@ class LeaveEncashmentService
 
         return DB::transaction(function () use ($companyId, $employeeId, $leaveTypeId, $leaveYear, $days, $actorUserId, $note, $currency): LeaveBalanceLedgerEntry {
             $leaveType = LeaveType::query()->findOrFail($leaveTypeId);
-            $run = $this->findOpenRunFor($companyId);
-
-            if ($run === null) {
-                throw new RuntimeException(sprintf(
-                    'Cannot encash leave for company %d without an open payroll run.',
-                    $companyId,
-                ));
-            }
-
-            $participant = $this->ensureParticipant($run, $employeeId);
+            $now = new DateTimeImmutable('today');
 
             $entry = $this->ledger->record(
                 companyId: $companyId,
@@ -78,55 +67,28 @@ class LeaveEncashmentService
                 note: $note ?? 'Leave encashment',
             );
 
-            PayrollInput::query()->create([
-                'payroll_run_id' => $run->getKey(),
-                'payroll_run_participant_id' => $participant->getKey(),
-                'employee_id' => $employeeId,
-                'source_type' => 'leave_encashment',
-                'source_id' => $entry->getKey(),
-                'pay_item_code' => LeaveType::PAYROLL_CODE_LEAVE_ENCASHMENT,
-                'label' => $leaveType->name.' encashment',
-                'input_type' => PayrollInput::TYPE_EARNING,
-                'quantity' => $days,
-                'amount' => 0,
-                'currency' => $run->currency ?: $currency,
-                'occurred_on' => now(),
-                'metadata' => [
+            $this->intake->ingest(new PayrollContributionPayload(
+                sourceType: self::SOURCE_TYPE,
+                sourceId: (int) $entry->getKey(),
+                payItemCode: LeaveType::PAYROLL_CODE_LEAVE_ENCASHMENT,
+                periodAnchor: $now,
+                companyId: $companyId,
+                employeeId: $employeeId,
+                currency: (string) ($currency ?? 'MYR'),
+                occurredOn: $now,
+                inputType: 'earning',
+                amount: 0.0,
+                quantity: $days,
+                rate: null,
+                label: $leaveType->name.' encashment',
+                metadata: [
                     'leave_type_code' => $leaveType->code,
                     'leave_ledger_entry_id' => $entry->getKey(),
+                    'leave_year' => $leaveYear,
                 ],
-            ]);
+            ));
 
             return $entry;
         });
-    }
-
-    private function findOpenRunFor(int $companyId): ?PayrollRun
-    {
-        return PayrollRun::query()
-            ->where('company_id', $companyId)
-            ->whereIn('status', self::OPEN_RUN_STATUSES)
-            ->orderBy('id')
-            ->first();
-    }
-
-    private function ensureParticipant(PayrollRun $run, int $employeeId): PayrollRunParticipant
-    {
-        $participant = PayrollRunParticipant::query()
-            ->where('payroll_run_id', $run->getKey())
-            ->where('employee_id', $employeeId)
-            ->first();
-
-        if ($participant !== null) {
-            return $participant;
-        }
-
-        return PayrollRunParticipant::query()->create([
-            'payroll_run_id' => $run->getKey(),
-            'company_id' => $run->company_id,
-            'employee_id' => $employeeId,
-            'status' => 'included',
-            'currency' => $run->currency,
-        ]);
     }
 }
