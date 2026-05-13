@@ -9,6 +9,6 @@ return [
         'people.attendance.view',
         'people.attendance.manage',
         'people.attendance.approve',
-        'people.attendance.clock',
+        'people.attendance.execute',
     ],
 ];

@@ -244,6 +244,7 @@ return new class extends Migration
             $table->foreignId('attendance_geofence_group_id')->nullable()->constrained('attendance_geofence_groups')->nullOnDelete();
             $table->string('event_type');
             $table->timestamp('occurred_at');
+            $table->string('timezone')->nullable();
             $table->string('source')->default('web_clock')->index();
             $table->foreignId('actor_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('card_number')->nullable();

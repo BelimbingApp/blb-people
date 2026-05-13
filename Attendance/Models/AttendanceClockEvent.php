@@ -13,13 +13,17 @@ class AttendanceClockEvent extends Model
 
     public const TYPE_OUT = 'out';
 
+    public const TYPE_BREAK_OUT = 'break_out';
+
+    public const TYPE_BREAK_IN = 'break_in';
+
     public const SOURCE_WEB = 'web_clock';
+
+    public const SOURCE_MANUAL = 'manual';
 
     public const SOURCE_APP = 'app_clock';
 
     public const SOURCE_IMPORT = 'import';
-
-    public const SOURCE_MANUAL = 'manual';
 
     protected $table = 'attendance_clock_events';
 
@@ -31,6 +35,7 @@ class AttendanceClockEvent extends Model
         'attendance_geofence_group_id',
         'event_type',
         'occurred_at',
+        'timezone',
         'source',
         'actor_user_id',
         'card_number',

@@ -17,7 +17,7 @@ use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
 use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
 use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
-use App\Modules\People\Attendance\Services\AttendanceDayProjectionService;
+use App\Modules\People\Attendance\Services\ClockEventIngestionService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -48,7 +48,7 @@ class Index extends Component
 
         app(AuthorizationService::class)->authorize(
             Actor::forUser(Auth::user()),
-            'people.attendance.clock',
+            'people.attendance.execute',
         );
 
         $employeeId = $this->currentEmployeeId();
@@ -62,33 +62,13 @@ class Index extends Component
             ->where('company_id', $this->companyId())
             ->findOrFail($employeeId);
 
-        $day = AttendanceDay::query()->firstOrCreate(
-            [
-                'employee_id' => $employee->id,
-                'attendance_date' => now()->toDateString(),
-            ],
-            [
-                'company_id' => $employee->company_id,
-                'status' => AttendanceDay::STATUS_IN_PROGRESS,
-                'day_type' => 'normal',
-                'expected_minutes' => 480,
-                'metadata' => ['source' => 'web-clock'],
-            ],
+        app(ClockEventIngestionService::class)->recordWebClock(
+            employee: $employee,
+            eventType: $eventType,
+            actorUserId: (int) Auth::id(),
+            ipAddress: request()->ip(),
+            timezone: config('app.timezone'),
         );
-
-        AttendanceClockEvent::query()->create([
-            'company_id' => $employee->company_id,
-            'employee_id' => $employee->id,
-            'attendance_day_id' => $day->id,
-            'event_type' => $eventType,
-            'occurred_at' => now(),
-            'source' => AttendanceClockEvent::SOURCE_WEB,
-            'actor_user_id' => Auth::id(),
-            'ip_address' => request()->ip(),
-            'metadata' => ['surface' => 'people.attendance.index'],
-        ]);
-
-        app(AttendanceDayProjectionService::class)->project($day)->save();
 
         session()->flash('success', __('Clock event recorded.'));
     }
@@ -102,7 +82,7 @@ class Index extends Component
         $authz = app(AuthorizationService::class);
         $canManage = $authz->can($actor, 'people.attendance.manage')->allowed;
         $canApprove = $authz->can($actor, 'people.attendance.approve')->allowed;
-        $canClock = $authz->can($actor, 'people.attendance.clock')->allowed;
+        $canClock = $authz->can($actor, 'people.attendance.execute')->allowed;
 
         $surfaceTitle = match ($this->surface) {
             'approvals' => __('Attendance Approvals'),

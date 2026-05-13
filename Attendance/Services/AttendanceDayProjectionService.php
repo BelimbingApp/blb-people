@@ -23,10 +23,18 @@ class AttendanceDayProjectionService
         $earlyOutMinutes = $this->earlyOutMinutes($shift, $events);
         $absentMinutes = $events->isEmpty() ? $expectedMinutes : 0;
         $overtimeCandidate = max(0, $workedMinutes - $expectedMinutes);
+        $hasClockIn = $events->contains('event_type', AttendanceClockEvent::TYPE_IN);
+        $hasClockOut = $events->contains('event_type', AttendanceClockEvent::TYPE_OUT);
 
         $exceptionTags = [];
         if ($events->isEmpty()) {
             $exceptionTags[] = 'missing_clock_events';
+        }
+        if (! $events->isEmpty() && ! $hasClockIn) {
+            $exceptionTags[] = 'missing_clock_in';
+        }
+        if (! $events->isEmpty() && ! $hasClockOut) {
+            $exceptionTags[] = 'missing_clock_out';
         }
         if ($lateMinutes > 0) {
             $exceptionTags[] = 'late_in';
