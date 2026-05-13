@@ -360,35 +360,11 @@ return new class extends Migration
             $table->index(['employee_id', 'absence_date', 'status']);
         });
         $this->registerTable('people_attendance_absence_batch_entries');
-
-        Schema::create('people_attendance_payroll_handoffs', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
-            $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
-            $table->nullableMorphs('source');
-            $table->foreignId('payroll_input_id')->nullable()->constrained('people_payroll_inputs')->nullOnDelete();
-            $table->string('pay_item_code');
-            $table->string('input_type');
-            $table->decimal('quantity', 12, 4)->default(0);
-            $table->decimal('amount', 12, 2)->nullable();
-            $table->date('occurred_on');
-            $table->date('payroll_period_date')->nullable();
-            $table->string('status')->default('pending')->index();
-            $table->json('transformation_snapshot')->nullable();
-            $table->json('metadata')->nullable();
-            $table->timestamps();
-
-            $table->unique(['source_type', 'source_id', 'pay_item_code', 'payroll_period_date'], 'attendance_payroll_handoff_unique_source');
-            $table->index(['company_id', 'status', 'payroll_period_date']);
-            $table->index(['employee_id', 'occurred_on']);
-        });
-        $this->registerTable('people_attendance_payroll_handoffs');
     }
 
     public function down(): void
     {
         foreach ([
-            'people_attendance_payroll_handoffs',
             'people_attendance_absence_batch_entries',
             'people_attendance_absence_batches',
             'people_attendance_overtime_requests',

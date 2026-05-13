@@ -205,14 +205,23 @@ class Index extends Component
         $this->authorizeAttendance('people.attendance.approve');
 
         $request = $this->overtimeRequest($requestId);
-        $handoff = app(AttendanceOvertimeService::class)->queuePayrollHandoff($request);
+        $outcome = app(AttendanceOvertimeService::class)->queuePayrollHandoff($request);
 
-        session()->flash(
-            $handoff === null ? 'error' : 'success',
-            $handoff === null
-                ? __('No open payroll run covers this overtime date.')
-                : __('Overtime queued to payroll.'),
-        );
+        if ($outcome === null) {
+            session()->flash('error', __('No payable minutes on this overtime request.'));
+
+            return;
+        }
+
+        $messageKey = $outcome->isMaterialized() ? 'success' : 'error';
+        $message = match (true) {
+            $outcome->isMaterialized() => __('Overtime queued to payroll.'),
+            $outcome->isPending() => __('Saved as pending — no open payroll run covers this overtime date.'),
+            $outcome->isRejected() => __('Cannot queue: the payroll run for this period is closed.'),
+            default => __('Overtime contribution recorded.'),
+        };
+
+        session()->flash($messageKey, $message);
     }
 
     public function finalizeDay(int $dayId): void

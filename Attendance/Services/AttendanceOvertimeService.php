@@ -4,18 +4,18 @@ namespace App\Modules\People\Attendance\Services;
 
 use App\Modules\People\Attendance\Exceptions\AttendanceOvertimeException;
 use App\Modules\People\Attendance\Models\AttendanceOvertimeRequest;
-use App\Modules\People\Attendance\Models\AttendancePayrollHandoff;
-use App\Modules\People\Payroll\Models\PayrollInput;
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Models\PayrollRunParticipant;
-use Illuminate\Support\Facades\DB;
+use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionOutcome;
+use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
+use App\Modules\People\Payroll\Services\PayrollContributionIntake;
+use DateTimeImmutable;
 
 class AttendanceOvertimeService
 {
-    private const OPEN_RUN_STATUSES = [
-        PayrollRun::STATUS_DRAFT,
-        PayrollRun::STATUS_CALCULATED,
-    ];
+    public const SOURCE_TYPE = 'attendance_overtime_request';
+
+    public function __construct(
+        private readonly PayrollContributionIntake $intake,
+    ) {}
 
     public function submit(AttendanceOvertimeRequest $request, int $actorUserId): AttendanceOvertimeRequest
     {
@@ -66,19 +66,18 @@ class AttendanceOvertimeService
         return $request;
     }
 
-    public function queuePayrollHandoff(AttendanceOvertimeRequest $request): ?AttendancePayrollHandoff
+    /**
+     * Hand the approved overtime to Payroll via the intake contract.
+     *
+     * Returns an outcome the caller can branch on:
+     *  - state=queued_in_run: a PayrollInput row was created in an open run.
+     *  - state=pending: no open run covers the period; intake will materialise
+     *    it when a run opens.
+     *  - state=rejected_locked: the only matching run is closed/voided.
+     */
+    public function queuePayrollHandoff(AttendanceOvertimeRequest $request): ?PayrollContributionOutcome
     {
-        $existing = AttendancePayrollHandoff::query()
-            ->where('source_type', AttendanceOvertimeRequest::class)
-            ->where('source_id', $request->id)
-            ->where('pay_item_code', $this->payItemCode($request))
-            ->first();
-
-        if ($existing !== null) {
-            return $existing;
-        }
-
-        if ($request->status !== AttendanceOvertimeRequest::STATUS_APPROVED) {
+        if ($request->status !== AttendanceOvertimeRequest::STATUS_APPROVED && $request->status !== AttendanceOvertimeRequest::STATUS_QUEUED_FOR_PAYROLL) {
             throw AttendanceOvertimeException::invalidTransition($request->id, $request->status, AttendanceOvertimeRequest::STATUS_QUEUED_FOR_PAYROLL);
         }
 
@@ -86,68 +85,56 @@ class AttendanceOvertimeService
             return null;
         }
 
-        return DB::transaction(function () use ($request): ?AttendancePayrollHandoff {
-            $run = $this->findOpenRunFor($request);
-            if ($run === null) {
-                return null;
-            }
+        $payload = $this->buildPayload($request);
+        $outcome = $this->intake->ingest($payload);
 
-            $participant = $this->ensureParticipant($run, (int) $request->employee_id);
-            $payItemCode = $this->payItemCode($request);
-            $quantity = round($request->payable_minutes / 60, 4);
-            $occurredOn = $request->starts_at?->toDateString()
-                ?? $request->attendanceDay?->attendance_date?->toDateString()
-                ?? now()->toDateString();
-
-            $input = PayrollInput::query()->create([
-                'payroll_run_id' => $run->id,
-                'payroll_run_participant_id' => $participant->id,
-                'employee_id' => $request->employee_id,
-                'source_type' => 'attendance_overtime_request',
-                'source_id' => $request->id,
-                'pay_item_code' => $payItemCode,
-                'label' => 'Attendance overtime',
-                'input_type' => PayrollInput::TYPE_EARNING,
-                'quantity' => $quantity,
-                'rate' => null,
-                'amount' => 0,
-                'currency' => $run->currency,
-                'occurred_on' => $occurredOn,
-                'metadata' => [
-                    'attendance_day_id' => $request->attendance_day_id,
-                    'approved_minutes' => $request->approved_minutes,
-                    'payable_minutes' => $request->payable_minutes,
-                    'request_mode' => $request->request_mode,
-                ],
-            ]);
-
-            $handoff = AttendancePayrollHandoff::query()->create([
-                'company_id' => $request->company_id,
-                'employee_id' => $request->employee_id,
-                'source_type' => AttendanceOvertimeRequest::class,
-                'source_id' => $request->id,
-                'payroll_input_id' => $input->id,
-                'pay_item_code' => $payItemCode,
-                'input_type' => PayrollInput::TYPE_EARNING,
-                'quantity' => $quantity,
-                'amount' => 0,
-                'occurred_on' => $occurredOn,
-                'payroll_period_date' => $run->period?->starts_on,
-                'status' => AttendancePayrollHandoff::STATUS_QUEUED,
-                'transformation_snapshot' => [
-                    'approved_minutes' => $request->approved_minutes,
-                    'payable_minutes' => $request->payable_minutes,
-                    'hours' => $quantity,
-                ],
-            ]);
-
+        if ($outcome->isMaterialized() && $request->status !== AttendanceOvertimeRequest::STATUS_QUEUED_FOR_PAYROLL) {
             $request->forceFill([
                 'status' => AttendanceOvertimeRequest::STATUS_QUEUED_FOR_PAYROLL,
                 'queued_for_payroll_at' => now(),
             ])->save();
+        }
 
-            return $handoff;
-        });
+        return $outcome;
+    }
+
+    private function buildPayload(AttendanceOvertimeRequest $request): PayrollContributionPayload
+    {
+        $occurredOn = $this->occurredOn($request);
+        $quantity = round($request->payable_minutes / 60, 4);
+
+        return new PayrollContributionPayload(
+            sourceType: self::SOURCE_TYPE,
+            sourceId: (int) $request->id,
+            payItemCode: $this->payItemCode($request),
+            periodAnchor: $occurredOn,
+            companyId: (int) $request->company_id,
+            employeeId: (int) $request->employee_id,
+            currency: 'MYR',
+            occurredOn: $occurredOn,
+            inputType: 'earning',
+            amount: 0.0,
+            quantity: $quantity,
+            rate: null,
+            label: 'Attendance overtime',
+            accountingSnapshot: [],
+            metadata: [
+                'attendance_day_id' => $request->attendance_day_id,
+                'approved_minutes' => $request->approved_minutes,
+                'payable_minutes' => $request->payable_minutes,
+                'request_mode' => $request->request_mode,
+                'hours' => $quantity,
+            ],
+        );
+    }
+
+    private function occurredOn(AttendanceOvertimeRequest $request): DateTimeImmutable
+    {
+        $date = $request->starts_at?->toDateString()
+            ?? $request->attendanceDay?->attendance_date?->toDateString()
+            ?? now()->toDateString();
+
+        return new DateTimeImmutable($date);
     }
 
     private function payItemCode(AttendanceOvertimeRequest $request): string
@@ -167,43 +154,5 @@ class AttendanceOvertimeService
         }
 
         return $payItemCode;
-    }
-
-    private function findOpenRunFor(AttendanceOvertimeRequest $request): ?PayrollRun
-    {
-        $occurredOn = $request->starts_at?->toDateString()
-            ?? $request->attendanceDay?->attendance_date?->toDateString()
-            ?? now()->toDateString();
-
-        return PayrollRun::query()
-            ->where('company_id', $request->company_id)
-            ->whereIn('status', self::OPEN_RUN_STATUSES)
-            ->whereHas('period', function ($query) use ($occurredOn): void {
-                $query->where('starts_on', '<=', $occurredOn)
-                    ->where('ends_on', '>=', $occurredOn);
-            })
-            ->with('period')
-            ->orderBy('id')
-            ->first();
-    }
-
-    private function ensureParticipant(PayrollRun $run, int $employeeId): PayrollRunParticipant
-    {
-        $participant = PayrollRunParticipant::query()
-            ->where('payroll_run_id', $run->id)
-            ->where('employee_id', $employeeId)
-            ->first();
-
-        if ($participant !== null) {
-            return $participant;
-        }
-
-        return PayrollRunParticipant::query()->create([
-            'payroll_run_id' => $run->id,
-            'company_id' => $run->company_id,
-            'employee_id' => $employeeId,
-            'status' => 'included',
-            'currency' => $run->currency,
-        ]);
     }
 }
