@@ -2,21 +2,18 @@
 
 namespace App\Modules\People\Attendance\Models;
 
-use App\Modules\Core\Company\Models\Company;
+use App\Base\Database\Concerns\HasCompanyScopedExternalLifecycle;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AttendancePolicyGroup extends Model
 {
-    public const STATUS_ACTIVE = 'active';
-
-    public const STATUS_INACTIVE = 'inactive';
+    use HasCompanyScopedExternalLifecycle;
 
     protected $table = 'people_attendance_policy_groups';
 
     protected $fillable = [
-        'company_id',
+        ...self::COMPANY_SCOPED_EXTERNAL_LIFECYCLE_FILLABLE,
         'code',
         'name',
         'cohort_predicate',
@@ -26,14 +23,8 @@ class AttendancePolicyGroup extends Model
         'overtime_export_rules',
         'lateness_export_rules',
         'payroll_defaults',
-        'effective_from',
-        'effective_to',
         'version',
         'status',
-        'source_system',
-        'source_label',
-        'source_code',
-        'metadata',
     ];
 
     protected function casts(): array
@@ -46,16 +37,9 @@ class AttendancePolicyGroup extends Model
             'overtime_export_rules' => 'array',
             'lateness_export_rules' => 'array',
             'payroll_defaults' => 'array',
-            'effective_from' => 'date',
-            'effective_to' => 'date',
+            ...self::COMPANY_SCOPED_EXTERNAL_LIFECYCLE_CASTS,
             'version' => 'integer',
-            'metadata' => 'array',
         ];
-    }
-
-    public function company(): BelongsTo
-    {
-        return $this->belongsTo(Company::class, 'company_id');
     }
 
     public function allowanceRules(): HasMany

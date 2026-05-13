@@ -2,14 +2,15 @@
 
 namespace App\Modules\People\Claim\Models;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
+use App\Base\Database\Concerns\BelongsToCompanyAndEmployee;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ClaimRequest extends Model
 {
+    use BelongsToCompanyAndEmployee;
+
     public const STATUS_DRAFT = 'draft';
     public const STATUS_SUBMITTED = 'submitted';
     public const STATUS_NEEDS_MORE_INFO = 'needs_more_info';
@@ -26,8 +27,7 @@ class ClaimRequest extends Model
 
     /** @var list<string> */
     protected $fillable = [
-        'company_id',
-        'employee_id',
+        ...self::COMPANY_EMPLOYEE_FILLABLE,
         'claim_assignment_id',
         'claim_context_id',
         'reference_number',
@@ -70,19 +70,7 @@ class ClaimRequest extends Model
             'queued_for_payroll_at' => 'datetime',
             'reimbursed_at' => 'datetime',
             'metadata' => 'array',
-            'created_at' => 'datetime',
-            'updated_at' => 'datetime',
         ];
-    }
-
-    public function company(): BelongsTo
-    {
-        return $this->belongsTo(Company::class, 'company_id');
-    }
-
-    public function employee(): BelongsTo
-    {
-        return $this->belongsTo(Employee::class, 'employee_id');
     }
 
     public function assignment(): BelongsTo

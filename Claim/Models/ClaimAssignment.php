@@ -2,31 +2,31 @@
 
 namespace App\Modules\People\Claim\Models;
 
-use App\Modules\Core\Company\Models\Company;
+use App\Base\Database\Concerns\BelongsToCompany;
+use App\Base\Database\Concerns\HasActiveInactiveStatus;
+use App\Base\Database\Concerns\HasEffectiveDateRange;
+use App\Base\Database\Concerns\TracksExternalSource;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ClaimAssignment extends Model
 {
-    public const STATUS_ACTIVE = 'active';
-    public const STATUS_INACTIVE = 'inactive';
+    use BelongsToCompany;
+    use HasActiveInactiveStatus;
+    use HasEffectiveDateRange;
+    use TracksExternalSource;
 
     protected $table = 'people_claim_assignments';
 
     /** @var list<string> */
     protected $fillable = [
-        'company_id',
+        ...self::COMPANY_FILLABLE,
         'code',
         'name',
         'cohort_predicate',
-        'effective_from',
-        'effective_to',
+        ...self::EFFECTIVE_DATE_RANGE_FILLABLE,
         'status',
-        'source_system',
-        'source_label',
-        'source_code',
-        'metadata',
+        ...self::EXTERNAL_SOURCE_FILLABLE,
     ];
 
     /** @return array<string, string> */
@@ -34,17 +34,9 @@ class ClaimAssignment extends Model
     {
         return [
             'cohort_predicate' => 'array',
-            'effective_from' => 'date',
-            'effective_to' => 'date',
-            'metadata' => 'array',
-            'created_at' => 'datetime',
-            'updated_at' => 'datetime',
+            ...self::EFFECTIVE_DATE_RANGE_CASTS,
+            ...self::EXTERNAL_SOURCE_CASTS,
         ];
-    }
-
-    public function company(): BelongsTo
-    {
-        return $this->belongsTo(Company::class, 'company_id');
     }
 
     /** @return HasMany<ClaimAssignmentLine, $this> */

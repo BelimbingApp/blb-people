@@ -2,13 +2,14 @@
 
 namespace App\Modules\People\Attendance\Models;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
+use App\Base\Database\Concerns\BelongsToCompanyAndEmployee;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttendanceOvertimeRequest extends Model
 {
+    use BelongsToCompanyAndEmployee;
+
     public const STATUS_DRAFT = 'draft';
 
     public const STATUS_SUBMITTED = 'submitted';
@@ -28,8 +29,7 @@ class AttendanceOvertimeRequest extends Model
     protected $table = 'people_attendance_overtime_requests';
 
     protected $fillable = [
-        'company_id',
-        'employee_id',
+        ...self::COMPANY_EMPLOYEE_FILLABLE,
         'attendance_day_id',
         'request_mode',
         'status',
@@ -75,16 +75,6 @@ class AttendanceOvertimeRequest extends Model
             'paid_at' => 'datetime',
             'metadata' => 'array',
         ];
-    }
-
-    public function company(): BelongsTo
-    {
-        return $this->belongsTo(Company::class, 'company_id');
-    }
-
-    public function employee(): BelongsTo
-    {
-        return $this->belongsTo(Employee::class, 'employee_id');
     }
 
     public function attendanceDay(): BelongsTo

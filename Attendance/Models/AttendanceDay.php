@@ -2,14 +2,15 @@
 
 namespace App\Modules\People\Attendance\Models;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
+use App\Base\Database\Concerns\BelongsToCompanyAndEmployee;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AttendanceDay extends Model
 {
+    use BelongsToCompanyAndEmployee;
+
     public const STATUS_SCHEDULED = 'scheduled';
 
     public const STATUS_IN_PROGRESS = 'in_progress';
@@ -27,8 +28,7 @@ class AttendanceDay extends Model
     protected $table = 'people_attendance_days';
 
     protected $fillable = [
-        'company_id',
-        'employee_id',
+        ...self::COMPANY_EMPLOYEE_FILLABLE,
         'attendance_roster_assignment_id',
         'attendance_shift_template_id',
         'attendance_policy_group_id',
@@ -76,16 +76,6 @@ class AttendanceDay extends Model
             'locked_at' => 'datetime',
             'metadata' => 'array',
         ];
-    }
-
-    public function company(): BelongsTo
-    {
-        return $this->belongsTo(Company::class, 'company_id');
-    }
-
-    public function employee(): BelongsTo
-    {
-        return $this->belongsTo(Employee::class, 'employee_id');
     }
 
     public function shiftTemplate(): BelongsTo

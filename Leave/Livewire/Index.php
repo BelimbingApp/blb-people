@@ -31,6 +31,8 @@ use Throwable;
 
 class Index extends Component
 {
+    private const DEFAULT_EFFECTIVE_FROM = '2026-01-01';
+
     use WithPagination;
 
     public string $surface = 'my';
@@ -73,7 +75,7 @@ class Index extends Component
     public string $entitlementBringForwardCap = '';
     public string $entitlementBringForwardExpiryMonth = '';
     public string $entitlementBringForwardAnchor = LeaveEntitlementPolicy::ANCHOR_YEAR_START;
-    public string $entitlementEffectiveFrom = '2026-01-01';
+    public string $entitlementEffectiveFrom = self::DEFAULT_EFFECTIVE_FROM;
 
     // Request policy form
     public string $requestLeaveTypeId = '';
@@ -88,7 +90,7 @@ class Index extends Component
     public bool $requestExcludeOffDay = true;
     public bool $requestExcludeRestDay = true;
     public string $requestMaxDaysPerApplication = '';
-    public string $requestEffectiveFrom = '2026-01-01';
+    public string $requestEffectiveFrom = self::DEFAULT_EFFECTIVE_FROM;
 
     // Assignment form
     public string $assignmentCode = '';
@@ -96,7 +98,7 @@ class Index extends Component
     public string $assignmentLeaveTypeId = '';
     public string $assignmentEntitlementPolicyId = '';
     public string $assignmentRequestPolicyId = '';
-    public string $assignmentEffectiveFrom = '2026-01-01';
+    public string $assignmentEffectiveFrom = self::DEFAULT_EFFECTIVE_FROM;
 
     // Approval queue
     public ?int $selectedRequestId = null;

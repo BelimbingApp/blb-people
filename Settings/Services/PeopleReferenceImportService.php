@@ -2,11 +2,11 @@
 
 namespace App\Modules\People\Settings\Services;
 
+use App\Modules\People\Settings\Exceptions\PeopleReferenceImportException;
 use App\Modules\People\Settings\Models\PeopleImportJob;
 use App\Modules\People\Settings\Models\PeopleReferenceAlias;
 use App\Modules\People\Settings\Models\PeopleReferenceEntry;
 use Illuminate\Support\Str;
-use RuntimeException;
 use SimpleXMLElement;
 use ZipArchive;
 
@@ -34,7 +34,7 @@ class PeopleReferenceImportService
         $handle = fopen('php://temp', 'r+');
 
         if ($handle === false) {
-            throw new RuntimeException('Unable to allocate temporary CSV stream.');
+            throw PeopleReferenceImportException::temporaryCsvStreamUnavailable();
         }
 
         fwrite($handle, $contents);
@@ -276,13 +276,13 @@ class PeopleReferenceImportService
     private function rowsFromXlsx(string $contents): array
     {
         if (! class_exists(ZipArchive::class)) {
-            throw new RuntimeException('XLSX imports require the PHP zip extension.');
+            throw PeopleReferenceImportException::zipExtensionMissing();
         }
 
         $path = tempnam(sys_get_temp_dir(), 'blb-people-import-');
 
         if ($path === false) {
-            throw new RuntimeException('Unable to create temporary XLSX file.');
+            throw PeopleReferenceImportException::temporaryXlsxFileUnavailable();
         }
 
         file_put_contents($path, $contents);
@@ -291,7 +291,7 @@ class PeopleReferenceImportService
             $zip = new ZipArchive;
 
             if ($zip->open($path) !== true) {
-                throw new RuntimeException('Unable to open XLSX import.');
+                throw PeopleReferenceImportException::xlsxOpenFailed();
             }
 
             try {
@@ -300,7 +300,7 @@ class PeopleReferenceImportService
                 $sheetXml = $zip->getFromName($sheetPath);
 
                 if ($sheetXml === false) {
-                    throw new RuntimeException('XLSX import has no readable first sheet.');
+                    throw PeopleReferenceImportException::unreadableFirstSheet();
                 }
 
                 return $this->rowsFromSheetXml($sheetXml, $strings);
@@ -343,11 +343,12 @@ class PeopleReferenceImportService
 
     private function firstSheetPath(ZipArchive $zip): string
     {
+        $sheetPath = self::XLSX_DEFAULT_FIRST_SHEET_PATH;
         $workbook = $zip->getFromName('xl/workbook.xml');
         $rels = $zip->getFromName('xl/_rels/workbook.xml.rels');
 
         if ($workbook === false || $rels === false) {
-            return self::XLSX_DEFAULT_FIRST_SHEET_PATH;
+            return $sheetPath;
         }
 
         $workbookXml = new SimpleXMLElement($workbook);
@@ -356,7 +357,7 @@ class PeopleReferenceImportService
         $sheet = ($workbookXml->xpath('//m:sheets/m:sheet') ?: [])[0] ?? null;
 
         if ($sheet === null) {
-            return self::XLSX_DEFAULT_FIRST_SHEET_PATH;
+            return $sheetPath;
         }
 
         $attributes = $sheet->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships');
@@ -370,10 +371,11 @@ class PeopleReferenceImportService
 
             $target = (string) $relationship['Target'];
 
-            return str_starts_with($target, 'xl/') ? $target : 'xl/'.ltrim($target, '/');
+            $sheetPath = str_starts_with($target, 'xl/') ? $target : 'xl/'.ltrim($target, '/');
+            break;
         }
 
-        return self::XLSX_DEFAULT_FIRST_SHEET_PATH;
+        return $sheetPath;
     }
 
     /**

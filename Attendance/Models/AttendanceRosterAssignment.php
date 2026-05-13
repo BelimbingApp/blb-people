@@ -2,54 +2,46 @@
 
 namespace App\Modules\People\Attendance\Models;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
+use App\Base\Database\Concerns\BelongsToCompany;
+use App\Base\Database\Concerns\BelongsToEmployee;
+use App\Base\Database\Concerns\HasEffectiveDateRange;
+use App\Base\Database\Concerns\TracksExternalSource;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttendanceRosterAssignment extends Model
 {
+    use BelongsToCompany;
+    use BelongsToEmployee;
+    use HasEffectiveDateRange;
+    use TracksExternalSource;
+
     protected $table = 'people_attendance_roster_assignments';
 
     protected $fillable = [
-        'company_id',
-        'employee_id',
+        ...self::COMPANY_FILLABLE,
+        ...self::EMPLOYEE_FILLABLE,
         'attendance_roster_pattern_id',
         'attendance_shift_template_id',
         'attendance_policy_group_id',
         'cohort_predicate',
-        'effective_from',
-        'effective_to',
+        ...self::EFFECTIVE_DATE_RANGE_FILLABLE,
         'publish_state',
         'lock_state',
         'revision',
         'exceptions',
-        'source_system',
-        'source_label',
-        'source_code',
-        'metadata',
+        ...self::EXTERNAL_SOURCE_FILLABLE,
     ];
 
     protected function casts(): array
     {
         return [
             'cohort_predicate' => 'array',
-            'effective_from' => 'date',
-            'effective_to' => 'date',
+            ...self::EFFECTIVE_DATE_RANGE_CASTS,
             'revision' => 'integer',
             'exceptions' => 'array',
-            'metadata' => 'array',
+            ...self::EXTERNAL_SOURCE_CASTS,
         ];
-    }
-
-    public function company(): BelongsTo
-    {
-        return $this->belongsTo(Company::class, 'company_id');
-    }
-
-    public function employee(): BelongsTo
-    {
-        return $this->belongsTo(Employee::class, 'employee_id');
     }
 
     public function shiftTemplate(): BelongsTo

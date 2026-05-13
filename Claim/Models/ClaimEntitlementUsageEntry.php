@@ -2,13 +2,16 @@
 
 namespace App\Modules\People\Claim\Models;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
+use App\Base\Database\Concerns\BelongsToCompany;
+use App\Base\Database\Concerns\BelongsToEmployee;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClaimEntitlementUsageEntry extends Model
 {
+    use BelongsToCompany;
+    use BelongsToEmployee;
+
     public const ENTRY_OPENING = 'opening';
     public const ENTRY_ENCUMBERED = 'encumbered';
     public const ENTRY_APPROVED = 'approved';
@@ -20,8 +23,8 @@ class ClaimEntitlementUsageEntry extends Model
 
     /** @var list<string> */
     protected $fillable = [
-        'company_id',
-        'employee_id',
+        ...self::COMPANY_FILLABLE,
+        ...self::EMPLOYEE_FILLABLE,
         'claim_type_id',
         'claim_policy_id',
         'claim_line_id',
@@ -44,19 +47,7 @@ class ClaimEntitlementUsageEntry extends Model
             'amount' => 'decimal:2',
             'occurred_on' => 'date',
             'metadata' => 'array',
-            'created_at' => 'datetime',
-            'updated_at' => 'datetime',
         ];
-    }
-
-    public function company(): BelongsTo
-    {
-        return $this->belongsTo(Company::class, 'company_id');
-    }
-
-    public function employee(): BelongsTo
-    {
-        return $this->belongsTo(Employee::class, 'employee_id');
     }
 
     public function type(): BelongsTo
