@@ -14,6 +14,7 @@ use App\Modules\People\Attendance\Models\AttendanceGeofence;
 use App\Modules\People\Attendance\Models\AttendanceGeofenceGroup;
 use App\Modules\People\Attendance\Models\AttendanceOvertimeRequest;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
+use App\Modules\People\Attendance\Models\AttendancePunchWindow;
 use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
 use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
@@ -31,9 +32,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 
 class Index extends Component
 {
+    use WithFileUploads;
+
     public string $surface = 'my';
 
     public string $section = 'policies';
@@ -74,7 +79,7 @@ class Index extends Component
 
     public string $policyStudioMode = 'library';
 
-    public string $policyTemplateImportJson = '';
+    public $policyTemplateUpload = null;
 
     public string $policyTemplateExportJson = '';
 
@@ -154,6 +159,50 @@ class Index extends Component
 
     public string $policyLatenessMonthlyRoundingMinutes = '15';
 
+    public bool $showShiftBuilderForm = false;
+
+    public $shiftTemplateUpload = null;
+
+    public string $shiftTemplateExportJson = '';
+
+    public bool $showShiftTemplateImportModal = false;
+
+    public bool $showAllShiftTemplates = true;
+
+    public string $selectedShiftTemplateKey = '';
+
+    public ?int $editingShiftTemplateId = null;
+
+    public string $shiftCode = '';
+
+    public string $shiftName = '';
+
+    public string $shiftStartsAt = '08:00';
+
+    public string $shiftEndsAt = '17:00';
+
+    public string $shiftExpectedWorkMinutes = '480';
+
+    public string $shiftBreakStartsAt = '12:00';
+
+    public string $shiftBreakEndsAt = '13:00';
+
+    public string $shiftInWindowBeforeMinutes = '60';
+
+    public string $shiftInWindowAfterMinutes = '15';
+
+    public string $shiftOutWindowBeforeMinutes = '15';
+
+    public string $shiftOutWindowAfterMinutes = '120';
+
+    public string $shiftPayrollAttribution = 'shift_start_date';
+
+    public string $shiftEffectiveFrom = '';
+
+    public string $shiftEffectiveTo = '';
+
+    public string $shiftStatus = 'active';
+
     public string $allowancePolicyGroupId = '';
 
     public string $allowanceCode = '';
@@ -199,13 +248,14 @@ class Index extends Component
     public function mount(?string $surface = null, ?string $section = null, ?string $mode = null): void
     {
         $this->surface = in_array($surface, ['my', 'approvals', 'operations', 'settings'], true) ? $surface : 'my';
-        $this->section = in_array($section, ['policies', 'shifts', 'rosters', 'allowances', 'locations'], true) ? $section : 'policies';
+        $this->section = in_array($section, ['policies', 'shifts', 'shift-library', 'rosters', 'allowances', 'locations'], true) ? $section : 'policies';
         $this->policyStudioMode = in_array($mode, ['library', 'builder', 'simulate'], true) ? $mode : 'library';
         $this->overtimeDate = now()->toDateString();
         $this->overtimeStartsAt = now()->setTime(17, 0)->format('H:i');
         $this->overtimeEndsAt = now()->setTime(18, 0)->format('H:i');
         $this->policyPreviewDate = now()->toDateString();
         $this->policyEffectiveFrom = now()->toDateString();
+        $this->shiftEffectiveFrom = now()->toDateString();
         $this->allowanceEffectiveFrom = now()->toDateString();
         $this->rosterEffectiveFrom = now()->toDateString();
     }
@@ -565,6 +615,14 @@ class Index extends Component
 
     public function usePolicyTemplate(string $templateKey): void
     {
+        if ($this->selectedPolicyTemplateKey === $templateKey && ! $this->showAllPolicyTemplates) {
+            $this->resetPolicyForm();
+            $this->showPolicyBuilderForm = false;
+            $this->showAllPolicyTemplates = true;
+
+            return;
+        }
+
         $template = collect($this->policyTemplates())->firstWhere('key', $templateKey);
         if (! is_array($template)) {
             return;
@@ -586,16 +644,20 @@ class Index extends Component
 
         $this->authorizeAttendance('people.attendance.manage');
 
-        $payload = json_decode($this->policyTemplateImportJson, true);
+        $this->validate([
+            'policyTemplateUpload' => ['required', 'file', 'max:256', 'extensions:json'],
+        ]);
+
+        $payload = json_decode($this->templateUploadContents($this->policyTemplateUpload), true);
         if (! is_array($payload)) {
-            $this->addError('policyTemplateImportJson', __('Paste a valid JSON policy template.'));
+            $this->addError('policyTemplateUpload', __('Upload a valid JSON policy template.'));
 
             return;
         }
 
         $template = array_is_list($payload) ? ($payload[0] ?? null) : $payload;
         if (! is_array($template)) {
-            $this->addError('policyTemplateImportJson', __('The JSON must be a template object or an array of template objects.'));
+            $this->addError('policyTemplateUpload', __('The JSON must be a template object or an array of template objects.'));
 
             return;
         }
@@ -606,8 +668,9 @@ class Index extends Component
         $this->showPolicyTemplateImportModal = false;
         $this->showAllPolicyTemplates = false;
         $this->selectedPolicyTemplateKey = 'imported-template';
+        $this->policyTemplateUpload = null;
         $this->policyStudioMode = 'builder';
-        session()->flash('success', __('Policy template imported into the builder. Review, validate, then save it as a policy group.'));
+        session()->flash('success', __('Policy template uploaded into the builder. Review, validate, then save it as a policy group.'));
     }
 
     public function exportBuilderPolicyTemplate(): void
@@ -615,7 +678,7 @@ class Index extends Component
         $this->authorizeAttendance('people.attendance.manage');
 
         $this->policyTemplateExportJson = json_encode($this->policyTemplateFromBuilder(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        session()->flash('success', __('Policy template JSON prepared. Copy it into a country pack or shared template repository when ready.'));
+        session()->flash('success', __('Policy template JSON ready to download. Copy it into a country pack or shared template repository when ready.'));
     }
 
     public function exportPolicyGroupTemplate(int $policyGroupId): void
@@ -630,7 +693,7 @@ class Index extends Component
         $this->editPolicyGroup($policy->id);
         $this->policyTemplateExportJson = json_encode($this->policyTemplateFromBuilder(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         $this->policyStudioMode = 'library';
-        session()->flash('success', __('Policy template JSON prepared from :policy.', ['policy' => $policy->code]));
+        session()->flash('success', __('Policy template JSON ready to download from :policy.', ['policy' => $policy->code]));
     }
 
     public function simulatePolicyGroup(int $policyGroupId): void
@@ -684,6 +747,181 @@ class Index extends Component
         }
 
         session()->flash('success', __('Policy group deleted.'));
+    }
+
+    public function startShiftBuilder(): void
+    {
+        $this->resetShiftForm();
+        $this->showShiftBuilderForm = false;
+        $this->showAllShiftTemplates = true;
+    }
+
+    public function useShiftTemplate(string $templateKey): void
+    {
+        if ($this->selectedShiftTemplateKey === $templateKey && ! $this->showAllShiftTemplates) {
+            $this->resetShiftForm();
+            $this->showShiftBuilderForm = false;
+            $this->showAllShiftTemplates = true;
+
+            return;
+        }
+
+        $template = collect($this->shiftTemplates())->firstWhere('key', $templateKey);
+        if (! is_array($template)) {
+            return;
+        }
+
+        $this->resetShiftForm();
+        $this->applyShiftTemplate($template);
+        $this->showShiftBuilderForm = true;
+        $this->showAllShiftTemplates = false;
+        $this->selectedShiftTemplateKey = $templateKey;
+    }
+
+    public function editShiftTemplate(int $shiftTemplateId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        $shift = $this->shiftTemplate($shiftTemplateId);
+        $this->editingShiftTemplateId = $shift->id;
+        $this->shiftCode = $shift->code;
+        $this->shiftName = $shift->name;
+        $this->shiftStartsAt = substr((string) $shift->starts_at, 0, 5);
+        $this->shiftEndsAt = substr((string) $shift->ends_at, 0, 5);
+        $this->shiftExpectedWorkMinutes = (string) $shift->expected_work_minutes;
+        $this->shiftPayrollAttribution = $shift->payroll_attribution;
+        $this->shiftEffectiveFrom = $shift->effective_from?->toDateString() ?? now()->toDateString();
+        $this->shiftEffectiveTo = $shift->effective_to?->toDateString() ?? '';
+        $this->shiftStatus = $shift->status;
+        $this->loadShiftBreakWindow($shift);
+        $this->loadShiftPunchWindows($shift);
+        $this->showShiftBuilderForm = true;
+        $this->showAllShiftTemplates = false;
+        $this->selectedShiftTemplateKey = 'saved-shift';
+    }
+
+    public function duplicateShiftTemplate(int $shiftTemplateId): void
+    {
+        $this->editShiftTemplate($shiftTemplateId);
+        $source = $this->shiftTemplate($shiftTemplateId);
+        $this->editingShiftTemplateId = null;
+        $this->shiftCode = $this->uniqueShiftCode($source->code.'_COPY');
+        $this->shiftName = $source->name.' Copy';
+        $this->shiftStatus = 'inactive';
+        $this->showShiftBuilderForm = true;
+        $this->showAllShiftTemplates = false;
+    }
+
+    public function saveShiftTemplate(): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        $companyId = $this->companyId();
+        $validated = $this->validate([
+            'shiftCode' => [
+                'required', 'string', 'max:60', 'alpha_dash',
+                Rule::unique('people_attendance_shift_templates', 'code')->where('company_id', $companyId)->ignore($this->editingShiftTemplateId),
+            ],
+            'shiftName' => ['required', 'string', 'max:120'],
+            'shiftStartsAt' => ['required', 'date_format:H:i'],
+            'shiftEndsAt' => ['required', 'date_format:H:i'],
+            'shiftExpectedWorkMinutes' => ['required', 'integer', 'min:1', 'max:1440'],
+            'shiftBreakStartsAt' => ['nullable', 'required_with:shiftBreakEndsAt', 'date_format:H:i'],
+            'shiftBreakEndsAt' => ['nullable', 'required_with:shiftBreakStartsAt', 'date_format:H:i'],
+            'shiftInWindowBeforeMinutes' => ['required', 'integer', 'min:0', 'max:720'],
+            'shiftInWindowAfterMinutes' => ['required', 'integer', 'min:0', 'max:720'],
+            'shiftOutWindowBeforeMinutes' => ['required', 'integer', 'min:0', 'max:720'],
+            'shiftOutWindowAfterMinutes' => ['required', 'integer', 'min:0', 'max:720'],
+            'shiftPayrollAttribution' => ['required', Rule::in(['shift_start_date', 'shift_end_date'])],
+            'shiftEffectiveFrom' => ['required', 'date'],
+            'shiftEffectiveTo' => ['nullable', 'date', 'after_or_equal:shiftEffectiveFrom'],
+            'shiftStatus' => ['required', Rule::in(['active', 'inactive'])],
+        ]);
+
+        $shift = $this->editingShiftTemplateId === null
+            ? AttendanceShiftTemplate::query()->create($this->shiftAttributes($validated, $companyId))
+            : tap($this->shiftTemplate($this->editingShiftTemplateId))->update($this->shiftAttributes($validated, $companyId));
+
+        $this->syncShiftPunchWindows($shift->refresh(), $validated);
+        $this->resetShiftForm();
+        $this->showShiftBuilderForm = false;
+        $this->showAllShiftTemplates = true;
+        session()->flash('success', __('Shift template saved. It is ready to use in rosters and policy validation.'));
+    }
+
+    public function importShiftTemplate(): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        $this->validate([
+            'shiftTemplateUpload' => ['required', 'file', 'max:256', 'extensions:json'],
+        ]);
+
+        $payload = json_decode($this->templateUploadContents($this->shiftTemplateUpload), true);
+        if (! is_array($payload)) {
+            $this->addError('shiftTemplateUpload', __('Upload a valid JSON shift template.'));
+
+            return;
+        }
+
+        $template = array_is_list($payload) ? ($payload[0] ?? null) : $payload;
+        if (! is_array($template)) {
+            $this->addError('shiftTemplateUpload', __('The JSON must be a template object or an array of template objects.'));
+
+            return;
+        }
+
+        $this->resetShiftForm();
+        $this->applyShiftTemplate($template);
+        $this->showShiftBuilderForm = true;
+        $this->showShiftTemplateImportModal = false;
+        $this->showAllShiftTemplates = false;
+        $this->selectedShiftTemplateKey = 'imported-template';
+        $this->shiftTemplateUpload = null;
+        session()->flash('success', __('Shift template uploaded into the builder. Review, then save it as a reusable shift.'));
+    }
+
+    public function exportBuilderShiftTemplate(): void
+    {
+        $this->authorizeAttendance('people.attendance.manage');
+
+        $this->shiftTemplateExportJson = json_encode($this->shiftTemplateFromBuilder(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        session()->flash('success', __('Shift template JSON ready to download. Copy it into a country pack or shared template repository when ready.'));
+    }
+
+    public function exportShiftTemplate(int $shiftTemplateId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        $shift = $this->shiftTemplate($shiftTemplateId);
+        $this->editShiftTemplate($shift->id);
+        $this->shiftTemplateExportJson = json_encode($this->shiftTemplateFromBuilder(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        $this->showShiftBuilderForm = false;
+        $this->showAllShiftTemplates = true;
+        session()->flash('success', __('Shift template JSON ready to download from :shift.', ['shift' => $shift->code]));
+    }
+
+    public function cancelShiftEdit(): void
+    {
+        $this->resetShiftForm();
+        $this->showShiftBuilderForm = false;
+        $this->showAllShiftTemplates = true;
     }
 
     public function saveAllowanceRule(): void
@@ -904,6 +1142,7 @@ class Index extends Component
             'canClock' => $canClock,
             'currentEmployeeId' => $currentEmployeeId,
             'policyTemplates' => $this->policyTemplates(),
+            'shiftTemplatePresets' => $this->shiftTemplates(),
             'payrollPayItems' => $this->payrollPayItems($companyId),
             'employees' => Employee::query()
                 ->where('company_id', $companyId)
@@ -1062,6 +1301,14 @@ class Index extends Component
             ->findOrFail($policyGroupId);
     }
 
+    private function shiftTemplate(int $shiftTemplateId): AttendanceShiftTemplate
+    {
+        return AttendanceShiftTemplate::query()
+            ->where('company_id', $this->companyId())
+            ->with('punchWindows')
+            ->findOrFail($shiftTemplateId);
+    }
+
     private function selectedPolicyGroup(): ?AttendancePolicyGroup
     {
         if ($this->policyPreviewPolicyId === '') {
@@ -1154,6 +1401,15 @@ class Index extends Component
     private function roundingRule(string $method, mixed $minutes): array
     {
         return ['method' => $method, 'minutes' => $method === 'none' ? null : (int) $minutes];
+    }
+
+    private function templateUploadContents(mixed $upload): string
+    {
+        if ($upload instanceof TemporaryUploadedFile) {
+            return (string) $upload->get();
+        }
+
+        return '';
     }
 
     private function loadPolicyRuleForm(AttendancePolicyGroup $policy): void
@@ -1287,7 +1543,7 @@ class Index extends Component
             'schema' => 'belimbing.attendance.policy-template.v1',
             'code' => str($this->policyCode)->upper()->toString(),
             'name' => $this->policyName,
-            'summary' => __('Exported from Policy Studio.'),
+            'summary' => __('Downloaded from Policy Studio.'),
             'best_for' => __('Use as a reviewed starting point for similar teams.'),
             'currency' => strtoupper($this->policyCurrency),
             'work_rounding_method' => $this->policyWorkRoundingMethod,
@@ -1315,6 +1571,266 @@ class Index extends Component
         $suffix = 2;
 
         while (AttendancePolicyGroup::query()->where('company_id', $this->companyId())->where('code', $candidate)->exists()) {
+            $candidate = $baseCode.'_'.$suffix;
+            $suffix++;
+        }
+
+        return $candidate;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function shiftTemplates(): array
+    {
+        return [
+            [
+                'key' => 'office-day',
+                'code' => 'OFFICE_DAY',
+                'name' => __('Office day'),
+                'summary' => __('08:00 to 17:00 with a one-hour lunch break.'),
+                'best_for' => __('Office teams and simple fixed-day rosters.'),
+                'starts_at' => '08:00',
+                'ends_at' => '17:00',
+                'expected_work_minutes' => 480,
+                'break_starts_at' => '12:00',
+                'break_ends_at' => '13:00',
+                'in_before' => 60,
+                'in_after' => 15,
+                'out_before' => 15,
+                'out_after' => 120,
+                'payroll_attribution' => 'shift_start_date',
+            ],
+            [
+                'key' => 'production-day',
+                'code' => 'PROD_DAY',
+                'name' => __('Production day'),
+                'summary' => __('07:00 to 19:00 with tighter punch windows for production floors.'),
+                'best_for' => __('Factories, warehouses and line-based work.'),
+                'starts_at' => '07:00',
+                'ends_at' => '19:00',
+                'expected_work_minutes' => 660,
+                'break_starts_at' => '12:00',
+                'break_ends_at' => '13:00',
+                'in_before' => 45,
+                'in_after' => 10,
+                'out_before' => 10,
+                'out_after' => 180,
+                'payroll_attribution' => 'shift_start_date',
+            ],
+            [
+                'key' => 'night-shift',
+                'code' => 'NIGHT_SHIFT',
+                'name' => __('Night shift'),
+                'summary' => __('20:00 to 08:00, crossing midnight with payroll attributed to shift start.'),
+                'best_for' => __('Security, operations and overnight production teams.'),
+                'starts_at' => '20:00',
+                'ends_at' => '08:00',
+                'expected_work_minutes' => 660,
+                'break_starts_at' => '00:00',
+                'break_ends_at' => '01:00',
+                'in_before' => 60,
+                'in_after' => 15,
+                'out_before' => 15,
+                'out_after' => 180,
+                'payroll_attribution' => 'shift_start_date',
+            ],
+        ];
+    }
+
+    /** @param array<string, mixed> $template */
+    private function applyShiftTemplate(array $template): void
+    {
+        $break = is_array($template['break_windows'][0] ?? null) ? $template['break_windows'][0] : [];
+        $punch = is_array($template['punch_windows'] ?? null) ? $template['punch_windows'] : [];
+        $this->shiftCode = $this->uniqueShiftCode((string) ($template['code'] ?? 'SHIFT'));
+        $this->shiftName = (string) ($template['name'] ?? __('Imported shift'));
+        $this->shiftStartsAt = (string) ($template['starts_at'] ?? $this->shiftStartsAt);
+        $this->shiftEndsAt = (string) ($template['ends_at'] ?? $this->shiftEndsAt);
+        $this->shiftExpectedWorkMinutes = (string) ($template['expected_work_minutes'] ?? $this->shiftExpectedWorkMinutes);
+        $this->shiftBreakStartsAt = (string) ($template['break_starts_at'] ?? $break['starts_at'] ?? $this->shiftBreakStartsAt);
+        $this->shiftBreakEndsAt = (string) ($template['break_ends_at'] ?? $break['ends_at'] ?? $this->shiftBreakEndsAt);
+        $this->shiftInWindowBeforeMinutes = (string) ($template['in_before'] ?? $punch['in']['before_minutes'] ?? $this->shiftInWindowBeforeMinutes);
+        $this->shiftInWindowAfterMinutes = (string) ($template['in_after'] ?? $punch['in']['after_minutes'] ?? $this->shiftInWindowAfterMinutes);
+        $this->shiftOutWindowBeforeMinutes = (string) ($template['out_before'] ?? $punch['out']['before_minutes'] ?? $this->shiftOutWindowBeforeMinutes);
+        $this->shiftOutWindowAfterMinutes = (string) ($template['out_after'] ?? $punch['out']['after_minutes'] ?? $this->shiftOutWindowAfterMinutes);
+        $this->shiftPayrollAttribution = (string) ($template['payroll_attribution'] ?? $this->shiftPayrollAttribution);
+    }
+
+    /** @return array<string, mixed> */
+    private function shiftTemplateFromBuilder(): array
+    {
+        return [
+            'schema' => 'belimbing.attendance.shift-template.v1',
+            'code' => str($this->shiftCode)->upper()->toString(),
+            'name' => $this->shiftName,
+            'summary' => __('Downloaded from Shift Builder.'),
+            'best_for' => __('Use as a reviewed starting point for similar rosters.'),
+            'starts_at' => $this->shiftStartsAt,
+            'ends_at' => $this->shiftEndsAt,
+            'expected_work_minutes' => (int) $this->shiftExpectedWorkMinutes,
+            'break_windows' => $this->shiftBreakStartsAt === '' || $this->shiftBreakEndsAt === '' ? [] : [[
+                'starts_at' => $this->shiftBreakStartsAt,
+                'ends_at' => $this->shiftBreakEndsAt,
+                'label' => 'Main break',
+            ]],
+            'punch_windows' => [
+                'in' => ['before_minutes' => (int) $this->shiftInWindowBeforeMinutes, 'after_minutes' => (int) $this->shiftInWindowAfterMinutes],
+                'out' => ['before_minutes' => (int) $this->shiftOutWindowBeforeMinutes, 'after_minutes' => (int) $this->shiftOutWindowAfterMinutes],
+            ],
+            'payroll_attribution' => $this->shiftPayrollAttribution,
+        ];
+    }
+
+    private function resetShiftForm(): void
+    {
+        $this->editingShiftTemplateId = null;
+        $this->selectedShiftTemplateKey = '';
+        $this->shiftCode = '';
+        $this->shiftName = '';
+        $this->shiftStartsAt = '08:00';
+        $this->shiftEndsAt = '17:00';
+        $this->shiftExpectedWorkMinutes = '480';
+        $this->shiftBreakStartsAt = '12:00';
+        $this->shiftBreakEndsAt = '13:00';
+        $this->shiftInWindowBeforeMinutes = '60';
+        $this->shiftInWindowAfterMinutes = '15';
+        $this->shiftOutWindowBeforeMinutes = '15';
+        $this->shiftOutWindowAfterMinutes = '120';
+        $this->shiftPayrollAttribution = 'shift_start_date';
+        $this->shiftEffectiveFrom = now()->toDateString();
+        $this->shiftEffectiveTo = '';
+        $this->shiftStatus = 'active';
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function shiftAttributes(array $validated, int $companyId): array
+    {
+        return [
+            'company_id' => $companyId,
+            'code' => str($validated['shiftCode'])->upper()->toString(),
+            'name' => $validated['shiftName'],
+            'starts_at' => $validated['shiftStartsAt'],
+            'ends_at' => $validated['shiftEndsAt'],
+            'crosses_midnight' => $validated['shiftEndsAt'] <= $validated['shiftStartsAt'],
+            'expected_work_minutes' => (int) $validated['shiftExpectedWorkMinutes'],
+            'break_windows' => $this->shiftBreakWindows($validated),
+            'day_type_overrides' => [],
+            'payroll_attribution' => $validated['shiftPayrollAttribution'],
+            'effective_from' => $validated['shiftEffectiveFrom'],
+            'effective_to' => $this->blankToNull($validated['shiftEffectiveTo'] ?? null),
+            'status' => $validated['shiftStatus'],
+            'source_system' => 'blb-ui',
+            'metadata' => ['created_from' => 'attendance_shift_builder'],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return list<array<string, string>>
+     */
+    private function shiftBreakWindows(array $validated): array
+    {
+        if ($this->blankToNull($validated['shiftBreakStartsAt'] ?? null) === null || $this->blankToNull($validated['shiftBreakEndsAt'] ?? null) === null) {
+            return [];
+        }
+
+        return [[
+            'starts_at' => $validated['shiftBreakStartsAt'],
+            'ends_at' => $validated['shiftBreakEndsAt'],
+            'label' => 'Main break',
+        ]];
+    }
+
+    private function loadShiftBreakWindow(AttendanceShiftTemplate $shift): void
+    {
+        $break = $shift->break_windows[0] ?? null;
+        if (! is_array($break)) {
+            $this->shiftBreakStartsAt = '';
+            $this->shiftBreakEndsAt = '';
+
+            return;
+        }
+
+        $this->shiftBreakStartsAt = substr((string) ($break['starts_at'] ?? ''), 0, 5);
+        $this->shiftBreakEndsAt = substr((string) ($break['ends_at'] ?? ''), 0, 5);
+    }
+
+    private function loadShiftPunchWindows(AttendanceShiftTemplate $shift): void
+    {
+        $in = $shift->punchWindows->firstWhere('event_type', AttendancePunchWindow::TYPE_IN);
+        $out = $shift->punchWindows->firstWhere('event_type', AttendancePunchWindow::TYPE_OUT);
+
+        $this->shiftInWindowBeforeMinutes = (string) $this->minutesBetween((string) ($in?->earliest_at ?? $shift->starts_at), (string) $shift->starts_at);
+        $this->shiftInWindowAfterMinutes = (string) $this->minutesBetween((string) $shift->starts_at, (string) ($in?->latest_at ?? $shift->starts_at));
+        $this->shiftOutWindowBeforeMinutes = (string) $this->minutesBetween((string) ($out?->earliest_at ?? $shift->ends_at), (string) $shift->ends_at);
+        $this->shiftOutWindowAfterMinutes = (string) $this->minutesBetween((string) $shift->ends_at, (string) ($out?->latest_at ?? $shift->ends_at));
+    }
+
+    /** @param array<string, mixed> $validated */
+    private function syncShiftPunchWindows(AttendanceShiftTemplate $shift, array $validated): void
+    {
+        $breakWindows = $this->shiftBreakWindows($validated);
+        $windows = [
+            [AttendancePunchWindow::TYPE_IN, $validated['shiftStartsAt'], $this->timeMinusMinutes($validated['shiftStartsAt'], (int) $validated['shiftInWindowBeforeMinutes']), $this->timePlusMinutes($validated['shiftStartsAt'], (int) $validated['shiftInWindowAfterMinutes']), 10],
+            [AttendancePunchWindow::TYPE_OUT, $validated['shiftEndsAt'], $this->timeMinusMinutes($validated['shiftEndsAt'], (int) $validated['shiftOutWindowBeforeMinutes']), $this->timePlusMinutes($validated['shiftEndsAt'], (int) $validated['shiftOutWindowAfterMinutes']), 40],
+        ];
+
+        if ($breakWindows !== []) {
+            $windows[] = [AttendancePunchWindow::TYPE_BREAK_OUT, $breakWindows[0]['starts_at'], $breakWindows[0]['starts_at'], $breakWindows[0]['ends_at'], 20];
+            $windows[] = [AttendancePunchWindow::TYPE_BREAK_IN, $breakWindows[0]['ends_at'], $breakWindows[0]['starts_at'], $breakWindows[0]['ends_at'], 30];
+        }
+
+        $seenTypes = [];
+        foreach ($windows as [$type, $expectedAt, $earliestAt, $latestAt, $sortOrder]) {
+            $seenTypes[] = $type;
+            AttendancePunchWindow::query()->updateOrCreate(
+                ['attendance_shift_template_id' => $shift->id, 'event_type' => $type],
+                [
+                    'expected_at' => $expectedAt,
+                    'earliest_at' => $earliestAt,
+                    'latest_at' => $latestAt,
+                    'required' => in_array($type, [AttendancePunchWindow::TYPE_IN, AttendancePunchWindow::TYPE_OUT], true),
+                    'exception_on_unmatched' => true,
+                    'sort_order' => $sortOrder,
+                    'metadata' => ['created_from' => 'attendance_shift_builder'],
+                ],
+            );
+        }
+
+        $shift->punchWindows()->whereNotIn('event_type', $seenTypes)->delete();
+    }
+
+    private function timePlusMinutes(string $time, int $minutes): string
+    {
+        return now()->setTimeFromTimeString(substr($time, 0, 5))->addMinutes($minutes)->format('H:i');
+    }
+
+    private function timeMinusMinutes(string $time, int $minutes): string
+    {
+        return now()->setTimeFromTimeString(substr($time, 0, 5))->subMinutes($minutes)->format('H:i');
+    }
+
+    private function minutesBetween(string $from, string $to): int
+    {
+        $fromTime = now()->setTimeFromTimeString(substr($from, 0, 5));
+        $toTime = now()->setTimeFromTimeString(substr($to, 0, 5));
+
+        if ($toTime < $fromTime) {
+            $toTime = $toTime->addDay();
+        }
+
+        return (int) $fromTime->diffInMinutes($toTime);
+    }
+
+    private function uniqueShiftCode(string $baseCode): string
+    {
+        $baseCode = str($baseCode)->upper()->replaceMatches('/[^A-Z0-9_]+/', '_')->trim('_')->toString() ?: 'SHIFT';
+        $candidate = $baseCode;
+        $suffix = 2;
+
+        while (AttendanceShiftTemplate::query()->where('company_id', $this->companyId())->where('code', $candidate)->exists()) {
             $candidate = $baseCode.'_'.$suffix;
             $suffix++;
         }
@@ -1431,13 +1947,14 @@ class Index extends Component
         if ($this->surface === 'settings') {
             return match ($this->section) {
                 'shifts' => [__('Shift Builder'), __('Maintain reusable shift times, cross-midnight settings, punch windows, breaks, and expected work minutes.')],
+                'shift-library' => [__('Shift Library'), __('Manage reusable shift templates supervisors can select while building rosters.')],
                 'rosters' => [__('Roster Builder'), __('Assign employees to shifts and policy groups so supervisors can publish clean rosters.')],
                 'allowances' => [__('Allowance Rules'), __('Maintain attendance-driven allowance rules and their payroll pay item mappings.')],
                 'locations' => [__('Clocking Locations'), __('Maintain geofences and geofence groups used by clock-source policies.')],
                 default => match ($this->policyStudioMode) {
                     'builder' => [__('Policy Builder'), __('Start from a template, tune the policy, then validate it before supervisors use it in rosters.')],
                     'simulate' => [__('Policy Validator'), __('Validate policy groups and simulate attendance outcomes before rules affect rosters or payroll.')],
-                    default => [__('Policy Library'), __('Start from templates, manage active policy groups, and open validation or builder flows.')],
+                    default => [__('Policy Groups'), __('Manage active policy groups and open validation or builder flows.')],
                 },
             };
         }
@@ -1512,6 +2029,7 @@ class Index extends Component
             'currentEmployeeId' => $currentEmployeeId,
             'section' => $this->section,
             'policyTemplates' => [],
+            'shiftTemplatePresets' => [],
             'payrollPayItems' => $empty,
             'employees' => $empty,
             'attendanceDays' => $empty,

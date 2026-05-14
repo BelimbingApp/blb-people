@@ -42,6 +42,11 @@ Route::middleware(['auth'])->group(function (): void {
             ->defaults('section', 'shifts')
             ->name('people.attendance.shifts');
 
+        Route::get('people/attendance/shifts/library', Index::class)
+            ->defaults('surface', 'settings')
+            ->defaults('section', 'shift-library')
+            ->name('people.attendance.shift-library');
+
         Route::get('people/attendance/rosters', Index::class)
             ->defaults('surface', 'settings')
             ->defaults('section', 'rosters')
