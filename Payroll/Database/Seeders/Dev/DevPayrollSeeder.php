@@ -89,21 +89,7 @@ class DevPayrollSeeder extends DevSeeder
             );
 
             foreach ($definition['classifications'] as $classification) {
-                PayrollPayItemClassification::query()->updateOrCreate(
-                    [
-                        'payroll_pay_item_id' => $item->id,
-                        'country_iso' => $classification['country_iso'],
-                        'classification_key' => $classification['classification_key'],
-                        'effective_from' => $classification['effective_from'],
-                    ],
-                    [
-                        'classification_value' => $classification['classification_value'],
-                        'effective_to' => $classification['effective_to'] ?? null,
-                        'source_pack' => $classification['source_pack'],
-                        'source_version' => $classification['source_version'],
-                        'metadata' => $classification['metadata'] ?? [],
-                    ],
-                );
+                $this->seedPayItemClassification($item, $classification);
             }
 
             $items[$definition['code']] = $item;
@@ -207,21 +193,30 @@ class DevPayrollSeeder extends DevSeeder
      */
     private function seedContributionRuleSet(string $ruleKey, string $name, array $rows): void
     {
-        $ruleSet = PayrollStatutoryRuleSet::query()->updateOrCreate(
-            [
+        $ruleSet = PayrollStatutoryRuleSet::query()
+            ->where('country_iso', 'MY')
+            ->where('rule_key', $ruleKey)
+            ->where('source_pack', self::PAYROLL_MY_SOURCE_PACK)
+            ->where('source_version', self::PAYROLL_DEV_VERSION)
+            ->whereDate('effective_from', self::EFFECTIVE_FROM)
+            ->first();
+
+        if (! $ruleSet instanceof PayrollStatutoryRuleSet) {
+            $ruleSet = new PayrollStatutoryRuleSet([
                 'country_iso' => 'MY',
                 'rule_key' => $ruleKey,
                 'source_pack' => self::PAYROLL_MY_SOURCE_PACK,
                 'source_version' => self::PAYROLL_DEV_VERSION,
                 'effective_from' => self::EFFECTIVE_FROM,
-            ],
-            [
-                'name' => $name,
-                'effective_to' => null,
-                'rounding_policy' => ['mode' => 'ceiling', 'precision' => '0.01'],
-                'metadata' => ['scenario' => 'browser-demo', 'official' => false],
-            ],
-        );
+            ]);
+        }
+
+        $ruleSet->fill([
+            'name' => $name,
+            'effective_to' => null,
+            'rounding_policy' => ['mode' => 'ceiling', 'precision' => '0.01'],
+            'metadata' => ['scenario' => 'browser-demo', 'official' => false],
+        ])->save();
 
         $ruleSet->rows()->delete();
         foreach ($rows as $row) {
@@ -239,6 +234,37 @@ class DevPayrollSeeder extends DevSeeder
                 'row_data' => ['category' => 'standard-dev-fixture'],
             ]);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $classification
+     */
+    private function seedPayItemClassification(PayrollPayItem $item, array $classification): void
+    {
+        $countryIso = $classification['country_iso'];
+        $payItemClassification = PayrollPayItemClassification::query()
+            ->where('payroll_pay_item_id', $item->id)
+            ->where('country_iso', $countryIso)
+            ->where('classification_key', $classification['classification_key'])
+            ->whereDate('effective_from', $classification['effective_from'])
+            ->first();
+
+        if (! $payItemClassification instanceof PayrollPayItemClassification) {
+            $payItemClassification = new PayrollPayItemClassification([
+                'payroll_pay_item_id' => $item->id,
+                'country_iso' => $countryIso,
+                'classification_key' => $classification['classification_key'],
+                'effective_from' => $classification['effective_from'],
+            ]);
+        }
+
+        $payItemClassification->fill([
+            'classification_value' => $classification['classification_value'],
+            'effective_to' => $classification['effective_to'] ?? null,
+            'source_pack' => $classification['source_pack'],
+            'source_version' => $classification['source_version'],
+            'metadata' => $classification['metadata'] ?? [],
+        ])->save();
     }
 
     private function seedCalendar(Company $company): PayrollCalendar

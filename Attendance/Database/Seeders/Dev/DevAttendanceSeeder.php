@@ -321,31 +321,36 @@ class DevAttendanceSeeder extends DevSeeder
         $date = CarbonImmutable::parse('2026-05-13');
 
         foreach ($employees->values() as $index => $employee) {
-            $day = AttendanceDay::query()->updateOrCreate(
-                ['employee_id' => $employee->id, 'attendance_date' => $date->toDateString()],
-                [
-                    'company_id' => $company->id,
-                    'attendance_shift_template_id' => $shift->id,
-                    'attendance_policy_group_id' => $policyGroup->id,
-                    'status' => $index === 3 ? AttendanceDay::STATUS_EXCEPTION_PENDING : AttendanceDay::STATUS_READY_FOR_REVIEW,
-                    'day_type' => 'normal',
-                    'shift_starts_at' => $date->setTime(8, 0),
-                    'shift_ends_at' => $date->setTime(17, 0),
-                    'expected_minutes' => 480,
-                    'worked_minutes' => $index === 3 ? 0 : 535,
-                    'payable_minutes' => $index === 3 ? 0 : 480,
-                    'late_minutes' => $index === 1 ? 12 : 0,
-                    'absent_minutes' => $index === 3 ? 480 : 0,
-                    'overtime_candidate_minutes' => $index === 0 ? 55 : 0,
-                    'exception_tags' => match (true) {
-                        $index === 3 => ['missing_clock_events'],
-                        $index === 1 => ['late_in'],
-                        default => [],
-                    },
-                    'projection_snapshot' => ['source' => 'dev-seeder'],
-                    'metadata' => ['scenario' => 'attendance-dev'],
-                ],
-            );
+            $day = AttendanceDay::query()
+                ->where('employee_id', $employee->id)
+                ->whereDate('attendance_date', $date->toDateString())
+                ->first();
+
+            if (! $day instanceof AttendanceDay) {
+                $day = new AttendanceDay([
+                    'employee_id' => $employee->id,
+                    'attendance_date' => $date->toDateString(),
+                ]);
+            }
+
+            $day->fill([
+                'company_id' => $company->id,
+                'attendance_shift_template_id' => $shift->id,
+                'attendance_policy_group_id' => $policyGroup->id,
+                'status' => $index === 3 ? AttendanceDay::STATUS_EXCEPTION_PENDING : AttendanceDay::STATUS_READY_FOR_REVIEW,
+                'day_type' => 'normal',
+                'shift_starts_at' => $date->setTime(8, 0),
+                'shift_ends_at' => $date->setTime(17, 0),
+                'expected_minutes' => 480,
+                'worked_minutes' => $index === 3 ? 0 : 535,
+                'payable_minutes' => $index === 3 ? 0 : 480,
+                'late_minutes' => $index === 1 ? 12 : 0,
+                'absent_minutes' => $index === 3 ? 480 : 0,
+                'overtime_candidate_minutes' => $index === 0 ? 55 : 0,
+                'exception_tags' => $index === 3 ? ['missing_clock_events'] : ($index === 1 ? ['late_in'] : []),
+                'projection_snapshot' => ['source' => 'dev-seeder'],
+                'metadata' => ['scenario' => 'attendance-dev'],
+            ])->save();
 
             if ($index !== 3) {
                 foreach ([['in', 7, 55 + $index], ['out', 17, 50]] as [$type, $hour, $minute]) {

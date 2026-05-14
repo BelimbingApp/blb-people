@@ -239,20 +239,29 @@ class Index extends Component
             'classificationSourceVersion' => ['required', 'string', 'max:100'],
         ]);
 
-        PayrollPayItemClassification::query()->updateOrCreate(
-            [
+        $countryIso = filled($validated['classificationCountryIso'] ?? null) ? strtoupper((string) $validated['classificationCountryIso']) : null;
+        $classification = PayrollPayItemClassification::query()
+            ->where('payroll_pay_item_id', (int) $validated['classificationPayItemId'])
+            ->where('country_iso', $countryIso)
+            ->where('classification_key', $validated['classificationKey'])
+            ->whereDate('effective_from', $validated['classificationEffectiveFrom'])
+            ->first();
+
+        if (! $classification instanceof PayrollPayItemClassification) {
+            $classification = new PayrollPayItemClassification([
                 'payroll_pay_item_id' => (int) $validated['classificationPayItemId'],
-                'country_iso' => filled($validated['classificationCountryIso'] ?? null) ? strtoupper((string) $validated['classificationCountryIso']) : null,
+                'country_iso' => $countryIso,
                 'classification_key' => $validated['classificationKey'],
                 'effective_from' => $validated['classificationEffectiveFrom'],
-            ],
-            [
-                'classification_value' => $validated['classificationValue'],
-                'source_pack' => $validated['classificationSourcePack'],
-                'source_version' => $validated['classificationSourceVersion'],
-                'metadata' => ['source' => 'payroll-workbench'],
-            ],
-        );
+            ]);
+        }
+
+        $classification->fill([
+            'classification_value' => $validated['classificationValue'],
+            'source_pack' => $validated['classificationSourcePack'],
+            'source_version' => $validated['classificationSourceVersion'],
+            'metadata' => ['source' => 'payroll-workbench'],
+        ])->save();
 
         $this->reset('classificationValue');
         session()->flash('success', __('Pay item classification saved.'));
