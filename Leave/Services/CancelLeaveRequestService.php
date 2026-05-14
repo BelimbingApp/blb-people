@@ -2,11 +2,10 @@
 
 namespace App\Modules\People\Leave\Services;
 
-use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
+use App\Modules\People\Leave\Exceptions\LeaveRequestLifecycleException;
 use App\Modules\People\Leave\Models\LeaveRequest;
 use App\Modules\People\Leave\Models\LeaveRequestAuditEvent;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 class CancelLeaveRequestService
 {
@@ -17,18 +16,17 @@ class CancelLeaveRequestService
     ];
 
     public function __construct(
-        private readonly LeaveBalanceLedgerService $ledger,
         private readonly LeaveNotificationDispatcher $notifications,
     ) {}
 
     public function cancel(LeaveRequest $request, ?int $actorUserId = null, ?string $reason = null): LeaveRequest
     {
         if (! in_array($request->status, self::CANCELLABLE_STATUSES, true)) {
-            throw new RuntimeException(sprintf(
-                'Leave request %d in status [%s] is not cancellable.',
-                $request->getKey(),
+            throw LeaveRequestLifecycleException::invalidStatus(
+                (int) $request->getKey(),
                 $request->status,
-            ));
+                'cancelled',
+            );
         }
 
         return DB::transaction(function () use ($request, $actorUserId, $reason): LeaveRequest {

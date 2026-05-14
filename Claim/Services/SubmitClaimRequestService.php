@@ -38,7 +38,7 @@ class SubmitClaimRequestService
             $claimType = $assignmentLine->type;
             $policy = $assignmentLine->policy;
 
-            $this->validateSubmission($employee, $assignment, $assignmentLine, $requestedAmount, $options);
+            $this->validateSubmission($employee, $assignment, $assignmentLine, $requestedAmount);
             $attachmentCount = (int) ($options['attachment_count'] ?? 0);
             $providerName = $this->blankToNull($options['provider_name'] ?? null);
             $receiptNumber = $this->blankToNull($options['receipt_number'] ?? null);
@@ -166,7 +166,6 @@ class SubmitClaimRequestService
         ClaimAssignment $assignment,
         ClaimAssignmentLine $assignmentLine,
         float $requestedAmount,
-        array $options,
     ): void {
         if ((int) $employee->company_id !== (int) $assignment->company_id) {
             throw ClaimRequestLifecycleException::invalidSubmission('The employee does not belong to the claim assignment company.');

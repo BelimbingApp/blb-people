@@ -2,10 +2,10 @@
 
 namespace App\Modules\People\Leave\Services;
 
+use App\Modules\People\Leave\Exceptions\LeaveRequestLifecycleException;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveRequest;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 /**
  * Transitions an approved leave request to applied, writing the consuming
@@ -23,11 +23,11 @@ class ApplyLeaveRequestService
     public function apply(LeaveRequest $request, ?int $actorUserId = null): LeaveRequest
     {
         if ($request->status !== LeaveRequest::STATUS_APPROVED) {
-            throw new RuntimeException(sprintf(
-                'Leave request %d is in status [%s]; only approved requests can be applied.',
-                $request->getKey(),
+            throw LeaveRequestLifecycleException::invalidStatus(
+                (int) $request->getKey(),
                 $request->status,
-            ));
+                'applied',
+            );
         }
 
         return DB::transaction(function () use ($request, $actorUserId): LeaveRequest {

@@ -57,7 +57,7 @@ class LeaveRequestDaysBuilder
         $totalHours = 0.0;
         $warnings = [];
 
-        foreach ($calendar as $key => $day) {
+        foreach ($calendar as $day) {
             $counts = $this->shouldCount($day->daytype, $excludeHoliday, $excludeOffDay, $excludeRestDay);
 
             if (! $counts) {
@@ -71,6 +71,7 @@ class LeaveRequestDaysBuilder
                     daytypeLabel: $day->label,
                     note: 'Excluded by policy ('.$day->daytype.')',
                 );
+
                 continue;
             }
 

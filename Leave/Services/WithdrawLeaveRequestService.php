@@ -2,11 +2,11 @@
 
 namespace App\Modules\People\Leave\Services;
 
+use App\Modules\People\Leave\Exceptions\LeaveRequestLifecycleException;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveRequest;
 use App\Modules\People\Leave\Models\LeaveRequestAuditEvent;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 /**
  * Withdraws a leave request after approval (or after it has been applied).
@@ -30,11 +30,11 @@ class WithdrawLeaveRequestService
     public function withdraw(LeaveRequest $request, ?int $actorUserId = null, ?string $reason = null): LeaveRequest
     {
         if (! in_array($request->status, self::WITHDRAWABLE_STATUSES, true)) {
-            throw new RuntimeException(sprintf(
-                'Leave request %d in status [%s] is not withdrawable.',
-                $request->getKey(),
+            throw LeaveRequestLifecycleException::invalidStatus(
+                (int) $request->getKey(),
                 $request->status,
-            ));
+                'withdrawn',
+            );
         }
 
         return DB::transaction(function () use ($request, $actorUserId, $reason): LeaveRequest {

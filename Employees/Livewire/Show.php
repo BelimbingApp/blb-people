@@ -245,14 +245,8 @@ class Show extends Component
         foreach ($changes as $key => $value) {
             if ($key === 'employee' && is_array($value)) {
                 $groups[] = ['label' => 'Employee', 'changes' => $value];
-
-                continue;
-            }
-
-            if ($key === 'work_profile' && is_array($value)) {
+            } elseif ($key === 'work_profile' && is_array($value)) {
                 $groups[] = ['label' => 'Work Profile', 'changes' => $value];
-
-                continue;
             }
         }
 

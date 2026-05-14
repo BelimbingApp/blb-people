@@ -2,10 +2,10 @@
 
 namespace App\Modules\People\Leave\Services;
 
+use App\Modules\People\Leave\Exceptions\LeaveRequestLifecycleException;
 use App\Modules\People\Leave\Models\LeaveRequest;
 use App\Modules\People\Leave\Models\LeaveRequestAuditEvent;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 class RejectLeaveRequestService
 {
@@ -16,11 +16,11 @@ class RejectLeaveRequestService
     public function reject(LeaveRequest $request, ?int $actorUserId = null, ?string $reason = null): LeaveRequest
     {
         if ($request->status !== LeaveRequest::STATUS_SUBMITTED) {
-            throw new RuntimeException(sprintf(
-                'Leave request %d in status [%s] cannot be rejected.',
-                $request->getKey(),
+            throw LeaveRequestLifecycleException::invalidStatus(
+                (int) $request->getKey(),
                 $request->status,
-            ));
+                'rejected',
+            );
         }
 
         return DB::transaction(function () use ($request, $actorUserId, $reason): LeaveRequest {

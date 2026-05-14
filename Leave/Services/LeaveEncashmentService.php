@@ -2,13 +2,13 @@
 
 namespace App\Modules\People\Leave\Services;
 
+use App\Modules\People\Leave\Exceptions\LeaveEncashmentException;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveType;
 use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
 use App\Modules\People\Payroll\Services\PayrollContributionIntake;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 /**
  * Encash a remaining annual-leave (or similar) balance: writes a debit
@@ -35,16 +35,12 @@ class LeaveEncashmentService
         ?string $currency = 'MYR',
     ): LeaveBalanceLedgerEntry {
         if ($days <= 0.0) {
-            throw new RuntimeException('Encashment days must be positive.');
+            throw LeaveEncashmentException::nonPositiveDays();
         }
 
         $available = $this->ledger->balanceFor($employeeId, $leaveTypeId, $leaveYear);
         if ($days > $available) {
-            throw new RuntimeException(sprintf(
-                'Cannot encash %.2f days; available balance is %.2f days.',
-                $days,
-                $available,
-            ));
+            throw LeaveEncashmentException::insufficientBalance($days, $available);
         }
 
         return DB::transaction(function () use ($companyId, $employeeId, $leaveTypeId, $leaveYear, $days, $actorUserId, $note, $currency): LeaveBalanceLedgerEntry {
