@@ -15,6 +15,8 @@ use App\Modules\People\Claim\Models\ClaimPolicyBand;
 use App\Modules\People\Claim\Models\ClaimRequest;
 use App\Modules\People\Claim\Models\ClaimType;
 use App\Modules\People\Claim\Services\ApproveClaimRequestService;
+use App\Modules\People\Claim\Services\CancelClaimRequestService;
+use App\Modules\People\Claim\Services\ReimburseClaimRequestService;
 use App\Modules\People\Claim\Services\RejectClaimRequestService;
 use App\Modules\People\Claim\Services\RequestClaimMoreInfoService;
 use App\Modules\People\Claim\Services\SubmitClaimRequestService;
@@ -293,6 +295,40 @@ class Index extends Component
             app(RequestClaimMoreInfoService::class)->requestMoreInfo($request, Auth::id(), $this->approvalReason ?: null);
             $this->approvalReason = '';
             session()->flash('success', __('Claim request sent back for more information.'));
+        } catch (Throwable $e) {
+            session()->flash('error', $e->getMessage());
+        }
+    }
+
+    public function markReimbursed(int $requestId): void
+    {
+        $this->authorizeManage();
+
+        try {
+            $request = ClaimRequest::query()
+                ->where('company_id', $this->companyId())
+                ->findOrFail($requestId);
+
+            app(ReimburseClaimRequestService::class)->reimburse($request, Auth::id(), $this->approvalReason ?: 'Marked reimbursed by operations');
+            $this->approvalReason = '';
+            session()->flash('success', __('Claim request marked as reimbursed.'));
+        } catch (Throwable $e) {
+            session()->flash('error', $e->getMessage());
+        }
+    }
+
+    public function cancelRequest(int $requestId): void
+    {
+        $this->authorizeManage();
+
+        try {
+            $request = ClaimRequest::query()
+                ->where('company_id', $this->companyId())
+                ->findOrFail($requestId);
+
+            app(CancelClaimRequestService::class)->cancel($request, Auth::id(), $this->approvalReason ?: 'Cancelled by operations');
+            $this->approvalReason = '';
+            session()->flash('success', __('Claim request cancelled.'));
         } catch (Throwable $e) {
             session()->flash('error', $e->getMessage());
         }
@@ -665,6 +701,10 @@ class Index extends Component
                 'risk' => $this->operationsRisk,
                 'payroll' => $this->operationsPayroll,
             ]),
+            'accountingExportUrl' => route('people.claim.operations.accounting.csv'),
+            'reimbursementStatementUrl' => route('people.claim.operations.reimbursement_statement.csv'),
+            'utilizationReportUrl' => route('people.claim.operations.utilization.csv'),
+            'approvalAgingUrl' => route('people.claim.operations.approval_aging.csv'),
             'canManage' => $canManage,
             'canApprove' => $canApprove,
             'currentEmployeeId' => $currentEmployeeId,

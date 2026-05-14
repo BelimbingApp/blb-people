@@ -11,7 +11,9 @@ class ClaimPolicy extends Model
     use HasCompanyScopedExternalLifecycle;
 
     public const MODE_SINGLE_VALUE = 'single_value';
+
     public const MODE_RANGE = 'range';
+
     public const MODE_SERVICE_YEAR = 'service_year';
 
     protected $table = 'people_claim_policies';

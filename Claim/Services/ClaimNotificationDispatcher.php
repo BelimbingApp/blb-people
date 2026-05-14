@@ -8,11 +8,20 @@ use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
 class ClaimNotificationDispatcher
 {
     public const EVENT_SUBMITTED = 'claim.request.submitted';
+
     public const EVENT_APPROVED = 'claim.request.approved';
+
     public const EVENT_REJECTED = 'claim.request.rejected';
+
     public const EVENT_MORE_INFO = 'claim.request.more_info_requested';
+
     public const EVENT_WITHDRAWN = 'claim.request.withdrawn';
+
+    public const EVENT_CANCELLED = 'claim.request.cancelled';
+
     public const EVENT_PAYROLL_QUEUED = 'claim.request.payroll_queued';
+
+    public const EVENT_REIMBURSED = 'claim.request.reimbursed';
 
     /**
      * @param  array<string, mixed>  $payload

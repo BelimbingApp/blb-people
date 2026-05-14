@@ -3,6 +3,7 @@
 namespace App\Modules\People\Claim\Services;
 
 use App\Modules\People\Claim\Exceptions\ClaimRequestLifecycleException;
+use App\Modules\People\Claim\Models\ClaimAssignmentLine;
 use App\Modules\People\Claim\Models\ClaimEntitlementUsageEntry;
 use App\Modules\People\Claim\Models\ClaimRequest;
 use App\Modules\People\Claim\Models\ClaimRequestAuditEvent;
@@ -13,6 +14,7 @@ class ApproveClaimRequestService
     public function __construct(
         private readonly ClaimPayrollHandoffService $payrollHandoff,
         private readonly ClaimNotificationDispatcher $notifications,
+        private readonly ClaimPolicyEvaluationService $policyEvaluation,
     ) {}
 
     public function approve(ClaimRequest $request, ?int $actorUserId = null, ?string $reason = null): ClaimRequest
@@ -23,10 +25,23 @@ class ApproveClaimRequestService
 
         return DB::transaction(function () use ($request, $actorUserId, $reason): ClaimRequest {
             $fromStatus = $request->status;
-            $request->loadMissing('lines');
+            $request->loadMissing(['lines.assignmentLine', 'lines.policy', 'lines.type']);
 
             foreach ($request->lines as $line) {
-                $line->approved_amount = $line->requested_amount;
+                $approving = (float) $line->requested_amount;
+                $blocking = $this->policyEvaluation->evaluateAtApproval(
+                    $line,
+                    $approving,
+                    $this->combinedClaimTypeIdsFor($line->assignmentLine),
+                );
+
+                if ($blocking !== []) {
+                    throw ClaimRequestLifecycleException::invalidSubmission(
+                        'Approval blocked by current policy state: '.implode(' ', $blocking),
+                    );
+                }
+
+                $line->approved_amount = $approving;
                 $line->save();
 
                 ClaimEntitlementUsageEntry::query()->create([
@@ -72,5 +87,27 @@ class ApproveClaimRequestService
 
             return $request->refresh();
         });
+    }
+
+    /** @return list<int> */
+    private function combinedClaimTypeIdsFor(?ClaimAssignmentLine $assignmentLine): array
+    {
+        if ($assignmentLine === null
+            || ! (bool) $assignmentLine->uses_combined_cap
+            || $assignmentLine->combine_tag === null
+            || trim((string) $assignmentLine->combine_tag) === ''
+        ) {
+            return [];
+        }
+
+        return ClaimAssignmentLine::query()
+            ->where('claim_assignment_id', $assignmentLine->claim_assignment_id)
+            ->where('status', ClaimAssignmentLine::STATUS_ACTIVE)
+            ->where('uses_combined_cap', true)
+            ->where('combine_tag', $assignmentLine->combine_tag)
+            ->pluck('claim_type_id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
     }
 }

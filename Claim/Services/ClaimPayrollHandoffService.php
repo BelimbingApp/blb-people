@@ -5,9 +5,7 @@ namespace App\Modules\People\Claim\Services;
 use App\Modules\People\Claim\Models\ClaimLine;
 use App\Modules\People\Claim\Models\ClaimRequest;
 use App\Modules\People\Claim\Models\ClaimRequestAuditEvent;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionOutcome;
 use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionState;
 use App\Modules\People\Payroll\Services\PayrollContributionIntake;
 use DateTimeImmutable;
 

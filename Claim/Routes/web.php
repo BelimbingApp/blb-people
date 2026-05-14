@@ -1,6 +1,8 @@
 <?php
 
+use App\Modules\People\Claim\Http\Controllers\ClaimAccountingExportController;
 use App\Modules\People\Claim\Http\Controllers\ClaimOperationsExportController;
+use App\Modules\People\Claim\Http\Controllers\ClaimReportsExportController;
 use App\Modules\People\Claim\Livewire\Index;
 use Illuminate\Support\Facades\Route;
 
@@ -22,6 +24,18 @@ Route::middleware(['auth'])->group(function (): void {
 
         Route::get('people/claims/operations/export.csv', ClaimOperationsExportController::class)
             ->name('people.claim.operations.export.csv');
+
+        Route::get('people/claims/operations/accounting.csv', ClaimAccountingExportController::class)
+            ->name('people.claim.operations.accounting.csv');
+
+        Route::get('people/claims/operations/reimbursement-statement.csv', [ClaimReportsExportController::class, 'reimbursementStatement'])
+            ->name('people.claim.operations.reimbursement_statement.csv');
+
+        Route::get('people/claims/operations/utilization.csv', [ClaimReportsExportController::class, 'utilization'])
+            ->name('people.claim.operations.utilization.csv');
+
+        Route::get('people/claims/operations/approval-aging.csv', [ClaimReportsExportController::class, 'approvalAging'])
+            ->name('people.claim.operations.approval_aging.csv');
 
         Route::get('people/claims/settings', Index::class)
             ->defaults('surface', 'settings')

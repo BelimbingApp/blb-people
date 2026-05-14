@@ -12,15 +12,25 @@ class ClaimRequest extends Model
     use BelongsToCompanyAndEmployee;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_SUBMITTED = 'submitted';
+
     public const STATUS_NEEDS_MORE_INFO = 'needs_more_info';
+
     public const STATUS_RESUBMITTED = 'resubmitted';
+
     public const STATUS_APPROVED = 'approved';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_WITHDRAWN = 'withdrawn';
+
     public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_QUEUED_FOR_PAYROLL = 'queued_for_payroll';
+
     public const STATUS_REIMBURSED = 'reimbursed';
+
     public const STATUS_SETTLED = 'settled';
 
     protected $table = 'people_claim_requests';

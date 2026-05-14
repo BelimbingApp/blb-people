@@ -13,10 +13,15 @@ class ClaimEntitlementUsageEntry extends Model
     use BelongsToEmployee;
 
     public const ENTRY_OPENING = 'opening';
+
     public const ENTRY_ENCUMBERED = 'encumbered';
+
     public const ENTRY_APPROVED = 'approved';
+
     public const ENTRY_REIMBURSED = 'reimbursed';
+
     public const ENTRY_RELEASED = 'released';
+
     public const ENTRY_REVERSED = 'reversed';
 
     protected $table = 'people_claim_entitlement_usage_entries';
