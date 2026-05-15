@@ -13,6 +13,10 @@ class AttendancePunchWindow extends Model
 
     public const TYPE_BREAK_IN = 'break_in';
 
+    public const TYPE_BREAK_OUT_2 = 'break_out_2';
+
+    public const TYPE_BREAK_IN_2 = 'break_in_2';
+
     public const TYPE_OUT = 'out';
 
     protected $table = 'people_attendance_punch_windows';

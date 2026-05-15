@@ -15,9 +15,22 @@ class ShiftTemplateSerializer
     public function fromShiftTemplate(AttendanceShiftTemplate $shift): array
     {
         $shift->loadMissing('punchWindows');
-        $break = $shift->break_windows[0] ?? null;
+        $stored = is_array($shift->break_windows) ? $shift->break_windows : [];
         $in = $shift->punchWindows->firstWhere('event_type', AttendancePunchWindow::TYPE_IN);
         $out = $shift->punchWindows->firstWhere('event_type', AttendancePunchWindow::TYPE_OUT);
+
+        $breakWindows = [];
+        foreach ($stored as $break) {
+            if (! is_array($break)) {
+                continue;
+            }
+            $breakWindows[] = [
+                'starts_at' => substr((string) ($break['starts_at'] ?? ''), 0, 5),
+                'ends_at' => substr((string) ($break['ends_at'] ?? ''), 0, 5),
+                'label' => $break['label'] ?? 'Break',
+                'paid' => (bool) ($break['paid'] ?? false),
+            ];
+        }
 
         return [
             'schema' => self::SCHEMA,
@@ -28,11 +41,7 @@ class ShiftTemplateSerializer
             'starts_at' => substr((string) $shift->starts_at, 0, 5),
             'ends_at' => substr((string) $shift->ends_at, 0, 5),
             'expected_work_minutes' => (int) $shift->expected_work_minutes,
-            'break_windows' => is_array($break) ? [[
-                'starts_at' => substr((string) ($break['starts_at'] ?? ''), 0, 5),
-                'ends_at' => substr((string) ($break['ends_at'] ?? ''), 0, 5),
-                'label' => $break['label'] ?? 'Main break',
-            ]] : [],
+            'break_windows' => $breakWindows,
             'punch_windows' => [
                 'in' => [
                     'before_minutes' => $in === null ? 0 : $this->minutesBetween((string) $in->earliest_at, (string) $shift->starts_at),

@@ -56,9 +56,10 @@ class ShiftTemplates extends Component
 
     public string $shiftExpectedWorkMinutes = '480';
 
-    public string $shiftBreakStartsAt = '12:00';
-
-    public string $shiftBreakEndsAt = '13:00';
+    /** @var list<array{label: string, starts_at: string, ends_at: string, paid: bool}> */
+    public array $shiftBreaks = [
+        ['label' => 'Main break', 'starts_at' => '12:00', 'ends_at' => '13:00', 'paid' => false],
+    ];
 
     public string $shiftInWindowBeforeMinutes = '60';
 
@@ -107,8 +108,10 @@ class ShiftTemplates extends Component
             'shiftStartsAt' => __('Shift start'),
             'shiftEndsAt' => __('Shift end'),
             'shiftExpectedWorkMinutes' => __('Expected work'),
-            'shiftBreakStartsAt' => __('Break start'),
-            'shiftBreakEndsAt' => __('Break end'),
+            'shiftBreaks.*.label' => __('Break label'),
+            'shiftBreaks.*.starts_at' => __('Break start'),
+            'shiftBreaks.*.ends_at' => __('Break end'),
+            'shiftBreaks.*.paid' => __('Break paid'),
             'shiftInWindowBeforeMinutes' => __('Clock-in before'),
             'shiftInWindowAfterMinutes' => __('Clock-in after'),
             'shiftOutWindowBeforeMinutes' => __('Clock-out before'),
@@ -202,7 +205,7 @@ class ShiftTemplates extends Component
         $this->shiftEffectiveFrom = $shift->effective_from?->toDateString() ?? now()->toDateString();
         $this->shiftEffectiveTo = $shift->effective_to?->toDateString() ?? '';
         $this->shiftStatus = $shift->status;
-        $this->loadBreakWindow($shift);
+        $this->loadBreakWindows($shift);
         $this->loadPunchWindows($shift);
         $this->showShiftBuilderForm = true;
         $this->showAllShiftTemplates = false;
@@ -271,8 +274,11 @@ class ShiftTemplates extends Component
             'shiftStartsAt' => ['required', 'date_format:H:i'],
             'shiftEndsAt' => ['required', 'date_format:H:i'],
             'shiftExpectedWorkMinutes' => ['required', 'integer', 'min:1', 'max:1440'],
-            'shiftBreakStartsAt' => ['nullable', 'required_with:shiftBreakEndsAt', 'date_format:H:i'],
-            'shiftBreakEndsAt' => ['nullable', 'required_with:shiftBreakStartsAt', 'date_format:H:i'],
+            'shiftBreaks' => ['array', 'max:2'],
+            'shiftBreaks.*.label' => ['nullable', 'string', 'max:60'],
+            'shiftBreaks.*.starts_at' => ['nullable', 'required_with:shiftBreaks.*.ends_at', 'date_format:H:i'],
+            'shiftBreaks.*.ends_at' => ['nullable', 'required_with:shiftBreaks.*.starts_at', 'date_format:H:i'],
+            'shiftBreaks.*.paid' => ['nullable', 'boolean'],
             'shiftInWindowBeforeMinutes' => ['required', 'integer', 'min:0', 'max:720'],
             'shiftInWindowAfterMinutes' => ['required', 'integer', 'min:0', 'max:720'],
             'shiftOutWindowBeforeMinutes' => ['required', 'integer', 'min:0', 'max:720'],
@@ -421,20 +427,42 @@ class ShiftTemplates extends Component
     /** @param array<string, mixed> $template */
     private function applyTemplate(array $template): void
     {
-        $break = is_array($template['break_windows'][0] ?? null) ? $template['break_windows'][0] : [];
+        $templateBreaks = is_array($template['break_windows'] ?? null) ? $template['break_windows'] : [];
+        $firstBreak = is_array($templateBreaks[0] ?? null) ? $templateBreaks[0] : [];
         $punch = is_array($template['punch_windows'] ?? null) ? $template['punch_windows'] : [];
         $this->shiftCode = $this->uniqueShiftCode((string) ($template['code'] ?? 'SHIFT'));
         $this->shiftName = (string) ($template['name'] ?? __('Imported shift'));
         $this->shiftStartsAt = (string) ($template['starts_at'] ?? $this->shiftStartsAt);
         $this->shiftEndsAt = (string) ($template['ends_at'] ?? $this->shiftEndsAt);
         $this->shiftExpectedWorkMinutes = (string) ($template['expected_work_minutes'] ?? $this->shiftExpectedWorkMinutes);
-        $this->shiftBreakStartsAt = (string) ($template['break_starts_at'] ?? $break['starts_at'] ?? $this->shiftBreakStartsAt);
-        $this->shiftBreakEndsAt = (string) ($template['break_ends_at'] ?? $break['ends_at'] ?? $this->shiftBreakEndsAt);
+        $this->shiftBreaks = $this->normalizeBreaksForState($templateBreaks, [
+            'starts_at' => (string) ($template['break_starts_at'] ?? $firstBreak['starts_at'] ?? ''),
+            'ends_at' => (string) ($template['break_ends_at'] ?? $firstBreak['ends_at'] ?? ''),
+        ]);
         $this->shiftInWindowBeforeMinutes = (string) ($template['in_before'] ?? $punch['in']['before_minutes'] ?? $this->shiftInWindowBeforeMinutes);
         $this->shiftInWindowAfterMinutes = (string) ($template['in_after'] ?? $punch['in']['after_minutes'] ?? $this->shiftInWindowAfterMinutes);
         $this->shiftOutWindowBeforeMinutes = (string) ($template['out_before'] ?? $punch['out']['before_minutes'] ?? $this->shiftOutWindowBeforeMinutes);
         $this->shiftOutWindowAfterMinutes = (string) ($template['out_after'] ?? $punch['out']['after_minutes'] ?? $this->shiftOutWindowAfterMinutes);
         $this->shiftPayrollAttribution = (string) ($template['payroll_attribution'] ?? $this->shiftPayrollAttribution);
+    }
+
+    public function addShiftBreak(): void
+    {
+        if (count($this->shiftBreaks) >= 2) {
+            return;
+        }
+
+        $this->shiftBreaks[] = ['label' => 'Tea break', 'starts_at' => '', 'ends_at' => '', 'paid' => true];
+    }
+
+    public function removeShiftBreak(int $index): void
+    {
+        unset($this->shiftBreaks[$index]);
+        $this->shiftBreaks = array_values($this->shiftBreaks);
+
+        if ($this->shiftBreaks === []) {
+            $this->shiftBreaks = [['label' => 'Main break', 'starts_at' => '', 'ends_at' => '', 'paid' => false]];
+        }
     }
 
     private function resetForm(): void
@@ -446,8 +474,7 @@ class ShiftTemplates extends Component
         $this->shiftStartsAt = '08:00';
         $this->shiftEndsAt = '17:00';
         $this->shiftExpectedWorkMinutes = '480';
-        $this->shiftBreakStartsAt = '12:00';
-        $this->shiftBreakEndsAt = '13:00';
+        $this->shiftBreaks = [['label' => 'Main break', 'starts_at' => '12:00', 'ends_at' => '13:00', 'paid' => false]];
         $this->shiftInWindowBeforeMinutes = '60';
         $this->shiftInWindowAfterMinutes = '15';
         $this->shiftOutWindowBeforeMinutes = '15';
@@ -484,33 +511,68 @@ class ShiftTemplates extends Component
 
     /**
      * @param  array<string, mixed>  $validated
-     * @return list<array<string, string>>
+     * @return list<array{starts_at: string, ends_at: string, label: string, paid: bool}>
      */
     private function breakWindows(array $validated): array
     {
-        if ($this->blankToNull($validated['shiftBreakStartsAt'] ?? null) === null || $this->blankToNull($validated['shiftBreakEndsAt'] ?? null) === null) {
-            return [];
+        $breaks = [];
+
+        foreach ($validated['shiftBreaks'] ?? [] as $break) {
+            if (! is_array($break)) {
+                continue;
+            }
+            $starts = $this->blankToNull($break['starts_at'] ?? null);
+            $ends = $this->blankToNull($break['ends_at'] ?? null);
+            if ($starts === null || $ends === null) {
+                continue;
+            }
+            $breaks[] = [
+                'starts_at' => $starts,
+                'ends_at' => $ends,
+                'label' => $this->blankToNull($break['label'] ?? null) ?? 'Break',
+                'paid' => (bool) ($break['paid'] ?? false),
+            ];
         }
 
-        return [[
-            'starts_at' => $validated['shiftBreakStartsAt'],
-            'ends_at' => $validated['shiftBreakEndsAt'],
-            'label' => 'Main break',
-        ]];
+        return $breaks;
     }
 
-    private function loadBreakWindow(AttendanceShiftTemplate $shift): void
+    private function loadBreakWindows(AttendanceShiftTemplate $shift): void
     {
-        $break = $shift->break_windows[0] ?? null;
-        if (! is_array($break)) {
-            $this->shiftBreakStartsAt = '';
-            $this->shiftBreakEndsAt = '';
+        $stored = is_array($shift->break_windows) ? $shift->break_windows : [];
+        $this->shiftBreaks = $this->normalizeBreaksForState($stored);
+    }
 
-            return;
+    /**
+     * @param  array<int, mixed>  $stored
+     * @param  array{starts_at?: string, ends_at?: string}  $fallback  legacy single-break fallback for imported templates
+     * @return list<array{label: string, starts_at: string, ends_at: string, paid: bool}>
+     */
+    private function normalizeBreaksForState(array $stored, array $fallback = []): array
+    {
+        $breaks = [];
+        foreach ($stored as $break) {
+            if (! is_array($break)) {
+                continue;
+            }
+            $breaks[] = [
+                'label' => (string) ($break['label'] ?? 'Break'),
+                'starts_at' => substr((string) ($break['starts_at'] ?? ''), 0, 5),
+                'ends_at' => substr((string) ($break['ends_at'] ?? ''), 0, 5),
+                'paid' => (bool) ($break['paid'] ?? false),
+            ];
         }
 
-        $this->shiftBreakStartsAt = substr((string) ($break['starts_at'] ?? ''), 0, 5);
-        $this->shiftBreakEndsAt = substr((string) ($break['ends_at'] ?? ''), 0, 5);
+        if ($breaks === []) {
+            $breaks[] = [
+                'label' => 'Main break',
+                'starts_at' => substr((string) ($fallback['starts_at'] ?? ''), 0, 5),
+                'ends_at' => substr((string) ($fallback['ends_at'] ?? ''), 0, 5),
+                'paid' => false,
+            ];
+        }
+
+        return array_slice($breaks, 0, 2);
     }
 
     private function loadPunchWindows(AttendanceShiftTemplate $shift): void
@@ -533,9 +595,14 @@ class ShiftTemplates extends Component
             [AttendancePunchWindow::TYPE_OUT, $validated['shiftEndsAt'], $this->timeMinusMinutes($validated['shiftEndsAt'], (int) $validated['shiftOutWindowBeforeMinutes']), $this->timePlusMinutes($validated['shiftEndsAt'], (int) $validated['shiftOutWindowAfterMinutes']), 40],
         ];
 
-        if ($breakWindows !== []) {
+        if (isset($breakWindows[0])) {
             $windows[] = [AttendancePunchWindow::TYPE_BREAK_OUT, $breakWindows[0]['starts_at'], $breakWindows[0]['starts_at'], $breakWindows[0]['ends_at'], 20];
             $windows[] = [AttendancePunchWindow::TYPE_BREAK_IN, $breakWindows[0]['ends_at'], $breakWindows[0]['starts_at'], $breakWindows[0]['ends_at'], 30];
+        }
+
+        if (isset($breakWindows[1])) {
+            $windows[] = [AttendancePunchWindow::TYPE_BREAK_OUT_2, $breakWindows[1]['starts_at'], $breakWindows[1]['starts_at'], $breakWindows[1]['ends_at'], 22];
+            $windows[] = [AttendancePunchWindow::TYPE_BREAK_IN_2, $breakWindows[1]['ends_at'], $breakWindows[1]['starts_at'], $breakWindows[1]['ends_at'], 32];
         }
 
         $seenTypes = [];
