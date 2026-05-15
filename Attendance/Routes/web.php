@@ -1,16 +1,16 @@
 <?php
 
-use App\Modules\People\Attendance\Livewire\Allowances;
 use App\Modules\People\Attendance\Livewire\Approvals;
 use App\Modules\People\Attendance\Livewire\Locations;
 use App\Modules\People\Attendance\Livewire\MyAttendance;
 use App\Modules\People\Attendance\Livewire\Operations;
+use App\Modules\People\Attendance\Livewire\PolicyStudio\Allowances;
 use App\Modules\People\Attendance\Livewire\PolicyStudio\Builder as PolicyBuilder;
 use App\Modules\People\Attendance\Livewire\PolicyStudio\Library as PolicyLibrary;
+use App\Modules\People\Attendance\Livewire\PolicyStudio\Shifts\Builder as ShiftBuilder;
+use App\Modules\People\Attendance\Livewire\PolicyStudio\Shifts\Library as ShiftLibrary;
 use App\Modules\People\Attendance\Livewire\PolicyStudio\Validator as PolicyValidator;
 use App\Modules\People\Attendance\Livewire\Rosters;
-use App\Modules\People\Attendance\Livewire\Shifts\Builder as ShiftBuilder;
-use App\Modules\People\Attendance\Livewire\Shifts\Library as ShiftLibrary;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function (): void {

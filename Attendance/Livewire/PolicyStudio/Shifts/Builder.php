@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\Shifts;
+namespace App\Modules\People\Attendance\Livewire\PolicyStudio\Shifts;
 
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendancePunchWindow;
@@ -197,7 +197,7 @@ class Builder extends Component
 
     public function render(): View
     {
-        return view('livewire.people.attendance.shifts.builder', [
+        return view('livewire.people.attendance.policy-studio.shifts.builder', [
             'schemaReady' => $this->schemaReady(),
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'shiftTemplatePresets' => $this->shiftTemplatePresets(),

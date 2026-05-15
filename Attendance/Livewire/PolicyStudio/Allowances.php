@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire;
+namespace App\Modules\People\Attendance\Livewire\PolicyStudio;
 
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
@@ -172,7 +172,7 @@ class Allowances extends Component
         $companyId = $this->companyId();
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.allowances', [
+        return view('livewire.people.attendance.policy-studio.allowances', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'policyGroups' => $schemaReady

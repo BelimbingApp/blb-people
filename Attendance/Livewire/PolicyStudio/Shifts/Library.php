@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\Shifts;
+namespace App\Modules\People\Attendance\Livewire\PolicyStudio\Shifts;
 
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
@@ -43,7 +43,7 @@ class Library extends Component
     {
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.shifts.library', [
+        return view('livewire.people.attendance.policy-studio.shifts.library', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'shiftTemplates' => $schemaReady
