@@ -27,7 +27,6 @@ class AttendanceShiftTemplate extends Model
         'crosses_midnight',
         'expected_work_minutes',
         'break_windows',
-        'day_type_overrides',
         'payroll_attribution',
         ...self::EFFECTIVE_DATE_RANGE_FILLABLE,
         'status',
@@ -40,7 +39,6 @@ class AttendanceShiftTemplate extends Model
             'crosses_midnight' => 'bool',
             'expected_work_minutes' => 'integer',
             'break_windows' => 'array',
-            'day_type_overrides' => 'array',
             ...self::EFFECTIVE_DATE_RANGE_CASTS,
             ...self::EXTERNAL_SOURCE_CASTS,
         ];

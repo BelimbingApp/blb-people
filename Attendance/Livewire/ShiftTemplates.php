@@ -473,7 +473,6 @@ class ShiftTemplates extends Component
             'crosses_midnight' => $validated['shiftEndsAt'] <= $validated['shiftStartsAt'],
             'expected_work_minutes' => (int) $validated['shiftExpectedWorkMinutes'],
             'break_windows' => $this->breakWindows($validated),
-            'day_type_overrides' => [],
             'payroll_attribution' => $validated['shiftPayrollAttribution'],
             'effective_from' => $validated['shiftEffectiveFrom'],
             'effective_to' => $this->blankToNull($validated['shiftEffectiveTo'] ?? null),
