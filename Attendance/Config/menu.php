@@ -48,14 +48,6 @@ return [
             'parent' => 'people.attendance.policy-studio',
         ],
         [
-            'id' => 'people.attendance.policy-studio.builder',
-            'label' => 'Policy Builder',
-            'icon' => 'heroicon-o-wrench-screwdriver',
-            'route' => 'people.attendance.policy-studio.builder',
-            'permission' => 'people.attendance.manage',
-            'parent' => 'people.attendance.policy-studio',
-        ],
-        [
             'id' => 'people.attendance.policy-studio.validator',
             'label' => 'Policy Validator',
             'icon' => 'heroicon-o-shield-check',
@@ -65,17 +57,9 @@ return [
         ],
         [
             'id' => 'people.attendance.shifts',
-            'label' => 'Shift Builder',
+            'label' => 'Shifts',
             'icon' => 'heroicon-o-clock',
             'route' => 'people.attendance.shifts',
-            'permission' => 'people.attendance.manage',
-            'parent' => 'people.attendance.policy-studio',
-        ],
-        [
-            'id' => 'people.attendance.shift-library',
-            'label' => 'Shift Library',
-            'icon' => 'heroicon-o-rectangle-stack',
-            'route' => 'people.attendance.shift-library',
             'permission' => 'people.attendance.manage',
             'parent' => 'people.attendance.policy-studio',
         ],
