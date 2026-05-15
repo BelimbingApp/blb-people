@@ -50,12 +50,33 @@ class AttendanceDayResolverService
             'shift_starts_at' => $shiftStart,
             'shift_ends_at' => $shiftEnd,
             'expected_minutes' => $shift?->expected_work_minutes ?? 0,
-            'payroll_period_date' => $attendanceDate,
+            'payroll_period_date' => $this->payrollPeriodDate($shift, $attendanceDate),
             'metadata' => [
                 'resolver' => 'attendance_day_resolver',
                 'roster_revision' => $assignment?->revision,
             ],
         ]);
+    }
+
+    /**
+     * Returns the date payroll should attribute the day to.
+     *
+     * For a same-day shift, that's the attendance date itself. For a cross-midnight shift,
+     * `shift.payroll_attribution` decides: `shift_start_date` keeps the start date (default),
+     * `shift_end_date` rolls forward by one day so the worked hours land in the period that
+     * contains the clock-out.
+     */
+    private function payrollPeriodDate(?AttendanceShiftTemplate $shift, string $attendanceDate): string
+    {
+        if ($shift === null || ! $shift->crosses_midnight) {
+            return $attendanceDate;
+        }
+
+        if ($shift->payroll_attribution === 'shift_end_date') {
+            return CarbonImmutable::parse($attendanceDate)->addDay()->toDateString();
+        }
+
+        return $attendanceDate;
     }
 
     private function assignmentFor(Employee $employee, string $date): ?AttendanceRosterAssignment
@@ -66,10 +87,10 @@ class AttendanceDayResolverService
                 $query->where('employee_id', $employee->id)
                     ->orWhereNull('employee_id');
             })
-            ->where('effective_from', '<=', $date)
+            ->whereDate('effective_from', '<=', $date)
             ->where(function ($query) use ($date): void {
                 $query->whereNull('effective_to')
-                    ->orWhere('effective_to', '>=', $date);
+                    ->orWhereDate('effective_to', '>=', $date);
             })
             ->where('publish_state', 'published')
             ->with(['shiftTemplate', 'rosterPattern'])
@@ -140,10 +161,10 @@ class AttendanceDayResolverService
             ->where('company_id', $companyId)
             ->where('code', $shiftCode)
             ->where('status', AttendanceShiftTemplate::STATUS_ACTIVE)
-            ->where('effective_from', '<=', $date)
+            ->whereDate('effective_from', '<=', $date)
             ->where(function ($query) use ($date): void {
                 $query->whereNull('effective_to')
-                    ->orWhere('effective_to', '>=', $date);
+                    ->orWhereDate('effective_to', '>=', $date);
             })
             ->first();
     }

@@ -19,10 +19,10 @@ class AttendancePolicyGroupResolver
                 $query->where('employee_id', $employee->id)
                     ->orWhereNull('employee_id');
             })
-            ->where('effective_from', '<=', $effectiveDate)
+            ->whereDate('effective_from', '<=', $effectiveDate)
             ->where(function ($query) use ($effectiveDate): void {
                 $query->whereNull('effective_to')
-                    ->orWhere('effective_to', '>=', $effectiveDate);
+                    ->orWhereDate('effective_to', '>=', $effectiveDate);
             })
             ->where('publish_state', 'published')
             ->with('policyGroup')

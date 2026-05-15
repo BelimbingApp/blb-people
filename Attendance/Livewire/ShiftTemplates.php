@@ -57,9 +57,7 @@ class ShiftTemplates extends Component
     public string $shiftExpectedWorkMinutes = '480';
 
     /** @var list<array{label: string, starts_at: string, ends_at: string, paid: bool}> */
-    public array $shiftBreaks = [
-        ['label' => 'Main break', 'starts_at' => '12:00', 'ends_at' => '13:00', 'paid' => false],
-    ];
+    public array $shiftBreaks = [];
 
     public string $shiftInWindowBeforeMinutes = '60';
 
@@ -452,17 +450,13 @@ class ShiftTemplates extends Component
             return;
         }
 
-        $this->shiftBreaks[] = ['label' => 'Tea break', 'starts_at' => '', 'ends_at' => '', 'paid' => true];
+        $this->shiftBreaks[] = ['label' => 'Break', 'starts_at' => '', 'ends_at' => '', 'paid' => false];
     }
 
     public function removeShiftBreak(int $index): void
     {
         unset($this->shiftBreaks[$index]);
         $this->shiftBreaks = array_values($this->shiftBreaks);
-
-        if ($this->shiftBreaks === []) {
-            $this->shiftBreaks = [['label' => 'Main break', 'starts_at' => '', 'ends_at' => '', 'paid' => false]];
-        }
     }
 
     private function resetForm(): void
@@ -474,7 +468,7 @@ class ShiftTemplates extends Component
         $this->shiftStartsAt = '08:00';
         $this->shiftEndsAt = '17:00';
         $this->shiftExpectedWorkMinutes = '480';
-        $this->shiftBreaks = [['label' => 'Main break', 'starts_at' => '12:00', 'ends_at' => '13:00', 'paid' => false]];
+        $this->shiftBreaks = [];
         $this->shiftInWindowBeforeMinutes = '60';
         $this->shiftInWindowAfterMinutes = '15';
         $this->shiftOutWindowBeforeMinutes = '15';
@@ -563,9 +557,9 @@ class ShiftTemplates extends Component
             ];
         }
 
-        if ($breaks === []) {
+        if ($breaks === [] && (($fallback['starts_at'] ?? '') !== '' || ($fallback['ends_at'] ?? '') !== '')) {
             $breaks[] = [
-                'label' => 'Main break',
+                'label' => 'Break',
                 'starts_at' => substr((string) ($fallback['starts_at'] ?? ''), 0, 5),
                 'ends_at' => substr((string) ($fallback['ends_at'] ?? ''), 0, 5),
                 'paid' => false,
