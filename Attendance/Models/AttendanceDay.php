@@ -25,6 +25,14 @@ class AttendanceDay extends Model
 
     public const STATUS_LOCKED = 'locked';
 
+    public const DAY_TYPE_NORMAL = 'normal';
+
+    public const DAY_TYPE_REST = 'rest';
+
+    public const DAY_TYPE_OFF = 'off';
+
+    public const DAY_TYPE_HOLIDAY = 'holiday';
+
     protected $table = 'people_attendance_days';
 
     protected $fillable = [

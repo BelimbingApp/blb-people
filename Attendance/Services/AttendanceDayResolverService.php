@@ -12,6 +12,11 @@ use DateTimeInterface;
 
 class AttendanceDayResolverService
 {
+    public function __construct(
+        private readonly AttendanceCalendarResolver $calendarResolver,
+    ) {
+    }
+
     public function resolve(Employee $employee, DateTimeInterface|string $date): AttendanceDay
     {
         $attendanceDate = CarbonImmutable::parse($date)->toDateString();
@@ -24,8 +29,9 @@ class AttendanceDayResolverService
             return $existing;
         }
 
+        $dayType = $this->calendarResolver->dayType($employee, $attendanceDate);
         $assignment = $this->assignmentFor($employee, $attendanceDate);
-        $shift = $this->shiftFor($assignment, $employee, $attendanceDate);
+        $shift = $this->shiftFor($assignment, $employee, $attendanceDate, $dayType);
         $shiftStart = $shift === null ? null : CarbonImmutable::parse($attendanceDate.' '.$shift->starts_at);
         $shiftEnd = $shift === null ? null : CarbonImmutable::parse($attendanceDate.' '.$shift->ends_at);
         if ($shift?->crosses_midnight) {
@@ -40,7 +46,7 @@ class AttendanceDayResolverService
             'attendance_policy_group_id' => $assignment?->attendance_policy_group_id,
             'attendance_date' => $attendanceDate,
             'status' => AttendanceDay::STATUS_SCHEDULED,
-            'day_type' => $shift === null ? 'off' : 'normal',
+            'day_type' => $dayType,
             'shift_starts_at' => $shiftStart,
             'shift_ends_at' => $shiftEnd,
             'expected_minutes' => $shift?->expected_work_minutes ?? 0,
@@ -72,18 +78,18 @@ class AttendanceDayResolverService
             ->first();
     }
 
-    private function shiftFor(?AttendanceRosterAssignment $assignment, Employee $employee, string $date): ?AttendanceShiftTemplate
+    private function shiftFor(?AttendanceRosterAssignment $assignment, Employee $employee, string $date, string $dayType): ?AttendanceShiftTemplate
     {
         if ($assignment === null) {
             return null;
         }
 
-        $patternShift = $this->shiftFromPattern($assignment, $employee, $date);
+        $patternShift = $this->shiftFromPattern($assignment, $employee, $date, $dayType);
 
         return $patternShift ?? $assignment->shiftTemplate;
     }
 
-    private function shiftFromPattern(AttendanceRosterAssignment $assignment, Employee $employee, string $date): ?AttendanceShiftTemplate
+    private function shiftFromPattern(AttendanceRosterAssignment $assignment, Employee $employee, string $date, string $dayType): ?AttendanceShiftTemplate
     {
         $pattern = $assignment->rosterPattern;
         if (! $pattern instanceof AttendanceRosterPattern) {
@@ -91,6 +97,18 @@ class AttendanceDayResolverService
         }
 
         $definition = $pattern->pattern_definition ?? [];
+
+        // Day-type routing wins over weekday routing — e.g., "Monday → DAY, but if Monday is a holiday → HOLIDAY_HALF".
+        // A day_type entry with shift_code set to null means "no shift on this day type."
+        if (is_array($definition['day_types'] ?? null) && array_key_exists($dayType, $definition['day_types'])) {
+            $entry = $definition['day_types'][$dayType];
+            if (is_array($entry) && array_key_exists('shift_code', $entry)) {
+                $code = $entry['shift_code'];
+
+                return $code === null ? null : $this->shiftByCode($employee->company_id, (string) $code, $date);
+            }
+        }
+
         $shiftCode = null;
 
         if ($pattern->pattern_type === AttendanceRosterPattern::TYPE_FIXED_WEEKLY) {
@@ -113,8 +131,13 @@ class AttendanceDayResolverService
             return null;
         }
 
+        return $this->shiftByCode($employee->company_id, $shiftCode, $date);
+    }
+
+    private function shiftByCode(int $companyId, string $shiftCode, string $date): ?AttendanceShiftTemplate
+    {
         return AttendanceShiftTemplate::query()
-            ->where('company_id', $employee->company_id)
+            ->where('company_id', $companyId)
             ->where('code', $shiftCode)
             ->where('status', AttendanceShiftTemplate::STATUS_ACTIVE)
             ->where('effective_from', '<=', $date)
