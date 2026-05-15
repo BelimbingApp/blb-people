@@ -5,7 +5,6 @@ namespace App\Modules\People\Attendance\Livewire\PolicyStudio;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
-use App\Modules\People\Attendance\Services\AttendancePolicyValidationService;
 use App\Modules\People\Attendance\Services\PolicyTemplateSerializer;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
@@ -279,17 +278,15 @@ class Library extends Component
             'metadata' => ['created_from' => 'attendance_policy_builder'],
         ];
 
-        $policyGroup = $this->editingPolicyGroupId === null
+        $this->editingPolicyGroupId === null
             ? AttendancePolicyGroup::query()->create($attributes)
             : tap($this->policyGroup($this->editingPolicyGroupId))->update($attributes);
-
-        app(AttendancePolicyValidationService::class)->validate($policyGroup->refresh());
 
         $this->resetForm();
         $this->showPolicyBuilderForm = false;
         $this->showAllPolicyTemplates = true;
         $this->mode = 'list';
-        session()->flash('success', __('Policy group saved and validated.'));
+        session()->flash('success', __('Policy group saved.'));
     }
 
     public function usePolicyTemplate(string $templateKey): void
@@ -350,16 +347,7 @@ class Library extends Component
         $this->policyTemplateUpload = null;
         $this->mode = 'form';
 
-        session()->flash('success', __('Policy template uploaded into the builder. Review, validate, then save it as a policy group.'));
-    }
-
-    public function exportBuilderPolicyTemplate(): void
-    {
-        $this->authorizeAttendance('people.attendance.manage');
-
-        $this->policyTemplateExportJson = (string) json_encode($this->templateFromBuilder(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-
-        session()->flash('success', __('Policy template JSON ready to download. Copy it into a country pack or shared template repository when ready.'));
+        session()->flash('success', __('Policy template loaded. Review and save it as a policy group.'));
     }
 
     public function render(): View
@@ -590,34 +578,6 @@ class Library extends Component
         $this->policyHolidayOvertimePayItem = (string) ($template['holiday_ot_pay_item'] ?? $this->policyHolidayOvertimePayItem);
         $this->policyLatenessPayItem = (string) ($template['lateness_pay_item'] ?? $this->policyLatenessPayItem);
         $this->policyCurrency = strtoupper((string) ($template['currency'] ?? $this->policyCurrency));
-    }
-
-    /** @return array<string, mixed> */
-    private function templateFromBuilder(): array
-    {
-        return [
-            'schema' => PolicyTemplateSerializer::SCHEMA,
-            'code' => str($this->policyCode)->upper()->toString(),
-            'name' => $this->policyName,
-            'summary' => __('Downloaded from Policy Studio.'),
-            'best_for' => __('Use as a reviewed starting point for similar teams.'),
-            'currency' => strtoupper($this->policyCurrency),
-            'work_rounding_method' => $this->policyWorkRoundingMethod,
-            'work_rounding_minutes' => (int) $this->policyWorkRoundingMinutes,
-            'lateness_rounding_method' => $this->policyLatenessRoundingMethod,
-            'lateness_rounding_minutes' => (int) $this->policyLatenessRoundingMinutes,
-            'grace_in' => (int) $this->policyGraceIn,
-            'grace_out' => (int) $this->policyGraceOut,
-            'grace_start_break' => (int) $this->policyGraceStartBreak,
-            'grace_end_break' => (int) $this->policyGraceEndBreak,
-            'early_ot_minimum' => (int) $this->policyEarlyOvertimeMinimumMinutes,
-            'late_ot_minimum' => (int) $this->policyLateOvertimeMinimumMinutes,
-            'normal_ot_pay_item' => $this->policyNormalOvertimePayItem,
-            'extended_ot_pay_item' => $this->policyExtendedOvertimePayItem,
-            'rest_day_ot_pay_item' => $this->policyRestDayOvertimePayItem,
-            'holiday_ot_pay_item' => $this->policyHolidayOvertimePayItem,
-            'lateness_pay_item' => $this->policyLatenessPayItem,
-        ];
     }
 
     private function uniquePolicyCode(string $baseCode): string

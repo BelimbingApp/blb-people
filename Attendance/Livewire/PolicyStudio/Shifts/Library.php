@@ -232,7 +232,7 @@ class Library extends Component
         $this->showShiftBuilderForm = false;
         $this->showAllShiftTemplates = true;
         $this->mode = 'list';
-        session()->flash('success', __('Shift template saved. It is ready to use in rosters and policy validation.'));
+        session()->flash('success', __('Shift template saved.'));
     }
 
     public function importShiftTemplate(): void
@@ -270,16 +270,7 @@ class Library extends Component
         $this->shiftTemplateUpload = null;
         $this->mode = 'form';
 
-        session()->flash('success', __('Shift template uploaded into the builder. Review, then save it as a reusable shift.'));
-    }
-
-    public function exportBuilderShiftTemplate(): void
-    {
-        $this->authorizeAttendance('people.attendance.manage');
-
-        $this->shiftTemplateExportJson = (string) json_encode($this->templateFromBuilder(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-
-        session()->flash('success', __('Shift template JSON ready to download. Copy it into a country pack or shared template repository when ready.'));
+        session()->flash('success', __('Shift template loaded. Review and save it as a reusable shift.'));
     }
 
     public function render(): View
@@ -383,31 +374,6 @@ class Library extends Component
         $this->shiftOutWindowBeforeMinutes = (string) ($template['out_before'] ?? $punch['out']['before_minutes'] ?? $this->shiftOutWindowBeforeMinutes);
         $this->shiftOutWindowAfterMinutes = (string) ($template['out_after'] ?? $punch['out']['after_minutes'] ?? $this->shiftOutWindowAfterMinutes);
         $this->shiftPayrollAttribution = (string) ($template['payroll_attribution'] ?? $this->shiftPayrollAttribution);
-    }
-
-    /** @return array<string, mixed> */
-    private function templateFromBuilder(): array
-    {
-        return [
-            'schema' => ShiftTemplateSerializer::SCHEMA,
-            'code' => str($this->shiftCode)->upper()->toString(),
-            'name' => $this->shiftName,
-            'summary' => __('Downloaded from Shift Builder.'),
-            'best_for' => __('Use as a reviewed starting point for similar rosters.'),
-            'starts_at' => $this->shiftStartsAt,
-            'ends_at' => $this->shiftEndsAt,
-            'expected_work_minutes' => (int) $this->shiftExpectedWorkMinutes,
-            'break_windows' => $this->shiftBreakStartsAt === '' || $this->shiftBreakEndsAt === '' ? [] : [[
-                'starts_at' => $this->shiftBreakStartsAt,
-                'ends_at' => $this->shiftBreakEndsAt,
-                'label' => 'Main break',
-            ]],
-            'punch_windows' => [
-                'in' => ['before_minutes' => (int) $this->shiftInWindowBeforeMinutes, 'after_minutes' => (int) $this->shiftInWindowAfterMinutes],
-                'out' => ['before_minutes' => (int) $this->shiftOutWindowBeforeMinutes, 'after_minutes' => (int) $this->shiftOutWindowAfterMinutes],
-            ],
-            'payroll_attribution' => $this->shiftPayrollAttribution,
-        ];
     }
 
     private function resetForm(): void
