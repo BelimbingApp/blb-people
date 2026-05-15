@@ -1,0 +1,37 @@
+<?php
+
+namespace App\Modules\People\Attendance\Livewire;
+
+use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Modules\People\Attendance\Models\AttendanceGeofence;
+use App\Modules\People\Attendance\Models\AttendanceGeofenceGroup;
+use Illuminate\Contracts\View\View;
+use Livewire\Component;
+
+class Locations extends Component
+{
+    use InteractsWithAttendanceScreen;
+
+    public function render(): View
+    {
+        $companyId = $this->companyId();
+        $schemaReady = $this->schemaReady();
+
+        return view('livewire.people.attendance.locations', [
+            'schemaReady' => $schemaReady,
+            'geofences' => $schemaReady
+                ? AttendanceGeofence::query()
+                    ->where('company_id', $companyId)
+                    ->orderBy('code')
+                    ->get()
+                : collect(),
+            'geofenceGroups' => $schemaReady
+                ? AttendanceGeofenceGroup::query()
+                    ->where('company_id', $companyId)
+                    ->with('fences')
+                    ->orderBy('code')
+                    ->get()
+                : collect(),
+        ]);
+    }
+}
