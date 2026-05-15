@@ -8,6 +8,7 @@ use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
 use App\Modules\People\Attendance\Services\PolicyTemplateSerializer;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -25,6 +26,7 @@ class Library extends Component
     use InteractsWithAttendanceScreen;
     use WithFileUploads;
 
+    #[Url(as: 'mode')]
     public string $mode = 'list';
 
     // === Library state ===
@@ -37,8 +39,10 @@ class Library extends Component
 
     public bool $showAllPolicyTemplates = true;
 
+    #[Url(as: 'template')]
     public string $selectedPolicyTemplateKey = '';
 
+    #[Url(as: 'policy')]
     public ?int $editingPolicyGroupId = null;
 
     public string $policyCode = '';
@@ -113,7 +117,77 @@ class Library extends Component
 
     public function mount(): void
     {
+        $selectedPolicyTemplateKey = $this->selectedPolicyTemplateKey;
         $this->policyEffectiveFrom = now()->toDateString();
+
+        if ($this->editingPolicyGroupId !== null) {
+            $this->editPolicyGroup($this->editingPolicyGroupId);
+
+            return;
+        }
+
+        if ($this->mode === 'form') {
+            $this->startNewPolicy();
+
+            if ($selectedPolicyTemplateKey !== '') {
+                $this->usePolicyTemplate($selectedPolicyTemplateKey);
+            }
+        }
+    }
+
+    /** Friendly attribute names so validation errors read like field labels. */
+    protected function validationAttributes(): array
+    {
+        return [
+            'policyCode' => __('Policy code'),
+            'policyName' => __('Policy name'),
+            'policyEffectiveFrom' => __('Effective from'),
+            'policyEffectiveTo' => __('Effective to'),
+            'policyStatus' => __('Status'),
+            'policyCurrency' => __('Payroll currency'),
+            'policyWorkRoundingMethod' => __('Work rounding'),
+            'policyWorkRoundingMinutes' => __('Work rounding block'),
+            'policyLatenessRoundingMethod' => __('Lateness rounding'),
+            'policyLatenessRoundingMinutes' => __('Lateness rounding block'),
+            'policyGraceIn' => __('In grace'),
+            'policyGraceOut' => __('Out grace'),
+            'policyGraceStartBreak' => __('Break out grace'),
+            'policyGraceEndBreak' => __('Break in grace'),
+            'policyEarlyOvertimeMinimumMinutes' => __('Before-shift OT minimum'),
+            'policyLateOvertimeMinimumMinutes' => __('After-shift OT minimum'),
+            'policyNormalOvertimePayItem' => __('Normal OT item'),
+            'policyExtendedOvertimePayItem' => __('Extended OT item'),
+            'policyRestDayOvertimePayItem' => __('Rest day OT item'),
+            'policyHolidayOvertimePayItem' => __('Holiday OT item'),
+            'policyLatenessPayItem' => __('Deduction pay item'),
+            'policyLatenessMonthlyRoundingMethod' => __('Monthly rounding'),
+            'policyLatenessMonthlyRoundingMinutes' => __('Monthly rounding block'),
+            'policyTemplateUpload' => __('Template file'),
+        ];
+    }
+
+    /** Concise message templates that read consistently regardless of the rule. */
+    protected function messages(): array
+    {
+        return [
+            'required' => ':attribute is required.',
+            'required_unless' => ':attribute is required.',
+            'string' => ':attribute must be text.',
+            'integer' => ':attribute must be a whole number.',
+            'numeric' => ':attribute must be a number.',
+            'min.numeric' => ':attribute must be at least :min.',
+            'max.numeric' => ':attribute must be at most :max.',
+            'min.string' => ':attribute must be at least :min characters.',
+            'max.string' => ':attribute must be at most :max characters.',
+            'date' => ':attribute must be a date.',
+            'date_format' => ':attribute must match :format.',
+            'after_or_equal' => ':attribute must be on or after :date.',
+            'size' => ':attribute must be exactly :size characters.',
+            'alpha_dash' => ':attribute may only contain letters, numbers, dashes and underscores.',
+            'in' => ':attribute is not a valid option.',
+            'exists' => ':attribute is not a valid option.',
+            'unique' => ':attribute is already in use.',
+        ];
     }
 
     // === List-mode actions ===

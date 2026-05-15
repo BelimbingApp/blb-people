@@ -8,6 +8,7 @@ use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
 use App\Modules\People\Attendance\Services\ShiftTemplateSerializer;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -24,6 +25,7 @@ class Library extends Component
     use InteractsWithAttendanceScreen;
     use WithFileUploads;
 
+    #[Url(as: 'mode')]
     public string $mode = 'list';
 
     // === Library state ===
@@ -38,8 +40,10 @@ class Library extends Component
 
     public bool $showShiftTemplateImportModal = false;
 
+    #[Url(as: 'template')]
     public string $selectedShiftTemplateKey = '';
 
+    #[Url(as: 'shift')]
     public ?int $editingShiftTemplateId = null;
 
     public string $shiftCode = '';
@@ -76,7 +80,64 @@ class Library extends Component
 
     public function mount(): void
     {
+        $selectedShiftTemplateKey = $this->selectedShiftTemplateKey;
         $this->shiftEffectiveFrom = now()->toDateString();
+
+        if ($this->editingShiftTemplateId !== null) {
+            $this->editShiftTemplate($this->editingShiftTemplateId);
+
+            return;
+        }
+
+        if ($this->mode === 'form') {
+            $this->startNewShift();
+
+            if ($selectedShiftTemplateKey !== '') {
+                $this->useShiftTemplate($selectedShiftTemplateKey);
+            }
+        }
+    }
+
+    /** Friendly attribute names so validation errors read like field labels. */
+    protected function validationAttributes(): array
+    {
+        return [
+            'shiftCode' => __('Shift code'),
+            'shiftName' => __('Shift name'),
+            'shiftStartsAt' => __('Shift start'),
+            'shiftEndsAt' => __('Shift end'),
+            'shiftExpectedWorkMinutes' => __('Expected work'),
+            'shiftBreakStartsAt' => __('Break start'),
+            'shiftBreakEndsAt' => __('Break end'),
+            'shiftInWindowBeforeMinutes' => __('Clock-in before'),
+            'shiftInWindowAfterMinutes' => __('Clock-in after'),
+            'shiftOutWindowBeforeMinutes' => __('Clock-out before'),
+            'shiftOutWindowAfterMinutes' => __('Clock-out after'),
+            'shiftPayrollAttribution' => __('Payroll date'),
+            'shiftEffectiveFrom' => __('Effective from'),
+            'shiftEffectiveTo' => __('Effective to'),
+            'shiftStatus' => __('Status'),
+            'shiftTemplateUpload' => __('Template file'),
+        ];
+    }
+
+    /** Concise message templates that read consistently regardless of the rule. */
+    protected function messages(): array
+    {
+        return [
+            'required' => ':attribute is required.',
+            'required_with' => ':attribute is required.',
+            'string' => ':attribute must be text.',
+            'integer' => ':attribute must be a whole number.',
+            'min.numeric' => ':attribute must be at least :min.',
+            'max.numeric' => ':attribute must be at most :max.',
+            'date' => ':attribute must be a date.',
+            'date_format' => ':attribute must match :format.',
+            'after_or_equal' => ':attribute must be on or after :date.',
+            'alpha_dash' => ':attribute may only contain letters, numbers, dashes and underscores.',
+            'in' => ':attribute is not a valid option.',
+            'unique' => ':attribute is already in use.',
+        ];
     }
 
     // === List-mode actions ===
