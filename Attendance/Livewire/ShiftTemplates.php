@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\PolicyStudio\Shifts;
+namespace App\Modules\People\Attendance\Livewire;
 
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendancePunchWindow;
@@ -13,14 +13,14 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 
 /**
- * Combined Shift Library + Builder.
+ * Shift template list + builder.
  *
  * Renders the shift templates table by default ($mode === 'list'). Clicking
  * "New", "Edit", or "Duplicate" switches into $mode === 'form' which shows
  * the shift builder inline; save and cancel return to list mode without a
  * page navigation.
  */
-class Library extends Component
+class ShiftTemplates extends Component
 {
     use InteractsWithAttendanceScreen;
     use WithFileUploads;
@@ -28,7 +28,7 @@ class Library extends Component
     #[Url(as: 'mode')]
     public string $mode = 'list';
 
-    // === Library state ===
+    // === List state ===
 
     public string $shiftTemplateExportJson = '';
 
@@ -338,7 +338,7 @@ class Library extends Component
     {
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.policy-studio.shifts.library', [
+        return view('livewire.people.attendance.shift-templates', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'shiftTemplates' => $schemaReady

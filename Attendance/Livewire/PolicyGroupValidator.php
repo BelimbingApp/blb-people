@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\PolicyStudio;
+namespace App\Modules\People\Attendance\Livewire;
 
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
@@ -10,7 +10,7 @@ use App\Modules\People\Attendance\Services\AttendancePolicyValidationService;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
 
-class Validator extends Component
+class PolicyGroupValidator extends Component
 {
     use InteractsWithAttendanceScreen;
 
@@ -95,7 +95,7 @@ class Validator extends Component
         $companyId = $this->companyId();
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.policy-studio.validator', [
+        return view('livewire.people.attendance.policy-group-validator', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'policyGroups' => $schemaReady

@@ -7,7 +7,7 @@ use App\Modules\People\Claim\Models\ClaimPolicy;
 /**
  * Lints a {@see ClaimPolicy} and returns linter-style findings.
  *
- * Output shape mirrors AttendancePolicyValidationService so a future shared Policy Studio surface
+ * Output shape mirrors AttendancePolicyValidationService so a future shared policy validator surface
  * can render Attendance and Claim findings identically:
  *
  *   { status: 'ok'|'warning'|'error',

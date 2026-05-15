@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\PolicyStudio;
+namespace App\Modules\People\Attendance\Livewire;
 
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
@@ -13,15 +13,15 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 
 /**
- * Combined Policy Library + Builder.
+ * Policy group list + builder.
  *
  * Renders the policy groups table by default ($mode === 'list'). Clicking
  * "New", "Edit", or "Duplicate" switches into $mode === 'form' which shows
  * the policy builder inline; save and cancel return to list mode without a
- * page navigation. Simulate still redirects to the dedicated Validator
+ * page navigation. Simulate still redirects to the dedicated PolicyGroupValidator
  * page because that is a separate workflow.
  */
-class Library extends Component
+class PolicyGroups extends Component
 {
     use InteractsWithAttendanceScreen;
     use WithFileUploads;
@@ -29,7 +29,7 @@ class Library extends Component
     #[Url(as: 'mode')]
     public string $mode = 'list';
 
-    // === Library state ===
+    // === List state ===
 
     public string $policyTemplateExportJson = '';
 
@@ -225,7 +225,7 @@ class Library extends Component
 
     public function simulatePolicyGroup(int $policyGroupId)
     {
-        return redirect()->route('people.attendance.policy-studio.validator', ['policyGroup' => $policyGroupId]);
+        return redirect()->route('people.attendance.policy-groups.validator', ['policyGroup' => $policyGroupId]);
     }
 
     public function exportPolicyGroupTemplate(int $policyGroupId): void
@@ -429,7 +429,7 @@ class Library extends Component
         $companyId = $this->companyId();
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.policy-studio.library', [
+        return view('livewire.people.attendance.policy-groups', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'policyGroups' => $schemaReady

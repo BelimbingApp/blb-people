@@ -23,7 +23,7 @@ class PolicyTemplateSerializer
             'schema' => self::SCHEMA,
             'code' => str($policy->code)->upper()->toString(),
             'name' => $policy->name,
-            'summary' => __('Downloaded from Policy Studio.'),
+            'summary' => __('Downloaded from Policy Groups.'),
             'best_for' => __('Use as a reviewed starting point for similar teams.'),
             'currency' => strtoupper($policy->payroll_defaults['currency'] ?? 'MYR'),
             'work_rounding_method' => $work['daily_rounding']['method'] ?? 'nearest',

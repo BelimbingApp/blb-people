@@ -15,7 +15,7 @@ use DateTimeImmutable;
  *
  *   { status, policy, input, matched_band, blocking[], explanation }
  *
- * Used by the Policy Studio "Simulate" lens, by CLI, and (in future) by an admin "test this
+ * Used by the policy group validator's "Simulate" lens, by CLI, and (in future) by an admin "test this
  * policy against an employee" affordance before assignment.
  */
 class ClaimPolicySimulationService

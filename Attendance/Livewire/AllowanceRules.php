@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\PolicyStudio;
+namespace App\Modules\People\Attendance\Livewire;
 
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
@@ -9,7 +9,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
-class Allowances extends Component
+class AllowanceRules extends Component
 {
     use InteractsWithAttendanceScreen;
 
@@ -114,7 +114,7 @@ class Allowances extends Component
         }
 
         $this->resetForm();
-        session()->flash('success', __('Allowance rule saved. Validate the linked policy in Policy Studio before using it for payroll handoff.'));
+        session()->flash('success', __('Allowance rule saved. Validate the linked policy group before using it for payroll handoff.'));
     }
 
     public function editAllowanceRule(int $ruleId): void
@@ -172,7 +172,7 @@ class Allowances extends Component
         $companyId = $this->companyId();
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.policy-studio.allowances', [
+        return view('livewire.people.attendance.allowance-rules', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'policyGroups' => $schemaReady
