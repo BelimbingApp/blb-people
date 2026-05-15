@@ -3,9 +3,12 @@
 namespace App\Modules\People\Attendance\Livewire;
 
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Modules\People\Attendance\Models\AttendanceAdjustmentRequest;
 use App\Modules\People\Attendance\Models\AttendanceOvertimeRequest;
+use App\Modules\People\Attendance\Services\AttendanceAdjustmentService;
 use App\Modules\People\Attendance\Services\AttendanceOvertimeService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 class Approvals extends Component
@@ -72,6 +75,36 @@ class Approvals extends Component
         session()->flash($messageKey, $message);
     }
 
+    public function approveAdjustment(int $requestId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.approve');
+
+        $request = $this->adjustmentRequest($requestId);
+        app(AttendanceAdjustmentService::class)->approve($request, (int) Auth::id(), $this->blankToNull($this->decisionReason));
+        $this->decisionReason = '';
+
+        session()->flash('success', __('Adjustment request approved; clock event recorded.'));
+    }
+
+    public function rejectAdjustment(int $requestId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.approve');
+
+        $request = $this->adjustmentRequest($requestId);
+        app(AttendanceAdjustmentService::class)->reject($request, (int) Auth::id(), $this->blankToNull($this->decisionReason));
+        $this->decisionReason = '';
+
+        session()->flash('success', __('Adjustment request rejected.'));
+    }
+
     public function render(): View
     {
         $companyId = $this->companyId();
@@ -93,12 +126,31 @@ class Approvals extends Component
                     ->limit(60)
                     ->get()
                 : collect(),
+            'adjustmentRequests' => $schemaReady
+                ? AttendanceAdjustmentRequest::query()
+                    ->where('company_id', $companyId)
+                    ->whereIn('status', [
+                        AttendanceAdjustmentRequest::STATUS_SUBMITTED,
+                        AttendanceAdjustmentRequest::STATUS_APPROVED,
+                    ])
+                    ->with(['employee', 'attendanceDay'])
+                    ->latest('submitted_at')
+                    ->limit(60)
+                    ->get()
+                : collect(),
         ]);
     }
 
     private function overtimeRequest(int $requestId): AttendanceOvertimeRequest
     {
         return AttendanceOvertimeRequest::query()
+            ->where('company_id', $this->companyId())
+            ->findOrFail($requestId);
+    }
+
+    private function adjustmentRequest(int $requestId): AttendanceAdjustmentRequest
+    {
+        return AttendanceAdjustmentRequest::query()
             ->where('company_id', $this->companyId())
             ->findOrFail($requestId);
     }

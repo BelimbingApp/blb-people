@@ -4,9 +4,11 @@ namespace App\Modules\People\Attendance\Livewire;
 
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Modules\People\Attendance\Models\AttendanceAdjustmentRequest;
 use App\Modules\People\Attendance\Models\AttendanceClockEvent;
 use App\Modules\People\Attendance\Models\AttendanceDay;
 use App\Modules\People\Attendance\Models\AttendanceOvertimeRequest;
+use App\Modules\People\Attendance\Services\AttendanceAdjustmentService;
 use App\Modules\People\Attendance\Services\AttendanceDayResolverService;
 use App\Modules\People\Attendance\Services\AttendanceOvertimeService;
 use App\Modules\People\Attendance\Services\ClockEventIngestionService;
@@ -35,11 +37,23 @@ class MyAttendance extends Component
 
     public string $overtimeReason = '';
 
+    public bool $showAdjustmentModal = false;
+
+    public string $adjustmentDate = '';
+
+    public string $adjustmentTime = '';
+
+    public string $adjustmentEventType = AttendanceClockEvent::TYPE_IN;
+
+    public string $adjustmentReason = '';
+
     public function mount(): void
     {
         $this->overtimeDate = now()->toDateString();
         $this->overtimeStartsAt = now()->setTime(17, 0)->format('H:i');
         $this->overtimeEndsAt = now()->setTime(18, 0)->format('H:i');
+        $this->adjustmentDate = now()->toDateString();
+        $this->adjustmentTime = now()->format('H:i');
     }
 
     public function updatedSearch(): void
@@ -144,6 +158,61 @@ class MyAttendance extends Component
         session()->flash('success', __('Overtime request submitted.'));
     }
 
+    public function openAdjustmentModal(): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->resetValidation();
+        $this->showAdjustmentModal = true;
+    }
+
+    public function submitAdjustmentRequest(): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.execute');
+
+        $employeeId = $this->currentEmployeeId();
+        if ($employeeId === null) {
+            session()->flash('error', __('Your user account is not linked to an employee record.'));
+
+            return;
+        }
+
+        $validated = $this->validate([
+            'adjustmentDate' => ['required', 'date'],
+            'adjustmentTime' => ['required', 'date_format:H:i'],
+            'adjustmentEventType' => ['required', 'in:'.AttendanceClockEvent::TYPE_IN.','.AttendanceClockEvent::TYPE_OUT.','.AttendanceClockEvent::TYPE_BREAK_OUT.','.AttendanceClockEvent::TYPE_BREAK_IN],
+            'adjustmentReason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $employee = Employee::query()
+            ->where('company_id', $this->companyId())
+            ->findOrFail($employeeId);
+        $day = app(AttendanceDayResolverService::class)->resolve($employee, $validated['adjustmentDate']);
+
+        $request = AttendanceAdjustmentRequest::query()->create([
+            'company_id' => $employee->company_id,
+            'employee_id' => $employee->id,
+            'attendance_day_id' => $day->id,
+            'request_mode' => AttendanceAdjustmentRequest::MODE_MISSING_PUNCH,
+            'target_event_type' => $validated['adjustmentEventType'],
+            'proposed_occurred_at' => new DateTimeImmutable($validated['adjustmentDate'].' '.$validated['adjustmentTime']),
+            'reason' => $validated['adjustmentReason'],
+            'status' => AttendanceAdjustmentRequest::STATUS_DRAFT,
+        ]);
+
+        app(AttendanceAdjustmentService::class)->submit($request, (int) Auth::id());
+
+        $this->showAdjustmentModal = false;
+        $this->adjustmentReason = '';
+        session()->flash('success', __('Adjustment request submitted.'));
+    }
+
     public function render(): View
     {
         $companyId = $this->companyId();
@@ -180,6 +249,20 @@ class MyAttendance extends Component
                     ->limit(40)
                     ->get()
                 : collect(),
+            'myAdjustments' => $schemaReady && $currentEmployeeId !== null
+                ? AttendanceAdjustmentRequest::query()
+                    ->where('company_id', $companyId)
+                    ->where('employee_id', $currentEmployeeId)
+                    ->latest('id')
+                    ->limit(10)
+                    ->get()
+                : collect(),
+            'eventTypeOptions' => [
+                AttendanceClockEvent::TYPE_IN => __('Clock-in'),
+                AttendanceClockEvent::TYPE_OUT => __('Clock-out'),
+                AttendanceClockEvent::TYPE_BREAK_OUT => __('Break out'),
+                AttendanceClockEvent::TYPE_BREAK_IN => __('Break in'),
+            ],
             'clockEvents' => $schemaReady
                 ? AttendanceClockEvent::query()
                     ->where('company_id', $companyId)
