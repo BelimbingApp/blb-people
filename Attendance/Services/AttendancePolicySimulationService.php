@@ -80,7 +80,7 @@ class AttendancePolicySimulationService
                 'overtime_candidate_minutes' => $overtimeCandidateMinutes,
                 'exception_tags' => $exceptionTags,
             ],
-            'allowance_candidates' => $this->allowanceCandidates($policyGroup, $clockOutAt, $workedMinutes),
+            'allowance_candidates' => $this->allowanceCandidates($policyGroup, $shiftTemplate, $clockOutAt, $workedMinutes),
             'explanation' => $this->explanation($lateMinutes, $earlyOutMinutes, $overtimeCandidateMinutes, $exceptionTags),
         ];
     }
@@ -88,10 +88,11 @@ class AttendancePolicySimulationService
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function allowanceCandidates(AttendancePolicyGroup $policyGroup, CarbonImmutable $clockOutAt, int $workedMinutes): array
+    private function allowanceCandidates(AttendancePolicyGroup $policyGroup, AttendanceShiftTemplate $shiftTemplate, CarbonImmutable $clockOutAt, int $workedMinutes): array
     {
         return $policyGroup->allowanceRules
             ->filter(fn (AttendanceAllowanceRule $rule): bool => $rule->status === 'active' && $rule->allowance_type === AttendanceAllowanceRule::TYPE_DAILY)
+            ->filter(fn (AttendanceAllowanceRule $rule): bool => $rule->attendance_shift_template_id === null || $rule->attendance_shift_template_id === $shiftTemplate->id)
             ->map(fn (AttendanceAllowanceRule $rule): ?array => $this->allowanceCandidate($rule, $clockOutAt, $workedMinutes))
             ->filter()
             ->values()

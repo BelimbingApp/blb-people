@@ -5,6 +5,7 @@ namespace App\Modules\People\Attendance\Livewire;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
+use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -14,6 +15,8 @@ class AllowanceRules extends Component
     use InteractsWithAttendanceScreen;
 
     public string $allowancePolicyGroupId = '';
+
+    public string $allowanceShiftTemplateId = '';
 
     public string $allowanceCode = '';
 
@@ -57,6 +60,7 @@ class AllowanceRules extends Component
         $companyId = $this->companyId();
         $validated = $this->validate([
             'allowancePolicyGroupId' => ['nullable', 'integer'],
+            'allowanceShiftTemplateId' => ['nullable', 'integer'],
             'allowanceCode' => [
                 'required',
                 'string',
@@ -91,9 +95,18 @@ class AllowanceRules extends Component
                 ->id;
         }
 
+        $shiftTemplateId = $this->blankToNull($validated['allowanceShiftTemplateId'] ?? null);
+        if ($shiftTemplateId !== null) {
+            $shiftTemplateId = AttendanceShiftTemplate::query()
+                ->where('company_id', $companyId)
+                ->findOrFail((int) $shiftTemplateId)
+                ->id;
+        }
+
         $attributes = [
             'company_id' => $companyId,
             'attendance_policy_group_id' => $policyGroupId,
+            'attendance_shift_template_id' => $shiftTemplateId,
             'code' => str($validated['allowanceCode'])->upper()->toString(),
             'name' => $validated['allowanceName'],
             'allowance_type' => $validated['allowanceType'],
@@ -131,6 +144,7 @@ class AllowanceRules extends Component
 
         $this->editingAllowanceRuleId = $rule->id;
         $this->allowancePolicyGroupId = $rule->attendance_policy_group_id === null ? '' : (string) $rule->attendance_policy_group_id;
+        $this->allowanceShiftTemplateId = $rule->attendance_shift_template_id === null ? '' : (string) $rule->attendance_shift_template_id;
         $this->allowanceCode = $rule->code;
         $this->allowanceName = $rule->name;
         $this->allowanceType = $rule->allowance_type;
@@ -181,10 +195,16 @@ class AllowanceRules extends Component
                     ->orderBy('code')
                     ->get()
                 : collect(),
+            'shiftTemplates' => $schemaReady
+                ? AttendanceShiftTemplate::query()
+                    ->where('company_id', $companyId)
+                    ->orderBy('code')
+                    ->get()
+                : collect(),
             'allowanceRules' => $schemaReady
                 ? AttendanceAllowanceRule::query()
                     ->where('company_id', $companyId)
-                    ->with('policyGroup')
+                    ->with(['policyGroup', 'shiftTemplate'])
                     ->orderBy('code')
                     ->get()
                 : collect(),
@@ -259,6 +279,7 @@ class AllowanceRules extends Component
     {
         $this->editingAllowanceRuleId = null;
         $this->allowancePolicyGroupId = '';
+        $this->allowanceShiftTemplateId = '';
         $this->allowanceCode = '';
         $this->allowanceName = '';
         $this->allowanceType = AttendanceAllowanceRule::TYPE_DAILY;

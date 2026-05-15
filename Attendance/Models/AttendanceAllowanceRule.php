@@ -23,6 +23,7 @@ class AttendanceAllowanceRule extends Model
     protected $fillable = [
         'company_id',
         'attendance_policy_group_id',
+        'attendance_shift_template_id',
         'code',
         'name',
         'allowance_type',
@@ -59,5 +60,10 @@ class AttendanceAllowanceRule extends Model
     public function policyGroup(): BelongsTo
     {
         return $this->belongsTo(AttendancePolicyGroup::class, 'attendance_policy_group_id');
+    }
+
+    public function shiftTemplate(): BelongsTo
+    {
+        return $this->belongsTo(AttendanceShiftTemplate::class, 'attendance_shift_template_id');
     }
 }
