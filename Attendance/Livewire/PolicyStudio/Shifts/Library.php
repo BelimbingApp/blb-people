@@ -24,6 +24,22 @@ class Library extends Component
         return redirect()->route('people.attendance.shifts', ['duplicateFrom' => $shiftTemplateId]);
     }
 
+    public function toggleShiftStatus(int $shiftTemplateId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        $shift = $this->shiftTemplate($shiftTemplateId);
+        $shift->update([
+            'status' => $shift->status === 'active' ? 'inactive' : 'active',
+        ]);
+
+        session()->flash('success', __('Shift status updated.'));
+    }
+
     public function exportShiftTemplate(int $shiftTemplateId): void
     {
         if (! $this->ensureSchemaReady()) {

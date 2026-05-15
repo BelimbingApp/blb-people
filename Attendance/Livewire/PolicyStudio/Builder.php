@@ -104,6 +104,12 @@ class Builder extends Component
     {
         $this->policyEffectiveFrom = now()->toDateString();
 
+        // Mount params arrive from route bindings; fall back to query string so
+        // redirects like `?policyGroup=42` from the Library load the form too.
+        $policyGroup ??= request()->integer('policyGroup') ?: null;
+        $duplicateFrom ??= request()->integer('duplicateFrom') ?: null;
+        $templateKey ??= request()->query('templateKey');
+
         if ($policyGroup !== null) {
             $this->loadForEdit($policyGroup);
 
@@ -116,7 +122,7 @@ class Builder extends Component
             return;
         }
 
-        if ($templateKey !== null) {
+        if ($templateKey !== null && $templateKey !== '') {
             $this->usePolicyTemplate($templateKey);
         }
     }

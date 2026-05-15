@@ -64,6 +64,12 @@ class Builder extends Component
     {
         $this->shiftEffectiveFrom = now()->toDateString();
 
+        // Mount params arrive from route bindings; fall back to query string so
+        // redirects like `?shift=42` from the Library load the form too.
+        $shift ??= request()->integer('shift') ?: null;
+        $duplicateFrom ??= request()->integer('duplicateFrom') ?: null;
+        $templateKey ??= request()->query('templateKey');
+
         if ($shift !== null) {
             $this->loadForEdit($shift);
 
@@ -76,7 +82,7 @@ class Builder extends Component
             return;
         }
 
-        if ($templateKey !== null) {
+        if ($templateKey !== null && $templateKey !== '') {
             $this->useShiftTemplate($templateKey);
         }
     }
