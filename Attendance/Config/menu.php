@@ -34,7 +34,7 @@ return [
         ],
         [
             'id' => 'people.attendance.setup',
-            'label' => 'Attendance Setup',
+            'label' => 'Setup',
             'icon' => 'heroicon-o-adjustments-horizontal',
             'permission' => 'people.attendance.manage',
             'parent' => 'people.attendance',

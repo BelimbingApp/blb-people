@@ -8,11 +8,29 @@ use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
+/**
+ * Allowance rule list + builder.
+ *
+ * The list is the default workspace. New rules start from lightweight built-in
+ * templates; saved rules and duplicates open directly in the form without the
+ * template picker because the reusable definition already exists.
+ */
 class AllowanceRules extends Component
 {
     use InteractsWithAttendanceScreen;
+
+    #[Url(as: 'mode')]
+    public string $mode = 'list';
+
+    public bool $showAllowanceBuilderForm = false;
+
+    public bool $showAllAllowanceTemplates = true;
+
+    #[Url(as: 'template')]
+    public string $selectedAllowanceTemplateKey = '';
 
     public string $allowancePolicyGroupId = '';
 
@@ -42,11 +60,58 @@ class AllowanceRules extends Component
 
     public string $allowanceStatus = 'active';
 
+    #[Url(as: 'allowance')]
     public ?int $editingAllowanceRuleId = null;
 
     public function mount(): void
     {
+        $selectedAllowanceTemplateKey = $this->selectedAllowanceTemplateKey;
         $this->allowanceEffectiveFrom = now()->toDateString();
+
+        if ($this->editingAllowanceRuleId !== null) {
+            $this->editAllowanceRule($this->editingAllowanceRuleId);
+
+            return;
+        }
+
+        if ($this->mode === 'form') {
+            $this->startNewAllowanceRule();
+
+            if ($selectedAllowanceTemplateKey !== '') {
+                $this->useAllowanceTemplate($selectedAllowanceTemplateKey);
+            }
+        }
+    }
+
+    public function startNewAllowanceRule(): void
+    {
+        $this->resetForm();
+        $this->showAllowanceBuilderForm = false;
+        $this->showAllAllowanceTemplates = true;
+        $this->mode = 'form';
+    }
+
+    public function useAllowanceTemplate(string $templateKey): void
+    {
+        if ($this->selectedAllowanceTemplateKey === $templateKey && ! $this->showAllAllowanceTemplates) {
+            $this->resetForm();
+            $this->showAllowanceBuilderForm = false;
+            $this->showAllAllowanceTemplates = true;
+
+            return;
+        }
+
+        $template = collect($this->allowanceTemplates())->firstWhere('key', $templateKey);
+        if (! is_array($template)) {
+            return;
+        }
+
+        $this->resetForm();
+        $this->applyAllowanceTemplate($template);
+        $this->showAllowanceBuilderForm = true;
+        $this->showAllAllowanceTemplates = false;
+        $this->selectedAllowanceTemplateKey = $templateKey;
+        $this->mode = 'form';
     }
 
     public function saveAllowanceRule(): void
@@ -58,6 +123,7 @@ class AllowanceRules extends Component
         $this->authorizeAttendance('people.attendance.manage');
 
         $companyId = $this->companyId();
+        $payItemRules = $this->payrollPayItemValidationRules($companyId);
         $validated = $this->validate([
             'allowancePolicyGroupId' => ['nullable', 'integer'],
             'allowanceShiftTemplateId' => ['nullable', 'integer'],
@@ -72,7 +138,7 @@ class AllowanceRules extends Component
             ],
             'allowanceName' => ['required', 'string', 'max:120'],
             'allowanceType' => ['required', Rule::in([AttendanceAllowanceRule::TYPE_DAILY, AttendanceAllowanceRule::TYPE_MONTHLY])],
-            'allowancePayItemCode' => ['nullable', 'string', 'max:80'],
+            'allowancePayItemCode' => ['nullable', ...$payItemRules],
             'allowanceAmount' => ['required', 'numeric', 'min:0.01'],
             'allowanceResolutionMethod' => ['required', Rule::in([
                 AttendanceAllowanceRule::RESOLUTION_SUM,
@@ -127,6 +193,9 @@ class AllowanceRules extends Component
         }
 
         $this->resetForm();
+        $this->showAllowanceBuilderForm = false;
+        $this->showAllAllowanceTemplates = true;
+        $this->mode = 'list';
         session()->flash('success', __('Allowance rule saved. Validate the linked policy group before using it for payroll handoff.'));
     }
 
@@ -157,11 +226,28 @@ class AllowanceRules extends Component
         $this->allowanceClockOutBefore = (string) ($predicate['clock_out_before'] ?? '');
         $this->allowanceEffectiveFrom = $rule->effective_from?->toDateString() ?? now()->toDateString();
         $this->allowanceStatus = $rule->status;
+        $this->showAllowanceBuilderForm = true;
+        $this->showAllAllowanceTemplates = false;
+        $this->selectedAllowanceTemplateKey = 'saved-allowance';
+        $this->mode = 'form';
+    }
+
+    public function duplicateAllowanceRule(int $ruleId): void
+    {
+        $this->editAllowanceRule($ruleId);
+        $source = $this->allowanceRule($ruleId);
+        $this->editingAllowanceRuleId = null;
+        $this->allowanceCode = $this->uniqueAllowanceCode($source->code.'_COPY');
+        $this->allowanceName = $source->name.' Copy';
+        $this->allowanceStatus = 'inactive';
     }
 
     public function cancelAllowanceEdit(): void
     {
         $this->resetForm();
+        $this->showAllowanceBuilderForm = false;
+        $this->showAllAllowanceTemplates = true;
+        $this->mode = 'list';
     }
 
     public function deleteAllowanceRule(int $ruleId): void
@@ -179,6 +265,22 @@ class AllowanceRules extends Component
         }
 
         session()->flash('success', __('Allowance rule deleted.'));
+    }
+
+    public function toggleAllowanceStatus(int $ruleId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        $rule = $this->allowanceRule($ruleId);
+        $rule->update([
+            'status' => $rule->status === 'active' ? 'inactive' : 'active',
+        ]);
+
+        session()->flash('success', __('Allowance rule status updated.'));
     }
 
     public function render(): View
@@ -201,6 +303,7 @@ class AllowanceRules extends Component
                     ->orderBy('code')
                     ->get()
                 : collect(),
+            'payrollPayItems' => $this->payrollPayItems($companyId),
             'allowanceRules' => $schemaReady
                 ? AttendanceAllowanceRule::query()
                     ->where('company_id', $companyId)
@@ -208,6 +311,7 @@ class AllowanceRules extends Component
                     ->orderBy('code')
                     ->get()
                 : collect(),
+            'allowanceTemplates' => $this->allowanceTemplates(),
         ]);
     }
 
@@ -257,6 +361,92 @@ class AllowanceRules extends Component
         };
     }
 
+    /** @return list<array<string, mixed>> */
+    private function allowanceTemplates(): array
+    {
+        return [
+            [
+                'key' => 'blank-allowance',
+                'code' => 'ALLOWANCE',
+                'name' => __('Blank allowance'),
+                'summary' => __('Start with a neutral always-pay rule and fill the business meaning yourself.'),
+                'best_for' => __('One-off company rules that do not match a common meal, transport or night pattern.'),
+                'type' => AttendanceAllowanceRule::TYPE_DAILY,
+                'pay_item_code' => '',
+                'amount' => '1.00',
+                'resolution_method' => AttendanceAllowanceRule::RESOLUTION_SUM,
+                'condition_preset' => 'always',
+            ],
+            [
+                'key' => 'meal-after-worked-time',
+                'code' => 'MEAL_ALLOWANCE',
+                'name' => __('Meal allowance'),
+                'summary' => __('Daily meal allowance once worked minutes reach a threshold.'),
+                'best_for' => __('Meal claims driven by attendance duration rather than manual claim submission.'),
+                'type' => AttendanceAllowanceRule::TYPE_DAILY,
+                'pay_item_code' => 'meal_allowance',
+                'amount' => '10.00',
+                'resolution_method' => AttendanceAllowanceRule::RESOLUTION_SUM,
+                'condition_preset' => 'min_worked',
+                'min_worked_minutes' => '480',
+            ],
+            [
+                'key' => 'late-out-transport',
+                'code' => 'LATE_TRANSPORT',
+                'name' => __('Late-out transport'),
+                'summary' => __('Daily transport allowance when clock-out is after a configured time.'),
+                'best_for' => __('Taxi, ride-hailing or transport top-ups for employees who leave late.'),
+                'type' => AttendanceAllowanceRule::TYPE_DAILY,
+                'pay_item_code' => 'transport_allowance',
+                'amount' => '20.00',
+                'resolution_method' => AttendanceAllowanceRule::RESOLUTION_SUM,
+                'condition_preset' => 'clock_out_after',
+                'clock_out_after' => '21:00',
+            ],
+            [
+                'key' => 'night-window',
+                'code' => 'NIGHT_ALLOWANCE',
+                'name' => __('Night allowance'),
+                'summary' => __('Daily allowance when clock-out falls inside a night window.'),
+                'best_for' => __('Night differential rules before supervisors choose the applicable policy or shift scope.'),
+                'type' => AttendanceAllowanceRule::TYPE_DAILY,
+                'pay_item_code' => 'night_allowance',
+                'amount' => '25.00',
+                'resolution_method' => AttendanceAllowanceRule::RESOLUTION_SUM,
+                'condition_preset' => 'clock_out_window',
+                'clock_out_after' => '22:00',
+                'clock_out_before' => '06:00',
+            ],
+            [
+                'key' => 'monthly-attendance',
+                'code' => 'MONTHLY_ATTENDANCE',
+                'name' => __('Monthly attendance allowance'),
+                'summary' => __('Monthly attendance allowance that can later be scoped to a policy group.'),
+                'best_for' => __('Fixed monthly attendance incentives whose earning logic is kept in Attendance.'),
+                'type' => AttendanceAllowanceRule::TYPE_MONTHLY,
+                'pay_item_code' => 'attendance_allowance',
+                'amount' => '100.00',
+                'resolution_method' => AttendanceAllowanceRule::RESOLUTION_MAX,
+                'condition_preset' => 'always',
+            ],
+        ];
+    }
+
+    /** @param array<string, mixed> $template */
+    private function applyAllowanceTemplate(array $template): void
+    {
+        $this->allowanceCode = $this->uniqueAllowanceCode((string) ($template['code'] ?? 'ALLOWANCE'));
+        $this->allowanceName = (string) ($template['name'] ?? __('Allowance rule'));
+        $this->allowanceType = (string) ($template['type'] ?? AttendanceAllowanceRule::TYPE_DAILY);
+        $this->allowancePayItemCode = (string) ($template['pay_item_code'] ?? '');
+        $this->allowanceAmount = (string) ($template['amount'] ?? '0.00');
+        $this->allowanceResolutionMethod = (string) ($template['resolution_method'] ?? AttendanceAllowanceRule::RESOLUTION_SUM);
+        $this->allowanceConditionPreset = (string) ($template['condition_preset'] ?? 'always');
+        $this->allowanceMinWorkedMinutes = (string) ($template['min_worked_minutes'] ?? $this->allowanceMinWorkedMinutes);
+        $this->allowanceClockOutAfter = (string) ($template['clock_out_after'] ?? '');
+        $this->allowanceClockOutBefore = (string) ($template['clock_out_before'] ?? '');
+    }
+
     /**
      * @param  array<string, mixed>  $predicate
      */
@@ -278,6 +468,7 @@ class AllowanceRules extends Component
     private function resetForm(): void
     {
         $this->editingAllowanceRuleId = null;
+        $this->selectedAllowanceTemplateKey = '';
         $this->allowancePolicyGroupId = '';
         $this->allowanceShiftTemplateId = '';
         $this->allowanceCode = '';
@@ -292,5 +483,22 @@ class AllowanceRules extends Component
         $this->allowanceClockOutBefore = '';
         $this->allowanceEffectiveFrom = now()->toDateString();
         $this->allowanceStatus = 'active';
+    }
+
+    private function uniqueAllowanceCode(string $baseCode): string
+    {
+        $baseCode = str($baseCode)->upper()->replaceMatches('/[^A-Z0-9_-]+/', '_')->trim('_')->toString() ?: 'ALLOWANCE';
+        $candidate = $baseCode;
+        $suffix = 2;
+
+        while (AttendanceAllowanceRule::query()
+            ->where('company_id', $this->companyId())
+            ->where('code', $candidate)
+            ->exists()) {
+            $candidate = $baseCode.'_'.$suffix;
+            $suffix++;
+        }
+
+        return $candidate;
     }
 }
