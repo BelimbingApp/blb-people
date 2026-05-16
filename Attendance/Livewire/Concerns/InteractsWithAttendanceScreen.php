@@ -111,10 +111,10 @@ trait InteractsWithAttendanceScreen
     /**
      * Returns active payroll pay items as plain rows for dropdown rendering.
      *
-     * Transitional — used by the PolicyGroups screen for the
-     * `payroll_defaults` JSON fields (lateness, overtime). Plan 12 Phase 4
-     * audits those fields and moves them out of the Attendance domain, at
-     * which point this helper goes away.
+     * Transitional — used by the PolicyGroups screen for the lateness and
+     * overtime pay-item dropdowns. A future Payroll-side mapping table
+     * (mirror of the allowance mapping) will replace these and remove
+     * the helper.
      *
      * Goes through the DB facade rather than the PayrollPayItem Eloquent
      * model so this file does not import a Payroll class.

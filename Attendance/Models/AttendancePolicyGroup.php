@@ -22,7 +22,7 @@ class AttendancePolicyGroup extends Model
         'overtime_rules',
         'overtime_export_rules',
         'lateness_export_rules',
-        'payroll_defaults',
+        'currency',
         'version',
         'status',
     ];
@@ -36,7 +36,6 @@ class AttendancePolicyGroup extends Model
             'overtime_rules' => 'array',
             'overtime_export_rules' => 'array',
             'lateness_export_rules' => 'array',
-            'payroll_defaults' => 'array',
             ...self::COMPANY_SCOPED_EXTERNAL_LIFECYCLE_CASTS,
             'version' => 'integer',
         ];

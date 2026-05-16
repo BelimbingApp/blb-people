@@ -16,10 +16,11 @@ use App\Modules\People\Payroll\Services\PayrollContributionIntake;
  * Attendance. The intake handles idempotency, run-locking, and pending
  * materialisation.
  *
- * Phase 4 of plan 12 will move the pay-item resolution data (policy
- * snapshot fields, payroll_defaults) out of Attendance schemas; until
- * then this listener reads them from Attendance models, which is the
- * legal Payroll → Attendance dependency direction.
+ * The OT pay-item code is read from `policy_snapshot` (a snapshot of the
+ * policy rules captured at OT submission time, owned by Attendance) and
+ * falls back to a hardcoded default. A per-policy-group OT mapping table
+ * (mirror of the allowance mapping) is a future enhancement when the
+ * fallback proves too coarse.
  */
 class RecordAttendanceOvertimeContribution
 {
@@ -75,14 +76,10 @@ class RecordAttendanceOvertimeContribution
 
     private function resolvePayItemCode(AttendanceOvertimeRequest $request): string
     {
-        $request->loadMissing(['attendanceDay.policyGroup']);
-
         $snapshot = $request->policy_snapshot ?? [];
-        $payrollDefaults = $request->attendanceDay?->policyGroup?->payroll_defaults ?? [];
 
         $payItemCode = $snapshot['pay_item_code']
             ?? $snapshot['overtime_pay_item_code']
-            ?? $payrollDefaults['overtime_pay_item_code']
             ?? 'ATT_OT';
 
         if (! is_string($payItemCode) || $payItemCode === '') {

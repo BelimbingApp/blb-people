@@ -25,7 +25,7 @@ class PolicyTemplateSerializer
             'name' => $policy->name,
             'summary' => __('Downloaded from Policy Groups.'),
             'best_for' => __('Use as a reviewed starting point for similar teams.'),
-            'currency' => strtoupper($policy->payroll_defaults['currency'] ?? 'MYR'),
+            'currency' => strtoupper($policy->currency ?? 'MYR'),
             'work_rounding_method' => $work['daily_rounding']['method'] ?? 'nearest',
             'work_rounding_minutes' => (int) ($work['daily_rounding']['minutes'] ?? 15),
             'lateness_rounding_method' => $lateness['daily_rounding']['method'] ?? 'ceiling',

@@ -1,0 +1,33 @@
+{
+    "name": "blb/payroll-my",
+    "type": "blb-plugin",
+    "description": "BLB Payroll — Malaysia reference plugin. Listens to source-module events, classifies pay items, calculates statutory deductions, posts payroll lines.",
+    "license": "AGPL-3.0-only",
+    "autoload": {
+        "psr-4": {
+            "App\\Modules\\People\\Payroll\\": ""
+        }
+    },
+    "extra": {
+        "blb": {
+            "module": "people/payroll",
+            "role": "plugin",
+            "requires-modules": {
+                "core/company": "*",
+                "core/employee": "*",
+                "people/settings": "*"
+            },
+            "optional-modules": {
+                "people/attendance": "*",
+                "people/leave": "*",
+                "people/claim": "*"
+            },
+            "publishes-events": [],
+            "consumes-events": [
+                "App\\Modules\\People\\Attendance\\Events\\AttendanceOvertimeApproved",
+                "App\\Modules\\People\\Attendance\\Events\\AttendanceAllowanceMaterialized",
+                "App\\Base\\Pdf\\Events\\PdfArtifactRendered"
+            ]
+        }
+    }
+}

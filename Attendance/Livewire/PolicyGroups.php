@@ -268,7 +268,7 @@ class PolicyGroups extends Component
         $this->policyEffectiveFrom = $policy->effective_from?->toDateString() ?? now()->toDateString();
         $this->policyEffectiveTo = $policy->effective_to?->toDateString() ?? '';
         $this->policyStatus = $policy->status;
-        $this->policyCurrency = $policy->payroll_defaults['currency'] ?? 'MYR';
+        $this->policyCurrency = $policy->currency ?? 'MYR';
         $this->loadPolicyRules($policy);
         $this->showPolicyBuilderForm = true;
         $this->showAllPolicyTemplates = false;
@@ -348,7 +348,7 @@ class PolicyGroups extends Component
             'overtime_rules' => $this->policyOvertimeRules($validated),
             'overtime_export_rules' => $this->policyOvertimeExportRules($validated),
             'lateness_export_rules' => $this->policyLatenessExportRules($validated),
-            'payroll_defaults' => ['currency' => strtoupper($validated['policyCurrency'])],
+            'currency' => strtoupper($validated['policyCurrency']),
             'metadata' => ['created_from' => 'attendance_policy_builder'],
         ];
 

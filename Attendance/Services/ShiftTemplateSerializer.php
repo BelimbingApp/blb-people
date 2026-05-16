@@ -52,7 +52,7 @@ class ShiftTemplateSerializer
                     'after_minutes' => $out === null ? 0 : $this->minutesBetween((string) $shift->ends_at, (string) $out->latest_at),
                 ],
             ],
-            'payroll_attribution' => $shift->payroll_attribution,
+            'cross_midnight_attribution' => $shift->cross_midnight_attribution,
         ];
     }
 

@@ -199,7 +199,7 @@ class ShiftTemplates extends Component
         $this->shiftStartsAt = substr((string) $shift->starts_at, 0, 5);
         $this->shiftEndsAt = substr((string) $shift->ends_at, 0, 5);
         $this->shiftExpectedWorkMinutes = (string) $shift->expected_work_minutes;
-        $this->shiftPayrollAttribution = $shift->payroll_attribution;
+        $this->shiftPayrollAttribution = $shift->cross_midnight_attribution;
         $this->shiftEffectiveFrom = $shift->effective_from?->toDateString() ?? now()->toDateString();
         $this->shiftEffectiveTo = $shift->effective_to?->toDateString() ?? '';
         $this->shiftStatus = $shift->status;
@@ -383,7 +383,7 @@ class ShiftTemplates extends Component
                 'in_after' => 15,
                 'out_before' => 15,
                 'out_after' => 120,
-                'payroll_attribution' => 'shift_start_date',
+                'cross_midnight_attribution' => 'shift_start_date',
             ],
             [
                 'key' => 'production-day',
@@ -400,7 +400,7 @@ class ShiftTemplates extends Component
                 'in_after' => 10,
                 'out_before' => 10,
                 'out_after' => 180,
-                'payroll_attribution' => 'shift_start_date',
+                'cross_midnight_attribution' => 'shift_start_date',
             ],
             [
                 'key' => 'night-shift',
@@ -417,7 +417,7 @@ class ShiftTemplates extends Component
                 'in_after' => 15,
                 'out_before' => 15,
                 'out_after' => 180,
-                'payroll_attribution' => 'shift_start_date',
+                'cross_midnight_attribution' => 'shift_start_date',
             ],
         ];
     }
@@ -441,7 +441,7 @@ class ShiftTemplates extends Component
         $this->shiftInWindowAfterMinutes = (string) ($template['in_after'] ?? $punch['in']['after_minutes'] ?? $this->shiftInWindowAfterMinutes);
         $this->shiftOutWindowBeforeMinutes = (string) ($template['out_before'] ?? $punch['out']['before_minutes'] ?? $this->shiftOutWindowBeforeMinutes);
         $this->shiftOutWindowAfterMinutes = (string) ($template['out_after'] ?? $punch['out']['after_minutes'] ?? $this->shiftOutWindowAfterMinutes);
-        $this->shiftPayrollAttribution = (string) ($template['payroll_attribution'] ?? $this->shiftPayrollAttribution);
+        $this->shiftPayrollAttribution = (string) ($template['cross_midnight_attribution'] ?? $this->shiftPayrollAttribution);
     }
 
     public function addShiftBreak(): void
@@ -494,7 +494,7 @@ class ShiftTemplates extends Component
             'crosses_midnight' => $validated['shiftEndsAt'] <= $validated['shiftStartsAt'],
             'expected_work_minutes' => (int) $validated['shiftExpectedWorkMinutes'],
             'break_windows' => $this->breakWindows($validated),
-            'payroll_attribution' => $validated['shiftPayrollAttribution'],
+            'cross_midnight_attribution' => $validated['shiftPayrollAttribution'],
             'effective_from' => $validated['shiftEffectiveFrom'],
             'effective_to' => $this->blankToNull($validated['shiftEffectiveTo'] ?? null),
             'status' => $validated['shiftStatus'],

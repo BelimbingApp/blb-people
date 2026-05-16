@@ -27,7 +27,7 @@ class AttendanceShiftTemplate extends Model
         'crosses_midnight',
         'expected_work_minutes',
         'break_windows',
-        'payroll_attribution',
+        'cross_midnight_attribution',
         ...self::EFFECTIVE_DATE_RANGE_FILLABLE,
         'status',
         ...self::EXTERNAL_SOURCE_FILLABLE,

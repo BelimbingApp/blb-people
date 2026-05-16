@@ -1,0 +1,25 @@
+{
+    "name": "blb/people-leave",
+    "type": "blb-source-module",
+    "description": "BLB Leave — entitlement, balance, leave requests, and encashment.",
+    "license": "AGPL-3.0-only",
+    "autoload": {
+        "psr-4": {
+            "App\\Modules\\People\\Leave\\": ""
+        }
+    },
+    "extra": {
+        "blb": {
+            "module": "people/leave",
+            "role": "source",
+            "requires-modules": {
+                "core/company": "*",
+                "core/employee": "*",
+                "people/settings": "*"
+            },
+            "optional-modules": {},
+            "publishes-events": [],
+            "consumes-events": []
+        }
+    }
+}

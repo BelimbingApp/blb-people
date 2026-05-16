@@ -62,9 +62,9 @@ class AttendanceDayResolverService
      * Returns the date payroll should attribute the day to.
      *
      * For a same-day shift, that's the attendance date itself. For a cross-midnight shift,
-     * `shift.payroll_attribution` decides: `shift_start_date` keeps the start date (default),
-     * `shift_end_date` rolls forward by one day so the worked hours land in the period that
-     * contains the clock-out.
+     * `shift.cross_midnight_attribution` decides: `shift_start_date` keeps the start date
+     * (default), `shift_end_date` rolls forward by one day so the worked hours land in the
+     * period that contains the clock-out.
      */
     private function payrollPeriodDate(?AttendanceShiftTemplate $shift, string $attendanceDate): string
     {
@@ -72,7 +72,7 @@ class AttendanceDayResolverService
             return $attendanceDate;
         }
 
-        if ($shift->payroll_attribution === 'shift_end_date') {
+        if ($shift->cross_midnight_attribution === 'shift_end_date') {
             return CarbonImmutable::parse($attendanceDate)->addDay()->toDateString();
         }
 
