@@ -4,6 +4,7 @@ namespace App\Modules\People\Attendance;
 
 use App\Modules\People\Attendance\Console\Commands\PolicySimulateCommand;
 use App\Modules\People\Attendance\Console\Commands\PolicyValidateCommand;
+use App\Modules\People\Attendance\Console\Commands\RosterCommand;
 use App\Modules\People\Attendance\Services\AttendanceDayProjectionService;
 use App\Modules\People\Attendance\Services\AttendancePolicyGroupResolver;
 use App\Modules\People\Attendance\Services\AttendancePolicySimulationService;
@@ -26,6 +27,7 @@ class ServiceProvider extends BaseServiceProvider
             $this->commands([
                 PolicyValidateCommand::class,
                 PolicySimulateCommand::class,
+                RosterCommand::class,
             ]);
         }
     }
