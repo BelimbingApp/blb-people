@@ -27,7 +27,6 @@ class AttendanceAllowanceRule extends Model
         'code',
         'name',
         'allowance_type',
-        'payroll_pay_item_code',
         'ceiling_amount',
         'resolution_method',
         'condition_rows',

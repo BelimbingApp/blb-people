@@ -195,7 +195,6 @@ class DevAttendanceSeeder extends DevSeeder
                 'attendance_policy_group_id' => $policyGroup->id,
                 'name' => 'Full Attendance',
                 'allowance_type' => AttendanceAllowanceRule::TYPE_MONTHLY,
-                'payroll_pay_item_code' => 'full_attendance_allowance',
                 'ceiling_amount' => 50,
                 'resolution_method' => AttendanceAllowanceRule::RESOLUTION_MIN,
                 'condition_rows' => [
@@ -218,7 +217,6 @@ class DevAttendanceSeeder extends DevSeeder
                 'attendance_policy_group_id' => $policyGroup->id,
                 'name' => 'Night Shift FW',
                 'allowance_type' => AttendanceAllowanceRule::TYPE_DAILY,
-                'payroll_pay_item_code' => 'shift1',
                 'ceiling_amount' => 31,
                 'resolution_method' => AttendanceAllowanceRule::RESOLUTION_MIN,
                 'condition_rows' => [

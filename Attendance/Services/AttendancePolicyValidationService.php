@@ -177,10 +177,6 @@ class AttendancePolicyValidationService
             $findings[] = $this->finding('error', 'allowance_resolution_invalid', 'Allowance resolution method must be sum, min, or max.', "{$path}.resolution_method");
         }
 
-        if ($rule->payroll_pay_item_code === null || trim($rule->payroll_pay_item_code) === '') {
-            $findings[] = $this->finding('warning', 'allowance_pay_item_missing', 'Allowance rule has no payroll pay item code, so payroll handoff cannot classify it yet.', "{$path}.payroll_pay_item_code");
-        }
-
         $rows = $rule->condition_rows ?? [];
         if ($rows === []) {
             $findings[] = $this->finding('warning', 'allowance_conditions_missing', 'Allowance rule has no condition rows.', "{$path}.condition_rows");

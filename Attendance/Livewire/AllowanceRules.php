@@ -42,8 +42,6 @@ class AllowanceRules extends Component
 
     public string $allowanceType = AttendanceAllowanceRule::TYPE_DAILY;
 
-    public string $allowancePayItemCode = '';
-
     public string $allowanceAmount = '0.00';
 
     public string $allowanceResolutionMethod = AttendanceAllowanceRule::RESOLUTION_SUM;
@@ -123,7 +121,6 @@ class AllowanceRules extends Component
         $this->authorizeAttendance('people.attendance.manage');
 
         $companyId = $this->companyId();
-        $payItemRules = $this->payrollPayItemValidationRules($companyId);
         $validated = $this->validate([
             'allowancePolicyGroupId' => ['nullable', 'integer'],
             'allowanceShiftTemplateId' => ['nullable', 'integer'],
@@ -138,7 +135,6 @@ class AllowanceRules extends Component
             ],
             'allowanceName' => ['required', 'string', 'max:120'],
             'allowanceType' => ['required', Rule::in([AttendanceAllowanceRule::TYPE_DAILY, AttendanceAllowanceRule::TYPE_MONTHLY])],
-            'allowancePayItemCode' => ['nullable', ...$payItemRules],
             'allowanceAmount' => ['required', 'numeric', 'min:0.01'],
             'allowanceResolutionMethod' => ['required', Rule::in([
                 AttendanceAllowanceRule::RESOLUTION_SUM,
@@ -176,7 +172,6 @@ class AllowanceRules extends Component
             'code' => str($validated['allowanceCode'])->upper()->toString(),
             'name' => $validated['allowanceName'],
             'allowance_type' => $validated['allowanceType'],
-            'payroll_pay_item_code' => $this->blankToNull($validated['allowancePayItemCode'] ?? null),
             'ceiling_amount' => null,
             'resolution_method' => $validated['allowanceResolutionMethod'],
             'condition_rows' => [$this->conditionRow($validated)],
@@ -217,7 +212,6 @@ class AllowanceRules extends Component
         $this->allowanceCode = $rule->code;
         $this->allowanceName = $rule->name;
         $this->allowanceType = $rule->allowance_type;
-        $this->allowancePayItemCode = $rule->payroll_pay_item_code ?? '';
         $this->allowanceAmount = (string) ($row['amount'] ?? '0.00');
         $this->allowanceResolutionMethod = $rule->resolution_method;
         $this->allowanceConditionPreset = $this->presetFromPredicate($predicate);
@@ -303,7 +297,6 @@ class AllowanceRules extends Component
                     ->orderBy('code')
                     ->get()
                 : collect(),
-            'payrollPayItems' => $this->payrollPayItems($companyId),
             'allowanceRules' => $schemaReady
                 ? AttendanceAllowanceRule::query()
                     ->where('company_id', $companyId)
@@ -372,7 +365,6 @@ class AllowanceRules extends Component
                 'summary' => __('Start with a neutral always-pay rule and fill the business meaning yourself.'),
                 'best_for' => __('One-off company rules that do not match a common meal, transport or night pattern.'),
                 'type' => AttendanceAllowanceRule::TYPE_DAILY,
-                'pay_item_code' => '',
                 'amount' => '1.00',
                 'resolution_method' => AttendanceAllowanceRule::RESOLUTION_SUM,
                 'condition_preset' => 'always',
@@ -384,7 +376,6 @@ class AllowanceRules extends Component
                 'summary' => __('Daily meal allowance once worked minutes reach a threshold.'),
                 'best_for' => __('Meal claims driven by attendance duration rather than manual claim submission.'),
                 'type' => AttendanceAllowanceRule::TYPE_DAILY,
-                'pay_item_code' => 'meal_allowance',
                 'amount' => '10.00',
                 'resolution_method' => AttendanceAllowanceRule::RESOLUTION_SUM,
                 'condition_preset' => 'min_worked',
@@ -397,7 +388,6 @@ class AllowanceRules extends Component
                 'summary' => __('Daily transport allowance when clock-out is after a configured time.'),
                 'best_for' => __('Taxi, ride-hailing or transport top-ups for employees who leave late.'),
                 'type' => AttendanceAllowanceRule::TYPE_DAILY,
-                'pay_item_code' => 'transport_allowance',
                 'amount' => '20.00',
                 'resolution_method' => AttendanceAllowanceRule::RESOLUTION_SUM,
                 'condition_preset' => 'clock_out_after',
@@ -410,7 +400,6 @@ class AllowanceRules extends Component
                 'summary' => __('Daily allowance when clock-out falls inside a night window.'),
                 'best_for' => __('Night differential rules before supervisors choose the applicable policy or shift scope.'),
                 'type' => AttendanceAllowanceRule::TYPE_DAILY,
-                'pay_item_code' => 'night_allowance',
                 'amount' => '25.00',
                 'resolution_method' => AttendanceAllowanceRule::RESOLUTION_SUM,
                 'condition_preset' => 'clock_out_window',
@@ -424,7 +413,6 @@ class AllowanceRules extends Component
                 'summary' => __('Monthly attendance allowance that can later be scoped to a policy group.'),
                 'best_for' => __('Fixed monthly attendance incentives whose earning logic is kept in Attendance.'),
                 'type' => AttendanceAllowanceRule::TYPE_MONTHLY,
-                'pay_item_code' => 'attendance_allowance',
                 'amount' => '100.00',
                 'resolution_method' => AttendanceAllowanceRule::RESOLUTION_MAX,
                 'condition_preset' => 'always',
@@ -438,7 +426,6 @@ class AllowanceRules extends Component
         $this->allowanceCode = $this->uniqueAllowanceCode((string) ($template['code'] ?? 'ALLOWANCE'));
         $this->allowanceName = (string) ($template['name'] ?? __('Allowance rule'));
         $this->allowanceType = (string) ($template['type'] ?? AttendanceAllowanceRule::TYPE_DAILY);
-        $this->allowancePayItemCode = (string) ($template['pay_item_code'] ?? '');
         $this->allowanceAmount = (string) ($template['amount'] ?? '0.00');
         $this->allowanceResolutionMethod = (string) ($template['resolution_method'] ?? AttendanceAllowanceRule::RESOLUTION_SUM);
         $this->allowanceConditionPreset = (string) ($template['condition_preset'] ?? 'always');
@@ -474,7 +461,6 @@ class AllowanceRules extends Component
         $this->allowanceCode = '';
         $this->allowanceName = '';
         $this->allowanceType = AttendanceAllowanceRule::TYPE_DAILY;
-        $this->allowancePayItemCode = '';
         $this->allowanceAmount = '0.00';
         $this->allowanceResolutionMethod = AttendanceAllowanceRule::RESOLUTION_SUM;
         $this->allowanceConditionPreset = 'always';

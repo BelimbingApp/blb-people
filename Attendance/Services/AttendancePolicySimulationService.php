@@ -127,7 +127,6 @@ class AttendancePolicySimulationService
         return [
             'code' => $rule->code,
             'name' => $rule->name,
-            'payroll_pay_item_code' => $rule->payroll_pay_item_code,
             'resolution_method' => $rule->resolution_method,
             'matched_rows' => $matches,
         ];
