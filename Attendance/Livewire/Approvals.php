@@ -56,23 +56,15 @@ class Approvals extends Component
         $this->authorizeAttendance('people.attendance.approve');
 
         $request = $this->overtimeRequest($requestId);
-        $outcome = app(AttendanceOvertimeService::class)->queuePayrollHandoff($request);
+        $dispatched = app(AttendanceOvertimeService::class)->queuePayrollHandoff($request);
 
-        if ($outcome === null) {
+        if (! $dispatched) {
             session()->flash('error', __('No payable minutes on this overtime request.'));
 
             return;
         }
 
-        $messageKey = $outcome->isMaterialized() ? 'success' : 'error';
-        $message = match (true) {
-            $outcome->isMaterialized() => __('Overtime queued to payroll.'),
-            $outcome->isPending() => __('Saved as pending — no open payroll run covers this overtime date.'),
-            $outcome->isRejected() => __('Cannot queue: the payroll run for this period is closed.'),
-            default => __('Overtime contribution recorded.'),
-        };
-
-        session()->flash($messageKey, $message);
+        session()->flash('success', __('Overtime queued to payroll. Check the Payroll module for the contribution status.'));
     }
 
     public function approveAdjustment(int $requestId): void
