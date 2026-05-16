@@ -12,6 +12,8 @@
         "blb": {
             "module": "people/claim",
             "role": "source",
+            "version": "0.1.0",
+            "description": "Claim — expense reimbursement requests with attachments, approval, and payroll dispatch.",
             "requires-modules": {
                 "core/company": "*",
                 "core/employee": "*",

@@ -170,10 +170,9 @@ class AttendanceAllowanceMapping extends Component
             return false;
         }
 
-        return app(AuthorizationService::class)->actorCan(
-            Actor::fromUser($user),
-            'people.payroll.manage',
-        );
+        return app(AuthorizationService::class)
+            ->can(Actor::forUser($user), 'people.payroll.manage')
+            ->allowed;
     }
 
     private function authorizeManage(): void

@@ -12,6 +12,8 @@
         "blb": {
             "module": "people/settings",
             "role": "source",
+            "version": "0.1.0",
+            "description": "People Settings — work profiles, calendars, reference data, notification log.",
             "requires-modules": {
                 "core/company": "*",
                 "core/employee": "*"

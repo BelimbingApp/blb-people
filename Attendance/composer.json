@@ -12,6 +12,8 @@
         "blb": {
             "module": "people/attendance",
             "role": "source",
+            "version": "0.1.0",
+            "description": "Attendance — clock events, shifts, overtime, lateness, and attendance-conditioned allowance dispatch.",
             "requires-modules": {
                 "core/company": "*",
                 "core/employee": "*",

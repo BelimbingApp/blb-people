@@ -12,6 +12,8 @@
         "blb": {
             "module": "people/payroll",
             "role": "plugin",
+            "version": "0.1.0",
+            "description": "Payroll — Malaysia reference plugin. Listens to HR source events, classifies pay items, calculates statutory deductions.",
             "requires-modules": {
                 "core/company": "*",
                 "core/employee": "*",
