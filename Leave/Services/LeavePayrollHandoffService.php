@@ -2,65 +2,42 @@
 
 namespace App\Modules\People\Leave\Services;
 
+use App\Modules\People\Leave\Events\LeaveApplied;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveRequest;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionOutcome;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
-use App\Modules\People\Payroll\Services\PayrollContributionIntake;
 use DateTimeImmutable;
 
 /**
- * Hands applied leave to Payroll via the neutral intake contract.
+ * Dispatches LeaveApplied for an applied leave request so downstream
+ * consumers (Payroll plugin, audit sinks) can pick up the fact.
  *
- * Each applied unpaid-leave (or other payroll-interacting leave) request
- * produces one PayrollContributionPayload keyed on
- * (source_type='leave_request', source_id=request.id, pay_item_code,
- * period_anchor=starts_on). Payroll decides whether to materialise a
- * PayrollInput row immediately or hold it as pending until a run opens.
+ * Plan 13 Phase 1 — the dispatching producer side. Whether the leave
+ * type actually emits a payroll contribution is decided by the
+ * listener, not here.
  */
 class LeavePayrollHandoffService
 {
     public const SOURCE_TYPE = 'leave_request';
 
-    public function __construct(
-        private readonly PayrollContributionIntake $intake,
-    ) {}
-
-    public function onLeaveApplied(LeaveRequest $request, LeaveBalanceLedgerEntry $entry): ?PayrollContributionOutcome
+    public function onLeaveApplied(LeaveRequest $request, LeaveBalanceLedgerEntry $entry): bool
     {
         $leaveType = $request->leaveType;
         if ($leaveType === null || ! $leaveType->interacts_with_payroll) {
-            return null;
+            return false;
         }
 
-        $payItemCode = $leaveType->payroll_pay_item_code;
-        if ($payItemCode === null) {
-            return null;
-        }
-
-        $anchor = $this->anchorOf($request);
-
-        return $this->intake->ingest(new PayrollContributionPayload(
-            sourceType: self::SOURCE_TYPE,
-            sourceId: (int) $request->getKey(),
-            payItemCode: $payItemCode,
-            periodAnchor: $anchor,
+        event(new LeaveApplied(
             companyId: (int) $request->company_id,
             employeeId: (int) $request->employee_id,
-            currency: 'MYR',
-            occurredOn: $anchor,
-            inputType: 'deduction',
-            amount: 0.0,
+            leaveRequestId: (int) $request->getKey(),
+            leaveTypeId: (int) $leaveType->getKey(),
+            leaveBalanceLedgerEntryId: (int) $entry->getKey(),
+            occurredOn: $this->anchorOf($request),
             quantity: (float) $request->quantity,
-            rate: null,
-            label: (string) $leaveType->name,
-            metadata: [
-                'leave_type_code' => $leaveType->code,
-                'leave_ledger_entry_id' => $entry->getKey(),
-                'leave_unit' => $request->unit,
-                'audit_tag' => $leaveType->audit_tag,
-            ],
+            unit: (string) $request->unit,
         ));
+
+        return true;
     }
 
     private function anchorOf(LeaveRequest $request): DateTimeImmutable

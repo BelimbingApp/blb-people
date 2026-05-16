@@ -2,18 +2,17 @@
 
 namespace App\Modules\People\Leave\Services;
 
+use App\Modules\People\Leave\Events\LeaveEncashed;
 use App\Modules\People\Leave\Exceptions\LeaveEncashmentException;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveType;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
-use App\Modules\People\Payroll\Services\PayrollContributionIntake;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Encash a remaining annual-leave (or similar) balance: writes a debit
- * `encashed` ledger entry and hands the corresponding payroll contribution
- * to Payroll via the intake contract.
+ * `encashed` ledger entry and dispatches a LeaveEncashed event so
+ * downstream consumers can record the payout.
  */
 class LeaveEncashmentService
 {
@@ -21,7 +20,6 @@ class LeaveEncashmentService
 
     public function __construct(
         private readonly LeaveBalanceLedgerService $ledger,
-        private readonly PayrollContributionIntake $intake,
     ) {}
 
     public function encash(
@@ -63,25 +61,15 @@ class LeaveEncashmentService
                 note: $note ?? 'Leave encashment',
             );
 
-            $this->intake->ingest(new PayrollContributionPayload(
-                sourceType: self::SOURCE_TYPE,
-                sourceId: (int) $entry->getKey(),
-                payItemCode: LeaveType::PAYROLL_CODE_LEAVE_ENCASHMENT,
-                periodAnchor: $now,
+            event(new LeaveEncashed(
                 companyId: $companyId,
                 employeeId: $employeeId,
-                currency: (string) ($currency ?? 'MYR'),
+                leaveTypeId: $leaveTypeId,
+                leaveBalanceLedgerEntryId: (int) $entry->getKey(),
+                leaveYear: $leaveYear,
                 occurredOn: $now,
-                inputType: 'earning',
-                amount: 0.0,
-                quantity: $days,
-                rate: null,
-                label: $leaveType->name.' encashment',
-                metadata: [
-                    'leave_type_code' => $leaveType->code,
-                    'leave_ledger_entry_id' => $entry->getKey(),
-                    'leave_year' => $leaveYear,
-                ],
+                days: $days,
+                currency: (string) ($currency ?? 'MYR'),
             ));
 
             return $entry;

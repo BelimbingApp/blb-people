@@ -2,11 +2,11 @@
 
 namespace App\Modules\People\Claim\Services;
 
+use App\Modules\People\Claim\Events\ClaimReimbursementQueued;
+use App\Modules\People\Claim\Events\ClaimReimbursementReversed;
 use App\Modules\People\Claim\Models\ClaimLine;
 use App\Modules\People\Claim\Models\ClaimRequest;
 use App\Modules\People\Claim\Models\ClaimRequestAuditEvent;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
-use App\Modules\People\Payroll\Services\PayrollContributionIntake;
 use DateTimeImmutable;
 
 class ClaimPayrollHandoffService
@@ -14,22 +14,19 @@ class ClaimPayrollHandoffService
     public const SOURCE_TYPE = 'claim_line';
 
     public function __construct(
-        private readonly PayrollContributionIntake $intake,
         private readonly ClaimNotificationDispatcher $notifications,
     ) {}
 
     /**
-     * @return array{eligible: int, queued: int, pending: int, skipped: int, rejected: int}
+     * @return array{eligible: int, dispatched: int, skipped: int}
      */
     public function queueApprovedRequest(ClaimRequest $request, ?int $actorUserId = null): array
     {
         $request->loadMissing(['lines.type']);
 
         $eligible = 0;
-        $queued = 0;
-        $pending = 0;
+        $dispatched = 0;
         $skipped = 0;
-        $rejected = 0;
 
         foreach ($request->lines as $line) {
             if (! $this->isPayrollEligible($line)) {
@@ -39,23 +36,16 @@ class ClaimPayrollHandoffService
             }
 
             $eligible++;
-
-            $outcome = $this->intake->ingest($this->buildPayload($request, $line));
-
-            match (true) {
-                $outcome->isMaterialized() => $queued++,
-                $outcome->isRejected() => $rejected++,
-                $outcome->isPending() => $pending++,
-                default => $pending++,
-            };
+            event($this->buildEvent($request, $line));
+            $dispatched++;
         }
 
-        $summary = compact('eligible', 'queued', 'pending', 'skipped', 'rejected');
+        $summary = compact('eligible', 'dispatched', 'skipped');
         $metadata = is_array($request->metadata) ? $request->metadata : [];
         $metadata['payroll_handoff'] = $summary;
         $request->metadata = $metadata;
 
-        if ($eligible > 0 && $queued === $eligible) {
+        if ($eligible > 0 && $dispatched === $eligible) {
             $fromStatus = $request->status;
             $request->status = ClaimRequest::STATUS_QUEUED_FOR_PAYROLL;
             $request->queued_for_payroll_at = now();
@@ -81,10 +71,10 @@ class ClaimPayrollHandoffService
     }
 
     /**
-     * Reverse all payroll contributions for a claim request's lines. Called by
-     * cancel/admin-correction paths once those land. For each line that has a
-     * materialised contribution, intake decides whether to delete the input
-     * (if its run is still draft) or insert a compensating reversal.
+     * Reverse all payroll contributions for a claim request's lines.
+     * Per-line ClaimReimbursementReversed events are dispatched; the
+     * downstream listener calls intake->reverse() (delete-if-draft or
+     * compensating-row).
      */
     public function reverseRequest(ClaimRequest $request, ?string $reason = null): void
     {
@@ -95,33 +85,30 @@ class ClaimPayrollHandoffService
                 continue;
             }
 
-            $this->intake->reverse(
-                sourceType: self::SOURCE_TYPE,
-                sourceId: (int) $line->getKey(),
-                payItemCode: $line->payroll_pay_item_code,
-                periodAnchor: $this->periodAnchor($line),
+            event(new ClaimReimbursementReversed(
+                claimRequestId: (int) $request->getKey(),
+                claimLineId: (int) $line->getKey(),
+                payItemCode: (string) $line->payroll_pay_item_code,
+                occurredOn: $this->periodAnchor($line),
                 reason: $reason,
-            );
+            ));
         }
     }
 
-    private function buildPayload(ClaimRequest $request, ClaimLine $line): PayrollContributionPayload
+    private function buildEvent(ClaimRequest $request, ClaimLine $line): ClaimReimbursementQueued
     {
         $anchor = $this->periodAnchor($line);
 
-        return new PayrollContributionPayload(
-            sourceType: self::SOURCE_TYPE,
-            sourceId: (int) $line->getKey(),
-            payItemCode: (string) $line->payroll_pay_item_code,
-            periodAnchor: $anchor,
+        return new ClaimReimbursementQueued(
             companyId: (int) $request->company_id,
             employeeId: (int) $request->employee_id,
+            claimRequestId: (int) $request->getKey(),
+            claimLineId: (int) $line->getKey(),
+            claimTypeId: (int) $line->claim_type_id,
+            payItemCode: (string) $line->payroll_pay_item_code,
             currency: (string) ($line->currency ?? $request->currency ?? 'MYR'),
             occurredOn: $anchor,
-            inputType: 'reimbursement',
             amount: (float) $line->approved_amount,
-            quantity: 1.0,
-            rate: null,
             label: $line->type?->name ?? 'Claim reimbursement',
             accountingSnapshot: $this->accountingSnapshot($line),
             metadata: [
