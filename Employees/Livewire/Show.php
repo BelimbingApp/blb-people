@@ -327,7 +327,6 @@ class Show extends Component
             'profileChangeRequests' => fn ($query) => $query->latest('submitted_at')->latest('id'),
             'profileChangeRequests.requestedBy',
             'profileChangeRequests.reviewedBy',
-            'statutoryProfiles' => fn ($query) => $query->orderByDesc('effective_from')->orderByDesc('id'),
         ]);
     }
 

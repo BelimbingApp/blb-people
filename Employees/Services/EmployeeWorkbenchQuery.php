@@ -79,7 +79,6 @@ class EmployeeWorkbenchQuery
                 'workProfile.workforceClass',
                 'workProfile.jobGrade',
                 'workProfile.workCalendar',
-                'statutoryProfiles',
             ]);
     }
 
