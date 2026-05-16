@@ -25,6 +25,12 @@ class ShiftTemplates extends Component
     use InteractsWithAttendanceScreen;
     use WithFileUploads;
 
+    private const DEFAULT_SHIFT_START = '08:00';
+
+    private const DEFAULT_SHIFT_END = '17:00';
+
+    private const NIGHT_SHIFT_END = '08:00';
+
     #[Url(as: 'mode')]
     public string $mode = 'list';
 
@@ -50,9 +56,9 @@ class ShiftTemplates extends Component
 
     public string $shiftName = '';
 
-    public string $shiftStartsAt = '08:00';
+    public string $shiftStartsAt = self::DEFAULT_SHIFT_START;
 
-    public string $shiftEndsAt = '17:00';
+    public string $shiftEndsAt = self::DEFAULT_SHIFT_END;
 
     public string $shiftExpectedWorkMinutes = '480';
 
@@ -374,8 +380,8 @@ class ShiftTemplates extends Component
                 'name' => __('Office day'),
                 'summary' => __('08:00 to 17:00 with a one-hour lunch break.'),
                 'best_for' => __('Office teams and simple fixed-day rosters.'),
-                'starts_at' => '08:00',
-                'ends_at' => '17:00',
+                'starts_at' => self::DEFAULT_SHIFT_START,
+                'ends_at' => self::DEFAULT_SHIFT_END,
                 'expected_work_minutes' => 480,
                 'break_starts_at' => '12:00',
                 'break_ends_at' => '13:00',
@@ -409,7 +415,7 @@ class ShiftTemplates extends Component
                 'summary' => __('20:00 to 08:00, crossing midnight with payroll attributed to shift start.'),
                 'best_for' => __('Security, operations and overnight production teams.'),
                 'starts_at' => '20:00',
-                'ends_at' => '08:00',
+                'ends_at' => self::NIGHT_SHIFT_END,
                 'expected_work_minutes' => 660,
                 'break_starts_at' => '00:00',
                 'break_ends_at' => '01:00',
@@ -465,8 +471,8 @@ class ShiftTemplates extends Component
         $this->selectedShiftTemplateKey = '';
         $this->shiftCode = '';
         $this->shiftName = '';
-        $this->shiftStartsAt = '08:00';
-        $this->shiftEndsAt = '17:00';
+        $this->shiftStartsAt = self::DEFAULT_SHIFT_START;
+        $this->shiftEndsAt = self::DEFAULT_SHIFT_END;
         $this->shiftExpectedWorkMinutes = '480';
         $this->shiftBreaks = [];
         $this->shiftInWindowBeforeMinutes = '60';

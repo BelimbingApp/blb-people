@@ -121,38 +121,62 @@ class AttendanceDayResolverService
 
         // Day-type routing wins over weekday routing — e.g., "Monday → DAY, but if Monday is a holiday → HOLIDAY_HALF".
         // A day_type entry with shift_code set to null means "no shift on this day type."
-        if (is_array($definition['day_types'] ?? null) && array_key_exists($dayType, $definition['day_types'])) {
-            $entry = $definition['day_types'][$dayType];
-            if (is_array($entry) && array_key_exists('shift_code', $entry)) {
-                $code = $entry['shift_code'];
-
-                return $code === null ? null : $this->shiftByCode($employee->company_id, (string) $code, $date);
-            }
+        $dayTypeShiftCode = $this->shiftCodeFromDayType($definition, $dayType);
+        if ($dayTypeShiftCode !== false) {
+            return $dayTypeShiftCode === null ? null : $this->shiftByCode($employee->company_id, $dayTypeShiftCode, $date);
         }
 
-        $shiftCode = null;
-
-        if ($pattern->pattern_type === AttendanceRosterPattern::TYPE_FIXED_WEEKLY) {
-            $weekday = strtolower(CarbonImmutable::parse($date)->englishDayOfWeek);
-            $shiftCode = $definition['weekdays'][$weekday]['shift_code'] ?? $definition[$weekday]['shift_code'] ?? null;
-        }
-
-        if ($pattern->pattern_type === AttendanceRosterPattern::TYPE_ROTATING) {
-            $cycleDays = max(1, (int) ($definition['cycle_days'] ?? 1));
-            $offset = CarbonImmutable::parse($assignment->effective_from)->diffInDays(CarbonImmutable::parse($date)) % $cycleDays;
-            foreach ($definition['days'] ?? [] as $day) {
-                if ((int) ($day['offset'] ?? -1) === $offset) {
-                    $shiftCode = $day['shift_code'] ?? null;
-                    break;
-                }
-            }
-        }
+        $shiftCode = match ($pattern->pattern_type) {
+            AttendanceRosterPattern::TYPE_FIXED_WEEKLY => $this->shiftCodeFromFixedWeeklyPattern($definition, $date),
+            AttendanceRosterPattern::TYPE_ROTATING => $this->shiftCodeFromRotatingPattern($definition, (string) $assignment->effective_from, $date),
+            default => null,
+        };
 
         if (! is_string($shiftCode) || $shiftCode === '') {
             return null;
         }
 
         return $this->shiftByCode($employee->company_id, $shiftCode, $date);
+    }
+
+    /** @param  array<string, mixed>  $definition */
+    private function shiftCodeFromDayType(array $definition, string $dayType): string|null|false
+    {
+        if (! is_array($definition['day_types'] ?? null) || ! array_key_exists($dayType, $definition['day_types'])) {
+            return false;
+        }
+
+        $entry = $definition['day_types'][$dayType];
+        if (! is_array($entry) || ! array_key_exists('shift_code', $entry)) {
+            return false;
+        }
+
+        $code = $entry['shift_code'];
+
+        return $code === null ? null : (string) $code;
+    }
+
+    /** @param  array<string, mixed>  $definition */
+    private function shiftCodeFromFixedWeeklyPattern(array $definition, string $date): mixed
+    {
+        $weekday = strtolower(CarbonImmutable::parse($date)->englishDayOfWeek);
+
+        return $definition['weekdays'][$weekday]['shift_code'] ?? $definition[$weekday]['shift_code'] ?? null;
+    }
+
+    /** @param  array<string, mixed>  $definition */
+    private function shiftCodeFromRotatingPattern(array $definition, string $effectiveFrom, string $date): mixed
+    {
+        $cycleDays = max(1, (int) ($definition['cycle_days'] ?? 1));
+        $offset = CarbonImmutable::parse($effectiveFrom)->diffInDays(CarbonImmutable::parse($date)) % $cycleDays;
+
+        foreach ($definition['days'] ?? [] as $day) {
+            if ((int) ($day['offset'] ?? -1) === $offset) {
+                return $day['shift_code'] ?? null;
+            }
+        }
+
+        return null;
     }
 
     private function shiftByCode(int $companyId, string $shiftCode, string $date): ?AttendanceShiftTemplate

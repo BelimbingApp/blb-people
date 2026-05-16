@@ -14,6 +14,8 @@ use App\Modules\People\Claim\Models\ClaimRequest;
  */
 class ClaimAccountingExportBuilder
 {
+    private const DATE_TIME_FORMAT = 'Y-m-d H:i:s';
+
     private const HEADERS = [
         'reference_number',
         'line_id',
@@ -89,10 +91,10 @@ class ClaimAccountingExportBuilder
             'settlement_state' => $this->settlementState($request),
             'provider_name' => $line->provider_name,
             'receipt_number' => $line->receipt_number,
-            'submitted_at' => $request->submitted_at?->format('Y-m-d H:i:s'),
-            'approved_at' => $request->approved_at?->format('Y-m-d H:i:s'),
-            'queued_for_payroll_at' => $request->queued_for_payroll_at?->format('Y-m-d H:i:s'),
-            'reimbursed_at' => $request->reimbursed_at?->format('Y-m-d H:i:s'),
+            'submitted_at' => $request->submitted_at?->format(self::DATE_TIME_FORMAT),
+            'approved_at' => $request->approved_at?->format(self::DATE_TIME_FORMAT),
+            'queued_for_payroll_at' => $request->queued_for_payroll_at?->format(self::DATE_TIME_FORMAT),
+            'reimbursed_at' => $request->reimbursed_at?->format(self::DATE_TIME_FORMAT),
         ];
     }
 
