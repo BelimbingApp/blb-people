@@ -331,6 +331,13 @@ class DevAttendanceSeeder extends DevSeeder
                 ]);
             }
 
+            $exceptionTags = [];
+            if ($index === 3) {
+                $exceptionTags = ['missing_clock_events'];
+            } elseif ($index === 1) {
+                $exceptionTags = ['late_in'];
+            }
+
             $day->fill([
                 'company_id' => $company->id,
                 'attendance_shift_template_id' => $shift->id,
@@ -345,7 +352,7 @@ class DevAttendanceSeeder extends DevSeeder
                 'late_minutes' => $index === 1 ? 12 : 0,
                 'absent_minutes' => $index === 3 ? 480 : 0,
                 'overtime_candidate_minutes' => $index === 0 ? 55 : 0,
-                'exception_tags' => $index === 3 ? ['missing_clock_events'] : ($index === 1 ? ['late_in'] : []),
+                'exception_tags' => $exceptionTags,
                 'projection_snapshot' => ['source' => 'dev-seeder'],
                 'metadata' => ['scenario' => 'attendance-dev'],
             ])->save();

@@ -28,11 +28,7 @@ class DevClaimSeeder extends DevSeeder
 
     private const PACK_IDENTIFIER = 'belimbing/claim-dev';
 
-    private const PACK_VERSION = '2026.dev';
-
     private const EFFECTIVE_FROM = '2026-01-01';
-
-    private const CLAIM_YEAR = 2026;
 
     protected function seed(): void
     {

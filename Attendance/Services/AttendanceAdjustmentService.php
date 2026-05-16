@@ -97,6 +97,7 @@ class AttendanceAdjustmentService
             'status' => AttendanceAdjustmentRequest::STATUS_REJECTED,
             'rejected_at' => now(),
             'decision_reason' => $decisionReason,
+            'metadata' => $this->metadataWithDecisionActor($request, 'rejected_by_user_id', $actorUserId),
         ])->save();
 
         return $request;
@@ -111,8 +112,18 @@ class AttendanceAdjustmentService
         $request->forceFill([
             'status' => AttendanceAdjustmentRequest::STATUS_CANCELLED,
             'cancelled_at' => now(),
+            'metadata' => $this->metadataWithDecisionActor($request, 'cancelled_by_user_id', $actorUserId),
         ])->save();
 
         return $request;
+    }
+
+    /** @return array<string, mixed> */
+    private function metadataWithDecisionActor(AttendanceAdjustmentRequest $request, string $key, int $actorUserId): array
+    {
+        $metadata = is_array($request->metadata) ? $request->metadata : [];
+        $metadata[$key] = $actorUserId;
+
+        return $metadata;
     }
 }
