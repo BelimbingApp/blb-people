@@ -5,15 +5,17 @@ namespace App\Modules\People\Payroll\Listeners;
 use App\Modules\People\Leave\Events\LeaveApplied;
 use App\Modules\People\Leave\Models\LeaveType;
 use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
+use App\Modules\People\Payroll\Models\PayrollLeaveTypePayItem;
 use App\Modules\People\Payroll\Services\PayrollContributionIntake;
 
 /**
  * Translates a LeaveApplied event into a payroll contribution when the
- * leave type interacts with payroll and carries a pay-item code.
+ * leave type interacts with payroll and an active pay-item mapping
+ * exists.
  *
- * Phase 1 of plan 13: reads `payroll_pay_item_code` directly off the
- * LeaveType row. A future phase will move this to a Payroll-owned
- * mapping table (mirror of the attendance allowance mapping).
+ * The mapping table (`people_payroll_leave_type_pay_items`) replaces
+ * the previous `LeaveType.payroll_pay_item_code` column — Plan 16
+ * moved it to the Payroll side with effective-dating.
  */
 class RecordLeaveContribution
 {
@@ -30,8 +32,8 @@ class RecordLeaveContribution
             return;
         }
 
-        $payItemCode = $leaveType->payroll_pay_item_code;
-        if (! is_string($payItemCode) || $payItemCode === '') {
+        $payItemCode = $this->resolvePayItemCode($event);
+        if ($payItemCode === null) {
             return;
         }
 
@@ -56,5 +58,24 @@ class RecordLeaveContribution
                 'audit_tag' => $leaveType->audit_tag,
             ],
         ));
+    }
+
+    private function resolvePayItemCode(LeaveApplied $event): ?string
+    {
+        $occurredOn = $event->occurredOn->format('Y-m-d');
+
+        $mapping = PayrollLeaveTypePayItem::query()
+            ->where('leave_type_id', $event->leaveTypeId)
+            ->where('effective_from', '<=', $occurredOn)
+            ->where(function ($query) use ($occurredOn): void {
+                $query->whereNull('effective_to')
+                    ->orWhere('effective_to', '>', $occurredOn);
+            })
+            ->orderByDesc('effective_from')
+            ->first();
+
+        $payItemCode = $mapping?->payroll_pay_item_code;
+
+        return is_string($payItemCode) && $payItemCode !== '' ? $payItemCode : null;
     }
 }

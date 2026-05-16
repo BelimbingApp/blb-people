@@ -17,5 +17,21 @@ return [
             'permission' => 'people.payroll.manage',
             'parent' => 'people.payroll',
         ],
+        [
+            'id' => 'people.payroll.leave-type-pay-item-mapping',
+            'label' => 'Leave type pay-item mapping',
+            'icon' => 'heroicon-o-link',
+            'route' => 'people.payroll.leave-type-pay-item-mapping',
+            'permission' => 'people.payroll.manage',
+            'parent' => 'people.payroll',
+        ],
+        [
+            'id' => 'people.payroll.claim-type-pay-item-mapping',
+            'label' => 'Claim type pay-item mapping',
+            'icon' => 'heroicon-o-link',
+            'route' => 'people.payroll.claim-type-pay-item-mapping',
+            'permission' => 'people.payroll.manage',
+            'parent' => 'people.payroll',
+        ],
     ],
 ];

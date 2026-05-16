@@ -105,6 +105,8 @@ class SeedSbgLeavePackCommand extends Command
             MalaysiaStatutoryLeaveTypes::CODE_UNPAID,
             MalaysiaStatutoryLeaveTypes::CODE_UNAUTHORIZED_ABSENCE,
         ] as $statutoryCode) {
+            $interactsWithPayroll = in_array($statutoryCode, [MalaysiaStatutoryLeaveTypes::CODE_UNPAID, MalaysiaStatutoryLeaveTypes::CODE_UNAUTHORIZED_ABSENCE], true);
+
             $out[$statutoryCode] = LeaveType::query()->firstOrCreate(
                 ['company_id' => $companyId, 'code' => $statutoryCode],
                 [
@@ -112,10 +114,7 @@ class SeedSbgLeavePackCommand extends Command
                     'paid' => ! in_array($statutoryCode, [MalaysiaStatutoryLeaveTypes::CODE_UNPAID, MalaysiaStatutoryLeaveTypes::CODE_UNAUTHORIZED_ABSENCE], true),
                     'default_unit' => LeaveType::UNIT_DAY,
                     'default_approval_depth' => 1,
-                    'interacts_with_payroll' => in_array($statutoryCode, [MalaysiaStatutoryLeaveTypes::CODE_UNPAID, MalaysiaStatutoryLeaveTypes::CODE_UNAUTHORIZED_ABSENCE], true),
-                    'payroll_pay_item_code' => in_array($statutoryCode, [MalaysiaStatutoryLeaveTypes::CODE_UNPAID, MalaysiaStatutoryLeaveTypes::CODE_UNAUTHORIZED_ABSENCE], true)
-                        ? LeaveType::PAYROLL_CODE_UNPAID_LEAVE
-                        : null,
+                    'interacts_with_payroll' => $interactsWithPayroll,
                     'audit_tag' => $statutoryCode === MalaysiaStatutoryLeaveTypes::CODE_UNAUTHORIZED_ABSENCE ? 'discipline' : null,
                     'compulsory_attachment' => in_array($statutoryCode, [
                         MalaysiaStatutoryLeaveTypes::CODE_SICK,
@@ -127,6 +126,20 @@ class SeedSbgLeavePackCommand extends Command
                     'pack_identifier' => 'belimbing/leave-my',
                 ],
             );
+
+            if ($interactsWithPayroll && \Illuminate\Support\Facades\Schema::hasTable('people_payroll_leave_type_pay_items')) {
+                \Illuminate\Support\Facades\DB::table('people_payroll_leave_type_pay_items')->updateOrInsert(
+                    ['leave_type_id' => $out[$statutoryCode]->id, 'effective_from' => '2026-01-01'],
+                    [
+                        'company_id' => $companyId,
+                        'payroll_pay_item_code' => LeaveType::PAYROLL_CODE_UNPAID_LEAVE,
+                        'effective_to' => null,
+                        'metadata' => json_encode(['scenario' => 'sbg-leave-pack']),
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ],
+                );
+            }
         }
 
         return $out;

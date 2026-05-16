@@ -1,6 +1,8 @@
 <?php
 use App\Modules\People\Payroll\Livewire\AttendanceAllowanceMapping;
+use App\Modules\People\Payroll\Livewire\ClaimTypePayItemMapping;
 use App\Modules\People\Payroll\Livewire\Index;
+use App\Modules\People\Payroll\Livewire\LeaveTypePayItemMapping;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function (): void {
@@ -11,4 +13,12 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/payroll/attendance-allowance-mapping', AttendanceAllowanceMapping::class)
         ->middleware('authz:people.payroll.manage')
         ->name('people.payroll.attendance-allowance-mapping');
+
+    Route::get('people/payroll/leave-type-pay-item-mapping', LeaveTypePayItemMapping::class)
+        ->middleware('authz:people.payroll.manage')
+        ->name('people.payroll.leave-type-pay-item-mapping');
+
+    Route::get('people/payroll/claim-type-pay-item-mapping', ClaimTypePayItemMapping::class)
+        ->middleware('authz:people.payroll.manage')
+        ->name('people.payroll.claim-type-pay-item-mapping');
 });

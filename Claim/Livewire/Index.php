@@ -62,8 +62,6 @@ class Index extends Component
 
     public bool $typePayrollEligible = true;
 
-    public string $typePayrollPayItemCode = '';
-
     public string $typeDebitAccountCode = '';
 
     public string $typeCreditAccountCode = '';
@@ -395,7 +393,6 @@ class Index extends Component
             'typeName' => ['required', 'string', 'max:255'],
             'typeDefaultUnit' => ['required', Rule::in([ClaimType::UNIT_AMOUNT, ClaimType::UNIT_DISTANCE, ClaimType::UNIT_QUANTITY, ClaimType::UNIT_DAYS])],
             'typeReceiptRequirement' => ['required', Rule::in([ClaimType::RECEIPT_NEVER, ClaimType::RECEIPT_ABOVE_AMOUNT, ClaimType::RECEIPT_ALWAYS])],
-            'typePayrollPayItemCode' => ['nullable', 'string', 'max:100'],
             'typeDebitAccountCode' => ['nullable', 'string', 'max:100'],
             'typeCreditAccountCode' => ['nullable', 'string', 'max:100'],
             'typeApprovalRouteKey' => ['nullable', 'string', 'max:100'],
@@ -414,7 +411,6 @@ class Index extends Component
                 'receipt_requirement' => $validated['typeReceiptRequirement'],
                 'provider_required' => $this->typeProviderRequired,
                 'payroll_eligible' => $this->typePayrollEligible,
-                'payroll_pay_item_code' => $this->blankToNull($validated['typePayrollPayItemCode'] ?? null),
                 'debit_account_code' => $this->blankToNull($validated['typeDebitAccountCode'] ?? null),
                 'credit_account_code' => $this->blankToNull($validated['typeCreditAccountCode'] ?? null),
                 'approval_route_key' => $this->blankToNull($validated['typeApprovalRouteKey'] ?? null),
@@ -423,7 +419,7 @@ class Index extends Component
             ],
         );
 
-        $this->reset('typeCategoryId', 'typeCode', 'typeName', 'typePayrollPayItemCode', 'typeDebitAccountCode', 'typeCreditAccountCode', 'typeApprovalRouteKey');
+        $this->reset('typeCategoryId', 'typeCode', 'typeName', 'typeDebitAccountCode', 'typeCreditAccountCode', 'typeApprovalRouteKey');
         $this->typeDefaultUnit = ClaimType::UNIT_AMOUNT;
         $this->typeReceiptRequirement = ClaimType::RECEIPT_ALWAYS;
         $this->typeProviderRequired = false;

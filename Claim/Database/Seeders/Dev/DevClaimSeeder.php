@@ -125,7 +125,6 @@ class DevClaimSeeder extends DevSeeder
                     'receipt_requirement' => $def['receipt_requirement'],
                     'provider_required' => $def['provider_required'],
                     'payroll_eligible' => true,
-                    'payroll_pay_item_code' => $def['payroll_pay_item_code'],
                     'taxability_hint' => $def['taxability_hint'] ?? null,
                     'sort_order' => $def['sort_order'],
                     'allow_employee_submission' => true,
@@ -137,6 +136,20 @@ class DevClaimSeeder extends DevSeeder
                     'metadata' => ['scenario' => 'browser-demo'],
                 ],
             );
+
+            if (\Illuminate\Support\Facades\Schema::hasTable('people_payroll_claim_type_pay_items')) {
+                \Illuminate\Support\Facades\DB::table('people_payroll_claim_type_pay_items')->updateOrInsert(
+                    ['claim_type_id' => $out[$def['code']]->id, 'effective_from' => '2026-01-01'],
+                    [
+                        'company_id' => $company->id,
+                        'payroll_pay_item_code' => $def['payroll_pay_item_code'],
+                        'effective_to' => null,
+                        'metadata' => json_encode(['scenario' => 'browser-demo']),
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ],
+                );
+            }
         }
 
         return $out;
@@ -487,7 +500,7 @@ class DevClaimSeeder extends DevSeeder
                     'provider_name' => $line['provider_name'] ?? null,
                     'receipt_number' => $line['receipt_number'] ?? null,
                     'attachment_count' => $line['attachment_count'] ?? 0,
-                    'payroll_pay_item_code' => $type->payroll_pay_item_code,
+                    'payroll_pay_item_code' => $this->mappedPayItemCode($type),
                     'metadata' => ['scenario' => 'browser-demo'],
                 ]);
             }
@@ -503,5 +516,17 @@ class DevClaimSeeder extends DevSeeder
                 ]);
             }
         }
+    }
+
+    private function mappedPayItemCode(ClaimType $type): ?string
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('people_payroll_claim_type_pay_items')) {
+            return null;
+        }
+
+        return \Illuminate\Support\Facades\DB::table('people_payroll_claim_type_pay_items')
+            ->where('claim_type_id', $type->id)
+            ->orderByDesc('effective_from')
+            ->value('payroll_pay_item_code');
     }
 }

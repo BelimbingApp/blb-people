@@ -62,7 +62,6 @@ class Index extends Component
     public bool $typePaid = true;
     public bool $typeInteractsWithPayroll = false;
     public bool $typeCompulsoryAttachment = false;
-    public string $typePayrollPayItemCode = '';
 
     // Entitlement policy form
     public string $entitlementLeaveTypeId = '';
@@ -269,7 +268,6 @@ class Index extends Component
             'typeCode' => ['required', 'string', 'max:64'],
             'typeName' => ['required', 'string', 'max:255'],
             'typeDefaultUnit' => ['required', Rule::in([LeaveType::UNIT_DAY, LeaveType::UNIT_HALF_DAY, LeaveType::UNIT_HOUR])],
-            'typePayrollPayItemCode' => ['nullable', 'string', 'max:100'],
         ]);
 
         $code = strtolower((string) preg_replace('/[^A-Za-z0-9]+/', '_', trim($validated['typeCode'])));
@@ -285,14 +283,13 @@ class Index extends Component
             'default_approval_depth' => 1,
             'interacts_with_payroll' => $this->typeInteractsWithPayroll,
             'compulsory_attachment' => $this->typeCompulsoryAttachment,
-            'payroll_pay_item_code' => $validated['typePayrollPayItemCode'] ?: null,
             'status' => LeaveType::STATUS_ACTIVE,
             'pack_identifier' => 'belimbing/people-core',
             'pack_version' => '2026.dev',
             'metadata' => ['source' => 'leave-workbench'],
         ]);
 
-        $this->reset('typeCode', 'typeName', 'typePayrollPayItemCode');
+        $this->reset('typeCode', 'typeName');
         $this->typeDefaultUnit = LeaveType::UNIT_DAY;
         $this->typePaid = true;
         $this->typeInteractsWithPayroll = false;

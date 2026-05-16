@@ -32,7 +32,6 @@ class LeaveType extends Model
         'default_approval_depth',
         'interacts_with_payroll',
         'compulsory_attachment',
-        'payroll_pay_item_code',
         'audit_tag',
         'description',
         'status',

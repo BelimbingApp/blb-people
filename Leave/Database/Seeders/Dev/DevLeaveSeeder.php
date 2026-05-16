@@ -73,7 +73,7 @@ class DevLeaveSeeder extends DevSeeder
 
         $out = [];
         foreach ($definitions as $def) {
-            $out[$def['code']] = LeaveType::query()->updateOrCreate(
+            $type = LeaveType::query()->updateOrCreate(
                 ['company_id' => $company->id, 'code' => $def['code']],
                 [
                     'name' => $def['name'],
@@ -82,13 +82,28 @@ class DevLeaveSeeder extends DevSeeder
                     'default_approval_depth' => 1,
                     'interacts_with_payroll' => $def['interacts_with_payroll'],
                     'compulsory_attachment' => $def['compulsory_attachment'],
-                    'payroll_pay_item_code' => $def['payroll_pay_item_code'] ?? null,
                     'status' => LeaveType::STATUS_ACTIVE,
                     'pack_identifier' => self::PACK_IDENTIFIER,
                     'pack_version' => self::PACK_VERSION,
                     'metadata' => ['scenario' => 'browser-demo'],
                 ],
             );
+
+            if (isset($def['payroll_pay_item_code']) && \Illuminate\Support\Facades\Schema::hasTable('people_payroll_leave_type_pay_items')) {
+                \Illuminate\Support\Facades\DB::table('people_payroll_leave_type_pay_items')->updateOrInsert(
+                    ['leave_type_id' => $type->id, 'effective_from' => '2026-01-01'],
+                    [
+                        'company_id' => $company->id,
+                        'payroll_pay_item_code' => $def['payroll_pay_item_code'],
+                        'effective_to' => null,
+                        'metadata' => json_encode(['scenario' => 'browser-demo']),
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ],
+                );
+            }
+
+            $out[$def['code']] = $type;
         }
 
         return $out;

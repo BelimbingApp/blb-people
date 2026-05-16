@@ -13,6 +13,7 @@ use App\Modules\People\Claim\Models\ClaimRequestAuditEvent;
 use App\Modules\People\Claim\Models\ClaimType;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class SubmitClaimRequestService
 {
@@ -252,12 +253,12 @@ class SubmitClaimRequestService
                     'provider_name' => $payload['provider_name'],
                     'receipt_number' => $payload['receipt_number'],
                     'attachment_count' => $payload['attachment_count'],
-                    'payroll_pay_item_code' => $claimType->payroll_pay_item_code,
+                    'payroll_pay_item_code' => $this->resolvePayItemCode($claimType, $payload['incurred_on']),
                     'debit_account_code' => $claimType->debit_account_code,
                     'credit_account_code' => $claimType->credit_account_code,
                     'policy_snapshot' => $payload['policy_snapshot'],
                     'accounting_snapshot' => [
-                        'payroll_pay_item_code' => $claimType->payroll_pay_item_code,
+                        'payroll_pay_item_code' => $this->resolvePayItemCode($claimType, $payload['incurred_on']),
                         'debit_account_code' => $claimType->debit_account_code,
                         'credit_account_code' => $claimType->credit_account_code,
                     ],
@@ -406,5 +407,38 @@ class SubmitClaimRequestService
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    /**
+     * Resolve the pay-item code for a claim type effective at a given date.
+     *
+     * Reads from the Payroll-owned mapping table
+     * (people_payroll_claim_type_pay_items). Returns null when the table
+     * is absent (Payroll plugin uninstalled) so the line snapshot is
+     * left empty rather than crashing the submission.
+     */
+    private function resolvePayItemCode(ClaimType $claimType, mixed $incurredOn): ?string
+    {
+        if (! Schema::hasTable('people_payroll_claim_type_pay_items')) {
+            return null;
+        }
+
+        $date = $incurredOn instanceof \DateTimeInterface
+            ? $incurredOn->format('Y-m-d')
+            : (string) $incurredOn;
+
+        $row = DB::table('people_payroll_claim_type_pay_items')
+            ->where('claim_type_id', $claimType->getKey())
+            ->where('effective_from', '<=', $date)
+            ->where(function ($query) use ($date): void {
+                $query->whereNull('effective_to')
+                    ->orWhere('effective_to', '>', $date);
+            })
+            ->orderByDesc('effective_from')
+            ->first(['payroll_pay_item_code']);
+
+        $code = $row?->payroll_pay_item_code;
+
+        return is_string($code) && $code !== '' ? $code : null;
     }
 }

@@ -42,7 +42,6 @@ class ClaimType extends Model
         'receipt_requirement',
         'provider_required',
         'payroll_eligible',
-        'payroll_pay_item_code',
         'debit_account_code',
         'credit_account_code',
         'taxability_hint',
