@@ -30,6 +30,12 @@ class EmployeePayrollReadinessService
 
     private const BANK_ACCOUNT_NUMBER_METADATA_PATH = 'employees.metadata->payroll_bank->bank_account_number';
 
+    private const NO_ROWS_CONDITION = '1 = 0';
+
+    private const STATUTORY_PROFILE_EMPLOYEE_ID_COLUMN = self::STATUTORY_PROFILE_TABLE.'.employee_id';
+
+    private const STATUTORY_PROFILE_VALIDATION_MESSAGES_COLUMN = self::STATUTORY_PROFILE_TABLE.'.validation_messages';
+
     /**
      * @return array<string, string>
      */
@@ -137,7 +143,7 @@ class EmployeePayrollReadinessService
 
             if (! $statutoryTableExists) {
                 // No payroll plugin installed → no employee is payroll-ready.
-                $query->whereRaw('1 = 0');
+                $query->whereRaw(self::NO_ROWS_CONDITION);
 
                 return;
             }
@@ -145,10 +151,10 @@ class EmployeePayrollReadinessService
             $query->whereExists(function ($sub): void {
                 $sub->select(DB::raw(1))
                     ->from(self::STATUTORY_PROFILE_TABLE)
-                    ->whereColumn(self::STATUTORY_PROFILE_TABLE.'.employee_id', 'employees.id')
+                    ->whereColumn(self::STATUTORY_PROFILE_EMPLOYEE_ID_COLUMN, 'employees.id')
                     ->where(function ($validationQuery): void {
-                        $validationQuery->whereNull(self::STATUTORY_PROFILE_TABLE.'.validation_messages')
-                            ->orWhereJsonLength(self::STATUTORY_PROFILE_TABLE.'.validation_messages', 0);
+                        $validationQuery->whereNull(self::STATUTORY_PROFILE_VALIDATION_MESSAGES_COLUMN)
+                            ->orWhereJsonLength(self::STATUTORY_PROFILE_VALIDATION_MESSAGES_COLUMN, 0);
                     });
             });
 
@@ -190,19 +196,19 @@ class EmployeePayrollReadinessService
                 ? $query->whereNotExists(function ($sub): void {
                     $sub->select(DB::raw(1))
                         ->from(self::STATUTORY_PROFILE_TABLE)
-                        ->whereColumn(self::STATUTORY_PROFILE_TABLE.'.employee_id', 'employees.id');
+                        ->whereColumn(self::STATUTORY_PROFILE_EMPLOYEE_ID_COLUMN, 'employees.id');
                 })
                 : $query->whereRaw('1 = 1'),
             'statutory_profile_has_issues' => $statutoryTableExists
                 ? $query->whereExists(function ($sub): void {
                     $sub->select(DB::raw(1))
                         ->from(self::STATUTORY_PROFILE_TABLE)
-                        ->whereColumn(self::STATUTORY_PROFILE_TABLE.'.employee_id', 'employees.id')
-                        ->whereJsonLength(self::STATUTORY_PROFILE_TABLE.'.validation_messages', '>', 0);
+                        ->whereColumn(self::STATUTORY_PROFILE_EMPLOYEE_ID_COLUMN, 'employees.id')
+                        ->whereJsonLength(self::STATUTORY_PROFILE_VALIDATION_MESSAGES_COLUMN, '>', 0);
                 })
-                : $query->whereRaw('1 = 0'),
+                : $query->whereRaw(self::NO_ROWS_CONDITION),
             'inactive_employment' => $query->where('employees.status', '!=', 'active'),
-            default => $query->whereRaw('1 = 0'),
+            default => $query->whereRaw(self::NO_ROWS_CONDITION),
         };
     }
 
