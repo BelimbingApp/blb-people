@@ -271,7 +271,7 @@ class Rosters extends Component
         session()->flash('success', trans_choice('Copied :count roster assignment from the previous period.|Copied :count roster assignments from the previous period.', $created, ['count' => $created]));
     }
 
-    public function saveCellOverride(int $employeeId, string $date): void
+    public function saveCellOverride(int $employeeId, string $date, mixed $shiftTemplateId = null, mixed $policyGroupId = null): void
     {
         if (! $this->ensureSchemaReady()) {
             return;
@@ -279,15 +279,22 @@ class Rosters extends Component
 
         $this->authorizeAttendance('people.attendance.manage');
 
+        $resolvedShiftId = $shiftTemplateId !== null && $shiftTemplateId !== ''
+            ? $shiftTemplateId
+            : $this->rosterShiftTemplateId;
+        $resolvedPolicyId = $policyGroupId !== null && $policyGroupId !== ''
+            ? $policyGroupId
+            : $this->rosterPolicyGroupId;
+
         $employee = Employee::query()
             ->where('company_id', $this->companyId())
             ->whereKey($employeeId)
             ->first();
-        $shiftTemplate = $this->activeShiftTemplateForDate($this->rosterShiftTemplateId, $date);
-        $policyGroup = $this->activePolicyGroupForDate($this->rosterPolicyGroupId, $date);
+        $shiftTemplate = $this->activeShiftTemplateForDate($resolvedShiftId, $date);
+        $policyGroup = $this->activePolicyGroupForDate($resolvedPolicyId, $date);
 
         if (! $employee instanceof Employee || ! $shiftTemplate instanceof AttendanceShiftTemplate || ! $policyGroup instanceof AttendancePolicyGroup) {
-            $this->addError('rosterShiftTemplateId', __('Choose a shift and policy before applying a cell override.'));
+            session()->flash('error', __('Pick a shift and a policy before applying the override.'));
 
             return;
         }
@@ -1246,6 +1253,8 @@ class Rosters extends Component
                             'day_type' => $dayType,
                             'day_type_label' => $dayTypeLabel,
                             'on_non_working_day' => $dayType !== AttendanceDay::DAY_TYPE_NORMAL,
+                            'shift_template_id' => (int) ($assignment->attendance_shift_template_id ?? 0),
+                            'policy_group_id' => (int) ($assignment->attendance_policy_group_id ?? 0),
                         ]];
                     }
 
@@ -1264,6 +1273,8 @@ class Rosters extends Component
                             'day_type' => $dayType,
                             'day_type_label' => $dayTypeLabel,
                             'on_non_working_day' => $dayType !== AttendanceDay::DAY_TYPE_NORMAL,
+                            'shift_template_id' => (int) ($this->rosterShiftTemplateId ?: 0),
+                            'policy_group_id' => (int) ($this->rosterPolicyGroupId ?: 0),
                         ]];
                     }
 
@@ -1278,6 +1289,8 @@ class Rosters extends Component
                         'day_type' => $dayType,
                         'day_type_label' => $dayTypeLabel,
                         'on_non_working_day' => false,
+                        'shift_template_id' => 0,
+                        'policy_group_id' => 0,
                     ]];
                 })->all(),
             ];
