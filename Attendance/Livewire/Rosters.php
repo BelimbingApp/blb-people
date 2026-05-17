@@ -938,6 +938,7 @@ class Rosters extends Component
 
         $rosterGridDays = $schemaReady ? $this->rosterGridDays() : [];
         $rosterGridRows = $schemaReady ? $this->rosterGridRows($employees->getCollection()) : collect();
+        $rosterGridDays = $schemaReady ? $this->enrichGridDays($rosterGridDays, $rosterGridRows) : [];
 
         return view('livewire.people.attendance.rosters', [
             'schemaReady' => $schemaReady,
@@ -1300,6 +1301,42 @@ class Rosters extends Component
     private function dayTypeLabel(string $dayType): string
     {
         return DayTypeVocabulary::label($dayType);
+    }
+
+    /**
+     * Add per-date markers — is_today, is_weekend, and whether this date is a
+     * public holiday for at least one rendered employee — so the day-strip can
+     * highlight columns without recomputing day types from row data.
+     *
+     * @param  list<array{date: string, day: string, label: string}>  $days
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return list<array{date: string, day: string, day_short: string, label: string, is_today: bool, is_weekend: bool, is_holiday: bool}>
+     */
+    private function enrichGridDays(array $days, Collection $rows): array
+    {
+        $today = CarbonImmutable::today()->toDateString();
+
+        $holidayDates = [];
+        foreach ($rows as $row) {
+            foreach (($row['cells'] ?? []) as $date => $cell) {
+                if (($cell['day_type'] ?? null) === AttendanceDay::DAY_TYPE_HOLIDAY) {
+                    $holidayDates[$date] = true;
+                }
+            }
+        }
+
+        return array_map(function (array $day) use ($today, $holidayDates): array {
+            $carbon = CarbonImmutable::parse($day['date']);
+            $weekday = (int) $carbon->dayOfWeek; // 0 = Sunday, 6 = Saturday
+
+            return [
+                ...$day,
+                'day_short' => substr($day['day'], 0, 1),
+                'is_today' => $day['date'] === $today,
+                'is_weekend' => $weekday === 0 || $weekday === 6,
+                'is_holiday' => isset($holidayDates[$day['date']]),
+            ];
+        }, $days);
     }
 
     private function safeGridStartDate(): CarbonImmutable
