@@ -60,7 +60,7 @@ class ClaimOperationsExportBuilder
 
         return [
             'filename' => 'claim-operations.csv',
-            'content' => $this->csvContent(self::HEADERS, $rows),
+            'content' => ClaimCsvWriter::write(self::HEADERS, $rows),
         ];
     }
 
@@ -82,31 +82,5 @@ class ClaimOperationsExportBuilder
         }
 
         return ($handoff['queued'] ?? 0) > 0 ? 'queued' : 'eligible';
-    }
-
-    /**
-     * @param  list<string>  $headers
-     * @param  list<array<string, mixed>>  $rows
-     */
-    private function csvContent(array $headers, array $rows): string
-    {
-        $handle = fopen('php://temp', 'r+');
-        if ($handle === false) {
-            return '';
-        }
-
-        fputcsv($handle, $headers);
-        foreach ($rows as $row) {
-            fputcsv($handle, array_map(
-                static fn (string $header): string => (string) ($row[$header] ?? ''),
-                $headers,
-            ));
-        }
-
-        rewind($handle);
-        $csv = stream_get_contents($handle);
-        fclose($handle);
-
-        return $csv === false ? '' : $csv;
     }
 }
