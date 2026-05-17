@@ -631,6 +631,62 @@ class Rosters extends Component
             : $this->safeGridEndDate($this->safeGridStartDate());
     }
 
+    /**
+     * @param  Collection<int, PeopleReferenceEntry>  $workforceClasses
+     * @param  Collection<int, Department>  $departments
+     * @return array{
+     *     hasActiveFilters: bool,
+     *     departmentLabel: string,
+     *     workforceClassLabel: string,
+     *     statusLabel: string,
+     * }
+     */
+    public function rosterListFilterContext(Collection $departments, Collection $workforceClasses): array
+    {
+        $departmentLabel = __('all departments');
+        if ($this->rosterDepartmentId !== '') {
+            $match = $departments->firstWhere('id', (int) $this->rosterDepartmentId);
+            if ($match !== null) {
+                $departmentLabel = (string) $match->name;
+            }
+        }
+
+        $workforceClassLabel = __('all workforce classes');
+        if ($this->rosterWorkforceClassId !== '') {
+            $match = $workforceClasses->firstWhere('id', (int) $this->rosterWorkforceClassId);
+            if ($match !== null) {
+                $workforceClassLabel = (string) $match->name;
+            }
+        }
+
+        $statusLabel = match ($this->rosterEmployeeStatus) {
+            'active' => __('active'),
+            'probation' => __('probation'),
+            'pending' => __('pending'),
+            'inactive' => __('inactive'),
+            'terminated' => __('terminated'),
+            default => __('any status'),
+        };
+
+        $hasActiveFilters = $this->rosterDepartmentId !== ''
+            || $this->rosterWorkforceClassId !== ''
+            || $this->rosterEmployeeStatus !== 'active'
+            || $this->rosterSearch !== ''
+            || $this->rosterSupervisorId !== ''
+            || $this->rosterOrganizationUnitId !== ''
+            || $this->rosterCostCenterId !== ''
+            || $this->rosterEmploymentGroupId !== ''
+            || $this->rosterWorkCalendarId !== ''
+            || $this->rosterPayRateType !== '';
+
+        return [
+            'hasActiveFilters' => $hasActiveFilters,
+            'departmentLabel' => $departmentLabel,
+            'workforceClassLabel' => $workforceClassLabel,
+            'statusLabel' => $statusLabel,
+        ];
+    }
+
     public function deleteRosterAssignment(int $assignmentId): void
     {
         if (! $this->ensureSchemaReady()) {
