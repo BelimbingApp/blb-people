@@ -11,6 +11,7 @@ use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
 use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
 use App\Modules\People\Attendance\Services\AttendanceCalendarResolver;
+use App\Modules\People\Attendance\Support\DayTypeVocabulary;
 use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
 use App\Modules\People\Settings\Models\PeopleReferenceEntry;
 use Carbon\CarbonImmutable;
@@ -57,6 +58,13 @@ class Rosters extends Component
 
     public string $rosterEmployeeId = '';
 
+    /**
+     * When non-empty, `saveRosterAssignment()` updates the named assignment
+     * in place instead of creating new rows for the selected population.
+     * Set by `editRosterAssignment($id)`; cleared by `resetForm()`.
+     */
+    public string $editingRosterAssignmentId = '';
+
     public string $rosterPatternId = '';
 
     public string $rosterShiftTemplateId = '';
@@ -93,6 +101,13 @@ class Rosters extends Component
      * `rosterEffectiveFrom/To` so navigating the list doesn't mutate the form.
      */
     public string $listWeekAnchor = '';
+
+    /**
+     * Zoom level for the list-mode calendar. `week` shows Mon-Sun for the
+     * anchor; `month` shows the full month containing the anchor. Period
+     * navigation buttons step a week or a month at a time accordingly.
+     */
+    public string $listScope = 'week';
 
     /**
      * @var list<int>
@@ -499,6 +514,12 @@ class Rosters extends Component
 
         $this->authorizeAttendance('people.attendance.manage');
 
+        if ($this->editingRosterAssignmentId !== '') {
+            $this->updateExistingRosterAssignment();
+
+            return;
+        }
+
         $companyId = $this->companyId();
         $validated = $this->validate([
             'rosterEmployeeId' => ['nullable', 'integer', Rule::exists(Employee::class, 'id')->where('company_id', $companyId)],
@@ -571,6 +592,51 @@ class Rosters extends Component
         ));
     }
 
+    private function updateExistingRosterAssignment(): void
+    {
+        $companyId = $this->companyId();
+
+        $assignment = AttendanceRosterAssignment::query()
+            ->where('company_id', $companyId)
+            ->findOrFail((int) $this->editingRosterAssignmentId);
+
+        $validated = $this->validate([
+            'rosterPatternId' => ['nullable', 'integer', Rule::exists(AttendanceRosterPattern::class, 'id')->where('company_id', $companyId)],
+            'rosterShiftTemplateId' => ['required', 'integer', Rule::exists(AttendanceShiftTemplate::class, 'id')->where('company_id', $companyId)],
+            'rosterPolicyGroupId' => ['required', 'integer', Rule::exists(AttendancePolicyGroup::class, 'id')->where('company_id', $companyId)],
+            'rosterEffectiveFrom' => ['required', 'date'],
+            'rosterEffectiveTo' => ['nullable', 'date', 'after_or_equal:rosterEffectiveFrom'],
+            'rosterPublishState' => ['required', Rule::in(['draft', 'published'])],
+        ]);
+
+        $effectiveTo = $this->blankToNull($validated['rosterEffectiveTo'] ?? null);
+
+        if ($assignment->employee_id !== null && $this->hasRosterOverlap(
+            (int) $assignment->employee_id,
+            $validated['rosterEffectiveFrom'],
+            $effectiveTo,
+            (int) $assignment->id,
+        )) {
+            $this->addError('rosterEffectiveFrom', __('This range overlaps another roster assignment for the same employee.'));
+
+            return;
+        }
+
+        $assignment->update([
+            'attendance_roster_pattern_id' => $this->blankToNull($validated['rosterPatternId'] ?? null),
+            'attendance_shift_template_id' => (int) $validated['rosterShiftTemplateId'],
+            'attendance_policy_group_id' => (int) $validated['rosterPolicyGroupId'],
+            'effective_from' => $validated['rosterEffectiveFrom'],
+            'effective_to' => $effectiveTo,
+            'publish_state' => $validated['rosterPublishState'],
+            'revision' => ((int) $assignment->revision) + 1,
+        ]);
+
+        $this->resetForm();
+        $this->mode = 'list';
+        session()->flash('success', __('Roster assignment updated.'));
+    }
+
     public function startNewRosterAssignment(): void
     {
         if (! $this->ensureSchemaReady()) {
@@ -591,17 +657,34 @@ class Rosters extends Component
 
     public function goToPreviousWeek(): void
     {
+        if ($this->listScope === 'month') {
+            $this->listWeekAnchor = $this->listScopeStart()->subMonth()->toDateString();
+
+            return;
+        }
+
         $this->listWeekAnchor = $this->listWeekStart()->subDays(7)->toDateString();
     }
 
     public function goToNextWeek(): void
     {
+        if ($this->listScope === 'month') {
+            $this->listWeekAnchor = $this->listScopeStart()->addMonth()->toDateString();
+
+            return;
+        }
+
         $this->listWeekAnchor = $this->listWeekStart()->addDays(7)->toDateString();
     }
 
     public function goToThisWeek(): void
     {
         $this->listWeekAnchor = '';
+    }
+
+    public function setListScope(string $scope): void
+    {
+        $this->listScope = in_array($scope, ['week', 'month'], true) ? $scope : 'week';
     }
 
     private function listWeekStart(): CarbonImmutable
@@ -617,17 +700,50 @@ class Rosters extends Component
         return CarbonImmutable::today()->startOfWeek(CarbonImmutable::MONDAY);
     }
 
+    /**
+     * Start of the currently-browsed period, regardless of zoom level. Month
+     * scope returns the first day of the month containing the anchor; week
+     * scope returns the Monday of the anchor's week.
+     */
+    private function listScopeStart(): CarbonImmutable
+    {
+        $anchor = $this->listWeekAnchor !== ''
+            ? (function (): CarbonImmutable {
+                try {
+                    return CarbonImmutable::parse($this->listWeekAnchor);
+                } catch (\Throwable) {
+                    return CarbonImmutable::today();
+                }
+            })()
+            : CarbonImmutable::today();
+
+        if ($this->listScope === 'month') {
+            return $anchor->startOfMonth();
+        }
+
+        return $anchor->startOfWeek(CarbonImmutable::MONDAY);
+    }
+
+    private function listScopeEnd(): CarbonImmutable
+    {
+        $start = $this->listScopeStart();
+
+        return $this->listScope === 'month'
+            ? $start->endOfMonth()
+            : $start->addDays(6);
+    }
+
     private function gridPeriodStart(): CarbonImmutable
     {
         return $this->mode === 'list'
-            ? $this->listWeekStart()
+            ? $this->listScopeStart()
             : $this->safeGridStartDate();
     }
 
     private function gridPeriodEnd(): CarbonImmutable
     {
         return $this->mode === 'list'
-            ? $this->listWeekStart()->addDays(6)
+            ? $this->listScopeEnd()
             : $this->safeGridEndDate($this->safeGridStartDate());
     }
 
@@ -687,6 +803,68 @@ class Rosters extends Component
         ];
     }
 
+    /**
+     * Build a short narrative for the calendar in list mode that names how many
+     * gaps and exceptions live in the visible window. Counts come from the
+     * already-computed grid rows, so this adds no DB queries.
+     *
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @param  list<array{date: string, day: string, label: string}>  $days
+     * @return array{gaps: int, exceptions: int, sentence: string, hasIssues: bool}
+     */
+    private function rosterListSummary(Collection $rows, array $days): array
+    {
+        $gaps = 0;
+        $exceptions = 0;
+
+        foreach ($rows as $row) {
+            foreach ($days as $day) {
+                $cell = $row['cells'][$day['date']] ?? null;
+                if (! is_array($cell)) {
+                    continue;
+                }
+
+                $dayType = $cell['day_type'] ?? AttendanceDay::DAY_TYPE_NORMAL;
+                $isWorking = $dayType === AttendanceDay::DAY_TYPE_NORMAL;
+                $isEmpty = ($cell['state'] ?? 'empty') === 'empty';
+
+                if ($isWorking && $isEmpty) {
+                    $gaps++;
+                } elseif (! $isWorking && ! $isEmpty) {
+                    $exceptions++;
+                }
+            }
+        }
+
+        $hasIssues = $gaps > 0 || $exceptions > 0;
+        $periodEnd = $days === [] ? null : end($days)['label'] ?? null;
+
+        if (! $hasIssues) {
+            $sentence = $periodEnd
+                ? __('All set through :date.', ['date' => $periodEnd])
+                : __('All set.');
+        } else {
+            $parts = [];
+            if ($gaps > 0) {
+                $parts[] = trans_choice(':count gap|:count gaps', $gaps, ['count' => $gaps]);
+            }
+            if ($exceptions > 0) {
+                $parts[] = trans_choice(':count exception|:count exceptions', $exceptions, ['count' => $exceptions]);
+            }
+            $listLabel = implode(' '.__('and').' ', $parts);
+            $sentence = $periodEnd
+                ? __(':items to sort out before :date.', ['items' => ucfirst($listLabel), 'date' => $periodEnd])
+                : __(':items to sort out.', ['items' => ucfirst($listLabel)]);
+        }
+
+        return [
+            'gaps' => $gaps,
+            'exceptions' => $exceptions,
+            'sentence' => $sentence,
+            'hasIssues' => $hasIssues,
+        ];
+    }
+
     public function deleteRosterAssignment(int $assignmentId): void
     {
         if (! $this->ensureSchemaReady()) {
@@ -703,6 +881,35 @@ class Rosters extends Component
         session()->flash('success', __('Roster assignment deleted.'));
     }
 
+    public function editRosterAssignment(int $assignmentId): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        $assignment = AttendanceRosterAssignment::query()
+            ->where('company_id', $this->companyId())
+            ->findOrFail($assignmentId);
+
+        $this->resetForm();
+
+        $this->editingRosterAssignmentId = (string) $assignment->id;
+        $this->rosterEmployeeId = (string) ($assignment->employee_id ?? '');
+        $this->selectedRosterEmployeeIds = $assignment->employee_id !== null
+            ? [(string) $assignment->employee_id]
+            : [];
+        $this->rosterPatternId = (string) ($assignment->attendance_roster_pattern_id ?? '');
+        $this->rosterShiftTemplateId = (string) ($assignment->attendance_shift_template_id ?? '');
+        $this->rosterPolicyGroupId = (string) ($assignment->attendance_policy_group_id ?? '');
+        $this->rosterEffectiveFrom = $assignment->effective_from?->toDateString() ?? now()->toDateString();
+        $this->rosterEffectiveTo = $assignment->effective_to?->toDateString() ?? '';
+        $this->rosterPublishState = (string) ($assignment->publish_state ?? 'draft');
+
+        $this->mode = 'form';
+    }
+
     public function render(): View
     {
         $companyId = $this->companyId();
@@ -714,18 +921,32 @@ class Rosters extends Component
                 ->paginate(25)
             : collect();
 
+        $editingEmployee = null;
+        if ($schemaReady && $this->editingRosterAssignmentId !== '' && $this->rosterEmployeeId !== '') {
+            $editingEmployee = Employee::query()
+                ->where('company_id', $companyId)
+                ->whereKey((int) $this->rosterEmployeeId)
+                ->first();
+        }
+
+        $rosterGridDays = $schemaReady ? $this->rosterGridDays() : [];
+        $rosterGridRows = $schemaReady ? $this->rosterGridRows($employees->getCollection()) : collect();
+
         return view('livewire.people.attendance.rosters', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'employees' => $employees,
+            'editingEmployee' => $editingEmployee,
             'filteredEmployeeCount' => $schemaReady ? $this->filteredEmployeesQuery()->count() : 0,
             'companyEmployeeCount' => $schemaReady
                 ? Employee::query()->where('company_id', $companyId)->count()
                 : 0,
             'selectedEmployeeCount' => $schemaReady ? count($this->selectedRosterEmployeeIds()) : 0,
-            'rosterGridDays' => $schemaReady ? $this->rosterGridDays() : [],
-            'rosterGridRows' => $schemaReady ? $this->rosterGridRows($employees->getCollection()) : collect(),
-            'rosterCoverageRows' => $schemaReady ? $this->rosterCoverageRows() : [],
+            'rosterGridDays' => $rosterGridDays,
+            'rosterGridRows' => $rosterGridRows,
+            'rosterListSummary' => $schemaReady ? $this->rosterListSummary($rosterGridRows, $rosterGridDays) : null,
+            'rosterCoverageRows' => $schemaReady ? ($rosterCoverageRows = $this->rosterCoverageRows()) : ($rosterCoverageRows = []),
+            'rosterCoverageMatrix' => $schemaReady ? $this->rosterCoverageMatrix($rosterCoverageRows) : ['shifts' => [], 'dates' => [], 'cells' => []],
             'rosterValidationFindings' => $schemaReady ? $this->rosterValidationFindings() : [],
             'rosterTemplates' => $schemaReady ? $this->rosterTemplates() : collect(),
             'spreadsheetPreviewRows' => $schemaReady ? $this->parseSpreadsheetRows()['rows'] : [],
@@ -777,7 +998,7 @@ class Rosters extends Component
         ]);
     }
 
-    private function hasRosterOverlap(int $employeeId, string $effectiveFrom, ?string $effectiveTo): bool
+    private function hasRosterOverlap(int $employeeId, string $effectiveFrom, ?string $effectiveTo, ?int $excludeAssignmentId = null): bool
     {
         $rangeEnd = $effectiveTo ?? '9999-12-31';
 
@@ -789,11 +1010,13 @@ class Rosters extends Component
                 $query->whereNull('effective_to')
                     ->orWhere('effective_to', '>=', $effectiveFrom);
             })
+            ->when($excludeAssignmentId !== null, fn ($query) => $query->where('id', '!=', $excludeAssignmentId))
             ->exists();
     }
 
     private function resetForm(): void
     {
+        $this->editingRosterAssignmentId = '';
         $this->rosterEmployeeId = '';
         $this->selectedRosterEmployeeIds = [];
         $this->rosterSelectAllFiltered = false;
@@ -1063,12 +1286,7 @@ class Rosters extends Component
 
     private function dayTypeLabel(string $dayType): string
     {
-        return match ($dayType) {
-            AttendanceDay::DAY_TYPE_REST => __('Rest'),
-            AttendanceDay::DAY_TYPE_OFF => __('Off'),
-            AttendanceDay::DAY_TYPE_HOLIDAY => __('Holiday'),
-            default => __('Normal'),
-        };
+        return DayTypeVocabulary::label($dayType);
     }
 
     private function safeGridStartDate(): CarbonImmutable
@@ -1277,6 +1495,59 @@ class Rosters extends Component
         }
 
         return $rows;
+    }
+
+    /**
+     * Pivot the flat coverage rows into a date × shift heatmap matrix.
+     *
+     * @param  list<array{date: string, shift: string, assigned: int, required: int, shortage: int, surplus: int, warnings: int}>  $rows
+     * @return array{
+     *     shifts: list<string>,
+     *     dates: list<string>,
+     *     cells: array<string, array<string, array{assigned: int, required: int, shortage: int, surplus: int, severity: string}|null>>,
+     * }
+     */
+    private function rosterCoverageMatrix(array $rows): array
+    {
+        $shifts = [];
+        $dates = [];
+        $cells = [];
+
+        foreach ($rows as $row) {
+            $shift = (string) $row['shift'];
+            $date = (string) $row['date'];
+
+            if (! in_array($shift, $shifts, true)) {
+                $shifts[] = $shift;
+            }
+            if (! in_array($date, $dates, true)) {
+                $dates[] = $date;
+            }
+
+            $severity = 'neutral';
+            if (($row['required'] ?? 0) > 0) {
+                if (($row['shortage'] ?? 0) > 0) {
+                    $severity = 'shortage';
+                } elseif (($row['surplus'] ?? 0) > 0) {
+                    $severity = 'surplus';
+                } else {
+                    $severity = 'met';
+                }
+            }
+
+            $cells[$shift][$date] = [
+                'assigned' => (int) ($row['assigned'] ?? 0),
+                'required' => (int) ($row['required'] ?? 0),
+                'shortage' => (int) ($row['shortage'] ?? 0),
+                'surplus' => (int) ($row['surplus'] ?? 0),
+                'severity' => $severity,
+            ];
+        }
+
+        sort($shifts);
+        sort($dates);
+
+        return ['shifts' => $shifts, 'dates' => $dates, 'cells' => $cells];
     }
 
     /**
