@@ -5,10 +5,12 @@ namespace App\Modules\People\Attendance\Livewire;
 use App\Modules\Core\Company\Models\Department;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Modules\People\Attendance\Models\AttendanceDay;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
 use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
 use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
+use App\Modules\People\Attendance\Services\AttendanceCalendarResolver;
 use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
 use App\Modules\People\Settings\Models\PeopleReferenceEntry;
 use Carbon\CarbonImmutable;
@@ -23,6 +25,8 @@ class Rosters extends Component
 {
     use InteractsWithAttendanceScreen;
     use WithPagination;
+
+    public string $mode = 'list';
 
     public string $rosterSearch = '';
 
@@ -82,6 +86,13 @@ class Rosters extends Component
     public string $swapDate = '';
 
     public string $spreadsheetRosterRows = '';
+
+    /**
+     * Monday of the week being browsed in list mode. Empty defaults to today's
+     * Monday. Drives the calendar grid that opens the page; isolated from
+     * `rosterEffectiveFrom/To` so navigating the list doesn't mutate the form.
+     */
+    public string $listWeekAnchor = '';
 
     /**
      * @var list<int>
@@ -552,11 +563,72 @@ class Rosters extends Component
 
         $this->lastDraftAssignmentIds = $createdIds;
         $this->resetForm();
+        $this->mode = 'list';
         session()->flash('success', trans_choice(
             'Roster assignment saved. :skipped skipped because of existing roster overlaps.|:count roster assignments saved. :skipped skipped because of existing roster overlaps.',
             $created,
             ['count' => $created, 'skipped' => $skipped],
         ));
+    }
+
+    public function startNewRosterAssignment(): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        $this->resetForm();
+        $this->mode = 'form';
+    }
+
+    public function cancelRosterForm(): void
+    {
+        $this->resetForm();
+        $this->mode = 'list';
+    }
+
+    public function goToPreviousWeek(): void
+    {
+        $this->listWeekAnchor = $this->listWeekStart()->subDays(7)->toDateString();
+    }
+
+    public function goToNextWeek(): void
+    {
+        $this->listWeekAnchor = $this->listWeekStart()->addDays(7)->toDateString();
+    }
+
+    public function goToThisWeek(): void
+    {
+        $this->listWeekAnchor = '';
+    }
+
+    private function listWeekStart(): CarbonImmutable
+    {
+        if ($this->listWeekAnchor !== '') {
+            try {
+                return CarbonImmutable::parse($this->listWeekAnchor)->startOfWeek(CarbonImmutable::MONDAY);
+            } catch (\Throwable) {
+                // fall through to today's week
+            }
+        }
+
+        return CarbonImmutable::today()->startOfWeek(CarbonImmutable::MONDAY);
+    }
+
+    private function gridPeriodStart(): CarbonImmutable
+    {
+        return $this->mode === 'list'
+            ? $this->listWeekStart()
+            : $this->safeGridStartDate();
+    }
+
+    private function gridPeriodEnd(): CarbonImmutable
+    {
+        return $this->mode === 'list'
+            ? $this->listWeekStart()->addDays(6)
+            : $this->safeGridEndDate($this->safeGridStartDate());
     }
 
     public function deleteRosterAssignment(int $assignmentId): void
@@ -813,8 +885,8 @@ class Rosters extends Component
      */
     private function rosterGridDays(): array
     {
-        $start = $this->safeGridStartDate();
-        $end = $this->safeGridEndDate($start);
+        $start = $this->gridPeriodStart();
+        $end = $this->gridPeriodEnd();
         $days = [];
 
         for ($date = $start; $date->lessThanOrEqualTo($end); $date = $date->addDay()) {
@@ -859,7 +931,10 @@ class Rosters extends Component
             ->get()
             ->groupBy('employee_id');
 
-        return $employees->map(function (Employee $employee) use ($assignments, $days, $selectedLookup, $proposedShift): array {
+        $calendar = app(AttendanceCalendarResolver::class);
+        $calendar->preload($employees, $start, $end);
+
+        return $employees->map(function (Employee $employee) use ($assignments, $days, $selectedLookup, $proposedShift, $calendar): array {
             $employeeAssignments = $assignments->get($employee->id, collect());
             $group = $employee->department?->name
                 ?? $employee->workProfile?->organizationUnit?->name
@@ -869,42 +944,75 @@ class Rosters extends Component
             return [
                 'employee' => $employee,
                 'group' => $group,
-                'cells' => collect($days)->mapWithKeys(function (array $day) use ($employee, $employeeAssignments, $selectedLookup, $proposedShift): array {
+                'cells' => collect($days)->mapWithKeys(function (array $day) use ($employee, $employeeAssignments, $selectedLookup, $proposedShift, $calendar): array {
+                    $dayType = $calendar->dayType($employee, $day['date']);
+                    $dayTypeLabel = $this->dayTypeLabel($dayType);
                     $assignment = $this->assignmentForGridDate($employeeAssignments, $day['date']);
 
                     if ($assignment instanceof AttendanceRosterAssignment) {
+                        $title = __(':state assignment, policy :policy', [
+                            'state' => $this->statusLabel($assignment->publish_state),
+                            'policy' => $assignment->policyGroup?->code ?? '-',
+                        ]);
+                        if ($dayType !== AttendanceDay::DAY_TYPE_NORMAL) {
+                            $title .= ' · '.__('on :day', ['day' => $dayTypeLabel]);
+                        }
+
                         return [$day['date'] => [
                             'label' => $this->shiftCodeForGrid($assignment, $day['date']),
                             'state' => $assignment->publish_state,
                             'variant' => $assignment->publish_state === 'published' ? 'success' : 'warning',
                             'policy' => $assignment->policyGroup?->code ?? '-',
-                            'title' => __(':state assignment, policy :policy', [
-                                'state' => $this->statusLabel($assignment->publish_state),
-                                'policy' => $assignment->policyGroup?->code ?? '-',
-                            ]),
+                            'title' => $title,
+                            'day_type' => $dayType,
+                            'day_type_label' => $dayTypeLabel,
+                            'on_non_working_day' => $dayType !== AttendanceDay::DAY_TYPE_NORMAL,
                         ]];
                     }
 
                     if (isset($selectedLookup[$employee->id]) && $proposedShift !== null && $this->dateWithinDraftRange($day['date'])) {
+                        $title = __('Unsaved roster preview');
+                        if ($dayType !== AttendanceDay::DAY_TYPE_NORMAL) {
+                            $title .= ' · '.__('on :day', ['day' => $dayTypeLabel]);
+                        }
+
                         return [$day['date'] => [
                             'label' => $proposedShift,
                             'state' => 'preview',
                             'variant' => 'info',
                             'policy' => $this->selectedPolicyGroupCode() ?? '-',
-                            'title' => __('Unsaved roster preview'),
+                            'title' => $title,
+                            'day_type' => $dayType,
+                            'day_type_label' => $dayTypeLabel,
+                            'on_non_working_day' => $dayType !== AttendanceDay::DAY_TYPE_NORMAL,
                         ]];
                     }
 
                     return [$day['date'] => [
-                        'label' => '-',
+                        'label' => $dayType === AttendanceDay::DAY_TYPE_NORMAL ? '-' : $dayTypeLabel,
                         'state' => 'empty',
                         'variant' => 'default',
                         'policy' => '-',
-                        'title' => __('No roster assignment'),
+                        'title' => $dayType === AttendanceDay::DAY_TYPE_NORMAL
+                            ? __('No roster assignment')
+                            : __(':day — no assignment', ['day' => $dayTypeLabel]),
+                        'day_type' => $dayType,
+                        'day_type_label' => $dayTypeLabel,
+                        'on_non_working_day' => false,
                     ]];
                 })->all(),
             ];
         })->sortBy('group')->values();
+    }
+
+    private function dayTypeLabel(string $dayType): string
+    {
+        return match ($dayType) {
+            AttendanceDay::DAY_TYPE_REST => __('Rest'),
+            AttendanceDay::DAY_TYPE_OFF => __('Off'),
+            AttendanceDay::DAY_TYPE_HOLIDAY => __('Holiday'),
+            default => __('Normal'),
+        };
     }
 
     private function safeGridStartDate(): CarbonImmutable

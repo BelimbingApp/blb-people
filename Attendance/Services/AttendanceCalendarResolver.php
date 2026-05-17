@@ -41,6 +41,105 @@ class AttendanceCalendarResolver
     /** @var array<int, array<string, mixed>> */
     private array $metadataCache = [];
 
+    /** @var array<string, bool>|null */
+    private ?array $holidayLookup = null;
+
+    private ?string $holidayLookupStart = null;
+
+    private ?string $holidayLookupEnd = null;
+
+    /**
+     * Warm the per-employee work-calendar cache and per-(calendar, date) holiday
+     * lookup so subsequent `dayType()` calls for the same render pass don't issue
+     * one query per cell. Pass the employees whose rows you'll render and the
+     * date range that will be displayed; the resolver pre-fetches in two
+     * grouped queries instead of N queries.
+     *
+     * @param  iterable<Employee>  $employees
+     */
+    public function preload(iterable $employees, DateTimeInterface|string $start, DateTimeInterface|string $end): void
+    {
+        $startDate = CarbonImmutable::parse($start)->toDateString();
+        $endDate = CarbonImmutable::parse($end)->toDateString();
+        $employeeIds = [];
+
+        foreach ($employees as $employee) {
+            if ($employee instanceof Employee) {
+                $employeeIds[] = $employee->id;
+            }
+        }
+
+        if ($employeeIds === []) {
+            $this->holidayLookup = $this->holidayLookup ?? [];
+
+            return;
+        }
+
+        $profiles = EmployeeWorkProfile::query()
+            ->whereIn('employee_id', $employeeIds)
+            ->orderByDesc('hired_on')
+            ->get(['employee_id', 'work_calendar_id']);
+
+        $calendarIds = [];
+        foreach ($profiles as $profile) {
+            $employeeId = (int) $profile->employee_id;
+            if (array_key_exists($employeeId, $this->workCalendarCache)) {
+                continue;
+            }
+            $calendarId = $profile->work_calendar_id === null ? null : (int) $profile->work_calendar_id;
+            $this->workCalendarCache[$employeeId] = $calendarId;
+            if ($calendarId !== null) {
+                $calendarIds[$calendarId] = true;
+            }
+        }
+
+        foreach ($employeeIds as $employeeId) {
+            if (! array_key_exists($employeeId, $this->workCalendarCache)) {
+                $this->workCalendarCache[$employeeId] = null;
+            }
+        }
+
+        $this->holidayLookup = $this->holidayLookup ?? [];
+        $this->holidayLookupStart = $this->holidayLookupStart === null || $startDate < $this->holidayLookupStart
+            ? $startDate
+            : $this->holidayLookupStart;
+        $this->holidayLookupEnd = $this->holidayLookupEnd === null || $endDate > $this->holidayLookupEnd
+            ? $endDate
+            : $this->holidayLookupEnd;
+
+        if ($calendarIds === []) {
+            return;
+        }
+
+        $exceptions = PeopleCalendarException::query()
+            ->whereIn('work_calendar_id', array_keys($calendarIds))
+            ->whereBetween('occurs_on', [$startDate, $endDate])
+            ->whereIn('kind', self::HOLIDAY_KINDS)
+            ->get(['work_calendar_id', 'occurs_on']);
+
+        foreach ($exceptions as $exception) {
+            $key = ((int) $exception->work_calendar_id).'|'.CarbonImmutable::parse($exception->occurs_on)->toDateString();
+            $this->holidayLookup[$key] = true;
+        }
+
+        $missingMetadataIds = array_diff(array_keys($calendarIds), array_keys($this->metadataCache));
+        if ($missingMetadataIds !== []) {
+            $rows = PeopleReferenceEntry::query()
+                ->whereIn('id', $missingMetadataIds)
+                ->get(['id', 'metadata']);
+
+            foreach ($rows as $row) {
+                $this->metadataCache[(int) $row->id] = is_array($row->metadata) ? $row->metadata : [];
+            }
+
+            foreach ($missingMetadataIds as $calendarId) {
+                if (! array_key_exists($calendarId, $this->metadataCache)) {
+                    $this->metadataCache[$calendarId] = [];
+                }
+            }
+        }
+    }
+
     public function dayType(Employee $employee, DateTimeInterface|string $date): string
     {
         $attendanceDate = CarbonImmutable::parse($date);
@@ -84,9 +183,21 @@ class AttendanceCalendarResolver
 
     private function isHoliday(int $workCalendarId, CarbonImmutable $date): bool
     {
+        $dateString = $date->toDateString();
+
+        if (
+            $this->holidayLookup !== null
+            && $this->holidayLookupStart !== null
+            && $this->holidayLookupEnd !== null
+            && $dateString >= $this->holidayLookupStart
+            && $dateString <= $this->holidayLookupEnd
+        ) {
+            return isset($this->holidayLookup[$workCalendarId.'|'.$dateString]);
+        }
+
         return PeopleCalendarException::query()
             ->where('work_calendar_id', $workCalendarId)
-            ->whereDate('occurs_on', $date->toDateString())
+            ->whereDate('occurs_on', $dateString)
             ->whereIn('kind', self::HOLIDAY_KINDS)
             ->exists();
     }
