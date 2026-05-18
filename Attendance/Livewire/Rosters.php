@@ -982,9 +982,11 @@ class Rosters extends Component
             'rosterTemplates' => $this->rosterTemplates(),
             'spreadsheetPreviewRows' => $this->parseSpreadsheetRows()['rows'],
             'departments' => Department::query()
-                ->where('company_id', $companyId)
+                ->select('company_departments.*')
+                ->where('company_departments.company_id', $companyId)
+                ->leftJoin('company_department_types', 'company_departments.department_type_id', '=', 'company_department_types.id')
                 ->with('type')
-                ->orderBy('name')
+                ->orderBy('company_department_types.name')
                 ->get(),
             'supervisors' => Employee::query()
                 ->where('company_id', $companyId)
