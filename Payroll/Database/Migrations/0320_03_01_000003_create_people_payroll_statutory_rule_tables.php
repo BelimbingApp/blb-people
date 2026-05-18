@@ -42,7 +42,7 @@ return new class extends Migration
 
         Schema::create('people_payroll_statutory_rule_rows', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('payroll_statutory_rule_set_id')->constrained('people_payroll_statutory_rule_sets')->cascadeOnDelete();
+            $table->foreignId('payroll_statutory_rule_set_id')->constrained('people_payroll_statutory_rule_sets', indexName: 'people_payroll_stat_rule_rows_set_fk')->cascadeOnDelete();
             $table->unsignedInteger('sort_order')->default(0);
             $table->string('row_key')->nullable();
             $table->decimal('min_wage', 19, 4)->nullable();

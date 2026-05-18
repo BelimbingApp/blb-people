@@ -16,7 +16,7 @@ class EmployeePortalAccess extends Model
 
     public const STATUS_REVOKED = 'revoked';
 
-    protected $table = 'employee_portal_accesses';
+    protected $table = 'people_employee_portal_accesses';
 
     /**
      * @var list<string>

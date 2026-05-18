@@ -1089,7 +1089,7 @@ class Rosters extends Component
     {
         $query = Employee::query()
             ->select('employees.*')
-            ->leftJoin('employee_work_profiles', 'employee_work_profiles.employee_id', '=', 'employees.id')
+            ->leftJoin('people_employee_work_profiles', 'people_employee_work_profiles.employee_id', '=', 'employees.id')
             ->where('employees.company_id', $this->companyId());
 
         $search = trim($this->rosterSearch);
@@ -1106,14 +1106,14 @@ class Rosters extends Component
 
         $this->applyIntegerFilter($query, 'employees.department_id', $this->rosterDepartmentId);
         $this->applyIntegerFilter($query, 'employees.supervisor_id', $this->rosterSupervisorId);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.organization_unit_id', $this->rosterOrganizationUnitId);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.cost_center_id', $this->rosterCostCenterId);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.workforce_class_id', $this->rosterWorkforceClassId);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.employment_group_id', $this->rosterEmploymentGroupId);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.work_calendar_id', $this->rosterWorkCalendarId);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.organization_unit_id', $this->rosterOrganizationUnitId);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.cost_center_id', $this->rosterCostCenterId);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.workforce_class_id', $this->rosterWorkforceClassId);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.employment_group_id', $this->rosterEmploymentGroupId);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.work_calendar_id', $this->rosterWorkCalendarId);
 
         if ($this->rosterPayRateType !== '') {
-            $query->where('employee_work_profiles.pay_rate_type', $this->rosterPayRateType);
+            $query->where('people_employee_work_profiles.pay_rate_type', $this->rosterPayRateType);
         }
 
         if ($this->rosterEmployeeStatus !== '') {

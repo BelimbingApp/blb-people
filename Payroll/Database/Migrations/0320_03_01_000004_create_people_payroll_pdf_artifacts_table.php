@@ -29,7 +29,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['payroll_run_id', 'report_type']);
-            $table->index(['payroll_run_participant_id', 'report_type']);
+            $table->index(['payroll_run_participant_id', 'report_type'], 'people_payroll_pdf_artifacts_participant_report_index');
             $table->unique(['disk', 'path']);
         });
         $this->registerTable('people_payroll_pdf_artifacts');

@@ -65,8 +65,8 @@ class Index extends Component
         'organization_unit_name' => 'organization_units.name',
         'cost_center_name' => 'cost_centers.name',
         'job_title_name' => 'job_titles.name',
-        'work_profile_pay_basis' => 'employee_work_profiles.pay_rate_type',
-        'portal_access_status' => 'employee_portal_accesses.status',
+        'work_profile_pay_basis' => 'people_employee_work_profiles.pay_rate_type',
+        'portal_access_status' => 'people_employee_portal_accesses.status',
     ];
 
     public function updated(string $property): void

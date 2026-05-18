@@ -34,7 +34,7 @@ return new class extends Migration
                 ['leave_type_id', 'effective_from'],
                 'people_payroll_leave_type_pay_items_type_effective_unique',
             );
-            $table->index(['company_id', 'leave_type_id']);
+            $table->index(['company_id', 'leave_type_id'], 'people_payroll_leave_items_company_type_index');
         });
         $this->registerTable('people_payroll_leave_type_pay_items');
 

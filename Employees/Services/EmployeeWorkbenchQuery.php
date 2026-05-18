@@ -19,10 +19,10 @@ class EmployeeWorkbenchQuery
                 'employees.*',
                 'companies.name as company_name',
                 'employee_types.label as employee_type_label',
-                'employee_work_profiles.id as work_profile_id',
-                'employee_work_profiles.pay_rate_type as work_profile_pay_basis',
-                'employee_work_profiles.hired_on as work_profile_hired_on',
-                'employee_work_profiles.resigned_on as work_profile_resigned_on',
+                'people_employee_work_profiles.id as work_profile_id',
+                'people_employee_work_profiles.pay_rate_type as work_profile_pay_basis',
+                'people_employee_work_profiles.hired_on as work_profile_hired_on',
+                'people_employee_work_profiles.resigned_on as work_profile_resigned_on',
                 'cost_centers.name as cost_center_name',
                 'cost_centers.code as cost_center_code',
                 'cost_centers.source_label as cost_center_source_label',
@@ -51,22 +51,22 @@ class EmployeeWorkbenchQuery
                 'work_calendars.code as work_calendar_code',
                 'work_calendars.source_label as work_calendar_source_label',
                 'work_calendars.source_code as work_calendar_source_code',
-                'employee_portal_accesses.status as portal_access_status',
-                'employee_portal_accesses.login_identifier as portal_access_login_identifier',
-                'employee_portal_accesses.email as portal_access_email',
-                'employee_portal_accesses.last_invited_at as portal_access_last_invited_at',
+                'people_employee_portal_accesses.status as portal_access_status',
+                'people_employee_portal_accesses.login_identifier as portal_access_login_identifier',
+                'people_employee_portal_accesses.email as portal_access_email',
+                'people_employee_portal_accesses.last_invited_at as portal_access_last_invited_at',
             ])
             ->leftJoin('companies', 'employees.company_id', '=', 'companies.id')
             ->leftJoin('employee_types', 'employees.employee_type', '=', 'employee_types.code')
-            ->leftJoin('employee_work_profiles', 'employee_work_profiles.employee_id', '=', 'employees.id')
-            ->leftJoin('people_reference_entries as cost_centers', 'employee_work_profiles.cost_center_id', '=', 'cost_centers.id')
-            ->leftJoin('people_reference_entries as organization_units', 'employee_work_profiles.organization_unit_id', '=', 'organization_units.id')
-            ->leftJoin('people_reference_entries as employment_groups', 'employee_work_profiles.employment_group_id', '=', 'employment_groups.id')
-            ->leftJoin('people_reference_entries as job_titles', 'employee_work_profiles.job_title_id', '=', 'job_titles.id')
-            ->leftJoin('people_reference_entries as workforce_classes', 'employee_work_profiles.workforce_class_id', '=', 'workforce_classes.id')
-            ->leftJoin('people_reference_entries as job_grades', 'employee_work_profiles.job_grade_id', '=', 'job_grades.id')
-            ->leftJoin('people_reference_entries as work_calendars', 'employee_work_profiles.work_calendar_id', '=', 'work_calendars.id')
-            ->leftJoin('employee_portal_accesses', 'employee_portal_accesses.employee_id', '=', 'employees.id')
+            ->leftJoin('people_employee_work_profiles', 'people_employee_work_profiles.employee_id', '=', 'employees.id')
+            ->leftJoin('people_reference_entries as cost_centers', 'people_employee_work_profiles.cost_center_id', '=', 'cost_centers.id')
+            ->leftJoin('people_reference_entries as organization_units', 'people_employee_work_profiles.organization_unit_id', '=', 'organization_units.id')
+            ->leftJoin('people_reference_entries as employment_groups', 'people_employee_work_profiles.employment_group_id', '=', 'employment_groups.id')
+            ->leftJoin('people_reference_entries as job_titles', 'people_employee_work_profiles.job_title_id', '=', 'job_titles.id')
+            ->leftJoin('people_reference_entries as workforce_classes', 'people_employee_work_profiles.workforce_class_id', '=', 'workforce_classes.id')
+            ->leftJoin('people_reference_entries as job_grades', 'people_employee_work_profiles.job_grade_id', '=', 'job_grades.id')
+            ->leftJoin('people_reference_entries as work_calendars', 'people_employee_work_profiles.work_calendar_id', '=', 'work_calendars.id')
+            ->leftJoin('people_employee_portal_accesses', 'people_employee_portal_accesses.employee_id', '=', 'employees.id')
             ->whereIn('employees.company_id', $companyIds)
             ->with([
                 'company',
@@ -111,21 +111,21 @@ class EmployeeWorkbenchQuery
 
         $this->applyIntegerFilter($query, 'employees.company_id', $filters['company_id'] ?? null);
         $this->applyStringFilter($query, 'employees.status', $filters['status'] ?? null);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.organization_unit_id', $filters['organization_unit_id'] ?? null);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.cost_center_id', $filters['cost_center_id'] ?? null);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.employment_group_id', $filters['employment_group_id'] ?? null);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.job_title_id', $filters['job_title_id'] ?? null);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.workforce_class_id', $filters['workforce_class_id'] ?? null);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.job_grade_id', $filters['job_grade_id'] ?? null);
-        $this->applyIntegerFilter($query, 'employee_work_profiles.work_calendar_id', $filters['work_calendar_id'] ?? null);
-        $this->applyStringFilter($query, 'employee_work_profiles.pay_rate_type', $filters['pay_rate_type'] ?? null);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.organization_unit_id', $filters['organization_unit_id'] ?? null);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.cost_center_id', $filters['cost_center_id'] ?? null);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.employment_group_id', $filters['employment_group_id'] ?? null);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.job_title_id', $filters['job_title_id'] ?? null);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.workforce_class_id', $filters['workforce_class_id'] ?? null);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.job_grade_id', $filters['job_grade_id'] ?? null);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.work_calendar_id', $filters['work_calendar_id'] ?? null);
+        $this->applyStringFilter($query, 'people_employee_work_profiles.pay_rate_type', $filters['pay_rate_type'] ?? null);
 
         $portalAccessStatus = (string) ($filters['portal_access_status'] ?? '');
 
         if ($portalAccessStatus === 'unprovisioned') {
-            $query->whereNull('employee_portal_accesses.id');
+            $query->whereNull('people_employee_portal_accesses.id');
         } elseif ($portalAccessStatus !== '') {
-            $query->where('employee_portal_accesses.status', $portalAccessStatus);
+            $query->where('people_employee_portal_accesses.status', $portalAccessStatus);
         }
 
         $readinessState = (string) ($filters['readiness_state'] ?? '');

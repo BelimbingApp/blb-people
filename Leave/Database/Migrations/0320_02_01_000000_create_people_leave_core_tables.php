@@ -61,15 +61,13 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['company_id', 'code']);
-            $table->index(['company_id', 'leave_type_id', 'effective_from']);
+            $table->index(['company_id', 'leave_type_id', 'effective_from'], 'people_leave_entitlement_policies_company_type_from_index');
         });
         $this->registerTable('people_leave_entitlement_policies');
 
         Schema::create('people_leave_entitlement_policy_bands', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('leave_entitlement_policy_id')
-                ->constrained('people_leave_entitlement_policies')
-                ->cascadeOnDelete();
+            $table->foreignId('leave_entitlement_policy_id');
             $table->decimal('min_years_of_service', 6, 2)->default(0);
             $table->decimal('max_years_of_service', 6, 2)->nullable();
             $table->decimal('entitlement_days', 8, 4);
@@ -78,7 +76,14 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->unique(['leave_entitlement_policy_id', 'min_years_of_service']);
+            $table->foreign('leave_entitlement_policy_id', 'people_leave_policy_band_policy_id_fk')
+                ->references('id')
+                ->on('people_leave_entitlement_policies')
+                ->cascadeOnDelete();
+            $table->unique(
+                ['leave_entitlement_policy_id', 'min_years_of_service'],
+                'people_leave_policy_band_policy_min_years_unique'
+            );
         });
         $this->registerTable('people_leave_entitlement_policy_bands');
 
@@ -109,7 +114,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['company_id', 'code']);
-            $table->index(['company_id', 'leave_type_id', 'effective_from']);
+            $table->index(['company_id', 'leave_type_id', 'effective_from'], 'people_leave_request_policies_company_type_from_index');
         });
         $this->registerTable('people_leave_request_policies');
 
@@ -133,7 +138,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['company_id', 'code']);
-            $table->index(['company_id', 'leave_type_id', 'effective_from']);
+            $table->index(['company_id', 'leave_type_id', 'effective_from'], 'people_leave_assignments_company_type_from_index');
         });
         $this->registerTable('people_leave_assignments');
 
@@ -161,8 +166,8 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamp('created_at')->useCurrent();
 
-            $table->index(['employee_id', 'leave_type_id', 'leave_year']);
-            $table->index(['company_id', 'occurred_on']);
+            $table->index(['employee_id', 'leave_type_id', 'leave_year'], 'people_leave_ledger_entries_employee_type_year_index');
+            $table->index(['company_id', 'occurred_on'], 'people_leave_ledger_entries_company_date_index');
             $table->index(['source_type', 'source_id']);
         });
         $this->registerTable('people_leave_balance_ledger_entries');
@@ -198,7 +203,7 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->index(['company_id', 'employee_id', 'starts_on', 'ends_on']);
+            $table->index(['company_id', 'employee_id', 'starts_on', 'ends_on'], 'people_leave_requests_company_employee_dates_index');
             $table->index(['company_id', 'leave_type_id', 'status']);
         });
         $this->registerTable('people_leave_requests');
@@ -214,7 +219,7 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->unique(['leave_request_id', 'occurs_on', 'portion']);
+            $table->unique(['leave_request_id', 'occurs_on', 'portion'], 'people_leave_request_days_request_date_portion_unique');
             $table->index(['occurs_on']);
         });
         $this->registerTable('people_leave_request_days');
@@ -230,7 +235,7 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamp('created_at')->useCurrent();
 
-            $table->index(['leave_request_id', 'occurred_at']);
+            $table->index(['leave_request_id', 'occurred_at'], 'people_leave_audit_events_request_occurred_index');
         });
         $this->registerTable('people_leave_request_audit_events');
     }

@@ -31,7 +31,7 @@ return new class extends Migration
 
             $table->unique(['company_id', 'type', 'code']);
             $table->index(['company_id', 'type', 'status']);
-            $table->index(['source_system', 'source_label', 'source_code']);
+            $table->index(['source_system', 'source_label', 'source_code'], 'people_ref_entries_source_identity_index');
         });
         $this->registerTable('people_reference_entries');
 
@@ -47,12 +47,12 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->unique(['company_id', 'source_system', 'source_type', 'source_code']);
+            $table->unique(['company_id', 'source_system', 'source_type', 'source_code'], 'people_ref_aliases_company_source_unique');
             $table->index(['people_reference_entry_id', 'status']);
         });
         $this->registerTable('people_reference_aliases');
 
-        Schema::create('employee_work_profiles', function (Blueprint $table): void {
+        Schema::create('people_employee_work_profiles', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
             $table->foreignId('cost_center_id')->nullable()->constrained('people_reference_entries')->nullOnDelete();
@@ -69,10 +69,10 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique('employee_id');
-            $table->index(['cost_center_id', 'organization_unit_id']);
-            $table->index(['employment_group_id', 'job_title_id', 'workforce_class_id']);
+            $table->index(['cost_center_id', 'organization_unit_id'], 'people_emp_work_profiles_cost_org_index');
+            $table->index(['employment_group_id', 'job_title_id', 'workforce_class_id'], 'people_emp_work_profiles_group_job_class_index');
         });
-        $this->registerTable('employee_work_profiles');
+        $this->registerTable('people_employee_work_profiles');
 
         Schema::create('people_saved_employee_views', function (Blueprint $table): void {
             $table->id();
@@ -91,7 +91,7 @@ return new class extends Migration
         });
         $this->registerTable('people_saved_employee_views');
 
-        Schema::create('employee_portal_accesses', function (Blueprint $table): void {
+        Schema::create('people_employee_portal_accesses', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
@@ -108,13 +108,13 @@ return new class extends Migration
             $table->unique('employee_id');
             $table->index(['user_id', 'status']);
         });
-        $this->registerTable('employee_portal_accesses');
+        $this->registerTable('people_employee_portal_accesses');
 
-        Schema::create('employee_profile_change_requests', function (Blueprint $table): void {
+        Schema::create('people_employee_profile_change_requests', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
-            $table->foreignId('requested_by_user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignId('reviewed_by_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('requested_by_user_id')->nullable()->constrained('users', indexName: 'people_emp_profile_req_requested_by_fk')->nullOnDelete();
+            $table->foreignId('reviewed_by_user_id')->nullable()->constrained('users', indexName: 'people_emp_profile_req_reviewed_by_fk')->nullOnDelete();
             $table->string('request_type')->default('profile_update')->index();
             $table->string('status')->default('submitted')->index();
             $table->json('requested_changes');
@@ -123,9 +123,9 @@ return new class extends Migration
             $table->timestamp('reviewed_at')->nullable();
             $table->timestamps();
 
-            $table->index(['employee_id', 'status']);
+            $table->index(['employee_id', 'status'], 'people_emp_profile_req_employee_status_index');
         });
-        $this->registerTable('employee_profile_change_requests');
+        $this->registerTable('people_employee_profile_change_requests');
 
         Schema::create('people_restricted_person_entries', function (Blueprint $table): void {
             $table->id();
@@ -140,7 +140,7 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->index(['company_id', 'document_type', 'document_number']);
+            $table->index(['company_id', 'document_type', 'document_number'], 'people_restricted_entries_document_index');
         });
         $this->registerTable('people_restricted_person_entries');
 
@@ -174,7 +174,7 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->index(['company_id', 'channel', 'status']);
+            $table->index(['company_id', 'channel', 'status'], 'people_delivery_logs_company_channel_status_index');
         });
         $this->registerTable('people_notification_delivery_logs');
 
@@ -187,7 +187,7 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->unique(['work_calendar_id', 'occurs_on', 'kind']);
+            $table->unique(['work_calendar_id', 'occurs_on', 'kind'], 'people_calendar_exceptions_calendar_date_kind_unique');
         });
         $this->registerTable('people_calendar_exceptions');
     }
@@ -199,10 +199,10 @@ return new class extends Migration
             'people_notification_delivery_logs',
             'people_import_jobs',
             'people_restricted_person_entries',
-            'employee_profile_change_requests',
-            'employee_portal_accesses',
+            'people_employee_profile_change_requests',
+            'people_employee_portal_accesses',
             'people_saved_employee_views',
-            'employee_work_profiles',
+            'people_employee_work_profiles',
             'people_reference_aliases',
             'people_reference_entries',
         ] as $table) {

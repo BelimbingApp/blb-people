@@ -17,7 +17,7 @@ class EmployeeProfileChangeRequest extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
-    protected $table = 'employee_profile_change_requests';
+    protected $table = 'people_employee_profile_change_requests';
 
     /**
      * @var list<string>

@@ -34,7 +34,7 @@ return new class extends Migration
                 ['claim_type_id', 'effective_from'],
                 'people_payroll_claim_type_pay_items_type_effective_unique',
             );
-            $table->index(['company_id', 'claim_type_id']);
+            $table->index(['company_id', 'claim_type_id'], 'people_payroll_claim_items_company_type_index');
         });
         $this->registerTable('people_payroll_claim_type_pay_items');
 

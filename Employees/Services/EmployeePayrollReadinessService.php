@@ -132,9 +132,9 @@ class EmployeePayrollReadinessService
 
         if ($state === self::STATE_READY) {
             $query
-                ->whereNotNull('employee_work_profiles.id')
-                ->whereNotNull('employee_work_profiles.pay_rate_type')
-                ->where('employee_work_profiles.pay_rate_type', '!=', '')
+                ->whereNotNull('people_employee_work_profiles.id')
+                ->whereNotNull('people_employee_work_profiles.pay_rate_type')
+                ->where('people_employee_work_profiles.pay_rate_type', '!=', '')
                 ->where('employees.status', 'active')
                 ->whereNotNull(self::BANK_NAME_METADATA_PATH)
                 ->where(self::BANK_NAME_METADATA_PATH, '!=', '')
@@ -180,11 +180,11 @@ class EmployeePayrollReadinessService
         $statutoryTableExists ??= $this->statutoryProfileTableExists();
 
         match ($blocker) {
-            'missing_work_profile' => $query->whereNull('employee_work_profiles.id'),
+            'missing_work_profile' => $query->whereNull('people_employee_work_profiles.id'),
             'missing_pay_basis' => $query->where(function (Builder $payBasisQuery): void {
-                $payBasisQuery->whereNull('employee_work_profiles.id')
-                    ->orWhereNull('employee_work_profiles.pay_rate_type')
-                    ->orWhere('employee_work_profiles.pay_rate_type', '');
+                $payBasisQuery->whereNull('people_employee_work_profiles.id')
+                    ->orWhereNull('people_employee_work_profiles.pay_rate_type')
+                    ->orWhere('people_employee_work_profiles.pay_rate_type', '');
             }),
             'missing_bank_details' => $query->where(function (Builder $bankQuery): void {
                 $bankQuery->whereNull(self::BANK_NAME_METADATA_PATH)

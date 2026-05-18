@@ -24,7 +24,7 @@ return new class extends Migration
         Schema::create('people_payroll_attendance_rule_pay_items', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
-            $table->foreignId('attendance_allowance_rule_id')->constrained('people_attendance_allowance_rules')->cascadeOnDelete();
+            $table->foreignId('attendance_allowance_rule_id')->constrained('people_attendance_allowance_rules', indexName: 'people_payroll_att_rule_items_rule_fk')->cascadeOnDelete();
             $table->string('payroll_pay_item_code');
             $table->date('effective_from');
             $table->date('effective_to')->nullable();
@@ -35,7 +35,7 @@ return new class extends Migration
                 ['attendance_allowance_rule_id', 'effective_from'],
                 'people_payroll_attendance_rule_pay_items_rule_effective_unique',
             );
-            $table->index(['company_id', 'attendance_allowance_rule_id']);
+            $table->index(['company_id', 'attendance_allowance_rule_id'], 'people_payroll_att_rule_items_company_rule_index');
         });
         $this->registerTable('people_payroll_attendance_rule_pay_items');
 
