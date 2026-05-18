@@ -3,6 +3,7 @@
 namespace App\Modules\People\Claim\Services;
 
 use App\Modules\People\Claim\Models\ClaimPolicy;
+use App\Modules\People\Claim\Models\ClaimPolicyBand;
 
 /**
  * Lints a {@see ClaimPolicy} and returns linter-style findings.
@@ -85,17 +86,16 @@ class ClaimPolicyValidationService
     /** @return list<array<string, string>> */
     private function validateBands(ClaimPolicy $policy): array
     {
-        $findings = [];
         $bands = $policy->bands;
 
         if ($bands->isEmpty()) {
-            $findings[] = $this->finding('error', 'policy_bands_missing', 'Policy must declare at least one band.', 'bands');
-
-            return $findings;
+            return [$this->finding('error', 'policy_bands_missing', 'Policy must declare at least one band.', 'bands')];
         }
 
+        $findings = [];
         $hasCatchAll = false;
         $thresholds = [];
+
         foreach ($bands as $index => $band) {
             $path = "bands.{$index}";
             $threshold = $this->numericOrNull($band->threshold_value);
@@ -106,27 +106,7 @@ class ClaimPolicyValidationService
                 $thresholds[] = $threshold;
             }
 
-            if (! in_array($band->logical_operator, ['<', '<=', '>', '>=', '='], true)) {
-                $findings[] = $this->finding('error', 'band_operator_invalid', 'Band logical_operator must be one of <, <=, >, >=, =.', "{$path}.logical_operator");
-            }
-
-            foreach (['per_claim_limit', 'per_month_limit', 'per_year_limit', 'per_day_unit_limit'] as $capKey) {
-                $value = $this->numericOrNull($band->{$capKey});
-                if ($value !== null && $value < 0) {
-                    $findings[] = $this->finding('error', 'band_cap_negative', sprintf('Band %s cannot be negative.', $capKey), "{$path}.{$capKey}");
-                }
-            }
-
-            $perClaim = $this->numericOrNull($band->per_claim_limit);
-            $perMonth = $this->numericOrNull($band->per_month_limit);
-            $perYear = $this->numericOrNull($band->per_year_limit);
-
-            if ($perClaim !== null && $perMonth !== null && $perClaim > $perMonth) {
-                $findings[] = $this->finding('warning', 'band_per_claim_exceeds_month', 'Per-claim limit exceeds per-month limit — a single claim could blow the monthly cap.', "{$path}.per_claim_limit");
-            }
-            if ($perMonth !== null && $perYear !== null && $perMonth > $perYear) {
-                $findings[] = $this->finding('warning', 'band_per_month_exceeds_year', 'Per-month limit exceeds per-year limit.', "{$path}.per_month_limit");
-            }
+            $findings = [...$findings, ...$this->validateBandShape($band, $path)];
         }
 
         if (! $hasCatchAll) {
@@ -134,17 +114,57 @@ class ClaimPolicyValidationService
         }
 
         if ($policy->item_mode === ClaimPolicy::MODE_SERVICE_YEAR) {
-            $previous = null;
-            foreach ($thresholds as $idx => $current) {
-                if ($previous !== null && $current < $previous) {
-                    $findings[] = $this->finding('warning', 'service_year_thresholds_not_monotonic', 'Service-year band thresholds should be monotonically increasing for predictable matching.', "bands.{$idx}.threshold_value");
-                    break;
-                }
-                $previous = $current;
-            }
+            $findings = [...$findings, ...$this->validateServiceYearMonotonic($thresholds)];
         }
 
         return $findings;
+    }
+
+    /** @return list<array<string, string>> */
+    private function validateBandShape(ClaimPolicyBand $band, string $path): array
+    {
+        $findings = [];
+
+        if (! in_array($band->logical_operator, ['<', '<=', '>', '>=', '='], true)) {
+            $findings[] = $this->finding('error', 'band_operator_invalid', 'Band logical_operator must be one of <, <=, >, >=, =.', "{$path}.logical_operator");
+        }
+
+        foreach (['per_claim_limit', 'per_month_limit', 'per_year_limit', 'per_day_unit_limit'] as $capKey) {
+            $value = $this->numericOrNull($band->{$capKey});
+            if ($value !== null && $value < 0) {
+                $findings[] = $this->finding('error', 'band_cap_negative', sprintf('Band %s cannot be negative.', $capKey), "{$path}.{$capKey}");
+            }
+        }
+
+        $perClaim = $this->numericOrNull($band->per_claim_limit);
+        $perMonth = $this->numericOrNull($band->per_month_limit);
+        $perYear = $this->numericOrNull($band->per_year_limit);
+
+        if ($perClaim !== null && $perMonth !== null && $perClaim > $perMonth) {
+            $findings[] = $this->finding('warning', 'band_per_claim_exceeds_month', 'Per-claim limit exceeds per-month limit — a single claim could blow the monthly cap.', "{$path}.per_claim_limit");
+        }
+        if ($perMonth !== null && $perYear !== null && $perMonth > $perYear) {
+            $findings[] = $this->finding('warning', 'band_per_month_exceeds_year', 'Per-month limit exceeds per-year limit.', "{$path}.per_month_limit");
+        }
+
+        return $findings;
+    }
+
+    /**
+     * @param  list<float>  $thresholds
+     * @return list<array<string, string>>
+     */
+    private function validateServiceYearMonotonic(array $thresholds): array
+    {
+        $previous = null;
+        foreach ($thresholds as $idx => $current) {
+            if ($previous !== null && $current < $previous) {
+                return [$this->finding('warning', 'service_year_thresholds_not_monotonic', 'Service-year band thresholds should be monotonically increasing for predictable matching.', "bands.{$idx}.threshold_value")];
+            }
+            $previous = $current;
+        }
+
+        return [];
     }
 
     /** @return list<array<string, string>> */

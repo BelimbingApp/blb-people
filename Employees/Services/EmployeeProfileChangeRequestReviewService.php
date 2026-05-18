@@ -112,32 +112,32 @@ class EmployeeProfileChangeRequestReviewService
             'resigned_on',
         ];
 
-        $employeeChanges = [];
-        $workProfileChanges = [];
+        $employeeChanges = $this->pickAllowedFields($changes, $allowedEmployee);
+        $nestedEmployee = is_array($changes['employee'] ?? null) ? $changes['employee'] : [];
+        $employeeChanges = array_merge($employeeChanges, $this->pickAllowedFields($nestedEmployee, $allowedEmployee));
 
-        foreach ($allowedEmployee as $field) {
-            if (array_key_exists($field, $changes)) {
-                $employeeChanges[$field] = $changes[$field];
-            }
-        }
-
-        if (isset($changes['employee']) && is_array($changes['employee'])) {
-            foreach ($allowedEmployee as $field) {
-                if (array_key_exists($field, $changes['employee'])) {
-                    $employeeChanges[$field] = $changes['employee'][$field];
-                }
-            }
-        }
-
-        if (isset($changes['work_profile']) && is_array($changes['work_profile'])) {
-            foreach ($allowedWorkProfile as $field) {
-                if (array_key_exists($field, $changes['work_profile'])) {
-                    $workProfileChanges[$field] = $changes['work_profile'][$field];
-                }
-            }
-        }
+        $nestedWorkProfile = is_array($changes['work_profile'] ?? null) ? $changes['work_profile'] : [];
+        $workProfileChanges = $this->pickAllowedFields($nestedWorkProfile, $allowedWorkProfile);
 
         return [$employeeChanges, $workProfileChanges];
+    }
+
+    /**
+     * @param  array<string, mixed>  $source
+     * @param  list<string>  $allowed
+     * @return array<string, mixed>
+     */
+    private function pickAllowedFields(array $source, array $allowed): array
+    {
+        $picked = [];
+
+        foreach ($allowed as $field) {
+            if (array_key_exists($field, $source)) {
+                $picked[$field] = $source[$field];
+            }
+        }
+
+        return $picked;
     }
 
     /**

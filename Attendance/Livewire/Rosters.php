@@ -821,6 +821,25 @@ class Rosters extends Component
      */
     private function rosterListSummary(Collection $rows, array $days): array
     {
+        ['gaps' => $gaps, 'exceptions' => $exceptions] = $this->countRosterIssues($rows, $days);
+        $hasIssues = $gaps > 0 || $exceptions > 0;
+        $periodEnd = $days === [] ? null : end($days)['label'] ?? null;
+
+        return [
+            'gaps' => $gaps,
+            'exceptions' => $exceptions,
+            'sentence' => $this->rosterSummarySentence($gaps, $exceptions, $periodEnd),
+            'hasIssues' => $hasIssues,
+        ];
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @param  list<array{date: string, day: string, label: string}>  $days
+     * @return array{gaps: int, exceptions: int}
+     */
+    private function countRosterIssues(Collection $rows, array $days): array
+    {
         $gaps = 0;
         $exceptions = 0;
 
@@ -831,8 +850,7 @@ class Rosters extends Component
                     continue;
                 }
 
-                $dayType = $cell['day_type'] ?? AttendanceDay::DAY_TYPE_NORMAL;
-                $isWorking = $dayType === AttendanceDay::DAY_TYPE_NORMAL;
+                $isWorking = ($cell['day_type'] ?? AttendanceDay::DAY_TYPE_NORMAL) === AttendanceDay::DAY_TYPE_NORMAL;
                 $isEmpty = ($cell['state'] ?? 'empty') === 'empty';
 
                 if ($isWorking && $isEmpty) {
@@ -843,33 +861,29 @@ class Rosters extends Component
             }
         }
 
-        $hasIssues = $gaps > 0 || $exceptions > 0;
-        $periodEnd = $days === [] ? null : end($days)['label'] ?? null;
+        return ['gaps' => $gaps, 'exceptions' => $exceptions];
+    }
 
-        if (! $hasIssues) {
-            $sentence = $periodEnd
+    private function rosterSummarySentence(int $gaps, int $exceptions, ?string $periodEnd): string
+    {
+        if ($gaps === 0 && $exceptions === 0) {
+            return $periodEnd
                 ? __('All set through :date.', ['date' => $periodEnd])
                 : __('All set.');
-        } else {
-            $parts = [];
-            if ($gaps > 0) {
-                $parts[] = trans_choice(':count gap|:count gaps', $gaps, ['count' => $gaps]);
-            }
-            if ($exceptions > 0) {
-                $parts[] = trans_choice(':count exception|:count exceptions', $exceptions, ['count' => $exceptions]);
-            }
-            $listLabel = implode(' '.__('and').' ', $parts);
-            $sentence = $periodEnd
-                ? __(':items to sort out before :date.', ['items' => ucfirst($listLabel), 'date' => $periodEnd])
-                : __(':items to sort out.', ['items' => ucfirst($listLabel)]);
         }
 
-        return [
-            'gaps' => $gaps,
-            'exceptions' => $exceptions,
-            'sentence' => $sentence,
-            'hasIssues' => $hasIssues,
-        ];
+        $parts = [];
+        if ($gaps > 0) {
+            $parts[] = trans_choice(':count gap|:count gaps', $gaps, ['count' => $gaps]);
+        }
+        if ($exceptions > 0) {
+            $parts[] = trans_choice(':count exception|:count exceptions', $exceptions, ['count' => $exceptions]);
+        }
+        $listLabel = ucfirst(implode(' '.__('and').' ', $parts));
+
+        return $periodEnd
+            ? __(':items to sort out before :date.', ['items' => $listLabel, 'date' => $periodEnd])
+            : __(':items to sort out.', ['items' => $listLabel]);
     }
 
     public function deleteRosterAssignment(int $assignmentId): void
@@ -921,89 +935,121 @@ class Rosters extends Component
     {
         $companyId = $this->companyId();
         $schemaReady = $this->schemaReady();
-        $employees = $schemaReady
-            ? $this->filteredEmployeesQuery()
-                ->orderBy('full_name')
-                ->orderBy('id')
-                ->paginate(25)
-            : collect();
 
-        $editingEmployee = null;
-        if ($schemaReady && $this->editingRosterAssignmentId !== '' && $this->rosterEmployeeId !== '') {
-            $editingEmployee = Employee::query()
-                ->where('company_id', $companyId)
-                ->whereKey((int) $this->rosterEmployeeId)
-                ->first();
-        }
-
-        $rosterGridDays = $schemaReady ? $this->rosterGridDays() : [];
-        $rosterGridRows = $schemaReady ? $this->rosterGridRows($employees->getCollection()) : collect();
-        $rosterGridDays = $schemaReady ? $this->enrichGridDays($rosterGridDays, $rosterGridRows) : [];
+        $viewData = $schemaReady
+            ? $this->renderDataForReadySchema($companyId)
+            : $this->renderDataForUnreadySchema();
 
         return view('livewire.people.attendance.rosters', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
-            'employees' => $employees,
-            'editingEmployee' => $editingEmployee,
-            'filteredEmployeeCount' => $schemaReady ? $this->filteredEmployeesQuery()->count() : 0,
-            'companyEmployeeCount' => $schemaReady
-                ? Employee::query()->where('company_id', $companyId)->count()
-                : 0,
-            'selectedEmployeeCount' => $schemaReady ? count($this->selectedRosterEmployeeIds()) : 0,
-            'rosterGridDays' => $rosterGridDays,
-            'rosterGridRows' => $rosterGridRows,
-            'rosterListSummary' => $schemaReady ? $this->rosterListSummary($rosterGridRows, $rosterGridDays) : null,
-            'rosterCoverageRows' => $schemaReady ? ($rosterCoverageRows = $this->rosterCoverageRows()) : ($rosterCoverageRows = []),
-            'rosterCoverageMatrix' => $schemaReady ? $this->rosterCoverageMatrix($rosterCoverageRows) : ['shifts' => [], 'dates' => [], 'cells' => []],
-            'rosterValidationFindings' => $schemaReady ? $this->rosterValidationFindings() : [],
-            'rosterTemplates' => $schemaReady ? $this->rosterTemplates() : collect(),
-            'spreadsheetPreviewRows' => $schemaReady ? $this->parseSpreadsheetRows()['rows'] : [],
-            'departments' => $schemaReady
-                ? Department::query()
-                    ->where('company_id', $companyId)
-                    ->with('type')
-                    ->orderBy('name')
-                    ->get()
-                : collect(),
-            'supervisors' => $schemaReady
-                ? Employee::query()
-                    ->where('company_id', $companyId)
-                    ->whereNotNull('id')
-                    ->orderBy('full_name')
-                    ->get(['id', 'full_name', 'employee_number'])
-                : collect(),
             'organizationUnits' => $this->referenceOptions(PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT, $schemaReady),
             'costCenters' => $this->referenceOptions(PeopleReferenceEntry::TYPE_COST_CENTER, $schemaReady),
             'employmentGroups' => $this->referenceOptions(PeopleReferenceEntry::TYPE_EMPLOYMENT_GROUP, $schemaReady),
             'workforceClasses' => $this->referenceOptions(PeopleReferenceEntry::TYPE_WORKFORCE_CLASS, $schemaReady),
             'workCalendars' => $this->referenceOptions(PeopleReferenceEntry::TYPE_WORK_CALENDAR, $schemaReady),
-            'shiftTemplates' => $schemaReady
-                ? AttendanceShiftTemplate::query()
-                    ->where('company_id', $companyId)
-                    ->orderBy('code')
-                    ->get()
-                : collect(),
-            'policyGroups' => $schemaReady
-                ? AttendancePolicyGroup::query()
-                    ->where('company_id', $companyId)
-                    ->orderBy('code')
-                    ->get()
-                : collect(),
-            'rosterPatterns' => $schemaReady
-                ? AttendanceRosterPattern::query()
-                    ->where('company_id', $companyId)
-                    ->orderBy('code')
-                    ->get()
-                : collect(),
-            'rosterAssignments' => $schemaReady
-                ? AttendanceRosterAssignment::query()
-                    ->where('company_id', $companyId)
-                    ->with(['employee', 'shiftTemplate', 'policyGroup', 'rosterPattern'])
-                    ->latest('effective_from')
-                    ->limit(40)
-                    ->get()
-                : collect(),
+            ...$viewData,
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function renderDataForReadySchema(int $companyId): array
+    {
+        $employees = $this->filteredEmployeesQuery()
+            ->orderBy('full_name')
+            ->orderBy('id')
+            ->paginate(25);
+
+        $rosterGridDays = $this->rosterGridDays();
+        $rosterGridRows = $this->rosterGridRows($employees->getCollection());
+        $rosterGridDays = $this->enrichGridDays($rosterGridDays, $rosterGridRows);
+        $rosterCoverageRows = $this->rosterCoverageRows();
+
+        return [
+            'employees' => $employees,
+            'editingEmployee' => $this->resolveEditingEmployee($companyId),
+            'filteredEmployeeCount' => $this->filteredEmployeesQuery()->count(),
+            'companyEmployeeCount' => Employee::query()->where('company_id', $companyId)->count(),
+            'selectedEmployeeCount' => count($this->selectedRosterEmployeeIds()),
+            'rosterGridDays' => $rosterGridDays,
+            'rosterGridRows' => $rosterGridRows,
+            'rosterListSummary' => $this->rosterListSummary($rosterGridRows, $rosterGridDays),
+            'rosterCoverageRows' => $rosterCoverageRows,
+            'rosterCoverageMatrix' => $this->rosterCoverageMatrix($rosterCoverageRows),
+            'rosterValidationFindings' => $this->rosterValidationFindings(),
+            'rosterTemplates' => $this->rosterTemplates(),
+            'spreadsheetPreviewRows' => $this->parseSpreadsheetRows()['rows'],
+            'departments' => Department::query()
+                ->where('company_id', $companyId)
+                ->with('type')
+                ->orderBy('name')
+                ->get(),
+            'supervisors' => Employee::query()
+                ->where('company_id', $companyId)
+                ->whereNotNull('id')
+                ->orderBy('full_name')
+                ->get(['id', 'full_name', 'employee_number']),
+            'shiftTemplates' => AttendanceShiftTemplate::query()
+                ->where('company_id', $companyId)
+                ->orderBy('code')
+                ->get(),
+            'policyGroups' => AttendancePolicyGroup::query()
+                ->where('company_id', $companyId)
+                ->orderBy('code')
+                ->get(),
+            'rosterPatterns' => AttendanceRosterPattern::query()
+                ->where('company_id', $companyId)
+                ->orderBy('code')
+                ->get(),
+            'rosterAssignments' => AttendanceRosterAssignment::query()
+                ->where('company_id', $companyId)
+                ->with(['employee', 'shiftTemplate', 'policyGroup', 'rosterPattern'])
+                ->latest('effective_from')
+                ->limit(40)
+                ->get(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function renderDataForUnreadySchema(): array
+    {
+        return [
+            'employees' => collect(),
+            'editingEmployee' => null,
+            'filteredEmployeeCount' => 0,
+            'companyEmployeeCount' => 0,
+            'selectedEmployeeCount' => 0,
+            'rosterGridDays' => [],
+            'rosterGridRows' => collect(),
+            'rosterListSummary' => null,
+            'rosterCoverageRows' => [],
+            'rosterCoverageMatrix' => ['shifts' => [], 'dates' => [], 'cells' => []],
+            'rosterValidationFindings' => [],
+            'rosterTemplates' => collect(),
+            'spreadsheetPreviewRows' => [],
+            'departments' => collect(),
+            'supervisors' => collect(),
+            'shiftTemplates' => collect(),
+            'policyGroups' => collect(),
+            'rosterPatterns' => collect(),
+            'rosterAssignments' => collect(),
+        ];
+    }
+
+    private function resolveEditingEmployee(int $companyId): ?Employee
+    {
+        if ($this->editingRosterAssignmentId === '' || $this->rosterEmployeeId === '') {
+            return null;
+        }
+
+        return Employee::query()
+            ->where('company_id', $companyId)
+            ->whereKey((int) $this->rosterEmployeeId)
+            ->first();
     }
 
     private function hasRosterOverlap(int $employeeId, string $effectiveFrom, ?string $effectiveTo, ?int $excludeAssignmentId = null): bool
@@ -1223,79 +1269,133 @@ class Rosters extends Component
 
         return $employees->map(function (Employee $employee) use ($assignments, $days, $selectedLookup, $proposedShift, $calendar): array {
             $employeeAssignments = $assignments->get($employee->id, collect());
-            $group = $employee->department?->name
-                ?? $employee->workProfile?->organizationUnit?->name
-                ?? $employee->workProfile?->workforceClass?->name
-                ?? '-';
 
             return [
                 'employee' => $employee,
-                'group' => $group,
-                'cells' => collect($days)->mapWithKeys(function (array $day) use ($employee, $employeeAssignments, $selectedLookup, $proposedShift, $calendar): array {
-                    $dayType = $calendar->dayType($employee, $day['date']);
-                    $dayTypeLabel = $this->dayTypeLabel($dayType);
-                    $assignment = $this->assignmentForGridDate($employeeAssignments, $day['date']);
-
-                    if ($assignment instanceof AttendanceRosterAssignment) {
-                        $title = __(':state assignment, policy :policy', [
-                            'state' => $this->statusLabel($assignment->publish_state),
-                            'policy' => $assignment->policyGroup?->code ?? '-',
-                        ]);
-                        if ($dayType !== AttendanceDay::DAY_TYPE_NORMAL) {
-                            $title .= ' · '.__('on :day', ['day' => $dayTypeLabel]);
-                        }
-
-                        return [$day['date'] => [
-                            'label' => $this->shiftCodeForGrid($assignment, $day['date']),
-                            'state' => $assignment->publish_state,
-                            'variant' => $assignment->publish_state === 'published' ? 'success' : 'warning',
-                            'policy' => $assignment->policyGroup?->code ?? '-',
-                            'title' => $title,
-                            'day_type' => $dayType,
-                            'day_type_label' => $dayTypeLabel,
-                            'on_non_working_day' => $dayType !== AttendanceDay::DAY_TYPE_NORMAL,
-                            'shift_template_id' => (int) ($assignment->attendance_shift_template_id ?? 0),
-                            'policy_group_id' => (int) ($assignment->attendance_policy_group_id ?? 0),
-                        ]];
-                    }
-
-                    if (isset($selectedLookup[$employee->id]) && $proposedShift !== null && $this->dateWithinDraftRange($day['date'])) {
-                        $title = __('Unsaved roster preview');
-                        if ($dayType !== AttendanceDay::DAY_TYPE_NORMAL) {
-                            $title .= ' · '.__('on :day', ['day' => $dayTypeLabel]);
-                        }
-
-                        return [$day['date'] => [
-                            'label' => $proposedShift,
-                            'state' => 'preview',
-                            'variant' => 'info',
-                            'policy' => $this->selectedPolicyGroupCode() ?? '-',
-                            'title' => $title,
-                            'day_type' => $dayType,
-                            'day_type_label' => $dayTypeLabel,
-                            'on_non_working_day' => $dayType !== AttendanceDay::DAY_TYPE_NORMAL,
-                            'shift_template_id' => (int) ($this->rosterShiftTemplateId ?: 0),
-                            'policy_group_id' => (int) ($this->rosterPolicyGroupId ?: 0),
-                        ]];
-                    }
-
-                    return [$day['date'] => [
-                        'label' => $dayType === AttendanceDay::DAY_TYPE_NORMAL ? '-' : $dayTypeLabel,
-                        'state' => 'empty',
-                        'variant' => 'default',
-                        'policy' => '-',
-                        'title' => $dayType === AttendanceDay::DAY_TYPE_NORMAL
-                            ? __('No roster assignment')
-                            : __(':day — no assignment', ['day' => $dayTypeLabel]),
-                        'day_type' => $dayType,
-                        'day_type_label' => $dayTypeLabel,
-                        'on_non_working_day' => false,
-                        'shift_template_id' => 0,
-                        'policy_group_id' => 0,
-                    ]];
-                })->all(),
+                'group' => $this->employeeGroupLabel($employee),
+                'cells' => collect($days)->mapWithKeys(
+                    fn (array $day): array => [
+                        $day['date'] => $this->rosterGridCell($employee, $day, $employeeAssignments, $selectedLookup, $proposedShift, $calendar),
+                    ],
+                )->all(),
             ];
         })->sortBy('group')->values();
+    }
+
+    private function employeeGroupLabel(Employee $employee): string
+    {
+        return $employee->department?->name
+            ?? $employee->workProfile?->organizationUnit?->name
+            ?? $employee->workProfile?->workforceClass?->name
+            ?? '-';
+    }
+
+    /**
+     * @param  array{date: string, day: string, label: string}  $day
+     * @param  Collection<int, AttendanceRosterAssignment>  $employeeAssignments
+     * @param  array<int, true>  $selectedLookup
+     * @return array<string, mixed>
+     */
+    private function rosterGridCell(
+        Employee $employee,
+        array $day,
+        Collection $employeeAssignments,
+        array $selectedLookup,
+        ?string $proposedShift,
+        AttendanceCalendarResolver $calendar,
+    ): array {
+        $dayType = $calendar->dayType($employee, $day['date']);
+        $dayTypeLabel = $this->dayTypeLabel($dayType);
+        $assignment = $this->assignmentForGridDate($employeeAssignments, $day['date']);
+
+        if ($assignment instanceof AttendanceRosterAssignment) {
+            return $this->buildAssignedCell($assignment, $day, $dayType, $dayTypeLabel);
+        }
+
+        if (isset($selectedLookup[$employee->id]) && $proposedShift !== null && $this->dateWithinDraftRange($day['date'])) {
+            return $this->buildPreviewCell($proposedShift, $dayType, $dayTypeLabel);
+        }
+
+        return $this->buildEmptyCell($dayType, $dayTypeLabel);
+    }
+
+    /**
+     * @param  array{date: string, day: string, label: string}  $day
+     * @return array<string, mixed>
+     */
+    private function buildAssignedCell(
+        AttendanceRosterAssignment $assignment,
+        array $day,
+        string $dayType,
+        string $dayTypeLabel,
+    ): array {
+        $title = __(':state assignment, policy :policy', [
+            'state' => $this->statusLabel($assignment->publish_state),
+            'policy' => $assignment->policyGroup?->code ?? '-',
+        ]);
+        if ($dayType !== AttendanceDay::DAY_TYPE_NORMAL) {
+            $title .= ' · '.__('on :day', ['day' => $dayTypeLabel]);
+        }
+
+        return [
+            'label' => $this->shiftCodeForGrid($assignment, $day['date']),
+            'state' => $assignment->publish_state,
+            'variant' => $assignment->publish_state === 'published' ? 'success' : 'warning',
+            'policy' => $assignment->policyGroup?->code ?? '-',
+            'title' => $title,
+            'day_type' => $dayType,
+            'day_type_label' => $dayTypeLabel,
+            'on_non_working_day' => $dayType !== AttendanceDay::DAY_TYPE_NORMAL,
+            'shift_template_id' => (int) ($assignment->attendance_shift_template_id ?? 0),
+            'policy_group_id' => (int) ($assignment->attendance_policy_group_id ?? 0),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildPreviewCell(string $proposedShift, string $dayType, string $dayTypeLabel): array
+    {
+        $title = __('Unsaved roster preview');
+        if ($dayType !== AttendanceDay::DAY_TYPE_NORMAL) {
+            $title .= ' · '.__('on :day', ['day' => $dayTypeLabel]);
+        }
+
+        return [
+            'label' => $proposedShift,
+            'state' => 'preview',
+            'variant' => 'info',
+            'policy' => $this->selectedPolicyGroupCode() ?? '-',
+            'title' => $title,
+            'day_type' => $dayType,
+            'day_type_label' => $dayTypeLabel,
+            'on_non_working_day' => $dayType !== AttendanceDay::DAY_TYPE_NORMAL,
+            'shift_template_id' => (int) ($this->rosterShiftTemplateId ?: 0),
+            'policy_group_id' => (int) ($this->rosterPolicyGroupId ?: 0),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildEmptyCell(string $dayType, string $dayTypeLabel): array
+    {
+        $isNormal = $dayType === AttendanceDay::DAY_TYPE_NORMAL;
+
+        return [
+            'label' => $isNormal ? '-' : $dayTypeLabel,
+            'state' => 'empty',
+            'variant' => 'default',
+            'policy' => '-',
+            'title' => $isNormal
+                ? __('No roster assignment')
+                : __(':day — no assignment', ['day' => $dayTypeLabel]),
+            'day_type' => $dayType,
+            'day_type_label' => $dayTypeLabel,
+            'on_non_working_day' => false,
+            'shift_template_id' => 0,
+            'policy_group_id' => 0,
+        ];
     }
 
     private function dayTypeLabel(string $dayType): string

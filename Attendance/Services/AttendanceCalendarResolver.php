@@ -61,13 +61,7 @@ class AttendanceCalendarResolver
     {
         $startDate = CarbonImmutable::parse($start)->toDateString();
         $endDate = CarbonImmutable::parse($end)->toDateString();
-        $employeeIds = [];
-
-        foreach ($employees as $employee) {
-            if ($employee instanceof Employee) {
-                $employeeIds[] = $employee->id;
-            }
-        }
+        $employeeIds = $this->collectEmployeeIds($employees);
 
         if ($employeeIds === []) {
             $this->holidayLookup = $this->holidayLookup ?? [];
@@ -75,6 +69,39 @@ class AttendanceCalendarResolver
             return;
         }
 
+        $calendarIds = $this->primeWorkCalendarCache($employeeIds);
+        $this->extendHolidayLookupRange($startDate, $endDate);
+
+        if ($calendarIds === []) {
+            return;
+        }
+
+        $this->loadHolidayExceptions($calendarIds, $startDate, $endDate);
+        $this->loadCalendarMetadata($calendarIds);
+    }
+
+    /**
+     * @param  iterable<Employee>  $employees
+     * @return list<int>
+     */
+    private function collectEmployeeIds(iterable $employees): array
+    {
+        $ids = [];
+        foreach ($employees as $employee) {
+            if ($employee instanceof Employee) {
+                $ids[] = $employee->id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param  list<int>  $employeeIds
+     * @return array<int, true>
+     */
+    private function primeWorkCalendarCache(array $employeeIds): array
+    {
         $profiles = EmployeeWorkProfile::query()
             ->whereIn('employee_id', $employeeIds)
             ->orderByDesc('hired_on')
@@ -99,6 +126,11 @@ class AttendanceCalendarResolver
             }
         }
 
+        return $calendarIds;
+    }
+
+    private function extendHolidayLookupRange(string $startDate, string $endDate): void
+    {
         $this->holidayLookup = $this->holidayLookup ?? [];
         $this->holidayLookupStart = $this->holidayLookupStart === null || $startDate < $this->holidayLookupStart
             ? $startDate
@@ -106,11 +138,13 @@ class AttendanceCalendarResolver
         $this->holidayLookupEnd = $this->holidayLookupEnd === null || $endDate > $this->holidayLookupEnd
             ? $endDate
             : $this->holidayLookupEnd;
+    }
 
-        if ($calendarIds === []) {
-            return;
-        }
-
+    /**
+     * @param  array<int, true>  $calendarIds
+     */
+    private function loadHolidayExceptions(array $calendarIds, string $startDate, string $endDate): void
+    {
         $exceptions = PeopleCalendarException::query()
             ->whereIn('work_calendar_id', array_keys($calendarIds))
             ->whereBetween('occurs_on', [$startDate, $endDate])
@@ -121,21 +155,29 @@ class AttendanceCalendarResolver
             $key = ((int) $exception->work_calendar_id).'|'.CarbonImmutable::parse($exception->occurs_on)->toDateString();
             $this->holidayLookup[$key] = true;
         }
+    }
 
+    /**
+     * @param  array<int, true>  $calendarIds
+     */
+    private function loadCalendarMetadata(array $calendarIds): void
+    {
         $missingMetadataIds = array_diff(array_keys($calendarIds), array_keys($this->metadataCache));
-        if ($missingMetadataIds !== []) {
-            $rows = PeopleReferenceEntry::query()
-                ->whereIn('id', $missingMetadataIds)
-                ->get(['id', 'metadata']);
+        if ($missingMetadataIds === []) {
+            return;
+        }
 
-            foreach ($rows as $row) {
-                $this->metadataCache[(int) $row->id] = is_array($row->metadata) ? $row->metadata : [];
-            }
+        $rows = PeopleReferenceEntry::query()
+            ->whereIn('id', $missingMetadataIds)
+            ->get(['id', 'metadata']);
 
-            foreach ($missingMetadataIds as $calendarId) {
-                if (! array_key_exists($calendarId, $this->metadataCache)) {
-                    $this->metadataCache[$calendarId] = [];
-                }
+        foreach ($rows as $row) {
+            $this->metadataCache[(int) $row->id] = is_array($row->metadata) ? $row->metadata : [];
+        }
+
+        foreach ($missingMetadataIds as $calendarId) {
+            if (! array_key_exists($calendarId, $this->metadataCache)) {
+                $this->metadataCache[$calendarId] = [];
             }
         }
     }
