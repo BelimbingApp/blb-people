@@ -34,7 +34,7 @@ return new class extends Migration
                 'effective_from',
                 'effective_to',
             ], 'people_payroll_employee_statutory_profiles_effective_index');
-            $table->index(['company_id', 'country_iso'], 'people_payroll_employee_statutory_profiles_company_country_index');
+            $table->index(['company_id', 'country_iso'], 'people_payroll_employee_stat_profiles_company_country_index');
         });
     }
 

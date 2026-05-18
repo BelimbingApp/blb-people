@@ -165,7 +165,7 @@ return new class extends Migration
         Schema::create('people_notification_delivery_logs', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->nullable()->constrained('companies')->cascadeOnDelete();
-            $table->nullableMorphs('notifiable');
+            $table->nullableMorphs('notifiable', 'people_delivery_logs_notifiable_index');
             $table->string('channel')->index();
             $table->string('recipient')->nullable();
             $table->string('subject')->nullable();

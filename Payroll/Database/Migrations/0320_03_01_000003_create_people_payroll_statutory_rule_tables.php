@@ -30,13 +30,13 @@ return new class extends Migration
                 'source_pack',
                 'source_version',
                 'effective_from',
-            ], 'payroll_statutory_rule_sets_unique_effective_key');
+            ], 'people_payroll_stat_rule_sets_effective_unique');
             $table->index([
                 'country_iso',
                 'rule_key',
                 'effective_from',
                 'effective_to',
-            ], 'payroll_statutory_rule_sets_effective_index');
+            ], 'people_payroll_stat_rule_sets_effective_index');
         });
         $this->registerTable('people_payroll_statutory_rule_sets');
 
@@ -56,8 +56,8 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->index(['payroll_statutory_rule_set_id', 'sort_order'], 'payroll_statutory_rule_rows_set_order_index');
-            $table->index(['payroll_statutory_rule_set_id', 'min_wage', 'max_wage'], 'payroll_statutory_rule_rows_wage_band_index');
+            $table->index(['payroll_statutory_rule_set_id', 'sort_order'], 'people_payroll_stat_rule_rows_set_order_index');
+            $table->index(['payroll_statutory_rule_set_id', 'min_wage', 'max_wage'], 'people_payroll_stat_rule_rows_wage_band_index');
         });
         $this->registerTable('people_payroll_statutory_rule_rows');
     }

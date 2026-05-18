@@ -22,7 +22,7 @@ return new class extends Migration
             $table->unsignedSmallInteger('expected_work_minutes')->default(480);
             $table->json('break_windows')->nullable();
             $table->json('day_type_overrides')->nullable();
-            $table->string('payroll_attribution')->default('shift_start_date');
+            $table->string('cross_midnight_attribution')->default('shift_start_date');
             $table->date('effective_from');
             $table->date('effective_to')->nullable();
             $table->string('status')->default('active')->index();
@@ -65,7 +65,7 @@ return new class extends Migration
             $table->json('overtime_rules')->nullable();
             $table->json('overtime_export_rules')->nullable();
             $table->json('lateness_export_rules')->nullable();
-            $table->json('payroll_defaults')->nullable();
+            $table->string('currency', 3)->nullable();
             $table->date('effective_from');
             $table->date('effective_to')->nullable();
             $table->unsignedInteger('version')->default(1);
@@ -85,6 +85,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
             $table->foreignId('attendance_policy_group_id')->nullable()->constrained('people_attendance_policy_groups', indexName: 'people_att_allowance_rules_policy_group_fk')->nullOnDelete();
+            $table->foreignId('attendance_shift_template_id')->nullable()->constrained('people_attendance_shift_templates', indexName: 'people_att_allowance_rules_shift_template_fk')->nullOnDelete();
             $table->string('code');
             $table->string('name');
             $table->string('allowance_type')->default('daily');

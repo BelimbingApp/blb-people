@@ -27,7 +27,7 @@ return new class extends Migration
 
         $this->createRegisteredTable('people_payroll_pay_item_classifications', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('payroll_pay_item_id')->constrained('people_payroll_pay_items')->cascadeOnDelete();
+            $table->foreignId('payroll_pay_item_id')->constrained('people_payroll_pay_items', indexName: 'people_payroll_pay_item_classes_item_fk')->cascadeOnDelete();
             $table->char('country_iso', 2)->nullable();
             $table->string('classification_key');
             $table->string('classification_value');
