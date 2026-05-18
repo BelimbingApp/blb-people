@@ -1305,8 +1305,8 @@ class Rosters extends Component
 
     /**
      * Add per-date markers — is_today, is_weekend, and whether this date is a
-     * public holiday for at least one rendered employee — so the day-strip can
-     * highlight columns without recomputing day types from row data.
+     * public holiday for at least one rendered employee — so the roster grid
+     * can highlight columns without recomputing day types from row data.
      *
      * @param  list<array{date: string, day: string, label: string}>  $days
      * @param  Collection<int, array<string, mixed>>  $rows
