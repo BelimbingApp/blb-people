@@ -3,11 +3,12 @@
 namespace App\Modules\People\Attendance\Models;
 
 use App\Base\Database\Concerns\BelongsToCompanyAndEmployee;
+use App\Modules\People\Attendance\Models\Concerns\BelongsToAttendanceDay;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttendanceOvertimeRequest extends Model
 {
+    use BelongsToAttendanceDay;
     use BelongsToCompanyAndEmployee;
 
     public const STATUS_DRAFT = 'draft';
@@ -75,10 +76,5 @@ class AttendanceOvertimeRequest extends Model
             'paid_at' => 'datetime',
             'metadata' => 'array',
         ];
-    }
-
-    public function attendanceDay(): BelongsTo
-    {
-        return $this->belongsTo(AttendanceDay::class, 'attendance_day_id');
     }
 }
