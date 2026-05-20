@@ -2,15 +2,11 @@
 
 namespace App\Modules\People\Payroll\Livewire;
 
-use App\Base\Authz\Contracts\AuthorizationService;
-use App\Base\Authz\DTO\Actor;
-use App\Modules\Core\Company\Models\Company;
 use App\Modules\People\Claim\Models\ClaimType;
+use App\Modules\People\Payroll\Livewire\Concerns\ManagesPayrollMappingAuthorization;
 use App\Modules\People\Payroll\Models\PayrollClaimTypePayItem;
-use App\Modules\People\Payroll\Models\PayrollPayItem;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -21,6 +17,8 @@ use Livewire\Component;
  */
 class ClaimTypePayItemMapping extends Component
 {
+    use ManagesPayrollMappingAuthorization;
+
     public int $editingClaimTypeId = 0;
 
     public string $editingPayItemCode = '';
@@ -119,13 +117,7 @@ class ClaimTypePayItemMapping extends Component
             ->get()
             ->groupBy('claim_type_id');
 
-        $payItems = PayrollPayItem::query()
-            ->where('status', 'active')
-            ->where(function ($query) use ($companyId): void {
-                $query->where('company_id', $companyId)->orWhereNull('company_id');
-            })
-            ->orderBy('code')
-            ->get(['id', 'code', 'name']);
+        $payItems = $this->activePayItemsForCompany($companyId);
 
         return view('livewire.people.payroll.claim-type-pay-item-mapping', [
             'types' => $types,
@@ -146,31 +138,5 @@ class ClaimTypePayItemMapping extends Component
             ->where('claim_type_id', $type->id)
             ->orderByDesc('effective_from')
             ->first();
-    }
-
-    private function companyId(): int
-    {
-        $user = Auth::user();
-
-        return (int) ($user?->company_id ?? Company::query()->value('id') ?? 0);
-    }
-
-    private function canManage(): bool
-    {
-        $user = Auth::user();
-        if ($user === null) {
-            return false;
-        }
-
-        return app(AuthorizationService::class)
-            ->can(Actor::forUser($user), 'people.payroll.manage')
-            ->allowed;
-    }
-
-    private function authorizeManage(): void
-    {
-        if (! $this->canManage()) {
-            abort(403);
-        }
     }
 }

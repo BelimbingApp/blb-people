@@ -3,6 +3,8 @@
 namespace App\Modules\People\Claim\Services;
 
 use App\Modules\Core\Employee\Models\Employee;
+use App\Modules\People\Claim\Data\ClaimSubmissionInput;
+use App\Modules\People\Claim\Data\ClaimSubmissionSummary;
 use App\Modules\People\Claim\Exceptions\ClaimRequestLifecycleException;
 use App\Modules\People\Claim\Models\ClaimAssignment;
 use App\Modules\People\Claim\Models\ClaimAssignmentLine;
@@ -112,10 +114,12 @@ class SubmitClaimRequestService
                 $assignment,
                 $context,
                 $currency,
-                $preparation['strictest'],
-                $preparation['requested_total'],
-                count($preparation['prepared']),
-                $preparation['duplicate_risks'],
+                new ClaimSubmissionSummary(
+                    strictest: $preparation['strictest'],
+                    requestedTotal: $preparation['requested_total'],
+                    lineCount: count($preparation['prepared']),
+                    duplicateRisks: $preparation['duplicate_risks'],
+                ),
                 $options,
             );
 
@@ -221,15 +225,17 @@ class SubmitClaimRequestService
         }
 
         $evaluation = $this->policyEvaluation->evaluateBeforeSubmission(
-            employeeId: (int) $employee->getKey(),
             claimType: $claimType,
             policy: $policy,
-            incurredOn: $incurredOn,
-            requestedAmount: $requestedAmount,
-            attachmentCount: $attachmentCount,
-            providerName: $providerName,
-            combinedClaimTypeIds: $this->combinedClaimTypeIds($assignmentLine),
-            employee: $employee,
+            input: new ClaimSubmissionInput(
+                employeeId: (int) $employee->getKey(),
+                incurredOn: $incurredOn,
+                requestedAmount: $requestedAmount,
+                attachmentCount: $attachmentCount,
+                providerName: $providerName,
+                combinedClaimTypeIds: $this->combinedClaimTypeIds($assignmentLine),
+                employee: $employee,
+            ),
         );
 
         $duplicateRisks = $this->duplicateRisks->findRisks(
@@ -283,23 +289,16 @@ class SubmitClaimRequestService
         }
     }
 
-    /**
-     * @param  array<string, mixed>  $strictest
-     * @param  list<array<string, mixed>>  $duplicateRisks
-     * @param  array<string, mixed>  $options
-     */
+    /** @param  array<string, mixed>  $options */
     private function persistRequestHeader(
         Employee $employee,
         ClaimAssignment $assignment,
         ?ClaimContext $context,
         string $currency,
-        array $strictest,
-        float $requestedTotal,
-        int $lineCount,
-        array $duplicateRisks,
+        ClaimSubmissionSummary $summary,
         array $options,
     ): ClaimRequest {
-        $headerProfileKey = $strictest['approval_profile_key'];
+        $headerProfileKey = $summary->strictest['approval_profile_key'];
 
         return ClaimRequest::query()->create([
             'company_id' => $assignment->company_id,
@@ -309,20 +308,20 @@ class SubmitClaimRequestService
             'reference_number' => $this->nextReferenceNumber($assignment->company_id),
             'status' => ClaimRequest::STATUS_SUBMITTED,
             'currency' => $currency,
-            'requested_amount' => $requestedTotal,
+            'requested_amount' => $summary->requestedTotal,
             'approved_amount' => 0,
             'reimbursed_amount' => 0,
             'approval_profile_key' => $headerProfileKey,
             'approval_route_snapshot' => $headerProfileKey === null ? null : ['profile_key' => $headerProfileKey],
             'strictest_line_snapshot' => [
-                'claim_type_id' => $strictest['claim_type']?->getKey(),
-                'claim_type_code' => $strictest['claim_type']?->code,
-                'claim_type_name' => $strictest['claim_type']?->name,
-                'claim_policy_id' => $strictest['policy']?->getKey(),
-                'claim_policy_code' => $strictest['policy']?->code,
+                'claim_type_id' => $summary->strictest['claim_type']?->getKey(),
+                'claim_type_code' => $summary->strictest['claim_type']?->code,
+                'claim_type_name' => $summary->strictest['claim_type']?->name,
+                'claim_policy_id' => $summary->strictest['policy']?->getKey(),
+                'claim_policy_code' => $summary->strictest['policy']?->code,
                 'approval_profile_key' => $headerProfileKey,
-                'line_index' => $strictest['index'],
-                'requested_amount' => (float) $strictest['requested_amount'],
+                'line_index' => $summary->strictest['index'],
+                'requested_amount' => (float) $summary->strictest['requested_amount'],
             ],
             'submitted_by_user_id' => $options['submitted_by_user_id'] ?? null,
             'on_behalf_actor_user_id' => $options['on_behalf_actor_user_id'] ?? null,
@@ -330,8 +329,8 @@ class SubmitClaimRequestService
             'submitted_at' => now(),
             'metadata' => [
                 'source' => 'claim-workbench',
-                'duplicate_risks' => $duplicateRisks,
-                'line_count' => $lineCount,
+                'duplicate_risks' => $summary->duplicateRisks,
+                'line_count' => $summary->lineCount,
             ],
         ]);
     }

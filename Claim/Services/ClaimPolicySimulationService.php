@@ -3,6 +3,7 @@
 namespace App\Modules\People\Claim\Services;
 
 use App\Modules\Core\Employee\Models\Employee;
+use App\Modules\People\Claim\Data\ClaimSubmissionInput;
 use App\Modules\People\Claim\Models\ClaimAssignmentLine;
 use DateTimeImmutable;
 
@@ -50,14 +51,16 @@ class ClaimPolicySimulationService
         }
 
         $evaluation = $this->policyEvaluation->evaluateBeforeSubmission(
-            employeeId: (int) $employee->getKey(),
             claimType: $claimType,
             policy: $policy,
-            incurredOn: $incurredOn,
-            requestedAmount: $requestedAmount,
-            attachmentCount: $attachmentCount,
-            providerName: $providerName,
-            employee: $employee,
+            input: new ClaimSubmissionInput(
+                employeeId: (int) $employee->getKey(),
+                incurredOn: $incurredOn,
+                requestedAmount: $requestedAmount,
+                attachmentCount: $attachmentCount,
+                providerName: $providerName,
+                employee: $employee,
+            ),
         );
 
         $blocking = [...$cohortBlocking, ...$evaluation['blocking']];

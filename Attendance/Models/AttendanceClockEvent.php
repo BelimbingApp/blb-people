@@ -3,11 +3,12 @@
 namespace App\Modules\People\Attendance\Models;
 
 use App\Base\Database\Concerns\BelongsToCompanyAndEmployee;
+use App\Modules\People\Attendance\Models\Concerns\BelongsToAttendanceDay;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttendanceClockEvent extends Model
 {
+    use BelongsToAttendanceDay;
     use BelongsToCompanyAndEmployee;
 
     public const TYPE_IN = 'in';
@@ -62,10 +63,5 @@ class AttendanceClockEvent extends Model
             'photo_evidence_present' => 'bool',
             'metadata' => 'array',
         ];
-    }
-
-    public function attendanceDay(): BelongsTo
-    {
-        return $this->belongsTo(AttendanceDay::class, 'attendance_day_id');
     }
 }

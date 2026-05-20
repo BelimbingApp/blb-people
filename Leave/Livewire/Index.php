@@ -6,6 +6,7 @@ use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Employee\Models\Employee;
+use App\Modules\People\Leave\Livewire\Concerns\HasLeaveBalanceActions;
 use App\Modules\People\Leave\Models\LeaveAssignment;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
@@ -14,8 +15,6 @@ use App\Modules\People\Leave\Models\LeaveRequest;
 use App\Modules\People\Leave\Models\LeaveRequestPolicy;
 use App\Modules\People\Leave\Models\LeaveType;
 use App\Modules\People\Leave\Services\ApproveLeaveRequestService;
-use App\Modules\People\Leave\Services\CarryForwardService;
-use App\Modules\People\Leave\Services\LeaveBalanceLedgerService;
 use App\Modules\People\Leave\Services\LeaveBalanceStatementBuilder;
 use App\Modules\People\Leave\Services\LeaveCountryPackRegistry;
 use App\Modules\People\Leave\Services\RejectLeaveRequestService;
@@ -33,6 +32,7 @@ class Index extends Component
 {
     private const DEFAULT_EFFECTIVE_FROM = '2026-01-01';
 
+    use HasLeaveBalanceActions;
     use WithPagination;
 
     public string $surface = 'my';
@@ -57,94 +57,150 @@ class Index extends Component
 
     // Leave type form
     public string $typeCode = '';
+
     public string $typeName = '';
+
     public string $typeDefaultUnit = LeaveType::UNIT_DAY;
+
     public bool $typePaid = true;
+
     public bool $typeInteractsWithPayroll = false;
+
     public bool $typeCompulsoryAttachment = false;
 
     // Entitlement policy form
     public string $entitlementLeaveTypeId = '';
+
     public string $entitlementCode = '';
+
     public string $entitlementName = '';
+
     public string $entitlementAccrualMethod = LeaveEntitlementPolicy::ACCRUAL_ANNUAL_LUMP_NO_PRORATE;
+
     public string $entitlementRounding = LeaveEntitlementPolicy::ROUNDING_NONE;
+
     public bool $entitlementProrateJoiners = true;
+
     public bool $entitlementProrateLeavers = true;
+
     public string $entitlementBringForwardCap = '';
+
     public string $entitlementBringForwardExpiryMonth = '';
+
     public string $entitlementBringForwardAnchor = LeaveEntitlementPolicy::ANCHOR_YEAR_START;
+
     public string $entitlementEffectiveFrom = self::DEFAULT_EFFECTIVE_FROM;
 
     // Request policy form
     public string $requestLeaveTypeId = '';
+
     public string $requestCode = '';
+
     public string $requestName = '';
+
     public bool $requestAllowNegative = false;
+
     public bool $requestIncludePending = true;
+
     public bool $requestAllowMultiplePerDay = false;
+
     public bool $requestNoCrossMonth = false;
+
     public bool $requestCompulsoryAttachment = false;
+
     public bool $requestExcludeHoliday = true;
+
     public bool $requestExcludeOffDay = true;
+
     public bool $requestExcludeRestDay = true;
+
     public string $requestMaxDaysPerApplication = '';
+
     public string $requestEffectiveFrom = self::DEFAULT_EFFECTIVE_FROM;
 
     // Assignment form
     public string $assignmentCode = '';
+
     public string $assignmentName = '';
+
     public string $assignmentLeaveTypeId = '';
+
     public string $assignmentEntitlementPolicyId = '';
+
     public string $assignmentRequestPolicyId = '';
+
     public string $assignmentEffectiveFrom = self::DEFAULT_EFFECTIVE_FROM;
 
     // Approval queue
     public ?int $selectedRequestId = null;
+
     public string $approvalReason = '';
 
     // Calendar tab
     public int $calendarYear;
+
     public string $calendarState = 'KUL';
 
     // Balances tab
     public string $balanceEmployeeId = '';
+
     public int $balanceYear;
 
     // Apply (employee self-service) tab
     public string $applyAssignmentId = '';
+
     public string $applyStartsOn = '';
+
     public string $applyEndsOn = '';
+
     public string $applyUnit = LeaveRequest::UNIT_DAY;
+
     public string $applyHoursCount = '';
+
     public bool $applyShortNotice = false;
+
     public string $applyNote = '';
 
     // Service-band editor
     public string $bandPolicyId = '';
+
     public string $bandMinYears = '0';
+
     public string $bandMaxYears = '';
+
     public string $bandDays = '';
+
     public string $bandCarryForwardOverride = '';
 
     // Cohort predicate editor (assignment form)
     public string $assignmentCohortGender = '';
+
     public string $assignmentCohortMaritalStatus = '';
+
     public string $assignmentCohortCitizenship = '';
 
     // Ledger adjustment form
     public string $adjustmentEmployeeId = '';
+
     public string $adjustmentLeaveTypeId = '';
+
     public string $adjustmentEntryType = LeaveBalanceLedgerEntry::ENTRY_OPENING;
+
     public string $adjustmentQuantity = '';
+
     public string $adjustmentUnit = 'day';
+
     public string $adjustmentNote = '';
+
     public int $adjustmentYear;
 
     // Carry-forward dry-run
     public int $carryForwardFromYear;
+
     public string $carryForwardEmployeeId = '';
+
     public string $carryForwardLeaveTypeId = '';
+
     /** @var list<array<string, mixed>> */
     public array $carryForwardPreview = [];
 
@@ -185,6 +241,7 @@ class Index extends Component
         $employeeId = $this->currentEmployeeId();
         if ($employeeId === null) {
             session()->flash('error', __('Your user account is not linked to an employee record.'));
+
             return;
         }
 
@@ -446,156 +503,6 @@ class Index extends Component
         session()->flash('success', __('Entitlement band added.'));
     }
 
-    public function recordAdjustment(): void
-    {
-        $this->authorizeManage();
-
-        $companyId = $this->companyId();
-
-        $validated = $this->validate([
-            'adjustmentEmployeeId' => ['required', 'integer', Rule::exists(Employee::class, 'id')->where('company_id', $companyId)],
-            'adjustmentLeaveTypeId' => ['required', 'integer', Rule::exists(LeaveType::class, 'id')->where('company_id', $companyId)],
-            'adjustmentEntryType' => ['required', Rule::in([
-                LeaveBalanceLedgerEntry::ENTRY_OPENING,
-                LeaveBalanceLedgerEntry::ENTRY_ADJUSTED,
-                LeaveBalanceLedgerEntry::ENTRY_ACCRUAL,
-            ])],
-            'adjustmentQuantity' => ['required', 'numeric'],
-            'adjustmentUnit' => ['required', Rule::in(['day', 'hour'])],
-            'adjustmentYear' => ['required', 'integer'],
-            'adjustmentNote' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        try {
-            $leaveType = LeaveType::query()->find((int) $validated['adjustmentLeaveTypeId']);
-
-            app(LeaveBalanceLedgerService::class)->record(
-                companyId: $companyId,
-                employeeId: (int) $validated['adjustmentEmployeeId'],
-                leaveTypeId: (int) $validated['adjustmentLeaveTypeId'],
-                leaveYear: (int) $validated['adjustmentYear'],
-                entryType: $validated['adjustmentEntryType'],
-                quantity: (float) $validated['adjustmentQuantity'],
-                unit: $validated['adjustmentUnit'],
-                sourceType: LeaveBalanceLedgerEntry::SOURCE_MANUAL_ADJUSTMENT,
-                packIdentifier: $leaveType?->pack_identifier,
-                packVersion: $leaveType?->pack_version,
-                occurredOn: new DateTimeImmutable(sprintf('%d-01-01', (int) $validated['adjustmentYear'])),
-                recordedByUserId: Auth::id(),
-                note: $validated['adjustmentNote'] ?: null,
-                metadata: ['source' => 'leave-workbench'],
-            );
-
-            $this->reset('adjustmentQuantity', 'adjustmentNote');
-            $this->showAdjustmentModal = false;
-            session()->flash('success', __('Ledger adjustment recorded.'));
-        } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
-        }
-    }
-
-    public function previewCarryForward(): void
-    {
-        $this->authorizeManage();
-
-        $companyId = $this->companyId();
-        $service = app(CarryForwardService::class);
-
-        $query = LeaveBalanceLedgerEntry::query()
-            ->where('company_id', $companyId)
-            ->where('leave_year', $this->carryForwardFromYear)
-            ->select('employee_id', 'leave_type_id')
-            ->distinct();
-
-        if ($this->carryForwardEmployeeId !== '' && ctype_digit($this->carryForwardEmployeeId)) {
-            $query->where('employee_id', (int) $this->carryForwardEmployeeId);
-        }
-
-        if ($this->carryForwardLeaveTypeId !== '' && ctype_digit($this->carryForwardLeaveTypeId)) {
-            $query->where('leave_type_id', (int) $this->carryForwardLeaveTypeId);
-        }
-
-        $pairs = $query->get();
-        $preview = [];
-
-        foreach ($pairs as $pair) {
-            $policy = LeaveEntitlementPolicy::query()
-                ->where('company_id', $companyId)
-                ->where('leave_type_id', $pair->leave_type_id)
-                ->orderByDesc('effective_from')
-                ->first();
-
-            if ($policy === null) {
-                continue;
-            }
-
-            $outcome = $service->compute(
-                companyId: $companyId,
-                employeeId: (int) $pair->employee_id,
-                leaveTypeId: (int) $pair->leave_type_id,
-                fromYear: $this->carryForwardFromYear,
-                policy: $policy,
-                dryRun: true,
-            );
-
-            $preview[] = [
-                'employee_id' => $outcome->employeeId,
-                'leave_type_id' => $outcome->leaveTypeId,
-                'remaining' => $outcome->remainingBalance,
-                'cap' => $outcome->capDays,
-                'carried' => $outcome->carriedForward,
-                'expired' => $outcome->expiredAtYearEnd,
-                'to_year' => $outcome->toYear,
-                'policy_code' => $policy->code,
-            ];
-        }
-
-        $this->carryForwardPreview = $preview;
-
-        if ($preview === []) {
-            session()->flash('error', __('No ledger entries found for the chosen filters.'));
-        }
-    }
-
-    public function commitCarryForward(): void
-    {
-        $this->authorizeManage();
-
-        if ($this->carryForwardPreview === []) {
-            session()->flash('error', __('Generate a preview first.'));
-            return;
-        }
-
-        $companyId = $this->companyId();
-        $service = app(CarryForwardService::class);
-        $count = 0;
-
-        foreach ($this->carryForwardPreview as $row) {
-            $policy = LeaveEntitlementPolicy::query()
-                ->where('company_id', $companyId)
-                ->where('leave_type_id', (int) $row['leave_type_id'])
-                ->orderByDesc('effective_from')
-                ->first();
-
-            if ($policy === null) {
-                continue;
-            }
-
-            $service->compute(
-                companyId: $companyId,
-                employeeId: (int) $row['employee_id'],
-                leaveTypeId: (int) $row['leave_type_id'],
-                fromYear: $this->carryForwardFromYear,
-                policy: $policy,
-                dryRun: false,
-            );
-            $count++;
-        }
-
-        $this->carryForwardPreview = [];
-        session()->flash('success', __('Carry-forward committed for :n (employee, leave-type) pair(s).', ['n' => $count]));
-    }
-
     public function selectRequest(int $requestId): void
     {
         $this->selectedRequestId = $requestId;
@@ -824,36 +731,6 @@ class Index extends Component
             'canManage' => $canManage,
             'canApprove' => $canApprove,
         ]);
-    }
-
-    /** @return list<array{occurs_on: string, name: string, scope: string, state_codes: list<string>, substituted: bool}> */
-    private function resolveHolidays(): array
-    {
-        $registry = app(LeaveCountryPackRegistry::class);
-
-        if (! $registry->hasCountry('MY')) {
-            return [];
-        }
-
-        $calendar = $registry->forCountry('MY')->publicHolidayCalendar();
-        $holidays = $calendar->publicHolidaysForYear($this->calendarYear, $this->calendarState ?: null);
-
-        return array_map(static fn ($h) => [
-            'occurs_on' => $h->occursOn->format('Y-m-d'),
-            'name' => $h->name,
-            'scope' => $h->scope,
-            'state_codes' => $h->stateCodes,
-            'substituted' => $h->substitutedFrom !== null,
-        ], $holidays);
-    }
-
-    private function blankToNull(mixed $value): mixed
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        return $value;
     }
 
     private function companyId(): int
