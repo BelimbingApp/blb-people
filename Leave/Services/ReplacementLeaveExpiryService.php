@@ -2,6 +2,10 @@
 
 namespace App\Modules\People\Leave\Services;
 
+use App\Modules\People\Leave\Data\LeaveLedgerEntryData;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryOptions;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySource;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySubject;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use DateTimeImmutable;
 
@@ -43,22 +47,28 @@ class ReplacementLeaveExpiryService
             }
 
             if (! $dryRun) {
-                $this->ledger->record(
-                    companyId: $entry->company_id,
-                    employeeId: $entry->employee_id,
-                    leaveTypeId: $entry->leave_type_id,
-                    leaveYear: (int) $entry->expires_on->format('Y'),
+                $this->ledger->record(new LeaveLedgerEntryData(
+                    subject: new LeaveLedgerEntrySubject(
+                        companyId: $entry->company_id,
+                        employeeId: $entry->employee_id,
+                        leaveTypeId: $entry->leave_type_id,
+                        leaveYear: (int) $entry->expires_on->format('Y'),
+                    ),
                     entryType: LeaveBalanceLedgerEntry::ENTRY_EXPIRED,
                     quantity: -1.0 * (float) $entry->quantity,
                     unit: $entry->unit,
-                    sourceType: LeaveBalanceLedgerEntry::SOURCE_REPLACEMENT_EXPIRY,
-                    sourceId: $entry->getKey(),
-                    packIdentifier: $entry->pack_identifier,
-                    packVersion: $entry->pack_version,
-                    occurredOn: $entry->expires_on,
-                    note: 'Replacement leave expired',
-                    metadata: ['original_ledger_entry_id' => $entry->getKey()],
-                );
+                    source: new LeaveLedgerEntrySource(
+                        type: LeaveBalanceLedgerEntry::SOURCE_REPLACEMENT_EXPIRY,
+                        id: $entry->getKey(),
+                    ),
+                    options: new LeaveLedgerEntryOptions(
+                        packIdentifier: $entry->pack_identifier,
+                        packVersion: $entry->pack_version,
+                        occurredOn: $entry->expires_on,
+                        note: 'Replacement leave expired',
+                        metadata: ['original_ledger_entry_id' => $entry->getKey()],
+                    ),
+                ));
             }
 
             $written++;

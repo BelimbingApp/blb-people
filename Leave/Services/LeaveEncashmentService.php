@@ -2,6 +2,11 @@
 
 namespace App\Modules\People\Leave\Services;
 
+use App\Modules\People\Leave\Data\LeaveEncashmentData;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryData;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryOptions;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySource;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySubject;
 use App\Modules\People\Leave\Events\LeaveEncashed;
 use App\Modules\People\Leave\Exceptions\LeaveEncashmentException;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
@@ -22,54 +27,52 @@ class LeaveEncashmentService
         private readonly LeaveBalanceLedgerService $ledger,
     ) {}
 
-    public function encash(
-        int $companyId,
-        int $employeeId,
-        int $leaveTypeId,
-        int $leaveYear,
-        float $days,
-        ?int $actorUserId = null,
-        ?string $note = null,
-        ?string $currency = 'MYR',
-    ): LeaveBalanceLedgerEntry {
-        if ($days <= 0.0) {
+    public function encash(LeaveEncashmentData $data): LeaveBalanceLedgerEntry
+    {
+        $options = $data->options;
+
+        if ($data->days <= 0.0) {
             throw LeaveEncashmentException::nonPositiveDays();
         }
 
-        $available = $this->ledger->balanceFor($employeeId, $leaveTypeId, $leaveYear);
-        if ($days > $available) {
-            throw LeaveEncashmentException::insufficientBalance($days, $available);
+        $available = $this->ledger->balanceFor($data->employeeId, $data->leaveTypeId, $data->leaveYear);
+        if ($data->days > $available) {
+            throw LeaveEncashmentException::insufficientBalance($data->days, $available);
         }
 
-        return DB::transaction(function () use ($companyId, $employeeId, $leaveTypeId, $leaveYear, $days, $actorUserId, $note, $currency): LeaveBalanceLedgerEntry {
-            $leaveType = LeaveType::query()->findOrFail($leaveTypeId);
+        return DB::transaction(function () use ($data, $options): LeaveBalanceLedgerEntry {
+            $leaveType = LeaveType::query()->findOrFail($data->leaveTypeId);
             $now = new DateTimeImmutable('today');
 
-            $entry = $this->ledger->record(
-                companyId: $companyId,
-                employeeId: $employeeId,
-                leaveTypeId: $leaveTypeId,
-                leaveYear: $leaveYear,
+            $entry = $this->ledger->record(new LeaveLedgerEntryData(
+                subject: new LeaveLedgerEntrySubject(
+                    companyId: $data->companyId,
+                    employeeId: $data->employeeId,
+                    leaveTypeId: $data->leaveTypeId,
+                    leaveYear: $data->leaveYear,
+                ),
                 entryType: LeaveBalanceLedgerEntry::ENTRY_ENCASHED,
-                quantity: -1.0 * $days,
+                quantity: -1.0 * $data->days,
                 unit: 'day',
-                sourceType: LeaveBalanceLedgerEntry::SOURCE_MANUAL_ADJUSTMENT,
-                packIdentifier: $leaveType->pack_identifier,
-                packVersion: $leaveType->pack_version,
-                occurredOn: now(),
-                recordedByUserId: $actorUserId,
-                note: $note ?? 'Leave encashment',
-            );
+                source: new LeaveLedgerEntrySource(LeaveBalanceLedgerEntry::SOURCE_MANUAL_ADJUSTMENT),
+                options: new LeaveLedgerEntryOptions(
+                    packIdentifier: $leaveType->pack_identifier,
+                    packVersion: $leaveType->pack_version,
+                    occurredOn: now(),
+                    recordedByUserId: $options?->actorUserId,
+                    note: $options?->note ?? 'Leave encashment',
+                ),
+            ));
 
             event(new LeaveEncashed(
-                companyId: $companyId,
-                employeeId: $employeeId,
-                leaveTypeId: $leaveTypeId,
+                companyId: $data->companyId,
+                employeeId: $data->employeeId,
+                leaveTypeId: $data->leaveTypeId,
                 leaveBalanceLedgerEntryId: (int) $entry->getKey(),
-                leaveYear: $leaveYear,
+                leaveYear: $data->leaveYear,
                 occurredOn: $now,
-                days: $days,
-                currency: (string) ($currency ?? 'MYR'),
+                days: $data->days,
+                currency: (string) ($options?->currency ?? 'MYR'),
             ));
 
             return $entry;

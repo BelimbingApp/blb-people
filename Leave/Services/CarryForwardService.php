@@ -3,6 +3,11 @@
 namespace App\Modules\People\Leave\Services;
 
 use App\Modules\People\Leave\Data\CarryForwardOutcome;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryData;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryOptions;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryPolicySnapshot;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySource;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySubject;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
 use App\Modules\People\Leave\Models\LeaveType;
@@ -60,43 +65,50 @@ class CarryForwardService
                 : null;
 
             if ($outcome->carriedForward > 0.0) {
-                $this->ledger->record(
-                    companyId: $companyId,
-                    employeeId: $employeeId,
-                    leaveTypeId: $leaveTypeId,
-                    leaveYear: $outcome->toYear,
+                $this->ledger->record(new LeaveLedgerEntryData(
+                    subject: new LeaveLedgerEntrySubject(
+                        companyId: $companyId,
+                        employeeId: $employeeId,
+                        leaveTypeId: $leaveTypeId,
+                        leaveYear: $outcome->toYear,
+                    ),
                     entryType: LeaveBalanceLedgerEntry::ENTRY_CARRIED_FORWARD,
                     quantity: $outcome->carriedForward,
                     unit: 'day',
-                    sourceType: LeaveBalanceLedgerEntry::SOURCE_CARRY_FORWARD_JOB,
-                    sourceId: null,
-                    entitlementPolicy: $policy,
-                    packIdentifier: $leaveType?->pack_identifier,
-                    packVersion: $leaveType?->pack_version,
-                    occurredOn: new \DateTimeImmutable($outcome->toYear.'-01-01'),
-                    expiresOn: $expiresOn instanceof \DateTimeImmutable ? $expiresOn : null,
-                    note: sprintf('Carried forward from %d (cap %.2f)', $fromYear, $outcome->capDays),
-                    metadata: ['cap_days' => $outcome->capDays, 'anchor' => $outcome->anchor],
-                );
+                    source: new LeaveLedgerEntrySource(LeaveBalanceLedgerEntry::SOURCE_CARRY_FORWARD_JOB),
+                    policy: new LeaveLedgerEntryPolicySnapshot(entitlement: $policy),
+                    options: new LeaveLedgerEntryOptions(
+                        packIdentifier: $leaveType?->pack_identifier,
+                        packVersion: $leaveType?->pack_version,
+                        occurredOn: new \DateTimeImmutable($outcome->toYear.'-01-01'),
+                        expiresOn: $expiresOn instanceof \DateTimeImmutable ? $expiresOn : null,
+                        note: sprintf('Carried forward from %d (cap %.2f)', $fromYear, $outcome->capDays),
+                        metadata: ['cap_days' => $outcome->capDays, 'anchor' => $outcome->anchor],
+                    ),
+                ));
             }
 
             if ($outcome->expiredAtYearEnd > 0.0) {
-                $this->ledger->record(
-                    companyId: $companyId,
-                    employeeId: $employeeId,
-                    leaveTypeId: $leaveTypeId,
-                    leaveYear: $fromYear,
+                $this->ledger->record(new LeaveLedgerEntryData(
+                    subject: new LeaveLedgerEntrySubject(
+                        companyId: $companyId,
+                        employeeId: $employeeId,
+                        leaveTypeId: $leaveTypeId,
+                        leaveYear: $fromYear,
+                    ),
                     entryType: LeaveBalanceLedgerEntry::ENTRY_EXPIRED,
                     quantity: -1.0 * $outcome->expiredAtYearEnd,
                     unit: 'day',
-                    sourceType: LeaveBalanceLedgerEntry::SOURCE_CARRY_FORWARD_JOB,
-                    entitlementPolicy: $policy,
-                    packIdentifier: $leaveType?->pack_identifier,
-                    packVersion: $leaveType?->pack_version,
-                    occurredOn: new \DateTimeImmutable($fromYear.'-12-31'),
-                    note: sprintf('Expired at year-end (above cap of %.2f days)', $outcome->capDays),
-                    metadata: ['cap_days' => $outcome->capDays],
-                );
+                    source: new LeaveLedgerEntrySource(LeaveBalanceLedgerEntry::SOURCE_CARRY_FORWARD_JOB),
+                    policy: new LeaveLedgerEntryPolicySnapshot(entitlement: $policy),
+                    options: new LeaveLedgerEntryOptions(
+                        packIdentifier: $leaveType?->pack_identifier,
+                        packVersion: $leaveType?->pack_version,
+                        occurredOn: new \DateTimeImmutable($fromYear.'-12-31'),
+                        note: sprintf('Expired at year-end (above cap of %.2f days)', $outcome->capDays),
+                        metadata: ['cap_days' => $outcome->capDays],
+                    ),
+                ));
             }
         });
 

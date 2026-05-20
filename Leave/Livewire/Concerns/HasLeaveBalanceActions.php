@@ -3,6 +3,10 @@
 namespace App\Modules\People\Leave\Livewire\Concerns;
 
 use App\Modules\Core\Employee\Models\Employee;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryData;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryOptions;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySource;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySubject;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
 use App\Modules\People\Leave\Models\LeaveType;
@@ -39,22 +43,26 @@ trait HasLeaveBalanceActions
         try {
             $leaveType = LeaveType::query()->find((int) $validated['adjustmentLeaveTypeId']);
 
-            app(LeaveBalanceLedgerService::class)->record(
-                companyId: $companyId,
-                employeeId: (int) $validated['adjustmentEmployeeId'],
-                leaveTypeId: (int) $validated['adjustmentLeaveTypeId'],
-                leaveYear: (int) $validated['adjustmentYear'],
+            app(LeaveBalanceLedgerService::class)->record(new LeaveLedgerEntryData(
+                subject: new LeaveLedgerEntrySubject(
+                    companyId: $companyId,
+                    employeeId: (int) $validated['adjustmentEmployeeId'],
+                    leaveTypeId: (int) $validated['adjustmentLeaveTypeId'],
+                    leaveYear: (int) $validated['adjustmentYear'],
+                ),
                 entryType: $validated['adjustmentEntryType'],
                 quantity: (float) $validated['adjustmentQuantity'],
                 unit: $validated['adjustmentUnit'],
-                sourceType: LeaveBalanceLedgerEntry::SOURCE_MANUAL_ADJUSTMENT,
-                packIdentifier: $leaveType?->pack_identifier,
-                packVersion: $leaveType?->pack_version,
-                occurredOn: new DateTimeImmutable(sprintf('%d-01-01', (int) $validated['adjustmentYear'])),
-                recordedByUserId: Auth::id(),
-                note: $validated['adjustmentNote'] ?: null,
-                metadata: ['source' => 'leave-workbench'],
-            );
+                source: new LeaveLedgerEntrySource(LeaveBalanceLedgerEntry::SOURCE_MANUAL_ADJUSTMENT),
+                options: new LeaveLedgerEntryOptions(
+                    packIdentifier: $leaveType?->pack_identifier,
+                    packVersion: $leaveType?->pack_version,
+                    occurredOn: new DateTimeImmutable(sprintf('%d-01-01', (int) $validated['adjustmentYear'])),
+                    recordedByUserId: Auth::id(),
+                    note: $validated['adjustmentNote'] ?: null,
+                    metadata: ['source' => 'leave-workbench'],
+                ),
+            ));
 
             $this->reset('adjustmentQuantity', 'adjustmentNote');
             $this->showAdjustmentModal = false;

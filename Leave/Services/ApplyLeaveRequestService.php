@@ -2,6 +2,11 @@
 
 namespace App\Modules\People\Leave\Services;
 
+use App\Modules\People\Leave\Data\LeaveLedgerEntryData;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryOptions;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryPolicySnapshot;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySource;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySubject;
 use App\Modules\People\Leave\Exceptions\LeaveRequestLifecycleException;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveRequest;
@@ -35,27 +40,35 @@ class ApplyLeaveRequestService
             $entitlementPolicy = $request->assignment?->entitlementPolicy;
             $requestPolicy = $request->assignment?->requestPolicy;
 
-            $entry = $this->ledger->record(
-                companyId: $request->company_id,
-                employeeId: $request->employee_id,
-                leaveTypeId: $request->leave_type_id,
-                leaveYear: (int) $request->starts_on->format('Y'),
+            $entry = $this->ledger->record(new LeaveLedgerEntryData(
+                subject: new LeaveLedgerEntrySubject(
+                    companyId: $request->company_id,
+                    employeeId: $request->employee_id,
+                    leaveTypeId: $request->leave_type_id,
+                    leaveYear: (int) $request->starts_on->format('Y'),
+                ),
                 entryType: LeaveBalanceLedgerEntry::ENTRY_TAKEN,
                 quantity: -1.0 * (float) $request->quantity,
                 unit: $request->unit === LeaveRequest::UNIT_HOUR ? 'hour' : 'day',
-                sourceType: LeaveBalanceLedgerEntry::SOURCE_LEAVE_REQUEST,
-                sourceId: $request->getKey(),
-                entitlementPolicy: $entitlementPolicy,
-                requestPolicy: $requestPolicy,
-                packIdentifier: $leaveType?->pack_identifier,
-                packVersion: $leaveType?->pack_version,
-                occurredOn: $request->starts_on,
-                recordedByUserId: $actorUserId,
-                metadata: [
-                    'leave_request_status' => LeaveRequest::STATUS_APPLIED,
-                    'on_behalf_actor_user_id' => $request->on_behalf_actor_user_id,
-                ],
-            );
+                source: new LeaveLedgerEntrySource(
+                    type: LeaveBalanceLedgerEntry::SOURCE_LEAVE_REQUEST,
+                    id: $request->getKey(),
+                ),
+                policy: new LeaveLedgerEntryPolicySnapshot(
+                    entitlement: $entitlementPolicy,
+                    request: $requestPolicy,
+                ),
+                options: new LeaveLedgerEntryOptions(
+                    packIdentifier: $leaveType?->pack_identifier,
+                    packVersion: $leaveType?->pack_version,
+                    occurredOn: $request->starts_on,
+                    recordedByUserId: $actorUserId,
+                    metadata: [
+                        'leave_request_status' => LeaveRequest::STATUS_APPLIED,
+                        'on_behalf_actor_user_id' => $request->on_behalf_actor_user_id,
+                    ],
+                ),
+            ));
 
             $request->status = LeaveRequest::STATUS_APPLIED;
             $request->applied_at = now();

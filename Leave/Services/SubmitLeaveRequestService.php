@@ -7,6 +7,8 @@ use App\Modules\People\Leave\Contracts\RoutesLeaveApprovals;
 use App\Modules\People\Leave\Data\LeaveApprovalIntent;
 use App\Modules\People\Leave\Data\LeaveDayBreakdown;
 use App\Modules\People\Leave\Data\LeaveDaysPreview;
+use App\Modules\People\Leave\Data\LeaveDaysPreviewInput;
+use App\Modules\People\Leave\Data\LeaveDaysPreviewOptions;
 use App\Modules\People\Leave\Data\LeaveSubmissionContext;
 use App\Modules\People\Leave\Data\LeaveValidationIssue;
 use App\Modules\People\Leave\Exceptions\LeaveRequestValidationException;
@@ -46,16 +48,18 @@ class SubmitLeaveRequestService
             $requestPolicy = $assignment->requestPolicy;
             $entitlementPolicy = $assignment->entitlementPolicy;
 
-            $preview = $this->daysBuilder->preview(
+            $preview = $this->daysBuilder->preview(new LeaveDaysPreviewInput(
                 employee: $employee,
                 startsOn: $startsOn,
                 endsOn: $endsOn,
-                unit: $unit,
-                hoursCount: $hoursCount,
                 policy: $requestPolicy,
-                countryIso: $options['country_iso'] ?? null,
-                stateCode: $options['state_code'] ?? null,
-            );
+                unit: $unit,
+                options: new LeaveDaysPreviewOptions(
+                    hoursCount: $hoursCount,
+                    countryIso: $options['country_iso'] ?? null,
+                    stateCode: $options['state_code'] ?? null,
+                ),
+            ));
 
             $attachmentCount = (int) ($options['attachment_count'] ?? 0);
             $issues = $this->validate(

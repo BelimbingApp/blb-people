@@ -2,6 +2,11 @@
 
 namespace App\Modules\People\Leave\Services;
 
+use App\Modules\People\Leave\Data\LeaveLedgerEntryData;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryOptions;
+use App\Modules\People\Leave\Data\LeaveLedgerEntryPolicySnapshot;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySource;
+use App\Modules\People\Leave\Data\LeaveLedgerEntrySubject;
 use App\Modules\People\Leave\Exceptions\LeaveRequestLifecycleException;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
 use App\Modules\People\Leave\Models\LeaveRequest;
@@ -45,25 +50,33 @@ class WithdrawLeaveRequestService
                 $entitlementPolicy = $request->assignment?->entitlementPolicy;
                 $requestPolicy = $request->assignment?->requestPolicy;
 
-                $this->ledger->record(
-                    companyId: $request->company_id,
-                    employeeId: $request->employee_id,
-                    leaveTypeId: $request->leave_type_id,
-                    leaveYear: (int) $request->starts_on->format('Y'),
+                $this->ledger->record(new LeaveLedgerEntryData(
+                    subject: new LeaveLedgerEntrySubject(
+                        companyId: $request->company_id,
+                        employeeId: $request->employee_id,
+                        leaveTypeId: $request->leave_type_id,
+                        leaveYear: (int) $request->starts_on->format('Y'),
+                    ),
                     entryType: LeaveBalanceLedgerEntry::ENTRY_CANCELLED,
                     quantity: (float) $request->quantity,
                     unit: $request->unit === LeaveRequest::UNIT_HOUR ? 'hour' : 'day',
-                    sourceType: LeaveBalanceLedgerEntry::SOURCE_LEAVE_REQUEST,
-                    sourceId: $request->getKey(),
-                    entitlementPolicy: $entitlementPolicy,
-                    requestPolicy: $requestPolicy,
-                    packIdentifier: $leaveType?->pack_identifier,
-                    packVersion: $leaveType?->pack_version,
-                    occurredOn: $request->starts_on,
-                    recordedByUserId: $actorUserId,
-                    note: 'Withdrawal of applied leave request',
-                    metadata: ['reverses_ledger_entry_id' => $request->applied_ledger_entry_id, 'reason' => $reason],
-                );
+                    source: new LeaveLedgerEntrySource(
+                        type: LeaveBalanceLedgerEntry::SOURCE_LEAVE_REQUEST,
+                        id: $request->getKey(),
+                    ),
+                    policy: new LeaveLedgerEntryPolicySnapshot(
+                        entitlement: $entitlementPolicy,
+                        request: $requestPolicy,
+                    ),
+                    options: new LeaveLedgerEntryOptions(
+                        packIdentifier: $leaveType?->pack_identifier,
+                        packVersion: $leaveType?->pack_version,
+                        occurredOn: $request->starts_on,
+                        recordedByUserId: $actorUserId,
+                        note: 'Withdrawal of applied leave request',
+                        metadata: ['reverses_ledger_entry_id' => $request->applied_ledger_entry_id, 'reason' => $reason],
+                    ),
+                ));
             }
 
             $request->status = LeaveRequest::STATUS_WITHDRAWN;

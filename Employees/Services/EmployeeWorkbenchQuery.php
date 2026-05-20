@@ -5,6 +5,7 @@ namespace App\Modules\People\Employees\Services;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Settings\Models\PeopleReferenceEntry;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -157,7 +158,7 @@ class EmployeeWorkbenchQuery
     }
 
     /**
-     * @return list<string|\Illuminate\Database\Query\Expression>
+     * @return list<string|Expression>
      */
     private function workProfileSelectColumns(bool $hasWorkProfiles): array
     {
@@ -179,7 +180,7 @@ class EmployeeWorkbenchQuery
     }
 
     /**
-     * @return list<string|\Illuminate\Database\Query\Expression>
+     * @return list<string|Expression>
      */
     private function referenceSelectColumns(bool $hasReferenceEntries): array
     {
@@ -251,7 +252,7 @@ class EmployeeWorkbenchQuery
     }
 
     /**
-     * @return list<string|\Illuminate\Database\Query\Expression>
+     * @return list<string|Expression>
      */
     private function portalAccessSelectColumns(bool $hasPortalAccesses): array
     {

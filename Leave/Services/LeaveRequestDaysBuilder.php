@@ -2,15 +2,14 @@
 
 namespace App\Modules\People\Leave\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Leave\Data\LeaveDayBreakdown;
 use App\Modules\People\Leave\Data\LeaveDaysPreview;
+use App\Modules\People\Leave\Data\LeaveDaysPreviewInput;
+use App\Modules\People\Leave\Data\LeaveDaysPreviewOptions;
 use App\Modules\People\Leave\Data\WorkCalendarDay;
 use App\Modules\People\Leave\Models\LeaveRequest;
 use App\Modules\People\Leave\Models\LeaveRequestDay;
-use App\Modules\People\Leave\Models\LeaveRequestPolicy;
 use App\Modules\People\Leave\Models\LeaveType;
-use DateTimeImmutable;
 
 class LeaveRequestDaysBuilder
 {
@@ -34,23 +33,21 @@ class LeaveRequestDaysBuilder
      *   - day-of-week unit overrides (e.g. Saturday → half_day)
      *   - the requested unit (day / half_day / hour)
      */
-    public function preview(
-        Employee $employee,
-        DateTimeImmutable $startsOn,
-        DateTimeImmutable $endsOn,
-        string $unit,
-        ?float $hoursCount,
-        LeaveRequestPolicy $policy,
-        ?string $countryIso = null,
-        ?string $stateCode = null,
-        ?string $portionOverride = null,
-    ): LeaveDaysPreview {
-        $calendar = $this->calendarResolver->resolveRange($employee, $startsOn, $endsOn, $countryIso, $stateCode);
+    public function preview(LeaveDaysPreviewInput $input): LeaveDaysPreview
+    {
+        $options = $input->options ?? new LeaveDaysPreviewOptions;
+        $calendar = $this->calendarResolver->resolveRange(
+            $input->employee,
+            $input->startsOn,
+            $input->endsOn,
+            $options->countryIso,
+            $options->stateCode,
+        );
 
-        $excludeHoliday = (bool) $policy->exclude_holiday_from_count;
-        $excludeOffDay = (bool) $policy->exclude_off_day_from_count;
-        $excludeRestDay = (bool) $policy->exclude_rest_day_from_count;
-        $dowOverrides = $this->normalizeOverrides($policy->day_of_week_unit_overrides ?? []);
+        $excludeHoliday = (bool) $input->policy->exclude_holiday_from_count;
+        $excludeOffDay = (bool) $input->policy->exclude_off_day_from_count;
+        $excludeRestDay = (bool) $input->policy->exclude_rest_day_from_count;
+        $dowOverrides = $this->normalizeOverrides($input->policy->day_of_week_unit_overrides ?? []);
 
         $breakdowns = [];
         $totalDays = 0.0;
@@ -76,8 +73,8 @@ class LeaveRequestDaysBuilder
             }
 
             $dowKey = self::DOW_MAP[(int) $day->occursOn->format('w')];
-            $resolvedUnit = $unit;
-            $resolvedPortion = $portionOverride ?? LeaveRequestDay::PORTION_FULL;
+            $resolvedUnit = $input->unit;
+            $resolvedPortion = $options->portionOverride ?? LeaveRequestDay::PORTION_FULL;
             $note = null;
 
             if (isset($dowOverrides[$dowKey])) {
@@ -93,7 +90,7 @@ class LeaveRequestDaysBuilder
                 }
             }
 
-            [$countedDays, $countedHours, $portion, $hours] = $this->quantify($resolvedUnit, $resolvedPortion, $hoursCount);
+            [$countedDays, $countedHours, $portion, $hours] = $this->quantify($resolvedUnit, $resolvedPortion, $options->hoursCount);
 
             $totalDays += $countedDays;
             $totalHours += $countedHours;
@@ -110,11 +107,11 @@ class LeaveRequestDaysBuilder
             );
         }
 
-        if ($policy->max_days_per_application !== null && $totalDays > (float) $policy->max_days_per_application) {
+        if ($input->policy->max_days_per_application !== null && $totalDays > (float) $input->policy->max_days_per_application) {
             $warnings[] = sprintf(
                 'Request exceeds max-days-per-application (%.2f > %.2f)',
                 $totalDays,
-                (float) $policy->max_days_per_application,
+                (float) $input->policy->max_days_per_application,
             );
         }
 

@@ -2,10 +2,9 @@
 
 namespace App\Modules\People\Leave\Services;
 
+use App\Modules\People\Leave\Data\LeaveLedgerEntryData;
 use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
 use App\Modules\People\Leave\Models\LeaveRequest;
-use App\Modules\People\Leave\Models\LeaveRequestPolicy;
 
 /**
  * The single sanctioned writer of append-only leave ledger entries.
@@ -15,48 +14,32 @@ use App\Modules\People\Leave\Models\LeaveRequestPolicy;
  */
 class LeaveBalanceLedgerService
 {
-    /** @param array<string, mixed> $metadata */
-    public function record(
-        int $companyId,
-        int $employeeId,
-        int $leaveTypeId,
-        int $leaveYear,
-        string $entryType,
-        float $quantity,
-        string $unit,
-        string $sourceType,
-        ?int $sourceId = null,
-        ?LeaveEntitlementPolicy $entitlementPolicy = null,
-        ?LeaveRequestPolicy $requestPolicy = null,
-        ?string $packIdentifier = null,
-        ?string $packVersion = null,
-        ?\DateTimeInterface $occurredOn = null,
-        ?\DateTimeInterface $expiresOn = null,
-        ?int $recordedByUserId = null,
-        ?string $note = null,
-        array $metadata = [],
-    ): LeaveBalanceLedgerEntry {
+    public function record(LeaveLedgerEntryData $entry): LeaveBalanceLedgerEntry
+    {
+        $policy = $entry->policy;
+        $options = $entry->options;
+
         return LeaveBalanceLedgerEntry::query()->create([
-            'company_id' => $companyId,
-            'employee_id' => $employeeId,
-            'leave_type_id' => $leaveTypeId,
-            'leave_year' => $leaveYear,
-            'entry_type' => $entryType,
-            'quantity' => $quantity,
-            'unit' => $unit,
-            'source_type' => $sourceType,
-            'source_id' => $sourceId,
-            'entitlement_policy_id' => $entitlementPolicy?->getKey(),
-            'entitlement_policy_version' => $entitlementPolicy?->version,
-            'request_policy_id' => $requestPolicy?->getKey(),
-            'request_policy_version' => $requestPolicy?->version,
-            'pack_identifier' => $packIdentifier,
-            'pack_version' => $packVersion,
-            'occurred_on' => $occurredOn ?? now(),
-            'expires_on' => $expiresOn,
-            'recorded_by_user_id' => $recordedByUserId,
-            'note' => $note,
-            'metadata' => $metadata,
+            'company_id' => $entry->subject->companyId,
+            'employee_id' => $entry->subject->employeeId,
+            'leave_type_id' => $entry->subject->leaveTypeId,
+            'leave_year' => $entry->subject->leaveYear,
+            'entry_type' => $entry->entryType,
+            'quantity' => $entry->quantity,
+            'unit' => $entry->unit,
+            'source_type' => $entry->source->type,
+            'source_id' => $entry->source->id,
+            'entitlement_policy_id' => $policy?->entitlement?->getKey(),
+            'entitlement_policy_version' => $policy?->entitlement?->version,
+            'request_policy_id' => $policy?->request?->getKey(),
+            'request_policy_version' => $policy?->request?->version,
+            'pack_identifier' => $options?->packIdentifier,
+            'pack_version' => $options?->packVersion,
+            'occurred_on' => $options?->occurredOn ?? now(),
+            'expires_on' => $options?->expiresOn,
+            'recorded_by_user_id' => $options?->recordedByUserId,
+            'note' => $options?->note,
+            'metadata' => $options?->metadata ?? [],
         ]);
     }
 
