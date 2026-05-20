@@ -5,6 +5,7 @@ namespace App\Modules\People\Attendance\Livewire\Concerns;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
 use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
+use App\Modules\People\Attendance\Models\AttendanceRosterLock;
 use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
 use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
@@ -91,6 +92,12 @@ trait ManagesRosterOperations
 
         $this->authorizeAttendance('people.attendance.manage');
 
+        if ($this->isDateLocked($date)) {
+            session()->flash('error', __('This date is in a locked roster period and cannot be edited.'));
+
+            return;
+        }
+
         $resolvedShiftId = $shiftTemplateId !== null && $shiftTemplateId !== ''
             ? $shiftTemplateId
             : $this->rosterShiftTemplateId;
@@ -164,6 +171,9 @@ trait ManagesRosterOperations
             $empId = (int) ($o['employee_id'] ?? 0);
             $date = (string) ($o['date'] ?? '');
             if ($empId <= 0 || $date === '' || $date < $gridStart || $date > $gridEnd) {
+                continue;
+            }
+            if ($this->isDateLocked($date)) {
                 continue;
             }
             if (! Employee::query()->where('company_id', $companyId)->whereKey($empId)->exists()) {
@@ -257,6 +267,12 @@ trait ManagesRosterOperations
 
         if (filter_var($this->swapFromEmployeeId, FILTER_VALIDATE_INT) === false || filter_var($this->swapToEmployeeId, FILTER_VALIDATE_INT) === false || trim($this->swapDate) === '') {
             $this->addError('swapDate', __('Choose two employees and a date to swap.'));
+
+            return;
+        }
+
+        if ($this->isDateLocked($this->swapDate)) {
+            $this->addError('swapDate', __('This date is in a locked roster period and cannot be swapped.'));
 
             return;
         }
@@ -566,6 +582,56 @@ trait ManagesRosterOperations
         session()->flash('success', __('Roster assignment updated.'));
     }
 
+    public function lockRosterPeriod(string $from, string $to): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        AttendanceRosterLock::query()->updateOrCreate(
+            ['company_id' => $this->companyId(), 'period_start' => $from, 'period_end' => $to],
+            [
+                'locked_by' => (int) auth()->id(),
+                'locked_at' => now(),
+                'unlocked_at' => null,
+                'unlocked_by' => null,
+                'unlock_reason' => null,
+            ],
+        );
+
+        session()->flash('success', __('Roster period locked. Overrides are blocked until unlocked.'));
+    }
+
+    public function unlockRosterPeriod(string $from, string $to, string $reason): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.roster.unlock');
+
+        if (trim($reason) === '') {
+            $this->addError('unlockReason', __('An unlock reason is required.'));
+
+            return;
+        }
+
+        AttendanceRosterLock::query()
+            ->where('company_id', $this->companyId())
+            ->where('period_start', $from)
+            ->where('period_end', $to)
+            ->whereNull('unlocked_at')
+            ->update([
+                'unlocked_at' => now(),
+                'unlocked_by' => (int) auth()->id(),
+                'unlock_reason' => trim($reason),
+            ]);
+
+        session()->flash('success', __('Roster period unlocked.'));
+    }
+
     public function deleteRosterAssignment(int $assignmentId): void
     {
         if (! $this->ensureSchemaReady()) {
@@ -580,6 +646,16 @@ trait ManagesRosterOperations
             ->delete();
 
         session()->flash('success', __('Roster assignment deleted.'));
+    }
+
+    private function isDateLocked(string $date): bool
+    {
+        return AttendanceRosterLock::query()
+            ->where('company_id', $this->companyId())
+            ->where('period_start', '<=', $date)
+            ->where('period_end', '>=', $date)
+            ->whereNull('unlocked_at')
+            ->exists();
     }
 
     public function editRosterAssignment(int $assignmentId): void

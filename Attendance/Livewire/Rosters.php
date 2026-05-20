@@ -112,6 +112,12 @@ class Rosters extends Component
      */
     public array $lastDraftAssignmentIds = [];
 
+    /**
+     * When true, the grid overlays actual attendance outcomes from
+     * AttendanceDay records onto the planned cells.
+     */
+    public bool $actualMode = false;
+
     public function mount(): void
     {
         $this->rosterEffectiveFrom = now()->toDateString();
@@ -131,6 +137,7 @@ class Rosters extends Component
         $schemaReady = $this->schemaReady();
         $isMySchedule = $this->isMyScheduleMode();
         $canManage = $this->canAttendance('people.attendance.manage');
+        $canUnlock = $this->canAttendance('people.attendance.roster.unlock');
 
         $viewData = $schemaReady
             ? $this->renderDataForReadySchema($companyId)
@@ -139,11 +146,15 @@ class Rosters extends Component
         $gridStart = $this->gridPeriodStart()->toDateString();
         $gridEnd = $this->gridPeriodEnd()->toDateString();
         $rosterGridRows = $viewData['rosterGridRows'] ?? collect();
+        $lockedDates = $viewData['lockedDates'] ?? [];
 
         return view('livewire.people.attendance.rosters', [
             'schemaReady' => $schemaReady,
             'canManage' => $canManage,
+            'canUnlock' => $canUnlock,
             'isMySchedule' => $isMySchedule,
+            'actualMode' => $this->actualMode,
+            'currentPeriodLocked' => ! empty($lockedDates),
             'acknowledgedForPeriod' => $isMySchedule && $schemaReady ? $this->acknowledgedForPeriod($gridStart, $gridEnd) : false,
             'acknowledgmentCount' => $canManage && $schemaReady ? $this->acknowledgmentCountForPeriod($rosterGridRows, $gridStart, $gridEnd) : null,
             'gridPeriodStart' => $gridStart,

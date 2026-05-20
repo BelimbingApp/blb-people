@@ -264,15 +264,16 @@ trait BuildsRosterGrid
     }
 
     /**
-     * Add per-date markers — is_today, is_weekend, and whether this date is a
+     * Add per-date markers — is_today, is_weekend, locked status, and whether this date is a
      * public holiday for at least one rendered employee — so the roster grid
      * can highlight columns without recomputing day types from row data.
      *
      * @param  list<array{date: string, day: string, label: string}>  $days
      * @param  Collection<int, array<string, mixed>>  $rows
-     * @return list<array{date: string, day: string, day_short: string, label: string, is_today: bool, is_weekend: bool, is_holiday: bool}>
+     * @param  array<string, true>  $lockedDates
+     * @return list<array{date: string, day: string, day_short: string, label: string, is_today: bool, is_weekend: bool, is_holiday: bool, is_locked: bool}>
      */
-    private function enrichGridDays(array $days, Collection $rows): array
+    private function enrichGridDays(array $days, Collection $rows, array $lockedDates = []): array
     {
         $today = CarbonImmutable::today()->toDateString();
 
@@ -285,7 +286,7 @@ trait BuildsRosterGrid
             }
         }
 
-        return array_map(function (array $day) use ($today, $holidayDates): array {
+        return array_map(function (array $day) use ($today, $holidayDates, $lockedDates): array {
             $carbon = CarbonImmutable::parse($day['date']);
             $weekday = (int) $carbon->dayOfWeek; // 0 = Sunday, 6 = Saturday
 
@@ -295,6 +296,7 @@ trait BuildsRosterGrid
                 'is_today' => $day['date'] === $today,
                 'is_weekend' => $weekday === 0 || $weekday === 6,
                 'is_holiday' => isset($holidayDates[$day['date']]),
+                'is_locked' => isset($lockedDates[$day['date']]),
             ];
         }, $days);
     }

@@ -9,6 +9,7 @@ return [
         'people.attendance.view',
         'people.attendance.roster.view',
         'people.attendance.manage',
+        'people.attendance.roster.unlock',
         'people.attendance.approve',
         'people.attendance.execute',
     ],

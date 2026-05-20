@@ -7,9 +7,11 @@ use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Attendance\Models\AttendanceDay;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
 use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
+use App\Modules\People\Attendance\Models\AttendanceRosterLock;
 use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
 use App\Modules\People\Settings\Models\PeopleReferenceEntry;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -27,8 +29,14 @@ trait BuildsRosterRenderingData
             ->paginate(25);
 
         $rosterGridDays = $this->rosterGridDays();
+        $gridDates = $rosterGridDays !== []
+            ? [$rosterGridDays[0]['date'], $rosterGridDays[array_key_last($rosterGridDays)]['date']]
+            : [$this->gridPeriodStart()->toDateString(), $this->gridPeriodEnd()->toDateString()];
+        $lockedDates = $this->lockedDateSet($gridDates[0], $gridDates[1]);
+        $employeeIds = $employees->getCollection()->pluck('id')->all();
+        $actualOutcomes = $this->actualMode ? $this->rosterActualOutcomes($employeeIds, $gridDates[0], $gridDates[1]) : [];
         $rosterGridRows = $this->rosterGridRows($employees->getCollection());
-        $rosterGridDays = $this->enrichGridDays($rosterGridDays, $rosterGridRows);
+        $rosterGridDays = $this->enrichGridDays($rosterGridDays, $rosterGridRows, $lockedDates);
         $rosterCoverageRows = $this->rosterCoverageRows();
 
         return [
@@ -37,6 +45,8 @@ trait BuildsRosterRenderingData
             'filteredEmployeeCount' => $this->filteredEmployeesQuery()->count(),
             'companyEmployeeCount' => Employee::query()->where('company_id', $companyId)->count(),
             'selectedEmployeeCount' => count($this->selectedRosterEmployeeIds()),
+            'lockedDates' => $lockedDates,
+            'actualOutcomes' => $actualOutcomes,
             'rosterGridDays' => $rosterGridDays,
             'rosterGridRows' => $rosterGridRows,
             'rosterListSummary' => $this->rosterListSummary($rosterGridRows, $rosterGridDays),
@@ -89,6 +99,8 @@ trait BuildsRosterRenderingData
             'filteredEmployeeCount' => 0,
             'companyEmployeeCount' => 0,
             'selectedEmployeeCount' => 0,
+            'lockedDates' => [],
+            'actualOutcomes' => [],
             'rosterGridDays' => [],
             'rosterGridRows' => collect(),
             'rosterListSummary' => null,
@@ -116,6 +128,81 @@ trait BuildsRosterRenderingData
             ->where('company_id', $companyId)
             ->whereKey((int) $this->rosterEmployeeId)
             ->first();
+    }
+
+    /**
+     * Returns a set (date string → true) of all locked dates within the given range.
+     *
+     * @return array<string, true>
+     */
+    private function lockedDateSet(string $start, string $end): array
+    {
+        $locks = AttendanceRosterLock::query()
+            ->where('company_id', $this->companyId())
+            ->where('period_start', '<=', $end)
+            ->where('period_end', '>=', $start)
+            ->whereNull('unlocked_at')
+            ->get(['period_start', 'period_end']);
+
+        $lockedDates = [];
+        foreach ($locks as $lock) {
+            $current = CarbonImmutable::parse($lock->period_start);
+            $lockEnd = CarbonImmutable::parse($lock->period_end);
+            while ($current->lte($lockEnd)) {
+                $lockedDates[$current->toDateString()] = true;
+                $current = $current->addDay();
+            }
+        }
+
+        return $lockedDates;
+    }
+
+    /**
+     * Batch-fetches actual attendance outcomes for the given employees and date range.
+     * Returns an array keyed by "{employee_id}-{date}" with values:
+     * matched | late | early | absent | no_record
+     *
+     * @param  list<int>  $employeeIds
+     * @return array<string, string>
+     */
+    private function rosterActualOutcomes(array $employeeIds, string $start, string $end): array
+    {
+        if ($employeeIds === []) {
+            return [];
+        }
+
+        $days = AttendanceDay::query()
+            ->where('company_id', $this->companyId())
+            ->whereIn('employee_id', $employeeIds)
+            ->whereDate('attendance_date', '>=', $start)
+            ->whereDate('attendance_date', '<=', $end)
+            ->whereNotIn('status', [AttendanceDay::STATUS_SCHEDULED])
+            ->get(['employee_id', 'attendance_date', 'status', 'worked_minutes', 'late_minutes', 'early_out_minutes', 'absent_minutes']);
+
+        $outcomes = [];
+        foreach ($days as $day) {
+            $dateKey = $day->attendance_date?->toDateString() ?? '';
+            if ($dateKey === '') {
+                continue;
+            }
+
+            $workedMinutes = (int) $day->worked_minutes;
+            $lateMinutes = (int) $day->late_minutes;
+            $earlyOutMinutes = (int) $day->early_out_minutes;
+            $absentMinutes = (int) $day->absent_minutes;
+
+            $outcome = match (true) {
+                $absentMinutes > 0 || ($workedMinutes === 0 && in_array($day->status, [AttendanceDay::STATUS_FINALIZED, AttendanceDay::STATUS_LOCKED, AttendanceDay::STATUS_EXPORTED_TO_PAYROLL], true)) => 'absent',
+                $lateMinutes > 0 => 'late',
+                $earlyOutMinutes > 0 => 'early',
+                $workedMinutes > 0 => 'matched',
+                default => 'no_record',
+            };
+
+            $outcomes[$day->employee_id.'-'.$dateKey] = $outcome;
+        }
+
+        return $outcomes;
     }
 
     /**
