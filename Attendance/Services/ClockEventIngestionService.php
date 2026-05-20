@@ -3,6 +3,7 @@
 namespace App\Modules\People\Attendance\Services;
 
 use App\Modules\Core\Employee\Models\Employee;
+use App\Modules\People\Attendance\Data\ClockEventAttributes;
 use App\Modules\People\Attendance\Exceptions\AttendanceClockEventIngestionException;
 use App\Modules\People\Attendance\Models\AttendanceClockEvent;
 use App\Modules\People\Attendance\Models\AttendanceDay;
@@ -27,10 +28,12 @@ class ClockEventIngestionService
             eventType: $eventType,
             source: AttendanceClockEvent::SOURCE_WEB,
             occurredAt: $occurredAt ?? now(),
-            timezone: $timezone,
-            actorUserId: $actorUserId,
-            evidence: array_merge($evidence, ['ip_address' => $ipAddress]),
-            metadata: ['surface' => 'people.attendance.index'],
+            attrs: new ClockEventAttributes(
+                timezone: $timezone,
+                actorUserId: $actorUserId,
+                evidence: array_merge($evidence, ['ip_address' => $ipAddress]),
+                metadata: ['surface' => 'people.attendance.index'],
+            ),
         );
     }
 
@@ -42,10 +45,12 @@ class ClockEventIngestionService
             eventType: $eventType,
             source: AttendanceClockEvent::SOURCE_MANUAL,
             occurredAt: $occurredAt,
-            timezone: $attributes['timezone'] ?? null,
-            actorUserId: $actorUserId,
-            evidence: $attributes,
-            metadata: $attributes['metadata'] ?? [],
+            attrs: new ClockEventAttributes(
+                timezone: $attributes['timezone'] ?? null,
+                actorUserId: $actorUserId,
+                evidence: $attributes,
+                metadata: $attributes['metadata'] ?? [],
+            ),
         );
     }
 
@@ -57,12 +62,14 @@ class ClockEventIngestionService
             eventType: $eventType,
             source: AttendanceClockEvent::SOURCE_IMPORT,
             occurredAt: $occurredAt,
-            timezone: $attributes['timezone'] ?? null,
-            sourceSystem: $sourceSystem,
-            sourceCode: $sourceCode,
-            sourceLabel: $attributes['source_label'] ?? null,
-            evidence: $attributes,
-            metadata: $attributes['metadata'] ?? [],
+            attrs: new ClockEventAttributes(
+                timezone: $attributes['timezone'] ?? null,
+                sourceSystem: $sourceSystem,
+                sourceCode: $sourceCode,
+                sourceLabel: $attributes['source_label'] ?? null,
+                evidence: $attributes,
+                metadata: $attributes['metadata'] ?? [],
+            ),
         );
     }
 
@@ -79,38 +86,32 @@ class ClockEventIngestionService
             eventType: $eventType,
             source: AttendanceClockEvent::SOURCE_MANUAL,
             occurredAt: $occurredAt,
-            timezone: $attributes['timezone'] ?? $correctedEvent->timezone,
-            actorUserId: $actorUserId,
-            correctsClockEventId: $correctedEvent->id,
-            evidence: $attributes,
-            metadata: array_merge($attributes['metadata'] ?? [], [
-                'correction_of_clock_event_id' => $correctedEvent->id,
-            ]),
+            attrs: new ClockEventAttributes(
+                timezone: $attributes['timezone'] ?? $correctedEvent->timezone,
+                actorUserId: $actorUserId,
+                correctsClockEventId: $correctedEvent->id,
+                evidence: $attributes,
+                metadata: array_merge($attributes['metadata'] ?? [], [
+                    'correction_of_clock_event_id' => $correctedEvent->id,
+                ]),
+            ),
         );
     }
 
-    /** @param array<string, mixed> $evidence */
     private function record(
         Employee $employee,
         string $eventType,
         string $source,
         DateTimeInterface|string $occurredAt,
-        ?string $timezone = null,
-        ?int $actorUserId = null,
-        ?string $sourceSystem = null,
-        ?string $sourceLabel = null,
-        ?string $sourceCode = null,
-        ?int $correctsClockEventId = null,
-        array $evidence = [],
-        array $metadata = [],
+        ClockEventAttributes $attrs,
     ): AttendanceClockEvent {
         $this->assertEventType($eventType);
 
-        $occurred = CarbonImmutable::parse($occurredAt, $timezone);
-        $resolvedTimezone = $timezone ?? $occurred->timezoneName;
+        $occurred = CarbonImmutable::parse($occurredAt, $attrs->timezone);
+        $resolvedTimezone = $attrs->timezone ?? $occurred->timezoneName;
         $attendanceDate = $occurred->setTimezone($resolvedTimezone)->toDateString();
 
-        return DB::transaction(function () use ($employee, $eventType, $source, $occurred, $resolvedTimezone, $actorUserId, $sourceSystem, $sourceLabel, $sourceCode, $correctsClockEventId, $evidence, $metadata, $attendanceDate): AttendanceClockEvent {
+        return DB::transaction(function () use ($employee, $eventType, $source, $occurred, $resolvedTimezone, $attrs, $attendanceDate): AttendanceClockEvent {
             $day = app(AttendanceDayResolverService::class)->resolve($employee, $attendanceDate);
 
             if ($day->locked_at !== null || $day->status === AttendanceDay::STATUS_LOCKED) {
@@ -125,26 +126,26 @@ class ClockEventIngestionService
                 'company_id' => $employee->company_id,
                 'employee_id' => $employee->id,
                 'attendance_day_id' => $day->id,
-                'attendance_geofence_id' => $evidence['attendance_geofence_id'] ?? null,
-                'attendance_geofence_group_id' => $evidence['attendance_geofence_group_id'] ?? null,
+                'attendance_geofence_id' => $attrs->evidence['attendance_geofence_id'] ?? null,
+                'attendance_geofence_group_id' => $attrs->evidence['attendance_geofence_group_id'] ?? null,
                 'event_type' => $eventType,
                 'occurred_at' => $occurred,
                 'timezone' => $resolvedTimezone,
                 'source' => $source,
-                'actor_user_id' => $actorUserId,
-                'card_number' => $evidence['card_number'] ?? null,
-                'device_identifier' => $evidence['device_identifier'] ?? null,
-                'outlet_label' => $evidence['outlet_label'] ?? null,
-                'ip_address' => $evidence['ip_address'] ?? null,
-                'latitude' => $evidence['latitude'] ?? null,
-                'longitude' => $evidence['longitude'] ?? null,
-                'geofence_result' => $evidence['geofence_result'] ?? null,
-                'photo_evidence_present' => (bool) ($evidence['photo_evidence_present'] ?? false),
-                'corrects_clock_event_id' => $correctsClockEventId,
-                'source_system' => $sourceSystem,
-                'source_label' => $sourceLabel,
-                'source_code' => $sourceCode,
-                'metadata' => $metadata,
+                'actor_user_id' => $attrs->actorUserId,
+                'card_number' => $attrs->evidence['card_number'] ?? null,
+                'device_identifier' => $attrs->evidence['device_identifier'] ?? null,
+                'outlet_label' => $attrs->evidence['outlet_label'] ?? null,
+                'ip_address' => $attrs->evidence['ip_address'] ?? null,
+                'latitude' => $attrs->evidence['latitude'] ?? null,
+                'longitude' => $attrs->evidence['longitude'] ?? null,
+                'geofence_result' => $attrs->evidence['geofence_result'] ?? null,
+                'photo_evidence_present' => (bool) ($attrs->evidence['photo_evidence_present'] ?? false),
+                'corrects_clock_event_id' => $attrs->correctsClockEventId,
+                'source_system' => $attrs->sourceSystem,
+                'source_label' => $attrs->sourceLabel,
+                'source_code' => $attrs->sourceCode,
+                'metadata' => $attrs->metadata,
             ]);
 
             app(AttendanceDayProjectionService::class)->project($day)->save();

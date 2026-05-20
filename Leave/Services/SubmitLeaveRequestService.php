@@ -7,6 +7,7 @@ use App\Modules\People\Leave\Contracts\RoutesLeaveApprovals;
 use App\Modules\People\Leave\Data\LeaveApprovalIntent;
 use App\Modules\People\Leave\Data\LeaveDayBreakdown;
 use App\Modules\People\Leave\Data\LeaveDaysPreview;
+use App\Modules\People\Leave\Data\LeaveSubmissionContext;
 use App\Modules\People\Leave\Data\LeaveValidationIssue;
 use App\Modules\People\Leave\Exceptions\LeaveRequestValidationException;
 use App\Modules\People\Leave\Models\LeaveAssignment;
@@ -58,14 +59,16 @@ class SubmitLeaveRequestService
 
             $attachmentCount = (int) ($options['attachment_count'] ?? 0);
             $issues = $this->validate(
-                assignment: $assignment,
-                employee: $employee,
-                preview: $preview,
-                attachmentCount: $attachmentCount,
-                startsOn: $startsOn,
-                endsOn: $endsOn,
-                unit: $unit,
-                options: $options,
+                $assignment,
+                $employee,
+                $preview,
+                new LeaveSubmissionContext(
+                    startsOn: $startsOn,
+                    endsOn: $endsOn,
+                    unit: $unit,
+                    attachmentCount: $attachmentCount,
+                    options: $options,
+                ),
             );
 
             $blocking = array_filter($issues, fn (LeaveValidationIssue $i) => $i->isBlocking());
@@ -142,24 +145,18 @@ class SubmitLeaveRequestService
         });
     }
 
-    /**
-     * @return list<LeaveValidationIssue>
-     */
+    /** @return list<LeaveValidationIssue> */
     private function validate(
         LeaveAssignment $assignment,
         Employee $employee,
         LeaveDaysPreview $preview,
-        int $attachmentCount,
-        DateTimeImmutable $startsOn,
-        DateTimeImmutable $endsOn,
-        string $unit,
-        array $options,
+        LeaveSubmissionContext $ctx,
     ): array {
         $issues = [];
         $requestPolicy = $assignment->requestPolicy;
         $leaveType = $assignment->leaveType;
 
-        if (((bool) $requestPolicy->compulsory_attachment || (bool) $leaveType->compulsory_attachment) && $attachmentCount < 1) {
+        if (((bool) $requestPolicy->compulsory_attachment || (bool) $leaveType->compulsory_attachment) && $ctx->attachmentCount < 1) {
             $issues[] = new LeaveValidationIssue(
                 code: 'attachment_required',
                 message: sprintf('%s requires a supporting attachment.', $leaveType->name),
@@ -179,7 +176,7 @@ class SubmitLeaveRequestService
             );
         }
 
-        if ((bool) $requestPolicy->no_cross_month_split && $startsOn->format('Y-m') !== $endsOn->format('Y-m')) {
+        if ((bool) $requestPolicy->no_cross_month_split && $ctx->startsOn->format('Y-m') !== $ctx->endsOn->format('Y-m')) {
             $issues[] = new LeaveValidationIssue(
                 code: 'cross_month_split_not_allowed',
                 message: sprintf(
@@ -191,8 +188,8 @@ class SubmitLeaveRequestService
 
         $issues = [
             ...$issues,
-            ...$this->validateNoticeRules($requestPolicy, $leaveType, $employee, $startsOn, $options),
-            ...$this->validateOverlapRules($requestPolicy, $employee, $preview, $unit),
+            ...$this->validateNoticeRules($requestPolicy, $leaveType, $employee, $ctx->startsOn, $ctx->options),
+            ...$this->validateOverlapRules($requestPolicy, $employee, $preview, $ctx->unit),
         ];
 
         if (! (bool) $requestPolicy->allow_negative_balance && $preview->totalCountedDays > 0) {
