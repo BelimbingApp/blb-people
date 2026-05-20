@@ -12,6 +12,7 @@ use App\Modules\People\Settings\Models\PeopleSavedEmployeeView;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -59,14 +60,14 @@ class Index extends Component
 
     private const SORTABLE = [
         'full_name' => 'employees.full_name',
-        'company_name' => 'companies.name',
-        'employee_type_label' => 'employee_types.label',
+        'company_name' => 'company_name',
+        'employee_type_label' => 'employee_type_label',
         'status' => 'employees.status',
-        'organization_unit_name' => 'organization_units.name',
-        'cost_center_name' => 'cost_centers.name',
-        'job_title_name' => 'job_titles.name',
-        'work_profile_pay_basis' => 'people_employee_work_profiles.pay_rate_type',
-        'portal_access_status' => 'people_employee_portal_accesses.status',
+        'organization_unit_name' => 'organization_unit_name',
+        'cost_center_name' => 'cost_center_name',
+        'job_title_name' => 'job_title_name',
+        'work_profile_pay_basis' => 'work_profile_pay_basis',
+        'portal_access_status' => 'portal_access_status',
     ];
 
     public function updated(string $property): void
@@ -119,6 +120,12 @@ class Index extends Component
 
     public function saveCurrentView(): void
     {
+        if (! $this->savedEmployeeViewsTableExists()) {
+            session()->flash('error', __('Saved employee views are unavailable until People settings tables are rebuilt.'));
+
+            return;
+        }
+
         $validated = $this->validate([
             'savedViewName' => ['required', 'string', 'max:255'],
             'savedViewVisibility' => ['required', 'in:private,company'],
@@ -151,6 +158,12 @@ class Index extends Component
 
     public function applySavedView(int $viewId): void
     {
+        if (! $this->savedEmployeeViewsTableExists()) {
+            session()->flash('error', __('Saved employee views are unavailable until People settings tables are rebuilt.'));
+
+            return;
+        }
+
         $view = $this->savedViewsQuery()->findOrFail($viewId);
         $filters = is_array($view->filters) ? $view->filters : [];
         $sort = is_array($view->sort) ? $view->sort : [];
@@ -231,7 +244,7 @@ class Index extends Component
             'workforceClasses' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_WORKFORCE_CLASS),
             'jobGrades' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_JOB_GRADE),
             'workCalendars' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_WORK_CALENDAR),
-            'savedViews' => $this->savedViewsQuery()->get(),
+            'savedViews' => $this->savedEmployeeViewsTableExists() ? $this->savedViewsQuery()->get() : collect(),
             'readinessBlockers' => EmployeePayrollReadinessService::blockerLabels(),
             'exportUrl' => route('people.employees.export.csv', $this->filters()),
         ]);
@@ -316,6 +329,11 @@ class Index extends Component
             })
             ->orderBy('visibility')
             ->orderBy('name');
+    }
+
+    private function savedEmployeeViewsTableExists(): bool
+    {
+        return Schema::hasTable('people_saved_employee_views');
     }
 
     private function currentCompanyId(): int

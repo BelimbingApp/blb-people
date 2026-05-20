@@ -26,6 +26,10 @@ class EmployeePayrollReadinessService
 
     private const STATUTORY_PROFILE_TABLE = 'people_payroll_employee_statutory_profiles';
 
+    private const WORK_PROFILE_TABLE = 'people_employee_work_profiles';
+
+    private const PORTAL_ACCESS_TABLE = 'people_employee_portal_accesses';
+
     private const BANK_NAME_METADATA_PATH = 'employees.metadata->payroll_bank->bank_name';
 
     private const BANK_ACCOUNT_NUMBER_METADATA_PATH = 'employees.metadata->payroll_bank->bank_account_number';
@@ -56,16 +60,23 @@ class EmployeePayrollReadinessService
      */
     public function summarize(Employee $employee): array
     {
-        $employee->loadMissing([
-            'workProfile.costCenter',
-            'workProfile.organizationUnit',
-            'workProfile.employmentGroup',
-            'workProfile.jobTitle',
-            'workProfile.workforceClass',
-            'workProfile.jobGrade',
-            'workProfile.workCalendar',
-            'portalAccess.user',
-        ]);
+        $relations = [];
+
+        if ($this->workProfileTableExists()) {
+            $relations[] = 'workProfile';
+        } else {
+            $employee->setRelation('workProfile', null);
+        }
+
+        if ($this->portalAccessTableExists()) {
+            $relations[] = 'portalAccess.user';
+        } else {
+            $employee->setRelation('portalAccess', null);
+        }
+
+        if ($relations !== []) {
+            $employee->loadMissing($relations);
+        }
 
         $workProfile = $employee->workProfile;
         $portalAccess = $employee->portalAccess;
@@ -128,9 +139,16 @@ class EmployeePayrollReadinessService
 
     public function applyStateFilter(Builder $query, string $state): void
     {
+        $workProfileTableExists = $this->workProfileTableExists();
         $statutoryTableExists = $this->statutoryProfileTableExists();
 
         if ($state === self::STATE_READY) {
+            if (! $workProfileTableExists) {
+                $query->whereRaw(self::NO_ROWS_CONDITION);
+
+                return;
+            }
+
             $query
                 ->whereNotNull('people_employee_work_profiles.id')
                 ->whereNotNull('people_employee_work_profiles.pay_rate_type')
@@ -178,14 +196,19 @@ class EmployeePayrollReadinessService
     public function applyBlockerFilter(Builder $query, string $blocker, ?bool $statutoryTableExists = null): void
     {
         $statutoryTableExists ??= $this->statutoryProfileTableExists();
+        $workProfileTableExists = $this->workProfileTableExists();
 
         match ($blocker) {
-            'missing_work_profile' => $query->whereNull('people_employee_work_profiles.id'),
-            'missing_pay_basis' => $query->where(function (Builder $payBasisQuery): void {
-                $payBasisQuery->whereNull('people_employee_work_profiles.id')
-                    ->orWhereNull('people_employee_work_profiles.pay_rate_type')
-                    ->orWhere('people_employee_work_profiles.pay_rate_type', '');
-            }),
+            'missing_work_profile' => $workProfileTableExists
+                ? $query->whereNull('people_employee_work_profiles.id')
+                : $query->whereRaw('1 = 1'),
+            'missing_pay_basis' => $workProfileTableExists
+                ? $query->where(function (Builder $payBasisQuery): void {
+                    $payBasisQuery->whereNull('people_employee_work_profiles.id')
+                        ->orWhereNull('people_employee_work_profiles.pay_rate_type')
+                        ->orWhere('people_employee_work_profiles.pay_rate_type', '');
+                })
+                : $query->whereRaw('1 = 1'),
             'missing_bank_details' => $query->where(function (Builder $bankQuery): void {
                 $bankQuery->whereNull(self::BANK_NAME_METADATA_PATH)
                     ->orWhere(self::BANK_NAME_METADATA_PATH, '')
@@ -251,6 +274,16 @@ class EmployeePayrollReadinessService
     private function statutoryProfileTableExists(): bool
     {
         return Schema::hasTable(self::STATUTORY_PROFILE_TABLE);
+    }
+
+    private function workProfileTableExists(): bool
+    {
+        return Schema::hasTable(self::WORK_PROFILE_TABLE);
+    }
+
+    private function portalAccessTableExists(): bool
+    {
+        return Schema::hasTable(self::PORTAL_ACCESS_TABLE);
     }
 
     /**
