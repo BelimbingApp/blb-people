@@ -7,6 +7,7 @@ use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendanceDay;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
+use App\Modules\People\Attendance\Models\AttendanceRosterAcknowledgment;
 use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
 use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
@@ -18,7 +19,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -805,6 +805,79 @@ class Rosters extends Component
         $this->listScope = in_array($scope, ['week', 'month'], true) ? $scope : 'week';
     }
 
+    public function acknowledgeSchedule(string $periodStart, string $periodEnd): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $employeeId = $this->currentEmployeeId();
+        if ($employeeId === null) {
+            return;
+        }
+
+        AttendanceRosterAcknowledgment::query()->updateOrCreate(
+            [
+                'company_id' => $this->companyId(),
+                'employee_id' => $employeeId,
+                'period_start' => $periodStart,
+                'period_end' => $periodEnd,
+            ],
+            [
+                'actor_id' => auth()->id(),
+                'acknowledged_at' => now(),
+            ],
+        );
+
+        session()->flash('success', __('Schedule acknowledged.'));
+    }
+
+    public function exportRosterCsv(): mixed
+    {
+        if (! $this->ensureSchemaReady()) {
+            return null;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        $employees = $this->filteredEmployeesQuery()->orderBy('full_name')->orderBy('id')->get();
+        $rows = $this->rosterGridRows($employees);
+        $days = $this->rosterGridDays();
+        $filename = 'roster-'.$this->gridPeriodStart()->format('Y-m-d').'.csv';
+
+        return response()->streamDownload(function () use ($rows, $days): void {
+            $handle = fopen('php://output', 'w');
+            if ($handle === false) {
+                return;
+            }
+
+            $header = ['Employee', 'Department'];
+            foreach ($days as $day) {
+                $header[] = $day['date'];
+            }
+            fputcsv($handle, $header);
+
+            foreach ($rows as $row) {
+                $line = [
+                    $row['employee']->full_name,
+                    $row['group'],
+                ];
+                foreach ($days as $day) {
+                    $cell = $row['cells'][$day['date']] ?? null;
+                    if ($cell === null || ($cell['state'] ?? 'empty') === 'empty') {
+                        $line[] = '';
+                    } else {
+                        $suffix = $cell['state'] === 'draft' ? ' (draft)' : '';
+                        $line[] = ($cell['label'] ?? '').$suffix;
+                    }
+                }
+                fputcsv($handle, $line);
+            }
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
     private function listWeekStart(): CarbonImmutable
     {
         if ($this->listWeekAnchor !== '') {
@@ -1046,14 +1119,25 @@ class Rosters extends Component
     {
         $companyId = $this->companyId();
         $schemaReady = $this->schemaReady();
+        $isMySchedule = $this->isMyScheduleMode();
+        $canManage = $this->canAttendance('people.attendance.manage');
 
         $viewData = $schemaReady
             ? $this->renderDataForReadySchema($companyId)
             : $this->renderDataForUnreadySchema();
 
+        $gridStart = $this->gridPeriodStart()->toDateString();
+        $gridEnd = $this->gridPeriodEnd()->toDateString();
+        $rosterGridRows = $viewData['rosterGridRows'] ?? collect();
+
         return view('livewire.people.attendance.rosters', [
             'schemaReady' => $schemaReady,
-            'canManage' => $this->canAttendance('people.attendance.manage'),
+            'canManage' => $canManage,
+            'isMySchedule' => $isMySchedule,
+            'acknowledgedForPeriod' => $isMySchedule && $schemaReady ? $this->acknowledgedForPeriod($gridStart, $gridEnd) : false,
+            'acknowledgmentCount' => $canManage && $schemaReady ? $this->acknowledgmentCountForPeriod($rosterGridRows, $gridStart, $gridEnd) : null,
+            'gridPeriodStart' => $gridStart,
+            'gridPeriodEnd' => $gridEnd,
             'organizationUnits' => $this->referenceOptions(PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT, $schemaReady),
             'costCenters' => $this->referenceOptions(PeopleReferenceEntry::TYPE_COST_CENTER, $schemaReady),
             'employmentGroups' => $this->referenceOptions(PeopleReferenceEntry::TYPE_EMPLOYMENT_GROUP, $schemaReady),
@@ -1068,19 +1152,10 @@ class Rosters extends Component
      */
     private function renderDataForReadySchema(int $companyId): array
     {
-        $hasWorkProfiles = $this->workProfileTableExists();
         $employees = $this->filteredEmployeesQuery()
             ->orderBy('full_name')
             ->orderBy('id')
             ->paginate(25);
-
-        if (! $hasWorkProfiles) {
-            $employees->getCollection()->transform(function (Employee $employee): Employee {
-                $employee->setRelation('workProfile', null);
-
-                return $employee;
-            });
-        }
 
         $rosterGridDays = $this->rosterGridDays();
         $rosterGridRows = $this->rosterGridRows($employees->getCollection());
@@ -1174,6 +1249,59 @@ class Rosters extends Component
             ->first();
     }
 
+    private function isMyScheduleMode(): bool
+    {
+        return ! $this->canAttendance('people.attendance.manage')
+            && $this->canAttendance('people.attendance.roster.view')
+            && $this->currentEmployeeId() !== null;
+    }
+
+    private function acknowledgedForPeriod(string $periodStart, string $periodEnd): bool
+    {
+        $employeeId = $this->currentEmployeeId();
+        if ($employeeId === null) {
+            return false;
+        }
+
+        return AttendanceRosterAcknowledgment::query()
+            ->where('company_id', $this->companyId())
+            ->where('employee_id', $employeeId)
+            ->where('period_start', $periodStart)
+            ->where('period_end', $periodEnd)
+            ->exists();
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return array{acknowledged: int, total: int}|null
+     */
+    private function acknowledgmentCountForPeriod(Collection $rows, string $periodStart, string $periodEnd): ?array
+    {
+        $employeeIds = $rows->map(fn (array $row): ?int => $row['employee']?->id)->filter()->values()->all();
+        if ($employeeIds === []) {
+            return null;
+        }
+
+        $ackCount = AttendanceRosterAcknowledgment::query()
+            ->where('company_id', $this->companyId())
+            ->whereIn('employee_id', $employeeIds)
+            ->where('period_start', $periodStart)
+            ->where('period_end', $periodEnd)
+            ->count();
+
+        return ['acknowledged' => $ackCount, 'total' => count($employeeIds)];
+    }
+
+    private function resetAcknowledgmentForEmployeeDate(int $employeeId, string $date): void
+    {
+        AttendanceRosterAcknowledgment::query()
+            ->where('company_id', $this->companyId())
+            ->where('employee_id', $employeeId)
+            ->where('period_start', '<=', $date)
+            ->where('period_end', '>=', $date)
+            ->delete();
+    }
+
     private function hasRosterOverlap(int $employeeId, string $effectiveFrom, ?string $effectiveTo, ?int $excludeAssignmentId = null): bool
     {
         $rangeEnd = $effectiveTo ?? '9999-12-31';
@@ -1209,13 +1337,20 @@ class Rosters extends Component
      */
     private function filteredEmployeesQuery(): Builder
     {
-        $hasWorkProfiles = $this->workProfileTableExists();
         $query = Employee::query()
             ->select('employees.*')
+            ->leftJoin('people_employee_work_profiles', 'people_employee_work_profiles.employee_id', '=', 'employees.id')
             ->where('employees.company_id', $this->companyId());
 
-        if ($hasWorkProfiles) {
-            $query->leftJoin('people_employee_work_profiles', 'people_employee_work_profiles.employee_id', '=', 'employees.id');
+        if ($this->isMyScheduleMode()) {
+            $employeeId = $this->currentEmployeeId();
+            if ($employeeId !== null) {
+                $query->where('employees.id', $employeeId);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+
+            return $query->with(['department.type', 'workProfile.organizationUnit', 'workProfile.costCenter', 'workProfile.workforceClass']);
         }
 
         $search = trim($this->rosterSearch);
@@ -1232,49 +1367,21 @@ class Rosters extends Component
 
         $this->applyIntegerFilter($query, 'employees.department_id', $this->rosterDepartmentId);
         $this->applyIntegerFilter($query, 'employees.supervisor_id', $this->rosterSupervisorId);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.organization_unit_id', $this->rosterOrganizationUnitId);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.cost_center_id', $this->rosterCostCenterId);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.workforce_class_id', $this->rosterWorkforceClassId);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.employment_group_id', $this->rosterEmploymentGroupId);
+        $this->applyIntegerFilter($query, 'people_employee_work_profiles.work_calendar_id', $this->rosterWorkCalendarId);
 
-        if ($hasWorkProfiles) {
-            $this->applyIntegerFilter($query, 'people_employee_work_profiles.organization_unit_id', $this->rosterOrganizationUnitId);
-            $this->applyIntegerFilter($query, 'people_employee_work_profiles.cost_center_id', $this->rosterCostCenterId);
-            $this->applyIntegerFilter($query, 'people_employee_work_profiles.workforce_class_id', $this->rosterWorkforceClassId);
-            $this->applyIntegerFilter($query, 'people_employee_work_profiles.employment_group_id', $this->rosterEmploymentGroupId);
-            $this->applyIntegerFilter($query, 'people_employee_work_profiles.work_calendar_id', $this->rosterWorkCalendarId);
-
-            if ($this->rosterPayRateType !== '') {
-                $query->where('people_employee_work_profiles.pay_rate_type', $this->rosterPayRateType);
-            }
-        } elseif ($this->hasWorkProfileFilterSelection()) {
-            $query->whereRaw('1 = 0');
+        if ($this->rosterPayRateType !== '') {
+            $query->where('people_employee_work_profiles.pay_rate_type', $this->rosterPayRateType);
         }
 
         if ($this->rosterEmployeeStatus !== '') {
             $query->where('employees.status', $this->rosterEmployeeStatus);
         }
 
-        $relations = ['department.type'];
-
-        if ($hasWorkProfiles) {
-            $relations[] = 'workProfile.organizationUnit';
-            $relations[] = 'workProfile.costCenter';
-            $relations[] = 'workProfile.workforceClass';
-        }
-
-        return $query->with($relations);
-    }
-
-    private function workProfileTableExists(): bool
-    {
-        return Schema::hasTable('people_employee_work_profiles');
-    }
-
-    private function hasWorkProfileFilterSelection(): bool
-    {
-        return $this->rosterOrganizationUnitId !== ''
-            || $this->rosterCostCenterId !== ''
-            || $this->rosterWorkforceClassId !== ''
-            || $this->rosterEmploymentGroupId !== ''
-            || $this->rosterWorkCalendarId !== ''
-            || $this->rosterPayRateType !== '';
+        return $query->with(['department.type', 'workProfile.organizationUnit', 'workProfile.costCenter', 'workProfile.workforceClass']);
     }
 
     /**
@@ -1974,6 +2081,8 @@ class Rosters extends Component
             'metadata' => $metadata,
         ];
 
+        $wasPublished = $assignment->publish_state === 'published';
+
         $assignment->forceFill([
             'exceptions' => $exceptions,
             'revision' => ((int) $assignment->revision) + 1,
@@ -1983,6 +2092,10 @@ class Rosters extends Component
                 'last_exception_at' => now()->toIso8601String(),
             ],
         ])->save();
+
+        if ($wasPublished && $assignment->employee_id !== null) {
+            $this->resetAcknowledgmentForEmployeeDate((int) $assignment->employee_id, $date);
+        }
     }
 
     private function removeExceptionOverride(AttendanceRosterAssignment $assignment, string $date): void
