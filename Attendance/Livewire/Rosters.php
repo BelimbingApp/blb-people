@@ -9,6 +9,7 @@ use App\Modules\People\Attendance\Models\AttendanceDay;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
 use App\Modules\People\Attendance\Models\AttendanceRosterAcknowledgment;
 use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
+use App\Modules\People\Attendance\Models\AttendanceRosterLock;
 use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
 use App\Modules\People\Attendance\Services\AttendanceCalendarResolver;
@@ -115,6 +116,12 @@ class Rosters extends Component
      * @var list<int>
      */
     public array $lastDraftAssignmentIds = [];
+
+    /**
+     * When true, the grid overlays actual attendance outcomes from
+     * AttendanceDay records onto the planned cells.
+     */
+    public bool $actualMode = false;
 
     public function mount(): void
     {
@@ -281,6 +288,12 @@ class Rosters extends Component
 
         $this->authorizeAttendance('people.attendance.manage');
 
+        if ($this->isDateLocked($date)) {
+            session()->flash('error', __('This date is in a locked roster period and cannot be edited.'));
+
+            return;
+        }
+
         $resolvedShiftId = $shiftTemplateId !== null && $shiftTemplateId !== ''
             ? $shiftTemplateId
             : $this->rosterShiftTemplateId;
@@ -356,6 +369,9 @@ class Rosters extends Component
             if ($empId <= 0 || $date === '' || $date < $gridStart || $date > $gridEnd) {
                 continue;
             }
+            if ($this->isDateLocked($date)) {
+                continue;
+            }
             if (! Employee::query()->where('company_id', $companyId)->whereKey($empId)->exists()) {
                 continue;
             }
@@ -394,6 +410,7 @@ class Rosters extends Component
                         $this->removeExceptionOverride($assignment, $o['date']);
                         $savedCount++;
                     }
+
                     continue;
                 }
 
@@ -446,6 +463,12 @@ class Rosters extends Component
 
         if (filter_var($this->swapFromEmployeeId, FILTER_VALIDATE_INT) === false || filter_var($this->swapToEmployeeId, FILTER_VALIDATE_INT) === false || trim($this->swapDate) === '') {
             $this->addError('swapDate', __('Choose two employees and a date to swap.'));
+
+            return;
+        }
+
+        if ($this->isDateLocked($this->swapDate)) {
+            $this->addError('swapDate', __('This date is in a locked roster period and cannot be swapped.'));
 
             return;
         }
@@ -832,6 +855,56 @@ class Rosters extends Component
         session()->flash('success', __('Schedule acknowledged.'));
     }
 
+    public function lockRosterPeriod(string $from, string $to): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.manage');
+
+        AttendanceRosterLock::query()->updateOrCreate(
+            ['company_id' => $this->companyId(), 'period_start' => $from, 'period_end' => $to],
+            [
+                'locked_by' => (int) auth()->id(),
+                'locked_at' => now(),
+                'unlocked_at' => null,
+                'unlocked_by' => null,
+                'unlock_reason' => null,
+            ],
+        );
+
+        session()->flash('success', __('Roster period locked. Overrides are blocked until unlocked.'));
+    }
+
+    public function unlockRosterPeriod(string $from, string $to, string $reason): void
+    {
+        if (! $this->ensureSchemaReady()) {
+            return;
+        }
+
+        $this->authorizeAttendance('people.attendance.roster.unlock');
+
+        if (trim($reason) === '') {
+            $this->addError('unlockReason', __('An unlock reason is required.'));
+
+            return;
+        }
+
+        AttendanceRosterLock::query()
+            ->where('company_id', $this->companyId())
+            ->where('period_start', $from)
+            ->where('period_end', $to)
+            ->whereNull('unlocked_at')
+            ->update([
+                'unlocked_at' => now(),
+                'unlocked_by' => (int) auth()->id(),
+                'unlock_reason' => trim($reason),
+            ]);
+
+        session()->flash('success', __('Roster period unlocked.'));
+    }
+
     public function exportRosterCsv(): mixed
     {
         if (! $this->ensureSchemaReady()) {
@@ -1121,6 +1194,7 @@ class Rosters extends Component
         $schemaReady = $this->schemaReady();
         $isMySchedule = $this->isMyScheduleMode();
         $canManage = $this->canAttendance('people.attendance.manage');
+        $canUnlock = $this->canAttendance('people.attendance.roster.unlock');
 
         $viewData = $schemaReady
             ? $this->renderDataForReadySchema($companyId)
@@ -1129,11 +1203,15 @@ class Rosters extends Component
         $gridStart = $this->gridPeriodStart()->toDateString();
         $gridEnd = $this->gridPeriodEnd()->toDateString();
         $rosterGridRows = $viewData['rosterGridRows'] ?? collect();
+        $lockedDates = $viewData['lockedDates'] ?? [];
 
         return view('livewire.people.attendance.rosters', [
             'schemaReady' => $schemaReady,
             'canManage' => $canManage,
+            'canUnlock' => $canUnlock,
             'isMySchedule' => $isMySchedule,
+            'actualMode' => $this->actualMode,
+            'currentPeriodLocked' => ! empty($lockedDates),
             'acknowledgedForPeriod' => $isMySchedule && $schemaReady ? $this->acknowledgedForPeriod($gridStart, $gridEnd) : false,
             'acknowledgmentCount' => $canManage && $schemaReady ? $this->acknowledgmentCountForPeriod($rosterGridRows, $gridStart, $gridEnd) : null,
             'gridPeriodStart' => $gridStart,
@@ -1158,8 +1236,13 @@ class Rosters extends Component
             ->paginate(25);
 
         $rosterGridDays = $this->rosterGridDays();
+        $gridDates = $rosterGridDays !== [] ? [$rosterGridDays[0]['date'], $rosterGridDays[array_key_last($rosterGridDays)]['date']] : [$this->gridPeriodStart()->toDateString(), $this->gridPeriodEnd()->toDateString()];
+        $lockedDates = $this->lockedDateSet($gridDates[0], $gridDates[1]);
+        $employeeIds = $employees->getCollection()->pluck('id')->all();
+        $actualOutcomes = $this->actualMode ? $this->rosterActualOutcomes($employeeIds, $gridDates[0], $gridDates[1]) : [];
+
         $rosterGridRows = $this->rosterGridRows($employees->getCollection());
-        $rosterGridDays = $this->enrichGridDays($rosterGridDays, $rosterGridRows);
+        $rosterGridDays = $this->enrichGridDays($rosterGridDays, $rosterGridRows, $lockedDates);
         $rosterCoverageRows = $this->rosterCoverageRows();
 
         return [
@@ -1168,6 +1251,8 @@ class Rosters extends Component
             'filteredEmployeeCount' => $this->filteredEmployeesQuery()->count(),
             'companyEmployeeCount' => Employee::query()->where('company_id', $companyId)->count(),
             'selectedEmployeeCount' => count($this->selectedRosterEmployeeIds()),
+            'lockedDates' => $lockedDates,
+            'actualOutcomes' => $actualOutcomes,
             'rosterGridDays' => $rosterGridDays,
             'rosterGridRows' => $rosterGridRows,
             'rosterListSummary' => $this->rosterListSummary($rosterGridRows, $rosterGridDays),
@@ -1220,6 +1305,8 @@ class Rosters extends Component
             'filteredEmployeeCount' => 0,
             'companyEmployeeCount' => 0,
             'selectedEmployeeCount' => 0,
+            'lockedDates' => [],
+            'actualOutcomes' => [],
             'rosterGridDays' => [],
             'rosterGridRows' => collect(),
             'rosterListSummary' => null,
@@ -1254,6 +1341,93 @@ class Rosters extends Component
         return ! $this->canAttendance('people.attendance.manage')
             && $this->canAttendance('people.attendance.roster.view')
             && $this->currentEmployeeId() !== null;
+    }
+
+    private function isDateLocked(string $date): bool
+    {
+        return AttendanceRosterLock::query()
+            ->where('company_id', $this->companyId())
+            ->where('period_start', '<=', $date)
+            ->where('period_end', '>=', $date)
+            ->whereNull('unlocked_at')
+            ->exists();
+    }
+
+    /**
+     * Returns a set (date string → true) of all locked dates within the given range.
+     *
+     * @return array<string, true>
+     */
+    private function lockedDateSet(string $start, string $end): array
+    {
+        $locks = AttendanceRosterLock::query()
+            ->where('company_id', $this->companyId())
+            ->where('period_start', '<=', $end)
+            ->where('period_end', '>=', $start)
+            ->whereNull('unlocked_at')
+            ->get(['period_start', 'period_end']);
+
+        $lockedDates = [];
+        foreach ($locks as $lock) {
+            $current = CarbonImmutable::parse($lock->period_start);
+            $lockEnd = CarbonImmutable::parse($lock->period_end);
+            while ($current->lte($lockEnd)) {
+                $lockedDates[$current->toDateString()] = true;
+                $current = $current->addDay();
+            }
+        }
+
+        return $lockedDates;
+    }
+
+    /**
+     * Batch-fetches actual attendance outcomes for the given employees and date range.
+     * Returns an array keyed by "{employee_id}-{date}" with values:
+     * matched | late | early | absent | no_record
+     *
+     * Falls back to empty when no AttendanceDay records exist (e.g. future dates).
+     *
+     * @param  list<int>  $employeeIds
+     * @return array<string, string>
+     */
+    private function rosterActualOutcomes(array $employeeIds, string $start, string $end): array
+    {
+        if ($employeeIds === []) {
+            return [];
+        }
+
+        $days = AttendanceDay::query()
+            ->where('company_id', $this->companyId())
+            ->whereIn('employee_id', $employeeIds)
+            ->whereDate('attendance_date', '>=', $start)
+            ->whereDate('attendance_date', '<=', $end)
+            ->whereNotIn('status', [AttendanceDay::STATUS_SCHEDULED])
+            ->get(['employee_id', 'attendance_date', 'status', 'worked_minutes', 'late_minutes', 'early_out_minutes', 'absent_minutes']);
+
+        $outcomes = [];
+        foreach ($days as $day) {
+            $dateKey = $day->attendance_date?->toDateString() ?? '';
+            if ($dateKey === '') {
+                continue;
+            }
+
+            $workedMinutes = (int) $day->worked_minutes;
+            $lateMinutes = (int) $day->late_minutes;
+            $earlyOutMinutes = (int) $day->early_out_minutes;
+            $absentMinutes = (int) $day->absent_minutes;
+
+            $outcome = match (true) {
+                $absentMinutes > 0 || ($workedMinutes === 0 && in_array($day->status, [AttendanceDay::STATUS_FINALIZED, AttendanceDay::STATUS_LOCKED, AttendanceDay::STATUS_EXPORTED_TO_PAYROLL], true)) => 'absent',
+                $lateMinutes > 0 => 'late',
+                $earlyOutMinutes > 0 => 'early',
+                $workedMinutes > 0 => 'matched',
+                default => 'no_record',
+            };
+
+            $outcomes[$day->employee_id.'-'.$dateKey] = $outcome;
+        }
+
+        return $outcomes;
     }
 
     private function acknowledgedForPeriod(string $periodStart, string $periodEnd): bool
@@ -1671,9 +1845,10 @@ class Rosters extends Component
      *
      * @param  list<array{date: string, day: string, label: string}>  $days
      * @param  Collection<int, array<string, mixed>>  $rows
-     * @return list<array{date: string, day: string, day_short: string, label: string, is_today: bool, is_weekend: bool, is_holiday: bool}>
+     * @param  array<string, true>  $lockedDates
+     * @return list<array{date: string, day: string, day_short: string, label: string, is_today: bool, is_weekend: bool, is_holiday: bool, is_locked: bool}>
      */
-    private function enrichGridDays(array $days, Collection $rows): array
+    private function enrichGridDays(array $days, Collection $rows, array $lockedDates = []): array
     {
         $today = CarbonImmutable::today()->toDateString();
 
@@ -1686,7 +1861,7 @@ class Rosters extends Component
             }
         }
 
-        return array_map(function (array $day) use ($today, $holidayDates): array {
+        return array_map(function (array $day) use ($today, $holidayDates, $lockedDates): array {
             $carbon = CarbonImmutable::parse($day['date']);
             $weekday = (int) $carbon->dayOfWeek; // 0 = Sunday, 6 = Saturday
 
@@ -1696,6 +1871,7 @@ class Rosters extends Component
                 'is_today' => $day['date'] === $today,
                 'is_weekend' => $weekday === 0 || $weekday === 6,
                 'is_holiday' => isset($holidayDates[$day['date']]),
+                'is_locked' => isset($lockedDates[$day['date']]),
             ];
         }, $days);
     }
