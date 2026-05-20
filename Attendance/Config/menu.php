@@ -73,7 +73,7 @@ return [
         ],
         [
             'id' => 'people.attendance.rosters',
-            'label' => 'Roster Builder',
+            'label' => 'Roster',
             'icon' => 'heroicon-o-calendar-days',
             'route' => 'people.attendance.rosters',
             'permission' => 'people.attendance.manage',

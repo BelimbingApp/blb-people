@@ -7,6 +7,7 @@ return [
 
     'capabilities' => [
         'people.attendance.view',
+        'people.attendance.roster.view',
         'people.attendance.manage',
         'people.attendance.approve',
         'people.attendance.execute',

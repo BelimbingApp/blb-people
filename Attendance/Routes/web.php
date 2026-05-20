@@ -36,6 +36,9 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('people/attendance/rosters', Rosters::class)
             ->name('people.attendance.rosters');
 
+        Route::get('people/attendance/roster', Rosters::class)
+            ->name('people.attendance.roster');
+
         Route::get('people/attendance/allowance-rules', AllowanceRules::class)
             ->name('people.attendance.allowance-rules');
 
