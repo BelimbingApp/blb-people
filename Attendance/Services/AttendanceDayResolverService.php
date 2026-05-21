@@ -93,7 +93,6 @@ class AttendanceDayResolverService
                 $query->whereNull('effective_to')
                     ->orWhereDate('effective_to', '>=', $date);
             })
-            ->where('publish_state', 'published')
             ->with(['shiftTemplate', 'rosterPattern'])
             ->orderByRaw('employee_id is null')
             ->latest('effective_from')

@@ -189,18 +189,14 @@ trait BuildsRosterGrid
         string $dayType,
         string $dayTypeLabel,
     ): array {
-        $title = __(':state assignment, policy :policy', [
-            'state' => $this->statusLabel($assignment->publish_state),
-            'policy' => $assignment->policyGroup?->code ?? '-',
-        ]);
+        $title = __('Policy :policy', ['policy' => $assignment->policyGroup?->code ?? '-']);
         if ($dayType !== AttendanceDay::DAY_TYPE_NORMAL) {
             $title .= ' · '.__('on :day', ['day' => $dayTypeLabel]);
         }
 
         return [
             'label' => $this->shiftCodeForGrid($assignment, $day['date']),
-            'state' => $assignment->publish_state,
-            'variant' => $assignment->publish_state === 'published' ? 'success' : 'warning',
+            'state' => 'assigned',
             'policy' => $assignment->policyGroup?->code ?? '-',
             'title' => $title,
             'day_type' => $dayType,

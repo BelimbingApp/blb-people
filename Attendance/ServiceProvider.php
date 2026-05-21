@@ -5,6 +5,8 @@ namespace App\Modules\People\Attendance;
 use App\Modules\People\Attendance\Console\Commands\PolicySimulateCommand;
 use App\Modules\People\Attendance\Console\Commands\PolicyValidateCommand;
 use App\Modules\People\Attendance\Console\Commands\RosterCommand;
+use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
+use App\Modules\People\Attendance\Observers\AttendanceRosterAssignmentObserver;
 use App\Modules\People\Attendance\Services\AttendanceDayProjectionService;
 use App\Modules\People\Attendance\Services\AttendancePolicyGroupResolver;
 use App\Modules\People\Attendance\Services\AttendancePolicySimulationService;
@@ -23,6 +25,8 @@ class ServiceProvider extends BaseServiceProvider
 
     public function boot(): void
     {
+        AttendanceRosterAssignment::observe(AttendanceRosterAssignmentObserver::class);
+
         if ($this->app->runningInConsole()) {
             $this->commands([
                 PolicyValidateCommand::class,
