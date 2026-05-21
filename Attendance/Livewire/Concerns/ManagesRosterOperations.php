@@ -8,7 +8,6 @@ use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
 use App\Modules\People\Attendance\Models\AttendanceRosterLock;
 use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
-use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -65,7 +64,7 @@ trait ManagesRosterOperations
                 'attendance_policy_group_id' => $assignment->attendance_policy_group_id,
                 'effective_from' => $newFrom,
                 'effective_to' => $newTo,
-                'publish_state' => 'draft',
+
                 'lock_state' => 'open',
                 'revision' => ((int) $assignment->revision) + 1,
                 'exceptions' => $assignment->exceptions ?? [],
@@ -234,7 +233,7 @@ trait ManagesRosterOperations
                         'attendance_policy_group_id' => (int) $policy->id,
                         'effective_from' => $o['date'],
                         'effective_to' => $o['date'],
-                        'publish_state' => 'draft',
+        
                         'lock_state' => 'open',
                         'revision' => 1,
                         'exceptions' => [],
@@ -332,7 +331,7 @@ trait ManagesRosterOperations
                 'attendance_policy_group_id' => $row['policy_group_id'],
                 'effective_from' => $row['date'],
                 'effective_to' => $row['date'],
-                'publish_state' => 'draft',
+
                 'lock_state' => 'open',
                 'revision' => 1,
                 'exceptions' => [],
@@ -349,89 +348,6 @@ trait ManagesRosterOperations
         $this->lastDraftAssignmentIds = $createdIds;
         $this->spreadsheetRosterRows = '';
         session()->flash('success', __('Spreadsheet roster import saved :created draft rows and :overrides overrides.', ['created' => count($createdIds), 'overrides' => $overrides]));
-    }
-
-    public function publishReviewedRosters(): void
-    {
-        if (! $this->ensureSchemaReady()) {
-            return;
-        }
-
-        $this->authorizeAttendance('people.attendance.manage');
-        $findings = $this->rosterValidationFindings();
-        $blocking = collect($findings)->where('severity', 'error')->isNotEmpty();
-        $warnings = collect($findings)->where('severity', 'warning')->isNotEmpty();
-
-        if (! $this->rosterValidationRan || $blocking || ($warnings && ! $this->rosterWarningsAccepted)) {
-            $this->addError('rosterRevisionNote', __('Run validation and accept warnings before publishing.'));
-
-            return;
-        }
-
-        $idsQuery = AttendanceRosterAssignment::query()
-            ->where('company_id', $this->companyId())
-            ->where('publish_state', 'draft')
-            ->whereDate('effective_from', '<=', $this->safeGridEndDate($this->safeGridStartDate())->toDateString())
-            ->where(function ($query): void {
-                $query->whereNull('effective_to')
-                    ->orWhereDate('effective_to', '>=', $this->safeGridStartDate()->toDateString());
-            });
-
-        $employeeIds = $this->selectedRosterEmployeeIds();
-        if ($employeeIds !== []) {
-            $idsQuery->whereIn('employee_id', $employeeIds);
-        } elseif ($this->lastDraftAssignmentIds !== []) {
-            $idsQuery->whereIn('id', $this->lastDraftAssignmentIds);
-        } else {
-            $this->addError('rosterRevisionNote', __('Select roster rows or use the latest draft operation before publishing.'));
-
-            return;
-        }
-
-        $ids = $idsQuery->pluck('id');
-
-        $published = 0;
-        foreach ($ids as $id) {
-            $assignment = AttendanceRosterAssignment::query()->find($id);
-            if (! $assignment instanceof AttendanceRosterAssignment) {
-                continue;
-            }
-
-            $assignment->forceFill([
-                'publish_state' => 'published',
-                'revision' => ((int) $assignment->revision) + 1,
-                'metadata' => [
-                    ...($assignment->metadata ?? []),
-                    'published_from' => 'attendance_roster_builder',
-                    'revision_note' => $this->rosterRevisionNote,
-                    'warnings_accepted' => $this->rosterWarningsAccepted,
-                    'published_at' => now()->toIso8601String(),
-                ],
-            ])->save();
-
-            PeopleNotificationDeliveryLog::query()->create([
-                'company_id' => $this->companyId(),
-                'notifiable_type' => AttendanceRosterAssignment::class,
-                'notifiable_id' => $assignment->id,
-                'channel' => 'intent',
-                'recipient' => (string) $assignment->employee_id,
-                'subject' => 'attendance.roster.published',
-                'status' => 'queued',
-                'metadata' => [
-                    'event' => 'roster_published',
-                    'employee_id' => $assignment->employee_id,
-                    'effective_from' => $assignment->effective_from?->toDateString(),
-                    'effective_to' => $assignment->effective_to?->toDateString(),
-                ],
-            ]);
-
-            $published++;
-        }
-
-        $this->rosterRevisionNote = '';
-        $this->rosterValidationRan = false;
-        $this->rosterWarningsAccepted = false;
-        session()->flash('success', trans_choice('Published :count roster assignment.|Published :count roster assignments.', $published, ['count' => $published]));
     }
 
     public function undoLastDraftRosterOperation(): void
@@ -460,12 +376,6 @@ trait ManagesRosterOperations
 
         $this->authorizeAttendance('people.attendance.manage');
 
-        if ($this->editingRosterAssignmentId !== '') {
-            $this->updateExistingRosterAssignment();
-
-            return;
-        }
-
         $companyId = $this->companyId();
         $validated = $this->validate([
             'rosterEmployeeId' => ['nullable', 'integer', Rule::exists(Employee::class, 'id')->where('company_id', $companyId)],
@@ -476,7 +386,6 @@ trait ManagesRosterOperations
             'rosterPolicyGroupId' => ['required', 'integer', Rule::exists(AttendancePolicyGroup::class, 'id')->where('company_id', $companyId)],
             'rosterEffectiveFrom' => ['required', 'date'],
             'rosterEffectiveTo' => ['nullable', 'date', 'after_or_equal:rosterEffectiveFrom'],
-            'rosterPublishState' => ['required', Rule::in(['draft', 'published'])],
         ]);
 
         $employeeIds = $this->selectedRosterEmployeeIds();
@@ -507,7 +416,6 @@ trait ManagesRosterOperations
                 'attendance_policy_group_id' => (int) $validated['rosterPolicyGroupId'],
                 'effective_from' => $validated['rosterEffectiveFrom'],
                 'effective_to' => $effectiveTo,
-                'publish_state' => $validated['rosterPublishState'],
                 'lock_state' => 'open',
                 'revision' => 1,
                 'exceptions' => [],
@@ -538,51 +446,6 @@ trait ManagesRosterOperations
             $created,
             ['count' => $created, 'skipped' => $skipped],
         ));
-    }
-
-    private function updateExistingRosterAssignment(): void
-    {
-        $companyId = $this->companyId();
-
-        $assignment = AttendanceRosterAssignment::query()
-            ->where('company_id', $companyId)
-            ->findOrFail((int) $this->editingRosterAssignmentId);
-
-        $validated = $this->validate([
-            'rosterPatternId' => ['nullable', 'integer', Rule::exists(AttendanceRosterPattern::class, 'id')->where('company_id', $companyId)],
-            'rosterShiftTemplateId' => ['required', 'integer', Rule::exists(AttendanceShiftTemplate::class, 'id')->where('company_id', $companyId)],
-            'rosterPolicyGroupId' => ['required', 'integer', Rule::exists(AttendancePolicyGroup::class, 'id')->where('company_id', $companyId)],
-            'rosterEffectiveFrom' => ['required', 'date'],
-            'rosterEffectiveTo' => ['nullable', 'date', 'after_or_equal:rosterEffectiveFrom'],
-            'rosterPublishState' => ['required', Rule::in(['draft', 'published'])],
-        ]);
-
-        $effectiveTo = $this->blankToNull($validated['rosterEffectiveTo'] ?? null);
-
-        if ($assignment->employee_id !== null && $this->hasRosterOverlap(
-            (int) $assignment->employee_id,
-            $validated['rosterEffectiveFrom'],
-            $effectiveTo,
-            (int) $assignment->id,
-        )) {
-            $this->addError('rosterEffectiveFrom', __('This range overlaps another roster assignment for the same employee.'));
-
-            return;
-        }
-
-        $assignment->update([
-            'attendance_roster_pattern_id' => $this->blankToNull($validated['rosterPatternId'] ?? null),
-            'attendance_shift_template_id' => (int) $validated['rosterShiftTemplateId'],
-            'attendance_policy_group_id' => (int) $validated['rosterPolicyGroupId'],
-            'effective_from' => $validated['rosterEffectiveFrom'],
-            'effective_to' => $effectiveTo,
-            'publish_state' => $validated['rosterPublishState'],
-            'revision' => ((int) $assignment->revision) + 1,
-        ]);
-
-        $this->resetForm();
-        $this->mode = 'list';
-        session()->flash('success', __('Roster assignment updated.'));
     }
 
     public function lockRosterPeriod(string $from, string $to): void
@@ -661,35 +524,6 @@ trait ManagesRosterOperations
             ->exists();
     }
 
-    public function editRosterAssignment(int $assignmentId): void
-    {
-        if (! $this->ensureSchemaReady()) {
-            return;
-        }
-
-        $this->authorizeAttendance('people.attendance.manage');
-
-        $assignment = AttendanceRosterAssignment::query()
-            ->where('company_id', $this->companyId())
-            ->findOrFail($assignmentId);
-
-        $this->resetForm();
-
-        $this->editingRosterAssignmentId = (string) $assignment->id;
-        $this->rosterEmployeeId = (string) ($assignment->employee_id ?? '');
-        $this->selectedRosterEmployeeIds = $assignment->employee_id !== null
-            ? [(string) $assignment->employee_id]
-            : [];
-        $this->rosterPatternId = (string) ($assignment->attendance_roster_pattern_id ?? '');
-        $this->rosterShiftTemplateId = (string) ($assignment->attendance_shift_template_id ?? '');
-        $this->rosterPolicyGroupId = (string) ($assignment->attendance_policy_group_id ?? '');
-        $this->rosterEffectiveFrom = $assignment->effective_from?->toDateString() ?? now()->toDateString();
-        $this->rosterEffectiveTo = $assignment->effective_to?->toDateString() ?? '';
-        $this->rosterPublishState = (string) ($assignment->publish_state ?? 'draft');
-
-        $this->mode = 'form';
-    }
-
     /**
      * @param  array<string, mixed>  $metadata
      */
@@ -708,8 +542,6 @@ trait ManagesRosterOperations
             'metadata' => $metadata,
         ];
 
-        $wasPublished = $assignment->publish_state === 'published';
-
         $assignment->forceFill([
             'exceptions' => $exceptions,
             'revision' => ((int) $assignment->revision) + 1,
@@ -720,7 +552,7 @@ trait ManagesRosterOperations
             ],
         ])->save();
 
-        if ($wasPublished && $assignment->employee_id !== null) {
+        if ($assignment->employee_id !== null) {
             $this->resetAcknowledgmentForEmployeeDate((int) $assignment->employee_id, $date);
         }
     }

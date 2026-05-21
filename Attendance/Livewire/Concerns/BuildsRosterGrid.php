@@ -61,16 +61,12 @@ trait BuildsRosterGrid
 
     private function gridPeriodStart(): CarbonImmutable
     {
-        return $this->mode === 'list'
-            ? $this->listScopeStart()
-            : $this->safeGridStartDate();
+        return $this->listScopeStart();
     }
 
     private function gridPeriodEnd(): CarbonImmutable
     {
-        return $this->mode === 'list'
-            ? $this->listScopeEnd()
-            : $this->safeGridEndDate($this->safeGridStartDate());
+        return $this->listScopeEnd();
     }
 
     /**
@@ -107,9 +103,6 @@ trait BuildsRosterGrid
         $start = $days[0]['date'] ?? now()->toDateString();
         $end = $days[array_key_last($days)]['date'] ?? $start;
         $employeeIds = $employees->pluck('id')->map(fn (int $id): int => $id)->all();
-        $selectedIds = $this->selectedRosterEmployeeIds();
-        $selectedLookup = array_fill_keys($selectedIds, true);
-        $proposedShift = $this->selectedShiftTemplateCode();
 
         $assignments = AttendanceRosterAssignment::query()
             ->where('company_id', $this->companyId())
@@ -127,7 +120,7 @@ trait BuildsRosterGrid
         $calendar = app(AttendanceCalendarResolver::class);
         $calendar->preload($employees, $start, $end);
 
-        return $employees->map(function (Employee $employee) use ($assignments, $days, $selectedLookup, $proposedShift, $calendar): array {
+        return $employees->map(function (Employee $employee) use ($assignments, $days, $calendar): array {
             $employeeAssignments = $assignments->get($employee->id, collect());
 
             return [
@@ -135,7 +128,7 @@ trait BuildsRosterGrid
                 'group' => $this->employeeGroupLabel($employee),
                 'cells' => collect($days)->mapWithKeys(
                     fn (array $day): array => [
-                        $day['date'] => $this->rosterGridCell($employee, $day, $employeeAssignments, $selectedLookup, $proposedShift, $calendar),
+                        $day['date'] => $this->rosterGridCell($employee, $day, $employeeAssignments, $calendar),
                     ],
                 )->all(),
             ];
@@ -153,15 +146,12 @@ trait BuildsRosterGrid
     /**
      * @param  array{date: string, day: string, label: string}  $day
      * @param  Collection<int, AttendanceRosterAssignment>  $employeeAssignments
-     * @param  array<int, true>  $selectedLookup
      * @return array<string, mixed>
      */
     private function rosterGridCell(
         Employee $employee,
         array $day,
         Collection $employeeAssignments,
-        array $selectedLookup,
-        ?string $proposedShift,
         AttendanceCalendarResolver $calendar,
     ): array {
         $dayType = $calendar->dayType($employee, $day['date']);
@@ -170,10 +160,6 @@ trait BuildsRosterGrid
 
         if ($assignment instanceof AttendanceRosterAssignment) {
             return $this->buildAssignedCell($assignment, $day, $dayType, $dayTypeLabel);
-        }
-
-        if (isset($selectedLookup[$employee->id]) && $proposedShift !== null && $this->dateWithinDraftRange($day['date'])) {
-            return $this->buildPreviewCell($proposedShift, $dayType, $dayTypeLabel);
         }
 
         return $this->buildEmptyCell($dayType, $dayTypeLabel);
@@ -204,30 +190,6 @@ trait BuildsRosterGrid
             'on_non_working_day' => $dayType !== AttendanceDay::DAY_TYPE_NORMAL,
             'shift_template_id' => (int) ($assignment->attendance_shift_template_id ?? 0),
             'policy_group_id' => (int) ($assignment->attendance_policy_group_id ?? 0),
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function buildPreviewCell(string $proposedShift, string $dayType, string $dayTypeLabel): array
-    {
-        $title = __('Unsaved roster preview');
-        if ($dayType !== AttendanceDay::DAY_TYPE_NORMAL) {
-            $title .= ' · '.__('on :day', ['day' => $dayTypeLabel]);
-        }
-
-        return [
-            'label' => $proposedShift,
-            'state' => 'preview',
-            'variant' => 'info',
-            'policy' => $this->selectedPolicyGroupCode() ?? '-',
-            'title' => $title,
-            'day_type' => $dayType,
-            'day_type_label' => $dayTypeLabel,
-            'on_non_working_day' => $dayType !== AttendanceDay::DAY_TYPE_NORMAL,
-            'shift_template_id' => (int) ($this->rosterShiftTemplateId ?: 0),
-            'policy_group_id' => (int) ($this->rosterPolicyGroupId ?: 0),
         ];
     }
 

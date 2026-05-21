@@ -27,8 +27,6 @@ class Rosters extends Component
     use ResolvesRosterPolicySchedule;
     use WithPagination;
 
-    public string $mode = 'list';
-
     public string $rosterSearch = '';
 
     public string $rosterDepartmentId = '';
@@ -58,13 +56,6 @@ class Rosters extends Component
 
     public string $rosterEmployeeId = '';
 
-    /**
-     * When non-empty, `saveRosterAssignment()` updates the named assignment
-     * in place instead of creating new rows for the selected population.
-     * Set by `editRosterAssignment($id)`; cleared by `resetForm()`.
-     */
-    public string $editingRosterAssignmentId = '';
-
     public string $rosterPatternId = '';
 
     public string $rosterShiftTemplateId = '';
@@ -74,18 +65,6 @@ class Rosters extends Component
     public string $rosterEffectiveFrom = '';
 
     public string $rosterEffectiveTo = '';
-
-    public string $rosterPublishState = 'draft';
-
-    public string $rosterRevisionNote = '';
-
-    public bool $rosterValidationRan = false;
-
-    public bool $rosterWarningsAccepted = false;
-
-    public string $rosterRequiredPerShift = '';
-
-    public string $rosterTemplateKey = '';
 
     public string $swapFromEmployeeId = '';
 

@@ -37,11 +37,9 @@ trait BuildsRosterRenderingData
         $actualOutcomes = $this->actualMode ? $this->rosterActualOutcomes($employeeIds, $gridDates[0], $gridDates[1]) : [];
         $rosterGridRows = $this->rosterGridRows($employees->getCollection());
         $rosterGridDays = $this->enrichGridDays($rosterGridDays, $rosterGridRows, $lockedDates);
-        $rosterCoverageRows = $this->rosterCoverageRows();
 
         return [
             'employees' => $employees,
-            'editingEmployee' => $this->resolveEditingEmployee($companyId),
             'filteredEmployeeCount' => $this->filteredEmployeesQuery()->count(),
             'companyEmployeeCount' => Employee::query()->where('company_id', $companyId)->count(),
             'selectedEmployeeCount' => count($this->selectedRosterEmployeeIds()),
@@ -50,10 +48,6 @@ trait BuildsRosterRenderingData
             'rosterGridDays' => $rosterGridDays,
             'rosterGridRows' => $rosterGridRows,
             'rosterListSummary' => $this->rosterListSummary($rosterGridRows, $rosterGridDays),
-            'rosterCoverageRows' => $rosterCoverageRows,
-            'rosterCoverageMatrix' => $this->rosterCoverageMatrix($rosterCoverageRows),
-            'rosterValidationFindings' => $this->rosterValidationFindings(),
-            'rosterTemplates' => $this->rosterTemplates(),
             'spreadsheetPreviewRows' => $this->parseSpreadsheetRows()['rows'],
             'departments' => Department::query()
                 ->select('company_departments.*')
@@ -95,7 +89,6 @@ trait BuildsRosterRenderingData
     {
         return [
             'employees' => collect(),
-            'editingEmployee' => null,
             'filteredEmployeeCount' => 0,
             'companyEmployeeCount' => 0,
             'selectedEmployeeCount' => 0,
@@ -104,10 +97,6 @@ trait BuildsRosterRenderingData
             'rosterGridDays' => [],
             'rosterGridRows' => collect(),
             'rosterListSummary' => null,
-            'rosterCoverageRows' => [],
-            'rosterCoverageMatrix' => ['shifts' => [], 'dates' => [], 'cells' => []],
-            'rosterValidationFindings' => [],
-            'rosterTemplates' => collect(),
             'spreadsheetPreviewRows' => [],
             'departments' => collect(),
             'supervisors' => collect(),
@@ -116,18 +105,6 @@ trait BuildsRosterRenderingData
             'rosterPatterns' => collect(),
             'rosterAssignments' => collect(),
         ];
-    }
-
-    private function resolveEditingEmployee(int $companyId): ?Employee
-    {
-        if ($this->editingRosterAssignmentId === '' || $this->rosterEmployeeId === '') {
-            return null;
-        }
-
-        return Employee::query()
-            ->where('company_id', $companyId)
-            ->whereKey((int) $this->rosterEmployeeId)
-            ->first();
     }
 
     /**
@@ -481,7 +458,6 @@ trait BuildsRosterRenderingData
 
     private function resetForm(): void
     {
-        $this->editingRosterAssignmentId = '';
         $this->rosterEmployeeId = '';
         $this->selectedRosterEmployeeIds = [];
         $this->rosterSelectAllFiltered = false;
@@ -490,7 +466,6 @@ trait BuildsRosterRenderingData
         $this->rosterPolicyGroupId = '';
         $this->rosterEffectiveFrom = now()->toDateString();
         $this->rosterEffectiveTo = '';
-        $this->rosterPublishState = 'draft';
         $this->rosterBulkNote = '';
     }
 

@@ -137,7 +137,6 @@ return new class extends Migration
             $table->json('cohort_predicate')->nullable();
             $table->date('effective_from');
             $table->date('effective_to')->nullable();
-            $table->string('publish_state')->default('draft')->index();
             $table->string('lock_state')->default('open')->index();
             $table->unsignedInteger('revision')->default(1);
             $table->json('exceptions')->nullable();
@@ -148,7 +147,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['company_id', 'employee_id', 'effective_from'], 'people_att_roster_assignments_company_employee_from_index');
-            $table->index(['company_id', 'publish_state', 'lock_state'], 'people_att_roster_assignments_company_publish_lock_index');
+            $table->index(['company_id', 'lock_state'], 'people_att_roster_assignments_company_lock_index');
         });
         $this->registerTable('people_attendance_roster_assignments');
 

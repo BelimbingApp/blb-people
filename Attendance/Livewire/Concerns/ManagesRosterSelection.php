@@ -49,54 +49,6 @@ trait ManagesRosterSelection
         $this->resetPage();
     }
 
-    public function validateRosterDraft(): void
-    {
-        $this->rosterValidationRan = true;
-        $this->rosterWarningsAccepted = false;
-    }
-
-    public function acceptRosterWarnings(): void
-    {
-        $this->rosterValidationRan = true;
-        $this->rosterWarningsAccepted = true;
-    }
-
-    public function applyRosterTemplate(): void
-    {
-        if (! $this->ensureSchemaReady()) {
-            return;
-        }
-
-        $template = $this->rosterTemplates()->firstWhere('key', $this->rosterTemplateKey);
-        if (! is_array($template)) {
-            $this->addError('rosterTemplateKey', __('Choose a roster template to apply.'));
-
-            return;
-        }
-
-        $this->rosterShiftTemplateId = (string) ($template['shift_id'] ?? '');
-        $this->rosterPatternId = (string) ($template['pattern_id'] ?? '');
-        $this->rosterPublishState = 'draft';
-    }
-
-    public function startNewRosterAssignment(): void
-    {
-        if (! $this->ensureSchemaReady()) {
-            return;
-        }
-
-        $this->authorizeAttendance('people.attendance.manage');
-
-        $this->resetForm();
-        $this->mode = 'form';
-    }
-
-    public function cancelRosterForm(): void
-    {
-        $this->resetForm();
-        $this->mode = 'list';
-    }
-
     public function goToPreviousWeek(): void
     {
         if ($this->listScope === 'month') {
