@@ -491,6 +491,7 @@ trait BuildsRosterRenderingData
         $this->rosterEffectiveFrom = now()->toDateString();
         $this->rosterEffectiveTo = '';
         $this->rosterPublishState = 'draft';
+        $this->rosterBulkNote = '';
     }
 
     private function hasRosterOverlap(int $employeeId, string $effectiveFrom, ?string $effectiveTo, ?int $excludeAssignmentId = null): bool

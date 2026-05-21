@@ -288,6 +288,7 @@ trait ManagesRosterOperations
 
         $this->appendExceptionOverride($from, $this->swapDate, (int) $to->attendance_shift_template_id, (int) $to->attendance_policy_group_id, 'swap');
         $this->appendExceptionOverride($to, $this->swapDate, (int) $from->attendance_shift_template_id, (int) $from->attendance_policy_group_id, 'swap');
+        $this->dispatch('close-swap-modal');
         session()->flash('success', __('Roster shift swap saved.'));
     }
 
@@ -514,6 +515,7 @@ trait ManagesRosterOperations
                     'created_from' => 'attendance_roster_builder',
                     'selection_mode' => $this->rosterSelectAllFiltered ? 'all_filtered' : 'selected_employees',
                     'filters' => $this->rosterFilters(),
+                    ...($this->rosterBulkNote !== '' ? ['note' => $this->rosterBulkNote] : []),
                 ],
             ]);
 
@@ -528,6 +530,7 @@ trait ManagesRosterOperations
         }
 
         $this->lastDraftAssignmentIds = $createdIds;
+        $this->dispatch('close-bulk-modal');
         $this->resetForm();
         $this->mode = 'list';
         session()->flash('success', trans_choice(

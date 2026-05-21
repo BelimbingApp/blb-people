@@ -93,6 +93,8 @@ class Rosters extends Component
 
     public string $swapDate = '';
 
+    public string $rosterBulkNote = '';
+
     public string $spreadsheetRosterRows = '';
 
     /**
