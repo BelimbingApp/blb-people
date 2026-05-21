@@ -83,7 +83,7 @@ trait ManagesRosterOperations
         session()->flash('success', trans_choice('Copied :count roster assignment from the previous period.|Copied :count roster assignments from the previous period.', $created, ['count' => $created]));
     }
 
-    public function saveCellOverride(int $employeeId, string $date, mixed $shiftTemplateId = null, mixed $policyGroupId = null): void
+    public function saveCellOverride(int $employeeId, string $date, mixed $shiftTemplateId = null, mixed $policyGroupId = null, string $note = '', string $job = ''): void
     {
         if (! $this->ensureSchemaReady()) {
             return;
@@ -118,8 +118,10 @@ trait ManagesRosterOperations
         }
 
         $assignment = $this->assignmentForEmployeeDate($employeeId, $date);
+        $meta = array_filter(['note' => $note, 'job' => $job], fn (string $v): bool => $v !== '');
+
         if ($assignment instanceof AttendanceRosterAssignment) {
-            $this->appendExceptionOverride($assignment, $date, (int) $shiftTemplate->id, (int) $policyGroup->id, 'cell_override');
+            $this->appendExceptionOverride($assignment, $date, (int) $shiftTemplate->id, (int) $policyGroup->id, 'cell_override', $meta);
             session()->flash('success', __('Roster cell override saved.'));
 
             return;
@@ -132,11 +134,10 @@ trait ManagesRosterOperations
             'attendance_policy_group_id' => (int) $policyGroup->id,
             'effective_from' => $date,
             'effective_to' => $date,
-            'publish_state' => 'draft',
             'lock_state' => 'open',
             'revision' => 1,
             'exceptions' => [],
-            'metadata' => ['created_from' => 'attendance_roster_cell_override'],
+            'metadata' => ['created_from' => 'attendance_roster_cell_override', ...$meta],
         ]);
 
         $this->lastDraftAssignmentIds = [$created->id];
@@ -150,7 +151,7 @@ trait ManagesRosterOperations
      * Validated entries must fall within the current grid period and belong to
      * the current company. All writes are wrapped in one transaction.
      */
-    public function saveCellOverrides(array $overrides): void
+    public function saveCellOverrides(array $overrides, string $note = '', string $job = ''): void
     {
         if (! $this->ensureSchemaReady()) {
             return;
@@ -162,6 +163,27 @@ trait ManagesRosterOperations
         $gridStart = $this->gridPeriodStart()->toDateString();
         $gridEnd = $this->gridPeriodEnd()->toDateString();
 
+        $candidateEmpIds = [];
+        $candidateDates = [];
+        foreach ($overrides as $o) {
+            if (! is_array($o)) {
+                continue;
+            }
+            $empId = (int) ($o['employee_id'] ?? 0);
+            $date = (string) ($o['date'] ?? '');
+            if ($empId > 0 && $date !== '' && $date >= $gridStart && $date <= $gridEnd) {
+                $candidateEmpIds[] = $empId;
+                $candidateDates[] = $date;
+            }
+        }
+
+        $validEmpIds = $candidateEmpIds !== []
+            ? Employee::query()->where('company_id', $companyId)->whereKey(array_unique($candidateEmpIds))->pluck('id')->all()
+            : [];
+        $lockedDateSet = $candidateDates !== []
+            ? $this->lockedDateSetForDates(array_unique($candidateDates))
+            : [];
+
         $valid = [];
         foreach ($overrides as $o) {
             if (! is_array($o)) {
@@ -172,10 +194,7 @@ trait ManagesRosterOperations
             if ($empId <= 0 || $date === '' || $date < $gridStart || $date > $gridEnd) {
                 continue;
             }
-            if ($this->isDateLocked($date)) {
-                continue;
-            }
-            if (! Employee::query()->where('company_id', $companyId)->whereKey($empId)->exists()) {
+            if (isset($lockedDateSet[$date]) || ! in_array($empId, $validEmpIds, true)) {
                 continue;
             }
             $valid[] = [
@@ -192,8 +211,9 @@ trait ManagesRosterOperations
 
         $createdIds = [];
         $savedCount = 0;
+        $meta = array_filter(['note' => $note, 'job' => $job], fn (string $v): bool => $v !== '');
 
-        DB::transaction(function () use ($valid, $companyId, &$createdIds, &$savedCount): void {
+        DB::transaction(function () use ($valid, $companyId, $meta, &$createdIds, &$savedCount): void {
             foreach ($valid as $o) {
                 $isClear = $o['shift_template_id'] === 0 || $o['policy_group_id'] === 0;
                 $assignment = $this->assignmentForEmployeeDate($o['employee_id'], $o['date']);
@@ -205,14 +225,11 @@ trait ManagesRosterOperations
                     $from = $assignment->effective_from?->toDateString();
                     $to = $assignment->effective_to?->toDateString();
                     if ($from === $o['date'] && ($to === null || $to === $o['date'])) {
-                        if ($assignment->publish_state === 'draft') {
-                            $assignment->delete();
-                            $savedCount++;
-                        }
+                        $assignment->delete();
                     } else {
                         $this->removeExceptionOverride($assignment, $o['date']);
-                        $savedCount++;
                     }
+                    $savedCount++;
 
                     continue;
                 }
@@ -224,7 +241,7 @@ trait ManagesRosterOperations
                 }
 
                 if ($assignment instanceof AttendanceRosterAssignment) {
-                    $this->appendExceptionOverride($assignment, $o['date'], (int) $shift->id, (int) $policy->id, 'cell_override_batch');
+                    $this->appendExceptionOverride($assignment, $o['date'], (int) $shift->id, (int) $policy->id, 'cell_override_batch', $meta);
                 } else {
                     $created = AttendanceRosterAssignment::query()->create([
                         'company_id' => $companyId,
@@ -233,11 +250,11 @@ trait ManagesRosterOperations
                         'attendance_policy_group_id' => (int) $policy->id,
                         'effective_from' => $o['date'],
                         'effective_to' => $o['date'],
-        
+
                         'lock_state' => 'open',
                         'revision' => 1,
                         'exceptions' => [],
-                        'metadata' => ['created_from' => 'attendance_roster_cell_override_batch'],
+                        'metadata' => ['created_from' => 'attendance_roster_cell_override_batch', ...$meta],
                     ]);
                     $createdIds[] = $created->id;
                 }
@@ -361,7 +378,6 @@ trait ManagesRosterOperations
         $deleted = AttendanceRosterAssignment::query()
             ->where('company_id', $this->companyId())
             ->whereIn('id', $this->lastDraftAssignmentIds)
-            ->where('publish_state', 'draft')
             ->delete();
 
         $this->lastDraftAssignmentIds = [];
@@ -440,7 +456,6 @@ trait ManagesRosterOperations
         $this->lastDraftAssignmentIds = $createdIds;
         $this->dispatch('close-bulk-modal');
         $this->resetForm();
-        $this->mode = 'list';
         session()->flash('success', trans_choice(
             'Roster assignment saved. :skipped skipped because of existing roster overlaps.|:count roster assignments saved. :skipped skipped because of existing roster overlaps.',
             $created,
@@ -522,6 +537,41 @@ trait ManagesRosterOperations
             ->where('period_end', '>=', $date)
             ->whereNull('unlocked_at')
             ->exists();
+    }
+
+    /**
+     * Returns a date → true map for the given dates that fall within a locked period.
+     * Single query replaces N isDateLocked() calls in batch operations.
+     *
+     * @param  list<string>  $dates
+     * @return array<string, true>
+     */
+    private function lockedDateSetForDates(array $dates): array
+    {
+        if ($dates === []) {
+            return [];
+        }
+
+        $min = min($dates);
+        $max = max($dates);
+
+        $locks = AttendanceRosterLock::query()
+            ->where('company_id', $this->companyId())
+            ->where('period_start', '<=', $max)
+            ->where('period_end', '>=', $min)
+            ->whereNull('unlocked_at')
+            ->get(['period_start', 'period_end']);
+
+        $locked = [];
+        foreach ($locks as $lock) {
+            foreach ($dates as $date) {
+                if ($date >= $lock->period_start && $date <= $lock->period_end) {
+                    $locked[$date] = true;
+                }
+            }
+        }
+
+        return $locked;
     }
 
     /**

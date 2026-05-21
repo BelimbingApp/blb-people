@@ -140,7 +140,7 @@ trait BuildsRosterGrid
         return $employee->department?->name
             ?? $employee->workProfile?->organizationUnit?->name
             ?? $employee->workProfile?->workforceClass?->name
-            ?? '-';
+            ?? __('No department');
     }
 
     /**

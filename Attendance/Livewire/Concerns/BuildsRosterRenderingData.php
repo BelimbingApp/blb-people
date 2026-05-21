@@ -58,7 +58,6 @@ trait BuildsRosterRenderingData
                 ->get(),
             'supervisors' => Employee::query()
                 ->where('company_id', $companyId)
-                ->whereNotNull('id')
                 ->orderBy('full_name')
                 ->get(['id', 'full_name', 'employee_number']),
             'shiftTemplates' => AttendanceShiftTemplate::query()
