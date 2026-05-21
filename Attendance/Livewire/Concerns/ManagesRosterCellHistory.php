@@ -2,9 +2,10 @@
 
 namespace App\Modules\People\Attendance\Livewire\Concerns;
 
+use App\Base\Audit\Models\AuditMutation;
+use App\Base\Authz\Enums\PrincipalType;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\Core\User\Models\User;
-use App\Modules\People\Attendance\Models\AttendanceRosterCellLog;
 
 trait ManagesRosterCellHistory
 {
@@ -34,34 +35,35 @@ trait ManagesRosterCellHistory
             return;
         }
 
-        $logs = AttendanceRosterCellLog::query()
+        $logs = AuditMutation::query()
             ->where('company_id', $companyId)
-            ->where('employee_id', $employeeId)
-            ->whereDate('date', $date)
-            ->with(['previousShift', 'newShift', 'previousPolicy', 'newPolicy'])
-            ->orderByDesc('changed_at')
+            ->where('subject_name', 'employee')
+            ->where('subject_id', $employeeId)
+            ->where('subject_identifier', $date)
+            ->where('source', 'expanded')
+            ->orderByDesc('occurred_at')
             ->limit(50)
             ->get();
 
-        $userIds = $logs->pluck('changed_by')->filter()->unique()->all();
+        $userIds = $logs->where('actor_type', PrincipalType::USER->value)->pluck('actor_id')->filter()->unique()->all();
         $userNames = User::query()->whereKey($userIds)->pluck('name', 'id');
 
         $this->cellHistoryEmployeeId = $employeeId;
         $this->cellHistoryDate = $date;
         $this->cellHistoryEmployeeName = $employee->displayName();
-        $this->cellHistoryRows = $logs->map(fn (AttendanceRosterCellLog $log): array => [
+        $this->cellHistoryRows = $logs->map(fn (AuditMutation $log): array => [
             'id' => $log->id,
-            'action' => $log->action,
-            'changed_at' => $log->changed_at?->format('d M Y, H:i'),
-            'changed_by' => $log->changed_by !== null
-                ? ($userNames[$log->changed_by] ?? __('Unknown'))
+            'action' => $log->event,
+            'changed_at' => $log->occurred_at?->format('d M Y, H:i'),
+            'changed_by' => $log->actor_type === PrincipalType::USER->value && $log->actor_id !== null
+                ? ($userNames[$log->actor_id] ?? __('Unknown'))
                 : __('System'),
-            'prev_shift' => $log->previousShift?->code,
-            'prev_policy' => $log->previousPolicy?->code,
-            'new_shift' => $log->newShift?->code,
-            'new_policy' => $log->newPolicy?->code,
-            'note' => $log->note,
-            'job' => $log->job,
+            'prev_shift' => ($log->old_values ?? [])['shift_code'] ?? null,
+            'prev_policy' => ($log->old_values ?? [])['policy_code'] ?? null,
+            'new_shift' => ($log->new_values ?? [])['shift_code'] ?? null,
+            'new_policy' => ($log->new_values ?? [])['policy_code'] ?? null,
+            'note' => null,
+            'job' => null,
         ])->all();
 
         $this->cellHistoryOpen = true;

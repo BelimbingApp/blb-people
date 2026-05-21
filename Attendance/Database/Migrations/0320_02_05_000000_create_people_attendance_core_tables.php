@@ -137,6 +137,7 @@ return new class extends Migration
             $table->json('cohort_predicate')->nullable();
             $table->date('effective_from');
             $table->date('effective_to')->nullable();
+            $table->string('publish_state')->default('draft')->index();
             $table->string('lock_state')->default('open')->index();
             $table->unsignedInteger('revision')->default(1);
             $table->json('exceptions')->nullable();

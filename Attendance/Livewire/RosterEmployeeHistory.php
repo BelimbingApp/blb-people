@@ -2,10 +2,11 @@
 
 namespace App\Modules\People\Attendance\Livewire;
 
+use App\Base\Audit\Models\AuditMutation;
+use App\Base\Authz\Enums\PrincipalType;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\Core\User\Models\User;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
-use App\Modules\People\Attendance\Models\AttendanceRosterCellLog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Component;
@@ -40,19 +41,20 @@ class RosterEmployeeHistory extends Component
         $rows = collect();
 
         if ($employee instanceof Employee) {
-            $query = AttendanceRosterCellLog::query()
+            $query = AuditMutation::query()
                 ->where('company_id', $companyId)
-                ->where('employee_id', $employee->id)
-                ->with(['previousShift', 'newShift', 'previousPolicy', 'newPolicy'])
-                ->orderByDesc('changed_at')
+                ->where('subject_name', 'employee')
+                ->where('subject_id', $employee->id)
+                ->where('source', 'expanded')
+                ->orderByDesc('occurred_at')
                 ->orderByDesc('id');
 
             if ($this->fromDate !== '') {
-                $query->whereDate('date', '>=', $this->fromDate);
+                $query->where('subject_identifier', '>=', $this->fromDate);
             }
 
             if ($this->toDate !== '') {
-                $query->whereDate('date', '<=', $this->toDate);
+                $query->where('subject_identifier', '<=', $this->toDate);
             }
 
             $rows = $query->paginate(50);
@@ -60,7 +62,7 @@ class RosterEmployeeHistory extends Component
 
         // Resolve changed_by names in batch
         $userIds = $rows instanceof LengthAwarePaginator
-            ? $rows->getCollection()->pluck('changed_by')->filter()->unique()->all()
+            ? $rows->getCollection()->where('actor_type', PrincipalType::USER->value)->pluck('actor_id')->filter()->unique()->all()
             : [];
         $userNames = User::query()->whereKey($userIds)->pluck('name', 'id');
 
