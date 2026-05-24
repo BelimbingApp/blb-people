@@ -120,14 +120,18 @@ class AttendanceRosterAssignment extends Model
 
         return $this->buildUpdatedRangeAuditEntries(
             $event,
-            $this->dateString($this->getOriginal('effective_from')) ?? '',
-            $this->dateString($this->getOriginal('effective_to')),
-            $this->effective_from?->toDateString() ?? '',
-            $this->effective_to?->toDateString(),
-            $this->getOriginal('attendance_shift_template_id'),
-            $this->getOriginal('attendance_policy_group_id'),
-            $this->attendance_shift_template_id,
-            $this->attendance_policy_group_id,
+            [
+                'from' => $this->dateString($this->getOriginal('effective_from')) ?? '',
+                'to' => $this->dateString($this->getOriginal('effective_to')),
+                'shift_id' => $this->getOriginal('attendance_shift_template_id'),
+                'policy_id' => $this->getOriginal('attendance_policy_group_id'),
+            ],
+            [
+                'from' => $this->effective_from?->toDateString() ?? '',
+                'to' => $this->effective_to?->toDateString(),
+                'shift_id' => $this->attendance_shift_template_id,
+                'policy_id' => $this->attendance_policy_group_id,
+            ],
         );
     }
 
@@ -161,21 +165,17 @@ class AttendanceRosterAssignment extends Model
     }
 
     /**
+     * @param  array{from: string, to: string|null, shift_id: mixed, policy_id: mixed}  $oldRange
+     * @param  array{from: string, to: string|null, shift_id: mixed, policy_id: mixed}  $newRange
      * @return list<array<string, mixed>>
      */
     private function buildUpdatedRangeAuditEntries(
         string $event,
-        string $oldFrom,
-        ?string $oldTo,
-        string $newFrom,
-        ?string $newTo,
-        mixed $oldShiftId,
-        mixed $oldPolicyId,
-        mixed $newShiftId,
-        mixed $newPolicyId,
+        array $oldRange,
+        array $newRange,
     ): array {
-        $oldDates = $this->expandedDates($oldFrom, $oldTo);
-        $newDates = $this->expandedDates($newFrom, $newTo);
+        $oldDates = $this->expandedDates($oldRange['from'], $oldRange['to']);
+        $newDates = $this->expandedDates($newRange['from'], $newRange['to']);
 
         $dates = array_values(array_unique([...$oldDates, ...$newDates]));
         sort($dates);
@@ -184,10 +184,10 @@ class AttendanceRosterAssignment extends Model
             return [];
         }
 
-        $shiftCodes = $this->shiftCodes([$oldShiftId, $newShiftId]);
-        $policyCodes = $this->policyCodes([$oldPolicyId, $newPolicyId]);
-        $oldSummary = $this->auditSummary($oldShiftId, $oldPolicyId, $shiftCodes, $policyCodes);
-        $newSummary = $this->auditSummary($newShiftId, $newPolicyId, $shiftCodes, $policyCodes);
+        $shiftCodes = $this->shiftCodes([$oldRange['shift_id'], $newRange['shift_id']]);
+        $policyCodes = $this->policyCodes([$oldRange['policy_id'], $newRange['policy_id']]);
+        $oldSummary = $this->auditSummary($oldRange['shift_id'], $oldRange['policy_id'], $shiftCodes, $policyCodes);
+        $newSummary = $this->auditSummary($newRange['shift_id'], $newRange['policy_id'], $shiftCodes, $policyCodes);
         $oldLookup = array_flip($oldDates);
         $newLookup = array_flip($newDates);
         $entries = [];
@@ -213,39 +213,19 @@ class AttendanceRosterAssignment extends Model
     {
         $oldExceptions = $this->parseExceptions($this->getOriginal('exceptions'));
         $newExceptions = collect($this->exceptions ?? []);
-        $dates = $newExceptions->pluck('date')
-            ->merge($oldExceptions->pluck('date'))
-            ->unique()
-            ->filter(fn (mixed $date): bool => is_string($date) && $date !== '')
-            ->values();
+        $dates = $this->exceptionAuditDates($oldExceptions, $newExceptions);
 
-        $ids = [];
-        foreach ($dates as $date) {
-            $oldEntry = $oldExceptions->firstWhere('date', $date);
-            $newEntry = $newExceptions->firstWhere('date', $date);
-            $ids[] = is_array($oldEntry) ? ($oldEntry['attendance_shift_template_id'] ?? null) : null;
-            $ids[] = is_array($oldEntry) ? ($oldEntry['attendance_policy_group_id'] ?? null) : null;
-            $ids[] = is_array($newEntry) ? ($newEntry['attendance_shift_template_id'] ?? null) : null;
-            $ids[] = is_array($newEntry) ? ($newEntry['attendance_policy_group_id'] ?? null) : null;
-        }
-
-        $ids[] = $this->getOriginal('attendance_shift_template_id');
-        $ids[] = $this->getOriginal('attendance_policy_group_id');
-        $ids[] = $this->attendance_shift_template_id;
-        $ids[] = $this->attendance_policy_group_id;
-
+        $ids = $this->exceptionAuditReferenceIds($dates, $oldExceptions, $newExceptions);
         $shiftCodes = $this->shiftCodes($ids);
         $policyCodes = $this->policyCodes($ids);
         $entries = [];
 
         foreach ($dates as $date) {
-            $oldEntry = $oldExceptions->firstWhere('date', $date);
-            $newEntry = $newExceptions->firstWhere('date', $date);
-
-            $oldShift = is_array($oldEntry) ? ($oldEntry['attendance_shift_template_id'] ?? null) : $this->getOriginal('attendance_shift_template_id');
-            $oldPolicy = is_array($oldEntry) ? ($oldEntry['attendance_policy_group_id'] ?? null) : $this->getOriginal('attendance_policy_group_id');
-            $newShift = is_array($newEntry) ? ($newEntry['attendance_shift_template_id'] ?? null) : $this->attendance_shift_template_id;
-            $newPolicy = is_array($newEntry) ? ($newEntry['attendance_policy_group_id'] ?? null) : $this->attendance_policy_group_id;
+            [$oldShift, $oldPolicy, $newShift, $newPolicy] = $this->exceptionAuditValues(
+                $oldExceptions,
+                $newExceptions,
+                $date,
+            );
 
             if ($oldShift === $newShift && $oldPolicy === $newPolicy) {
                 continue;
@@ -260,6 +240,60 @@ class AttendanceRosterAssignment extends Model
         }
 
         return $entries;
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    private function exceptionAuditDates(Collection $oldExceptions, Collection $newExceptions): Collection
+    {
+        return $newExceptions->pluck('date')
+            ->merge($oldExceptions->pluck('date'))
+            ->unique()
+            ->filter(fn (mixed $date): bool => is_string($date) && $date !== '')
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, string>  $dates
+     * @return array<int, mixed>
+     */
+    private function exceptionAuditReferenceIds(Collection $dates, Collection $oldExceptions, Collection $newExceptions): array
+    {
+        $ids = [
+            $this->getOriginal('attendance_shift_template_id'),
+            $this->getOriginal('attendance_policy_group_id'),
+            $this->attendance_shift_template_id,
+            $this->attendance_policy_group_id,
+        ];
+
+        foreach ($dates as $date) {
+            [$oldShift, $oldPolicy, $newShift, $newPolicy] = $this->exceptionAuditValues(
+                $oldExceptions,
+                $newExceptions,
+                $date,
+            );
+
+            array_push($ids, $oldShift, $oldPolicy, $newShift, $newPolicy);
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return array{0: mixed, 1: mixed, 2: mixed, 3: mixed}
+     */
+    private function exceptionAuditValues(Collection $oldExceptions, Collection $newExceptions, string $date): array
+    {
+        $oldEntry = $oldExceptions->firstWhere('date', $date);
+        $newEntry = $newExceptions->firstWhere('date', $date);
+
+        return [
+            is_array($oldEntry) ? ($oldEntry['attendance_shift_template_id'] ?? null) : $this->getOriginal('attendance_shift_template_id'),
+            is_array($oldEntry) ? ($oldEntry['attendance_policy_group_id'] ?? null) : $this->getOriginal('attendance_policy_group_id'),
+            is_array($newEntry) ? ($newEntry['attendance_shift_template_id'] ?? null) : $this->attendance_shift_template_id,
+            is_array($newEntry) ? ($newEntry['attendance_policy_group_id'] ?? null) : $this->attendance_policy_group_id,
+        ];
     }
 
     /**
