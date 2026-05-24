@@ -1,8 +1,8 @@
 <?php
 
+use App\Modules\People\Payroll\Database\Support\PayrollPayItemMigrationSupport;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Plan 17 — drop the legacy `payroll_pay_item_code` column from
@@ -14,23 +14,22 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    use PayrollPayItemMigrationSupport;
+
     public function up(): void
     {
-        if (Schema::hasColumn('people_claim_types', 'payroll_pay_item_code')) {
-            Schema::table('people_claim_types', function (Blueprint $table): void {
-                $table->dropIndex(['company_id', 'payroll_pay_item_code']);
-                $table->dropColumn('payroll_pay_item_code');
-            });
-        }
+        $this->dropLegacyPayItemCodeColumn(
+            'people_claim_types',
+            fn (Blueprint $table): mixed => $table->dropIndex(['company_id', 'payroll_pay_item_code']),
+        );
     }
 
     public function down(): void
     {
-        if (! Schema::hasColumn('people_claim_types', 'payroll_pay_item_code')) {
-            Schema::table('people_claim_types', function (Blueprint $table): void {
-                $table->string('payroll_pay_item_code')->nullable()->after('payroll_eligible');
-                $table->index(['company_id', 'payroll_pay_item_code']);
-            });
-        }
+        $this->restoreLegacyPayItemCodeColumn(
+            'people_claim_types',
+            'payroll_eligible',
+            fn (Blueprint $table): mixed => $table->index(['company_id', 'payroll_pay_item_code']),
+        );
     }
 };

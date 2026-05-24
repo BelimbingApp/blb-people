@@ -1,8 +1,7 @@
 <?php
 
+use App\Modules\People\Payroll\Database\Support\PayrollPayItemMigrationSupport;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Plan 12 Phase 2 — pay-item code is now owned by Payroll via the
@@ -17,21 +16,15 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    use PayrollPayItemMigrationSupport;
+
     public function up(): void
     {
-        if (Schema::hasColumn('people_attendance_allowance_rules', 'payroll_pay_item_code')) {
-            Schema::table('people_attendance_allowance_rules', function (Blueprint $table): void {
-                $table->dropColumn('payroll_pay_item_code');
-            });
-        }
+        $this->dropLegacyPayItemCodeColumn('people_attendance_allowance_rules');
     }
 
     public function down(): void
     {
-        if (! Schema::hasColumn('people_attendance_allowance_rules', 'payroll_pay_item_code')) {
-            Schema::table('people_attendance_allowance_rules', function (Blueprint $table): void {
-                $table->string('payroll_pay_item_code')->nullable()->after('allowance_type');
-            });
-        }
+        $this->restoreLegacyPayItemCodeColumn('people_attendance_allowance_rules', 'allowance_type');
     }
 };

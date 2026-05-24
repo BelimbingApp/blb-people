@@ -34,6 +34,8 @@ class EmployeePayrollReadinessService
 
     private const BANK_ACCOUNT_NUMBER_METADATA_PATH = 'employees.metadata->payroll_bank->bank_account_number';
 
+    private const ANY_ROWS_CONDITION = '1 = 1';
+
     private const NO_ROWS_CONDITION = '1 = 0';
 
     private const STATUTORY_PROFILE_EMPLOYEE_ID_COLUMN = self::STATUTORY_PROFILE_TABLE.'.employee_id';
@@ -201,14 +203,14 @@ class EmployeePayrollReadinessService
         match ($blocker) {
             'missing_work_profile' => $workProfileTableExists
                 ? $query->whereNull('people_employee_work_profiles.id')
-                : $query->whereRaw('1 = 1'),
+                : $query->whereRaw(self::ANY_ROWS_CONDITION),
             'missing_pay_basis' => $workProfileTableExists
                 ? $query->where(function (Builder $payBasisQuery): void {
                     $payBasisQuery->whereNull('people_employee_work_profiles.id')
                         ->orWhereNull('people_employee_work_profiles.pay_rate_type')
                         ->orWhere('people_employee_work_profiles.pay_rate_type', '');
                 })
-                : $query->whereRaw('1 = 1'),
+                : $query->whereRaw(self::ANY_ROWS_CONDITION),
             'missing_bank_details' => $query->where(function (Builder $bankQuery): void {
                 $bankQuery->whereNull(self::BANK_NAME_METADATA_PATH)
                     ->orWhere(self::BANK_NAME_METADATA_PATH, '')
@@ -221,7 +223,7 @@ class EmployeePayrollReadinessService
                         ->from(self::STATUTORY_PROFILE_TABLE)
                         ->whereColumn(self::STATUTORY_PROFILE_EMPLOYEE_ID_COLUMN, 'employees.id');
                 })
-                : $query->whereRaw('1 = 1'),
+                : $query->whereRaw(self::ANY_ROWS_CONDITION),
             'statutory_profile_has_issues' => $statutoryTableExists
                 ? $query->whereExists(function ($sub): void {
                     $sub->select(DB::raw(1))

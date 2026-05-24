@@ -1,8 +1,7 @@
 <?php
 
+use App\Modules\People\Payroll\Database\Support\PayrollPayItemMigrationSupport;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Plan 16 — drop the legacy `payroll_pay_item_code` column from
@@ -15,21 +14,15 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    use PayrollPayItemMigrationSupport;
+
     public function up(): void
     {
-        if (Schema::hasColumn('people_leave_types', 'payroll_pay_item_code')) {
-            Schema::table('people_leave_types', function (Blueprint $table): void {
-                $table->dropColumn('payroll_pay_item_code');
-            });
-        }
+        $this->dropLegacyPayItemCodeColumn('people_leave_types');
     }
 
     public function down(): void
     {
-        if (! Schema::hasColumn('people_leave_types', 'payroll_pay_item_code')) {
-            Schema::table('people_leave_types', function (Blueprint $table): void {
-                $table->string('payroll_pay_item_code')->nullable()->after('compulsory_attachment');
-            });
-        }
+        $this->restoreLegacyPayItemCodeColumn('people_leave_types', 'compulsory_attachment');
     }
 };

@@ -1,10 +1,8 @@
 <?php
 
 use App\Base\Database\Concerns\RegistersTables;
+use App\Modules\People\Payroll\Database\Support\PayrollPayItemMigrationSupport;
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Plan 12 Phase 2 — move pay-item-code assignment from the Attendance
@@ -17,48 +15,27 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    use PayrollPayItemMigrationSupport;
     use RegistersTables;
 
     public function up(): void
     {
-        Schema::create('people_payroll_attendance_rule_pay_items', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
-            $table->foreignId('attendance_allowance_rule_id')->constrained('people_attendance_allowance_rules', indexName: 'people_payroll_att_rule_items_rule_fk')->cascadeOnDelete();
-            $table->string('payroll_pay_item_code');
-            $table->date('effective_from');
-            $table->date('effective_to')->nullable();
-            $table->json('metadata')->nullable();
-            $table->timestamps();
+        $this->createPayrollPayItemMappingTable(
+            'people_payroll_attendance_rule_pay_items',
+            'attendance_allowance_rule_id',
+            'people_attendance_allowance_rules',
+            'people_payroll_att_rule_items_rule_fk',
+            'people_payroll_attendance_rule_pay_items_rule_effective_unique',
+            'people_payroll_att_rule_items_company_rule_index',
+        );
 
-            $table->unique(
-                ['attendance_allowance_rule_id', 'effective_from'],
-                'people_payroll_attendance_rule_pay_items_rule_effective_unique',
-            );
-            $table->index(['company_id', 'attendance_allowance_rule_id'], 'people_payroll_att_rule_items_company_rule_index');
-        });
-        $this->registerTable('people_payroll_attendance_rule_pay_items');
-
-        if (Schema::hasColumn('people_attendance_allowance_rules', 'payroll_pay_item_code')) {
-            $now = now();
-            $rules = DB::table('people_attendance_allowance_rules')
-                ->whereNotNull('payroll_pay_item_code')
-                ->where('payroll_pay_item_code', '!=', '')
-                ->get(['id', 'company_id', 'payroll_pay_item_code', 'effective_from']);
-
-            foreach ($rules as $rule) {
-                DB::table('people_payroll_attendance_rule_pay_items')->insert([
-                    'company_id' => $rule->company_id,
-                    'attendance_allowance_rule_id' => $rule->id,
-                    'payroll_pay_item_code' => $rule->payroll_pay_item_code,
-                    'effective_from' => $rule->effective_from,
-                    'effective_to' => null,
-                    'metadata' => json_encode(['migrated_from' => 'attendance_allowance_rule.payroll_pay_item_code']),
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-            }
-        }
+        $this->copyLegacyPayItemCodes(
+            'people_attendance_allowance_rules',
+            'people_payroll_attendance_rule_pay_items',
+            'attendance_allowance_rule_id',
+            'attendance_allowance_rule.payroll_pay_item_code',
+            'effective_from',
+        );
     }
 
     public function down(): void

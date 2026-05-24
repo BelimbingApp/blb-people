@@ -53,31 +53,70 @@ trait ManagesRosterSelfService
                 return;
             }
 
-            $header = ['Employee', 'Department'];
-            foreach ($days as $day) {
-                $header[] = $day['date'];
-            }
-            fputcsv($handle, $header);
-
-            foreach ($rows as $row) {
-                $line = [
-                    $row['employee']->full_name,
-                    $row['group'],
-                ];
-                foreach ($days as $day) {
-                    $cell = $row['cells'][$day['date']] ?? null;
-                    if ($cell === null || ($cell['state'] ?? 'empty') === 'empty') {
-                        $line[] = '';
-                    } else {
-                        $suffix = $cell['state'] === 'draft' ? ' (draft)' : '';
-                        $line[] = ($cell['label'] ?? '').$suffix;
-                    }
-                }
-                fputcsv($handle, $line);
-            }
+            $this->writeRosterCsv($handle, $rows, $days);
 
             fclose($handle);
         }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * @param  resource  $handle
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @param  list<array{date: string}>  $days
+     */
+    private function writeRosterCsv(mixed $handle, Collection $rows, array $days): void
+    {
+        fputcsv($handle, $this->rosterCsvHeader($days));
+
+        foreach ($rows as $row) {
+            fputcsv($handle, $this->rosterCsvLine($row, $days));
+        }
+    }
+
+    /**
+     * @param  list<array{date: string}>  $days
+     * @return list<string>
+     */
+    private function rosterCsvHeader(array $days): array
+    {
+        return [
+            'Employee',
+            'Department',
+            ...array_map(fn (array $day): string => $day['date'], $days),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @param  list<array{date: string}>  $days
+     * @return list<string>
+     */
+    private function rosterCsvLine(array $row, array $days): array
+    {
+        $line = [
+            $row['employee']->full_name,
+            $row['group'],
+        ];
+
+        foreach ($days as $day) {
+            $line[] = $this->rosterCsvCellValue($row['cells'][$day['date']] ?? null);
+        }
+
+        return $line;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $cell
+     */
+    private function rosterCsvCellValue(?array $cell): string
+    {
+        if ($cell === null || ($cell['state'] ?? 'empty') === 'empty') {
+            return '';
+        }
+
+        $suffix = $cell['state'] === 'draft' ? ' (draft)' : '';
+
+        return ($cell['label'] ?? '').$suffix;
     }
 
     private function isMyScheduleMode(): bool
