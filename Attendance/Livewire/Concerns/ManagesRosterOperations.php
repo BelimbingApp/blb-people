@@ -163,104 +163,23 @@ trait ManagesRosterOperations
         $gridStart = $this->gridPeriodStart()->toDateString();
         $gridEnd = $this->gridPeriodEnd()->toDateString();
 
-        $candidateEmpIds = [];
-        $candidateDates = [];
-        foreach ($overrides as $o) {
-            if (! is_array($o)) {
-                continue;
-            }
-            $empId = (int) ($o['employee_id'] ?? 0);
-            $date = (string) ($o['date'] ?? '');
-            if ($empId > 0 && $date !== '' && $date >= $gridStart && $date <= $gridEnd) {
-                $candidateEmpIds[] = $empId;
-                $candidateDates[] = $date;
-            }
-        }
-
+        [$candidateEmpIds, $candidateDates] = $this->candidateCellOverrideScope($overrides, $gridStart, $gridEnd);
         $validEmpIds = $candidateEmpIds !== []
             ? Employee::query()->where('company_id', $companyId)->whereKey(array_unique($candidateEmpIds))->pluck('id')->all()
             : [];
         $lockedDateSet = $candidateDates !== []
             ? $this->lockedDateSetForDates(array_unique($candidateDates))
             : [];
-
-        $valid = [];
-        foreach ($overrides as $o) {
-            if (! is_array($o)) {
-                continue;
-            }
-            $empId = (int) ($o['employee_id'] ?? 0);
-            $date = (string) ($o['date'] ?? '');
-            if ($empId <= 0 || $date === '' || $date < $gridStart || $date > $gridEnd) {
-                continue;
-            }
-            if (isset($lockedDateSet[$date]) || ! in_array($empId, $validEmpIds, true)) {
-                continue;
-            }
-            $valid[] = [
-                'employee_id' => $empId,
-                'date' => $date,
-                'shift_template_id' => (int) ($o['shift_template_id'] ?? 0),
-                'policy_group_id' => (int) ($o['policy_group_id'] ?? 0),
-            ];
-        }
+        $valid = $this->validCellOverrides($overrides, $gridStart, $gridEnd, $validEmpIds, $lockedDateSet);
 
         if ($valid === []) {
             return;
         }
 
-        $createdIds = [];
-        $savedCount = 0;
         $meta = array_filter(['note' => $note, 'job' => $job], fn (string $v): bool => $v !== '');
-
-        DB::transaction(function () use ($valid, $companyId, $meta, &$createdIds, &$savedCount): void {
-            foreach ($valid as $o) {
-                $isClear = $o['shift_template_id'] === 0 || $o['policy_group_id'] === 0;
-                $assignment = $this->assignmentForEmployeeDate($o['employee_id'], $o['date']);
-
-                if ($isClear) {
-                    if (! $assignment instanceof AttendanceRosterAssignment) {
-                        continue;
-                    }
-                    $from = $assignment->effective_from?->toDateString();
-                    $to = $assignment->effective_to?->toDateString();
-                    if ($from === $o['date'] && ($to === null || $to === $o['date'])) {
-                        $assignment->delete();
-                    } else {
-                        $this->removeExceptionOverride($assignment, $o['date']);
-                    }
-                    $savedCount++;
-
-                    continue;
-                }
-
-                $shift = $this->activeShiftTemplateForDate($o['shift_template_id'], $o['date']);
-                $policy = $this->activePolicyGroupForDate($o['policy_group_id'], $o['date']);
-                if (! $shift instanceof AttendanceShiftTemplate || ! $policy instanceof AttendancePolicyGroup) {
-                    continue;
-                }
-
-                if ($assignment instanceof AttendanceRosterAssignment) {
-                    $this->appendExceptionOverride($assignment, $o['date'], (int) $shift->id, (int) $policy->id, 'cell_override_batch', $meta);
-                } else {
-                    $created = AttendanceRosterAssignment::query()->create([
-                        'company_id' => $companyId,
-                        'employee_id' => $o['employee_id'],
-                        'attendance_shift_template_id' => (int) $shift->id,
-                        'attendance_policy_group_id' => (int) $policy->id,
-                        'effective_from' => $o['date'],
-                        'effective_to' => $o['date'],
-
-                        'lock_state' => 'open',
-                        'revision' => 1,
-                        'exceptions' => [],
-                        'metadata' => ['created_from' => 'attendance_roster_cell_override_batch', ...$meta],
-                    ]);
-                    $createdIds[] = $created->id;
-                }
-                $savedCount++;
-            }
-        });
+        [$createdIds, $savedCount] = DB::transaction(
+            fn (): array => $this->persistCellOverrides($valid, $companyId, $meta),
+        );
 
         $this->lastDraftAssignmentIds = [...$this->lastDraftAssignmentIds, ...$createdIds];
 
@@ -271,6 +190,172 @@ trait ManagesRosterOperations
                 ['count' => $savedCount],
             ));
         }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $overrides
+     * @return array{0: list<int>, 1: list<string>}
+     */
+    private function candidateCellOverrideScope(array $overrides, string $gridStart, string $gridEnd): array
+    {
+        $employeeIds = [];
+        $dates = [];
+
+        foreach ($overrides as $override) {
+            $candidate = $this->candidateCellOverride($override, $gridStart, $gridEnd);
+
+            if ($candidate === null) {
+                continue;
+            }
+
+            $employeeIds[] = $candidate['employee_id'];
+            $dates[] = $candidate['date'];
+        }
+
+        return [$employeeIds, $dates];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $overrides
+     * @param  list<int>  $validEmpIds
+     * @param  array<string, true>  $lockedDateSet
+     * @return list<array{employee_id: int, date: string, shift_template_id: int, policy_group_id: int}>
+     */
+    private function validCellOverrides(array $overrides, string $gridStart, string $gridEnd, array $validEmpIds, array $lockedDateSet): array
+    {
+        $valid = [];
+
+        foreach ($overrides as $override) {
+            $candidate = $this->candidateCellOverride($override, $gridStart, $gridEnd);
+
+            if ($candidate === null) {
+                continue;
+            }
+
+            if (isset($lockedDateSet[$candidate['date']]) || ! in_array($candidate['employee_id'], $validEmpIds, true)) {
+                continue;
+            }
+
+            $valid[] = $candidate;
+        }
+
+        return $valid;
+    }
+
+    /**
+     * @param  array<string, mixed>  $override
+     * @return array{employee_id: int, date: string, shift_template_id: int, policy_group_id: int}|null
+     */
+    private function candidateCellOverride(array $override, string $gridStart, string $gridEnd): ?array
+    {
+        $employeeId = (int) ($override['employee_id'] ?? 0);
+        $date = (string) ($override['date'] ?? '');
+
+        if ($employeeId <= 0 || $date === '' || $date < $gridStart || $date > $gridEnd) {
+            return null;
+        }
+
+        return [
+            'employee_id' => $employeeId,
+            'date' => $date,
+            'shift_template_id' => (int) ($override['shift_template_id'] ?? 0),
+            'policy_group_id' => (int) ($override['policy_group_id'] ?? 0),
+        ];
+    }
+
+    /**
+     * @param  list<array{employee_id: int, date: string, shift_template_id: int, policy_group_id: int}>  $overrides
+     * @param  array<string, string>  $meta
+     * @return array{0: list<int>, 1: int}
+     */
+    private function persistCellOverrides(array $overrides, int $companyId, array $meta): array
+    {
+        $createdIds = [];
+        $savedCount = 0;
+
+        foreach ($overrides as $override) {
+            $createdId = $this->persistCellOverride($override, $companyId, $meta);
+
+            if ($createdId === null) {
+                continue;
+            }
+
+            if ($createdId > 0) {
+                $createdIds[] = $createdId;
+            }
+
+            $savedCount++;
+        }
+
+        return [$createdIds, $savedCount];
+    }
+
+    /**
+     * Returns null when nothing was persisted, zero for updated/deleted rows, or the created assignment id.
+     *
+     * @param  array{employee_id: int, date: string, shift_template_id: int, policy_group_id: int}  $override
+     * @param  array<string, string>  $meta
+     */
+    private function persistCellOverride(array $override, int $companyId, array $meta): ?int
+    {
+        $assignment = $this->assignmentForEmployeeDate($override['employee_id'], $override['date']);
+
+        if ($override['shift_template_id'] === 0 || $override['policy_group_id'] === 0) {
+            return $assignment instanceof AttendanceRosterAssignment
+                ? $this->clearCellOverride($assignment, $override['date'])
+                : null;
+        }
+
+        $shift = $this->activeShiftTemplateForDate($override['shift_template_id'], $override['date']);
+        $policy = $this->activePolicyGroupForDate($override['policy_group_id'], $override['date']);
+
+        if (! $shift instanceof AttendanceShiftTemplate || ! $policy instanceof AttendancePolicyGroup) {
+            return null;
+        }
+
+        if ($assignment instanceof AttendanceRosterAssignment) {
+            $this->appendExceptionOverride($assignment, $override['date'], (int) $shift->id, (int) $policy->id, 'cell_override_batch', $meta);
+
+            return 0;
+        }
+
+        return $this->createCellOverrideAssignment($override, $companyId, (int) $shift->id, (int) $policy->id, $meta);
+    }
+
+    private function clearCellOverride(AttendanceRosterAssignment $assignment, string $date): int
+    {
+        $from = $assignment->effective_from?->toDateString();
+        $to = $assignment->effective_to?->toDateString();
+
+        if ($from === $date && ($to === null || $to === $date)) {
+            $assignment->delete();
+        } else {
+            $this->removeExceptionOverride($assignment, $date);
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param  array{employee_id: int, date: string, shift_template_id: int, policy_group_id: int}  $override
+     * @param  array<string, string>  $meta
+     */
+    private function createCellOverrideAssignment(array $override, int $companyId, int $shiftId, int $policyId, array $meta): int
+    {
+        $created = AttendanceRosterAssignment::query()->create([
+            'company_id' => $companyId,
+            'employee_id' => $override['employee_id'],
+            'attendance_shift_template_id' => $shiftId,
+            'attendance_policy_group_id' => $policyId,
+            'effective_from' => $override['date'],
+            'effective_to' => $override['date'],
+            'lock_state' => 'open',
+            'revision' => 1,
+            'exceptions' => [],
+            'metadata' => ['created_from' => 'attendance_roster_cell_override_batch', ...$meta],
+        ]);
+
+        return (int) $created->id;
     }
 
     public function swapRosterCells(): void
