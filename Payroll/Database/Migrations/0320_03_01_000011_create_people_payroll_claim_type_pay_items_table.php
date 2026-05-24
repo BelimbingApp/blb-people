@@ -1,5 +1,6 @@
 <?php
 
+use App\Base\Database\Concerns\IncubatingSchema;
 use App\Base\Database\Concerns\RegistersTables;
 use App\Modules\People\Payroll\Database\Support\PayrollPayItemMigrationSupport;
 use Illuminate\Database\Migrations\Migration;
@@ -14,6 +15,7 @@ use Illuminate\Database\Migrations\Migration;
  */
 return new class extends Migration
 {
+    use IncubatingSchema;
     use PayrollPayItemMigrationSupport;
     use RegistersTables;
 
