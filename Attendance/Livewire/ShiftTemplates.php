@@ -36,6 +36,18 @@ class ShiftTemplates extends Component
 
     private const DEFAULT_BREAK_END = '13:00';
 
+    private const DEFAULT_BREAK_WINDOW = [
+        'break_starts_at' => self::DEFAULT_BREAK_START,
+        'break_ends_at' => self::DEFAULT_BREAK_END,
+    ];
+
+    private const DEFAULT_MEAL_BREAK_WINDOW = [
+        'label' => 'Meal break',
+        'starts_at' => self::DEFAULT_BREAK_START,
+        'ends_at' => self::DEFAULT_BREAK_END,
+        'paid' => false,
+    ];
+
     private const NIGHT_SHIFT_END = '08:00';
 
     #[Url(as: 'mode')]
@@ -390,8 +402,7 @@ class ShiftTemplates extends Component
                 'starts_at' => self::DEFAULT_SHIFT_START,
                 'ends_at' => self::DEFAULT_SHIFT_END,
                 'expected_work_minutes' => 480,
-                'break_starts_at' => self::DEFAULT_BREAK_START,
-                'break_ends_at' => self::DEFAULT_BREAK_END,
+                ...self::DEFAULT_BREAK_WINDOW,
                 'in_before' => 60,
                 'in_after' => 15,
                 'out_before' => 15,
@@ -407,8 +418,7 @@ class ShiftTemplates extends Component
                 'starts_at' => '09:00',
                 'ends_at' => '18:00',
                 'expected_work_minutes' => 480,
-                'break_starts_at' => self::DEFAULT_BREAK_START,
-                'break_ends_at' => self::DEFAULT_BREAK_END,
+                ...self::DEFAULT_BREAK_WINDOW,
                 'in_before' => 120,
                 'in_after' => 120,
                 'out_before' => 120,
@@ -424,8 +434,7 @@ class ShiftTemplates extends Component
                 'starts_at' => '07:00',
                 'ends_at' => '19:00',
                 'expected_work_minutes' => 660,
-                'break_starts_at' => self::DEFAULT_BREAK_START,
-                'break_ends_at' => self::DEFAULT_BREAK_END,
+                ...self::DEFAULT_BREAK_WINDOW,
                 'in_before' => 45,
                 'in_after' => 10,
                 'out_before' => 10,
@@ -442,7 +451,7 @@ class ShiftTemplates extends Component
                 'ends_at' => '19:00',
                 'expected_work_minutes' => 630,
                 'break_windows' => [
-                    ['label' => 'Meal break', 'starts_at' => self::DEFAULT_BREAK_START, 'ends_at' => self::DEFAULT_BREAK_END, 'paid' => false],
+                    self::DEFAULT_MEAL_BREAK_WINDOW,
                     ['label' => 'Tea break',  'starts_at' => '15:00', 'ends_at' => '15:30', 'paid' => false],
                 ],
                 'in_before' => 45,
