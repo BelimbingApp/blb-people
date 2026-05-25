@@ -95,7 +95,7 @@ class PolicyGroupValidator extends Component
         $companyId = $this->companyId();
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.policy-group-validator', [
+        return view('people-attendance::livewire.people.attendance.policy-group-validator', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'policyGroups' => $schemaReady

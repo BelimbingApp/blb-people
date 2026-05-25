@@ -434,7 +434,7 @@ class Index extends Component
                 ->find($this->selectedRunId)
             : $runs->first();
 
-        return view('livewire.people.payroll.index', [
+        return view('people-payroll::livewire.people.payroll.index', [
             'runs' => $runs,
             'selectedRun' => $selectedRun,
             'payslips' => PayrollIndexWorkbenchData::payslips($selectedRun),

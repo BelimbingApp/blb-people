@@ -22,6 +22,8 @@ class ServiceProvider extends BaseServiceProvider
 
     public function boot(): void
     {
+        $this->loadViewsFrom(__DIR__.'/Views', 'people-leave');
+
         $this->app
             ->make(LeaveCountryPackRegistry::class)
             ->register($this->app->make(MalaysiaLeaveCountryPack::class));

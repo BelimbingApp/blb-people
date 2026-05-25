@@ -131,7 +131,7 @@ class Rosters extends Component
         $rosterGridRows = $viewData['rosterGridRows'] ?? collect();
         $lockedDates = $viewData['lockedDates'] ?? [];
 
-        return view('livewire.people.attendance.rosters', [
+        return view('people-attendance::livewire.people.attendance.rosters', [
             'schemaReady' => $schemaReady,
             'canManage' => $canManage,
             'canUnlock' => $canUnlock,

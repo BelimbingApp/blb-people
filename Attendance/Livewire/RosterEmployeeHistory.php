@@ -66,7 +66,7 @@ class RosterEmployeeHistory extends Component
             : [];
         $userNames = User::query()->whereKey($userIds)->pluck('name', 'id');
 
-        return view('livewire.people.attendance.roster-employee-history', [
+        return view('people-attendance::livewire.people.attendance.roster-employee-history', [
             'employee' => $employee,
             'rows' => $rows,
             'userNames' => $userNames,

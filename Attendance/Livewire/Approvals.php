@@ -102,7 +102,7 @@ class Approvals extends Component
         $companyId = $this->companyId();
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.approvals', [
+        return view('people-attendance::livewire.people.attendance.approvals', [
             'schemaReady' => $schemaReady,
             'canApprove' => $this->canAttendance('people.attendance.approve'),
             'overtimeRequests' => $schemaReady

@@ -259,7 +259,7 @@ class Show extends Component
 
     public function render(EmployeePayrollReadinessService $readiness): View
     {
-        return view('livewire.people.employees.show', [
+        return view('people-employees::livewire.people.employees.show', [
             'readiness' => $readiness->summarize($this->employee),
             'costCenters' => $this->referenceOptions(PeopleReferenceEntry::TYPE_COST_CENTER, $this->employee->workProfile?->cost_center_id),
             'organizationUnits' => $this->referenceOptions(PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT, $this->employee->workProfile?->organization_unit_id),

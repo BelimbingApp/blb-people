@@ -124,7 +124,7 @@ class AttendanceAllowanceMapping extends Component
 
         $payItems = $this->activePayItemsForCompany($companyId);
 
-        return view('livewire.people.payroll.attendance-allowance-mapping', [
+        return view('people-payroll::livewire.people.payroll.attendance-allowance-mapping', [
             'rules' => $rules,
             'mappingsByRule' => $mappings,
             'payItems' => $payItems,

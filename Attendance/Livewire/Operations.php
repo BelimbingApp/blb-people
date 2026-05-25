@@ -58,7 +58,7 @@ class Operations extends Component
         $canManage = $this->canAttendance('people.attendance.manage');
         $search = trim($this->search);
 
-        return view('livewire.people.attendance.operations', [
+        return view('people-attendance::livewire.people.attendance.operations', [
             'schemaReady' => $schemaReady,
             'canManage' => $canManage,
             'canClock' => false,

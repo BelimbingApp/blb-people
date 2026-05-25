@@ -32,6 +32,8 @@ class ServiceProvider extends BaseServiceProvider
 
     public function boot(): void
     {
+        $this->loadViewsFrom(__DIR__.'/Views', 'people-payroll');
+
         $this->app
             ->make(PayrollCountryPackRegistry::class)
             ->register($this->app->make(MalaysiaPayrollCountryPack::class));

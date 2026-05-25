@@ -221,7 +221,7 @@ class MyAttendance extends Component
         $canClock = $this->canAttendance('people.attendance.execute');
         $search = trim($this->search);
 
-        return view('livewire.people.attendance.my-attendance', [
+        return view('people-attendance::livewire.people.attendance.my-attendance', [
             'schemaReady' => $schemaReady,
             'canClock' => $canClock,
             'canManage' => false,

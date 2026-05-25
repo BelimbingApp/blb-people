@@ -108,7 +108,7 @@ class Index extends Component
             ->can(Actor::forUser(Auth::user()), 'people.settings.restricted.view')
             ->allowed;
 
-        return view('livewire.people.settings.index', [
+        return view('people-settings::livewire.people.settings.index', [
             'tabs' => [
                 ['id' => 'reference-data', 'label' => __('Reference Data'), 'icon' => 'heroicon-o-table-cells'],
                 ['id' => 'portal-access', 'label' => __('Portal Access'), 'icon' => 'heroicon-o-key'],

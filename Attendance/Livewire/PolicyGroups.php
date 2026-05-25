@@ -431,7 +431,7 @@ class PolicyGroups extends Component
         $companyId = $this->companyId();
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.policy-groups', [
+        return view('people-attendance::livewire.people.attendance.policy-groups', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'policyGroups' => $schemaReady

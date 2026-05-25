@@ -459,7 +459,7 @@ class Index extends Component
                 ->find($this->selectedRequestId)
             : null;
 
-        return view('livewire.people.claim.index', [
+        return view('people-claim::livewire.people.claim.index', [
             'surface' => $this->surface,
             'surfaceTitle' => $surfaceTitle,
             'surfaceSubtitle' => $surfaceSubtitle,

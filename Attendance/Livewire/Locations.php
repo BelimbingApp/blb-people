@@ -17,7 +17,7 @@ class Locations extends Component
         $companyId = $this->companyId();
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.locations', [
+        return view('people-attendance::livewire.people.attendance.locations', [
             'schemaReady' => $schemaReady,
             'geofences' => $schemaReady
                 ? AttendanceGeofence::query()

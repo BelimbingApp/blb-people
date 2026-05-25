@@ -123,7 +123,7 @@ class LeaveTypePayItemMapping extends Component
 
         $payItems = $this->activePayItemsForCompany($companyId);
 
-        return view('livewire.people.payroll.leave-type-pay-item-mapping', [
+        return view('people-payroll::livewire.people.payroll.leave-type-pay-item-mapping', [
             'types' => $types,
             'mappingsByType' => $mappings,
             'payItems' => $payItems,

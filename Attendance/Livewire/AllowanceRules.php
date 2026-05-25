@@ -282,7 +282,7 @@ class AllowanceRules extends Component
         $companyId = $this->companyId();
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.allowance-rules', [
+        return view('people-attendance::livewire.people.attendance.allowance-rules', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'policyGroups' => $schemaReady

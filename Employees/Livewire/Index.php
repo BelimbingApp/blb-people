@@ -231,7 +231,7 @@ class Index extends Component
             return $employee;
         });
 
-        return view('livewire.people.employees.index', [
+        return view('people-employees::livewire.people.employees.index', [
             'employees' => $employees,
             'companies' => Company::query()
                 ->whereIn('id', $companyIds)

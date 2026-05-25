@@ -22,6 +22,8 @@ class ServiceProvider extends BaseServiceProvider
 
     public function boot(): void
     {
+        $this->loadViewsFrom(__DIR__.'/Views', 'people-claim');
+
         if ($this->app->runningInConsole()) {
             $this->commands([
                 PolicyValidateCommand::class,

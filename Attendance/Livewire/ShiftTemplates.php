@@ -367,7 +367,7 @@ class ShiftTemplates extends Component
     {
         $schemaReady = $this->schemaReady();
 
-        return view('livewire.people.attendance.shift-templates', [
+        return view('people-attendance::livewire.people.attendance.shift-templates', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
             'shiftTemplates' => $schemaReady

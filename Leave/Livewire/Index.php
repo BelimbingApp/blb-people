@@ -707,7 +707,7 @@ class Index extends Component
             default => __('Apply for leave, review your balance and history, and see your team\'s schedule.'),
         };
 
-        return view('livewire.people.leave.index', [
+        return view('people-leave::livewire.people.leave.index', [
             'tabs' => $tabsConfig,
             'surface' => $this->surface,
             'surfaceTitle' => $surfaceTitle,
