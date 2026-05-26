@@ -12,17 +12,18 @@
             <div class="mt-3 rounded-2xl border border-success-border bg-success-surface px-4 py-2 text-sm text-success-ink">{{ session('success') }}</div>
         @endif
 
-        <div class="mt-4 overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <thead class="text-xs uppercase tracking-wide text-muted">
+        <x-ui.table container="plain" :caption="__('Attendance allowance mapping')">
+
+
+            <x-slot name="head">
                     <tr>
                         <th class="px-table-cell-x py-table-cell-y">{{ __('Allowance rule') }}</th>
                         <th class="px-table-cell-x py-table-cell-y">{{ __('Current pay-item') }}</th>
                         <th class="px-table-cell-x py-table-cell-y">{{ __('History') }}</th>
                         <th class="px-table-cell-x py-table-cell-y"></th>
                     </tr>
-                </thead>
-                <tbody class="divide-y divide-border-default bg-surface-card">
+                </x-slot>
+
                     @forelse ($rules as $rule)
                         @php
                             $mappings = $mappingsByRule->get($rule->id, collect());
@@ -59,9 +60,9 @@
                     @empty
                         <tr><td colspan="4" class="px-table-cell-x py-table-cell-y text-sm text-muted">{{ __('No attendance allowance rules to map yet.') }}</td></tr>
                     @endforelse
-                </tbody>
-            </table>
-        </div>
+
+
+        </x-ui.table>
     </x-ui.card>
 
     @if ($editingRuleId > 0)

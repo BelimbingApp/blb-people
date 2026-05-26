@@ -45,9 +45,9 @@
             @if ($tab === 'runs')
                 <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(28rem,0.9fr)]">
                     <div class="space-y-4">
-                        <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                            <table class="min-w-full divide-y divide-border-default text-sm">
-                                <thead class="bg-surface-subtle/80">
+                        <x-ui.table container="flush" :caption="__('Payroll runs')">
+
+                            <x-slot name="head">
                                     <tr>
                                         <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Run') }}</th>
                                         <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Period') }}</th>
@@ -55,10 +55,10 @@
                                         <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Rows') }}</th>
                                         <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
                                     </tr>
-                                </thead>
-                                <tbody class="bg-surface-card divide-y divide-border-default">
+                                </x-slot>
+
                                     @forelse ($runs as $run)
-                                        <tr wire:key="payroll-run-{{ $run->id }}" class="hover:bg-surface-subtle/50 transition-colors">
+                                        <tr wire:key="payroll-run-{{ $run->id }}">
                                             <td class="px-table-cell-x py-table-cell-y">
                                                 <button type="button" wire:click="selectRun({{ $run->id }})" class="text-left">
                                                     <div class="font-medium text-ink">{{ $run->name }}</div>
@@ -98,9 +98,8 @@
                                             <td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No payroll runs found. Run the Payroll dev seeder to create browser fixtures.') }}</td>
                                         </tr>
                                     @endforelse
-                                </tbody>
-                            </table>
-                        </div>
+
+                        </x-ui.table>
 
                         <div>{{ $runs->links() }}</div>
                     </div>
@@ -220,16 +219,17 @@
                     </div>
                 @endif
 
-                <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                    <table class="min-w-full divide-y divide-border-default text-sm">
-                        <thead class="bg-surface-subtle/80">
+                <x-ui.table container="flush" :caption="__('Pay items')">
+
+
+                    <x-slot name="head">
                             <tr>
                                 <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Pay Item') }}</th>
                                 <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Input Type') }}</th>
                                 <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Classifications') }}</th>
                             </tr>
-                        </thead>
-                        <tbody class="bg-surface-card divide-y divide-border-default">
+                        </x-slot>
+
                             @forelse ($payItems as $item)
                                 <tr wire:key="pay-item-{{ $item->id }}">
                                     <td class="px-table-cell-x py-table-cell-y">
@@ -250,9 +250,9 @@
                             @empty
                                 <tr><td colspan="3" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No pay items found.') }}</td></tr>
                             @endforelse
-                        </tbody>
-                    </table>
-                </div>
+
+
+                </x-ui.table>
             @elseif ($tab === 'profiles')
                 @if ($canManage)
                     <div class="mb-6 grid gap-6 xl:grid-cols-2">
@@ -431,9 +431,10 @@
                                 </div>
                             </div>
 
-                            <div class="overflow-x-auto">
-                                <table class="min-w-full divide-y divide-border-default text-xs">
-                                    <thead class="bg-surface-subtle/80">
+                            <x-ui.table container="plain" size="xs" :caption="__('Rule set rows')">
+
+
+                                <x-slot name="head">
                                         <tr>
                                             <th class="px-table-cell-x py-table-header-y text-left font-semibold text-muted uppercase tracking-wider">{{ __('Row') }}</th>
                                             <th class="px-table-cell-x py-table-header-y text-right font-semibold text-muted uppercase tracking-wider">{{ __('Min') }}</th>
@@ -442,8 +443,8 @@
                                             <th class="px-table-cell-x py-table-header-y text-right font-semibold text-muted uppercase tracking-wider">{{ __('Employer Rate') }}</th>
                                             <th class="px-table-cell-x py-table-header-y text-right font-semibold text-muted uppercase tracking-wider">{{ __('Levy Rate') }}</th>
                                         </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-border-default">
+                                    </x-slot>
+
                                         @foreach ($ruleSet->rows as $row)
                                             <tr wire:key="rule-row-{{ $row->id }}">
                                                 <td class="px-table-cell-x py-table-cell-y font-mono text-muted">{{ $row->row_key ?? $row->id }}</td>
@@ -454,9 +455,8 @@
                                                 <td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $row->levy_rate ?? '-' }}</td>
                                             </tr>
                                         @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
+                                    
+                            </x-ui.table>
                         </div>
                     @empty
                         <p class="text-sm text-muted">{{ __('No statutory rule tables found.') }}</p>

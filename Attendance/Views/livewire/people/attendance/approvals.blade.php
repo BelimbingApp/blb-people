@@ -36,9 +36,9 @@ use App\Modules\People\Attendance\Livewire\Approvals;
                 <h2 class="text-base font-semibold text-ink">{{ __('Adjustment Queue') }}</h2>
                 <p class="mt-1 text-sm text-muted">{{ __('Approval creates a manual clock event on the employee\'s timecard. Rejected requests record the reason for audit.') }}</p>
             </div>
-            <div class="mt-4 overflow-x-auto -mx-card-inner px-card-inner">
-                <table class="min-w-full divide-y divide-border-default text-sm">
-                    <thead class="bg-surface-subtle/80">
+            <x-ui.table container="flush" :caption="__('Adjustment queue')">
+
+                <x-slot name="head">
                         <tr>
                             <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Employee') }}</th>
                             <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Event') }}</th>
@@ -49,8 +49,8 @@ use App\Modules\People\Attendance\Livewire\Approvals;
                                 <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Actions') }}</th>
                             @endif
                         </tr>
-                    </thead>
-                    <tbody class="divide-y divide-border-default bg-surface-card">
+                    </x-slot>
+
                         @forelse ($adjustmentRequests as $request)
                             <tr wire:key="attendance-adj-{{ $request->id }}">
                                 <td class="px-table-cell-x py-table-cell-y">{{ $request->employee?->full_name ?? __('Employee #:id', ['id' => $request->employee_id]) }}</td>
@@ -74,9 +74,8 @@ use App\Modules\People\Attendance\Livewire\Approvals;
                                 <td colspan="{{ $canApprove ? 6 : 5 }}" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No adjustment requests are waiting for action.') }}</td>
                             </tr>
                         @endforelse
-                    </tbody>
-                </table>
-            </div>
+
+            </x-ui.table>
         </x-ui.card>
     </div>
 </div>

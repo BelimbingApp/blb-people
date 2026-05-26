@@ -24,9 +24,9 @@ use App\Modules\People\Attendance\Livewire\RosterEmployeeHistory;
             </div>
 
             {{-- History table --}}
-            <div class="overflow-x-auto rounded-2xl border border-border-default">
-                <table class="min-w-full divide-y divide-border-default text-sm">
-                    <thead class="bg-surface-subtle">
+            <x-ui.table container="bordered" :caption="__('Roster change history')">
+
+                <x-slot name="head">
                         <tr>
                             <th class="px-table-cell-x py-table-cell-y text-left text-xs font-semibold uppercase tracking-wide text-muted">{{ __('Date') }}</th>
                             <th class="px-table-cell-x py-table-cell-y text-left text-xs font-semibold uppercase tracking-wide text-muted">{{ __('Changed at') }}</th>
@@ -36,10 +36,10 @@ use App\Modules\People\Attendance\Livewire\RosterEmployeeHistory;
                             <th class="px-table-cell-x py-table-cell-y text-left text-xs font-semibold uppercase tracking-wide text-muted">{{ __('New') }}</th>
                             <th class="px-table-cell-x py-table-cell-y text-left text-xs font-semibold uppercase tracking-wide text-muted">{{ __('Note / Job') }}</th>
                         </tr>
-                    </thead>
-                    <tbody class="divide-y divide-border-default bg-surface-card">
+                    </x-slot>
+
                         @forelse ($rows as $log)
-                            <tr class="hover:bg-surface-subtle/50">
+                            <tr>
                                 <td class="px-table-cell-x py-table-cell-y font-medium text-ink">
                                     {{ \Carbon\CarbonImmutable::parse($log->subject_identifier)->format('d M Y') }}
                                 </td>
@@ -80,9 +80,8 @@ use App\Modules\People\Attendance\Livewire\RosterEmployeeHistory;
                                 </td>
                             </tr>
                         @endforelse
-                    </tbody>
-                </table>
-            </div>
+
+            </x-ui.table>
 
             @if ($rows->hasPages())
                 <div class="mt-4">

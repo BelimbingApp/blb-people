@@ -1,7 +1,7 @@
 <x-ui.card>
-    <div class="overflow-x-auto -mx-card-inner px-card-inner">
-        <table class="min-w-full divide-y divide-border-default text-sm">
-            <thead class="bg-surface-subtle/80">
+    <x-ui.table container="flush" :caption="__('Allowance rules')">
+
+        <x-slot name="head">
                 <tr>
                     <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('No.') }}</th>
                     <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Allowance rule') }}</th>
@@ -11,8 +11,8 @@
                     <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Effective') }}</th>
                     <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Actions') }}</th>
                 </tr>
-            </thead>
-            <tbody class="divide-y divide-border-default bg-surface-card">
+            </x-slot>
+
                 @forelse ($allowanceRules as $rule)
                     <tr wire:key="allowance-rule-row-{{ $rule->id }}">
                         <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">{{ $loop->iteration }}</td>
@@ -42,7 +42,6 @@
                 @empty
                     <tr><td colspan="7" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No allowance rules configured. Start from a template or duplicate an existing rule when one is available.') }}</td></tr>
                 @endforelse
-            </tbody>
-        </table>
-    </div>
+
+    </x-ui.table>
 </x-ui.card>

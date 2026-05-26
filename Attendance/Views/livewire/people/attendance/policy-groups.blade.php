@@ -45,9 +45,9 @@ use App\Modules\People\Attendance\Livewire\PolicyGroups;
 
         @if ($mode === 'list')
             <x-ui.card>
-                <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                    <table class="min-w-full divide-y divide-border-default text-sm">
-                        <thead class="bg-surface-subtle/80">
+                <x-ui.table container="flush" :caption="__('Policy groups')">
+
+                    <x-slot name="head">
                             <tr>
                                 <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('No.') }}</th>
                                 <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Policy group') }}</th>
@@ -56,8 +56,8 @@ use App\Modules\People\Attendance\Livewire\PolicyGroups;
                                 <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Effective') }}</th>
                                 <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Actions') }}</th>
                             </tr>
-                        </thead>
-                        <tbody class="divide-y divide-border-default bg-surface-card">
+                        </x-slot>
+
                             @forelse ($policyGroups as $group)
                                 <tr wire:key="policy-group-row-{{ $group->id }}">
                                     <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">{{ $loop->iteration }}</td>
@@ -81,9 +81,8 @@ use App\Modules\People\Attendance\Livewire\PolicyGroups;
                             @empty
                                 <tr><td colspan="6" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No policy groups yet. Click "New policy" to start from a template.') }}</td></tr>
                             @endforelse
-                        </tbody>
-                    </table>
-                </div>
+
+                </x-ui.table>
             </x-ui.card>
 
             @if ($policyTemplateExportJson !== '')

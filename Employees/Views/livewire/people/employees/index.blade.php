@@ -212,9 +212,9 @@
         </x-ui.card>
 
         <x-ui.card>
-            <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                <table class="min-w-full divide-y divide-border-default text-sm">
-                    <thead class="bg-surface-subtle/80">
+            <x-ui.table container="flush" :caption="__('Employees')">
+
+                <x-slot name="head">
                         <tr>
                             <x-ui.sortable-th column="full_name" :sort-by="$sortBy" :sort-dir="$sortDir" action="sort('full_name')" :label="__('Employee')" />
                             <x-ui.sortable-th column="company_name" :sort-by="$sortBy" :sort-dir="$sortDir" action="sort('company_name')" :label="__('Company')" />
@@ -226,11 +226,11 @@
                             <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Payroll Readiness') }}</th>
                             <x-ui.sortable-th column="status" :sort-by="$sortBy" :sort-dir="$sortDir" action="sort('status')" :label="__('Status')" />
                         </tr>
-                    </thead>
-                    <tbody class="bg-surface-card divide-y divide-border-default">
+                    </x-slot>
+
                         @forelse($employees as $employee)
                             @php($readiness = $employee->payroll_readiness)
-                            <tr wire:key="employee-{{ $employee->id }}" class="hover:bg-surface-subtle/50 transition-colors">
+                            <tr wire:key="employee-{{ $employee->id }}">
                                 <td class="px-table-cell-x py-table-cell-y align-top">
                                     <a href="{{ route('people.employees.show', $employee) }}" wire:navigate class="text-sm font-medium text-accent hover:underline">
                                         {{ $employee->full_name }}
@@ -286,9 +286,8 @@
                                 <td colspan="9" class="px-table-cell-x py-8 text-center text-sm text-muted">{{ __('No employees found for the active workbench filters.') }}</td>
                             </tr>
                         @endforelse
-                    </tbody>
-                </table>
-            </div>
+
+            </x-ui.table>
 
             <div class="mt-4">
                 {{ $employees->links() }}
