@@ -285,18 +285,8 @@ class AllowanceRules extends Component
         return view('people-attendance::livewire.people.attendance.allowance-rules', [
             'schemaReady' => $schemaReady,
             'canManage' => $this->canAttendance('people.attendance.manage'),
-            'policyGroups' => $schemaReady
-                ? AttendancePolicyGroup::query()
-                    ->where('company_id', $companyId)
-                    ->orderBy('code')
-                    ->get()
-                : collect(),
-            'shiftTemplates' => $schemaReady
-                ? AttendanceShiftTemplate::query()
-                    ->where('company_id', $companyId)
-                    ->orderBy('code')
-                    ->get()
-                : collect(),
+            'policyGroups' => $this->attendancePolicyGroupsForCompany($companyId, $schemaReady),
+            'shiftTemplates' => $this->attendanceShiftTemplatesForCompany($companyId, $schemaReady),
             'allowanceRules' => $schemaReady
                 ? AttendanceAllowanceRule::query()
                     ->where('company_id', $companyId)

@@ -6,6 +6,8 @@ use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\People\Attendance\Models\AttendanceDay;
+use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
+use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +73,36 @@ trait InteractsWithAttendanceScreen
         session()->flash('error', __('Attendance database tables are not installed yet. Run the Attendance migration first.'));
 
         return false;
+    }
+
+    /**
+     * @return Collection<int, AttendancePolicyGroup>
+     */
+    protected function attendancePolicyGroupsForCompany(int $companyId, bool $schemaReady): Collection
+    {
+        if (! $schemaReady) {
+            return collect();
+        }
+
+        return AttendancePolicyGroup::query()
+            ->where('company_id', $companyId)
+            ->orderBy('code')
+            ->get();
+    }
+
+    /**
+     * @return Collection<int, AttendanceShiftTemplate>
+     */
+    protected function attendanceShiftTemplatesForCompany(int $companyId, bool $schemaReady): Collection
+    {
+        if (! $schemaReady) {
+            return collect();
+        }
+
+        return AttendanceShiftTemplate::query()
+            ->where('company_id', $companyId)
+            ->orderBy('code')
+            ->get();
     }
 
     protected function blankToNull(mixed $value): mixed
