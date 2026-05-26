@@ -169,14 +169,14 @@
                 <x-ui.table container="flush" :caption="$isMySchedule ? __('Your shifts') : __('Roster')" :row-hover="false">
                     <x-slot name="head">
                     <tr>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('No.') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Employee') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Period') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Shift') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Policy') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Pattern') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Rev') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Actions') }}</th>
+                        <x-ui.th>{{ __('No.') }}</x-ui.th>
+                        <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                        <x-ui.th>{{ __('Period') }}</x-ui.th>
+                        <x-ui.th>{{ __('Shift') }}</x-ui.th>
+                        <x-ui.th>{{ __('Policy') }}</x-ui.th>
+                        <x-ui.th>{{ __('Pattern') }}</x-ui.th>
+                        <x-ui.th>{{ __('Rev') }}</x-ui.th>
+                        <x-ui.th align="right">{{ __('Actions') }}</x-ui.th>
                     </tr>
                     </x-slot>
 

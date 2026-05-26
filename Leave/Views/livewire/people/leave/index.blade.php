@@ -74,11 +74,11 @@
                     <x-ui.table container="flush" :caption="__('My leave requests')" :row-hover="false">
                         <x-slot name="head">
                         <tr>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Period') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                            <x-ui.th>{{ __('Leave Type') }}</x-ui.th>
+                            <x-ui.th>{{ __('Period') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Qty') }}</x-ui.th>
+                            <x-ui.th>{{ __('Status') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Actions') }}</x-ui.th>
                         </tr>
                         </x-slot>
 
@@ -120,11 +120,11 @@
                         <x-ui.table container="flush" class="mb-6" :caption="__('My leave balance statement')" :row-hover="false">
                             <x-slot name="head">
                             <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Opening') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Accrued') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Taken') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Balance') }}</th>
+                                <x-ui.th>{{ __('Leave Type') }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Opening') }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Accrued') }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Taken') }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Balance') }}</x-ui.th>
                             </tr>
                             </x-slot>
 
@@ -149,11 +149,11 @@
                         <x-ui.table container="flush" :caption="__('My leave history')" :row-hover="false">
                             <x-slot name="head">
                             <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Period') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                                <x-ui.th>{{ __('Type') }}</x-ui.th>
+                                <x-ui.th>{{ __('Period') }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Qty') }}</x-ui.th>
+                                <x-ui.th>{{ __('Status') }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Actions') }}</x-ui.th>
                             </tr>
                             </x-slot>
 
@@ -186,11 +186,11 @@
                 <x-ui.table container="flush" :caption="__('Leave types')" :row-hover="false">
                     <x-slot name="head">
                     <tr>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Unit') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Disposition') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Payroll') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
+                        <x-ui.th>{{ __('Type') }}</x-ui.th>
+                        <x-ui.th>{{ __('Unit') }}</x-ui.th>
+                        <x-ui.th>{{ __('Disposition') }}</x-ui.th>
+                        <x-ui.th>{{ __('Payroll') }}</x-ui.th>
+                        <x-ui.th>{{ __('Status') }}</x-ui.th>
                     </tr>
                     </x-slot>
 
@@ -285,8 +285,8 @@
                                             <table class="min-w-full text-xs">
                                                 <thead class="bg-surface-subtle/80">
                                                     <tr>
-                                                        <th class="px-2 py-1 text-left text-muted">{{ __('Service Years') }}</th>
-                                                        <th class="px-2 py-1 text-right text-muted">{{ __('Days') }}</th>
+                                                        <th scope="col" class="px-2 py-1 text-left text-muted">{{ __('Service Years') }}</th>
+                                                        <th scope="col" class="px-2 py-1 text-right text-muted">{{ __('Days') }}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody class="divide-y divide-border-default">
@@ -349,11 +349,11 @@
                 <x-ui.table container="flush" :caption="__('Leave assignments')" :row-hover="false">
                     <x-slot name="head">
                     <tr>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Assignment') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Entitlement') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Request') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Effective') }}</th>
+                        <x-ui.th>{{ __('Assignment') }}</x-ui.th>
+                        <x-ui.th>{{ __('Leave Type') }}</x-ui.th>
+                        <x-ui.th>{{ __('Entitlement') }}</x-ui.th>
+                        <x-ui.th>{{ __('Request') }}</x-ui.th>
+                        <x-ui.th>{{ __('Effective') }}</x-ui.th>
                     </tr>
                     </x-slot>
 
@@ -389,11 +389,11 @@
                         <x-ui.table container="flush" :caption="__('Leave requests awaiting approval')" :row-hover="false">
                             <x-slot name="head">
                             <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Period') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                                <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                                <x-ui.th>{{ __('Type') }}</x-ui.th>
+                                <x-ui.th>{{ __('Period') }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Qty') }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Actions') }}</x-ui.th>
                             </tr>
                             </x-slot>
 
@@ -558,15 +558,15 @@
                     <x-ui.table container="flush" :caption="__('Leave balances')" :row-hover="false">
                         <x-slot name="head">
                         <tr>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Opening') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Accrued') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Carry-Fwd') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Adjusted') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Taken') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Expired') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Encashed') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Balance') }}</th>
+                            <x-ui.th>{{ __('Leave Type') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Opening') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Accrued') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Carry-Fwd') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Adjusted') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Taken') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Expired') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Encashed') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Balance') }}</x-ui.th>
                         </tr>
                         </x-slot>
 
@@ -608,12 +608,12 @@
                     <x-ui.table container="flush" :caption="__('Recent manual leave entries')" :row-hover="false">
                         <x-slot name="head">
                         <tr>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Recorded') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Entry') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Note') }}</th>
+                            <x-ui.th>{{ __('Recorded') }}</x-ui.th>
+                            <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                            <x-ui.th>{{ __('Leave Type') }}</x-ui.th>
+                            <x-ui.th>{{ __('Entry') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Qty') }}</x-ui.th>
+                            <x-ui.th>{{ __('Note') }}</x-ui.th>
                         </tr>
                         </x-slot>
 
@@ -668,13 +668,13 @@
                         <x-ui.table container="flush" :caption="__('Carry-forward preview')" :row-hover="false">
                             <x-slot name="head">
                             <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Policy') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Remaining') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Cap') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Carried → :to', ['to' => $carryForwardPreview[0]['to_year'] ?? '']) }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Expired') }}</th>
+                                <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                                <x-ui.th>{{ __('Leave Type') }}</x-ui.th>
+                                <x-ui.th>{{ __('Policy') }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Remaining') }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Cap') }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Carried → :to', ['to' => $carryForwardPreview[0]['to_year'] ?? '']) }}</x-ui.th>
+                                <x-ui.th align="right">{{ __('Expired') }}</x-ui.th>
                             </tr>
                             </x-slot>
 

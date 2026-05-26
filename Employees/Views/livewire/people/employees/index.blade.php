@@ -223,7 +223,7 @@
                             <x-ui.sortable-th column="job_title_name" :sort-by="$sortBy" :sort-dir="$sortDir" action="sort('job_title_name')" :label="__('Job Title')" />
                             <x-ui.sortable-th column="work_profile_pay_basis" :sort-by="$sortBy" :sort-dir="$sortDir" action="sort('work_profile_pay_basis')" :label="__('Pay Basis')" />
                             <x-ui.sortable-th column="portal_access_status" :sort-by="$sortBy" :sort-dir="$sortDir" action="sort('portal_access_status')" :label="__('Access')" />
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Payroll Readiness') }}</th>
+                            <x-ui.th>{{ __('Payroll Readiness') }}</x-ui.th>
                             <x-ui.sortable-th column="status" :sort-by="$sortBy" :sort-dir="$sortDir" action="sort('status')" :label="__('Status')" />
                         </tr>
                     </x-slot>

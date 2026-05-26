@@ -40,16 +40,16 @@
     <x-ui.table container="flush" :caption="__('Attendance days')" :row-hover="false">
         <x-slot name="head">
         <tr>
-            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Date') }}</th>
-            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Employee') }}</th>
-            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Shift') }}</th>
-            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Worked') }}</th>
-            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Late') }}</th>
-            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('OT Candidate') }}</th>
-            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Status') }}</th>
-            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Exceptions') }}</th>
+            <x-ui.th>{{ __('Date') }}</x-ui.th>
+            <x-ui.th>{{ __('Employee') }}</x-ui.th>
+            <x-ui.th>{{ __('Shift') }}</x-ui.th>
+            <x-ui.th align="right">{{ __('Worked') }}</x-ui.th>
+            <x-ui.th align="right">{{ __('Late') }}</x-ui.th>
+            <x-ui.th align="right">{{ __('OT Candidate') }}</x-ui.th>
+            <x-ui.th>{{ __('Status') }}</x-ui.th>
+            <x-ui.th>{{ __('Exceptions') }}</x-ui.th>
             @if ($actionsColumn)
-                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Actions') }}</th>
+                <x-ui.th align="right">{{ __('Actions') }}</x-ui.th>
             @endif
         </tr>
         </x-slot>

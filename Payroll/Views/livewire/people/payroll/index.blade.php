@@ -49,11 +49,11 @@
 
                             <x-slot name="head">
                                     <tr>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Run') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Period') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Rows') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                                        <x-ui.th>{{ __('Run') }}</x-ui.th>
+                                        <x-ui.th>{{ __('Period') }}</x-ui.th>
+                                        <x-ui.th>{{ __('Status') }}</x-ui.th>
+                                        <x-ui.th align="right">{{ __('Rows') }}</x-ui.th>
+                                        <x-ui.th align="right">{{ __('Actions') }}</x-ui.th>
                                     </tr>
                                 </x-slot>
 
@@ -224,9 +224,9 @@
 
                     <x-slot name="head">
                             <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Pay Item') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Input Type') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Classifications') }}</th>
+                                <x-ui.th>{{ __('Pay Item') }}</x-ui.th>
+                                <x-ui.th>{{ __('Input Type') }}</x-ui.th>
+                                <x-ui.th>{{ __('Classifications') }}</x-ui.th>
                             </tr>
                         </x-slot>
 
@@ -436,12 +436,12 @@
 
                                 <x-slot name="head">
                                         <tr>
-                                            <th class="px-table-cell-x py-table-header-y text-left font-semibold text-muted uppercase tracking-wider">{{ __('Row') }}</th>
-                                            <th class="px-table-cell-x py-table-header-y text-right font-semibold text-muted uppercase tracking-wider">{{ __('Min') }}</th>
-                                            <th class="px-table-cell-x py-table-header-y text-right font-semibold text-muted uppercase tracking-wider">{{ __('Max') }}</th>
-                                            <th class="px-table-cell-x py-table-header-y text-right font-semibold text-muted uppercase tracking-wider">{{ __('Employee Rate') }}</th>
-                                            <th class="px-table-cell-x py-table-header-y text-right font-semibold text-muted uppercase tracking-wider">{{ __('Employer Rate') }}</th>
-                                            <th class="px-table-cell-x py-table-header-y text-right font-semibold text-muted uppercase tracking-wider">{{ __('Levy Rate') }}</th>
+                                            <x-ui.th>{{ __('Row') }}</x-ui.th>
+                                            <x-ui.th align="right">{{ __('Min') }}</x-ui.th>
+                                            <x-ui.th align="right">{{ __('Max') }}</x-ui.th>
+                                            <x-ui.th align="right">{{ __('Employee Rate') }}</x-ui.th>
+                                            <x-ui.th align="right">{{ __('Employer Rate') }}</x-ui.th>
+                                            <x-ui.th align="right">{{ __('Levy Rate') }}</x-ui.th>
                                         </tr>
                                     </x-slot>
 

@@ -72,12 +72,12 @@
                 <x-ui.table container="flush" :caption="__('My claim requests')" :row-hover="false">
                     <x-slot name="head">
                     <tr>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Reference') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Requested') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Risk') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                        <x-ui.th>{{ __('Reference') }}</x-ui.th>
+                        <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                        <x-ui.th align="right">{{ __('Requested') }}</x-ui.th>
+                        <x-ui.th>{{ __('Status') }}</x-ui.th>
+                        <x-ui.th>{{ __('Risk') }}</x-ui.th>
+                        <x-ui.th align="right">{{ __('Actions') }}</x-ui.th>
                     </tr>
                     </x-slot>
 
@@ -147,14 +147,14 @@
                 <x-ui.table container="flush" :caption="__('Claim operations requests')" :row-hover="false">
                     <x-slot name="head">
                     <tr>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Reference') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Lines') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Requested') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Risk') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Payroll') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                        <x-ui.th>{{ __('Reference') }}</x-ui.th>
+                        <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                        <x-ui.th>{{ __('Lines') }}</x-ui.th>
+                        <x-ui.th align="right">{{ __('Requested') }}</x-ui.th>
+                        <x-ui.th>{{ __('Status') }}</x-ui.th>
+                        <x-ui.th>{{ __('Risk') }}</x-ui.th>
+                        <x-ui.th>{{ __('Payroll') }}</x-ui.th>
+                        <x-ui.th align="right">{{ __('Actions') }}</x-ui.th>
                     </tr>
                     </x-slot>
 
@@ -234,11 +234,11 @@
                     <x-ui.table container="flush" :caption="__('Pending claim approvals')" :row-hover="false">
                         <x-slot name="head">
                         <tr>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Reference') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Requested') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Risk') }}</th>
-                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                            <x-ui.th>{{ __('Reference') }}</x-ui.th>
+                            <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Requested') }}</x-ui.th>
+                            <x-ui.th>{{ __('Risk') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Actions') }}</x-ui.th>
                         </tr>
                         </x-slot>
 
@@ -368,9 +368,9 @@
                 <x-ui.table container="flush" :caption="__('Claim categories')" :row-hover="false">
                     <x-slot name="head">
                     <tr>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Code') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Name') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
+                        <x-ui.th>{{ __('Code') }}</x-ui.th>
+                        <x-ui.th>{{ __('Name') }}</x-ui.th>
+                        <x-ui.th>{{ __('Status') }}</x-ui.th>
                     </tr>
                     </x-slot>
 
@@ -431,10 +431,10 @@
                 <x-ui.table container="flush" :caption="__('Claim types')" :row-hover="false">
                     <x-slot name="head">
                     <tr>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Category') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Payroll / Accounts') }}</th>
-                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Rules') }}</th>
+                        <x-ui.th>{{ __('Type') }}</x-ui.th>
+                        <x-ui.th>{{ __('Category') }}</x-ui.th>
+                        <x-ui.th>{{ __('Payroll / Accounts') }}</x-ui.th>
+                        <x-ui.th>{{ __('Rules') }}</x-ui.th>
                     </tr>
                     </x-slot>
 
@@ -512,7 +512,7 @@
                             </div>
                             <x-ui.table container="plain" size="xs" class="mt-4" :caption="__('Claim policy bands')" :row-hover="false">
                                 <x-slot name="head">
-                                    <tr><th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Threshold') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Rate') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Per Claim') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Per Month') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Per Year') }}</th></tr>
+                                    <tr><x-ui.th>{{ __('Threshold') }}</x-ui.th><x-ui.th align="right">{{ __('Rate') }}</x-ui.th><x-ui.th align="right">{{ __('Per Claim') }}</x-ui.th><x-ui.th align="right">{{ __('Per Month') }}</x-ui.th><x-ui.th align="right">{{ __('Per Year') }}</x-ui.th></tr>
                                 </x-slot>
 
                                 @forelse ($policy->bands as $band)
@@ -583,7 +583,7 @@
 
                 <x-ui.table container="flush" :caption="__('Claim contexts')" :row-hover="false">
                     <x-slot name="head">
-                        <tr><th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Code') }}</th><th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Label') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Max Limit') }}</th></tr>
+                        <tr><x-ui.th>{{ __('Code') }}</x-ui.th><x-ui.th>{{ __('Label') }}</x-ui.th><x-ui.th align="right">{{ __('Max Limit') }}</x-ui.th></tr>
                     </x-slot>
 
                     @forelse ($contexts as $context)

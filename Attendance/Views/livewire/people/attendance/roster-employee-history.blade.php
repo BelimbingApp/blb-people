@@ -28,13 +28,13 @@ use App\Modules\People\Attendance\Livewire\RosterEmployeeHistory;
 
                 <x-slot name="head">
                         <tr>
-                            <th class="px-table-cell-x py-table-cell-y text-left text-xs font-semibold uppercase tracking-wide text-muted">{{ __('Date') }}</th>
-                            <th class="px-table-cell-x py-table-cell-y text-left text-xs font-semibold uppercase tracking-wide text-muted">{{ __('Changed at') }}</th>
-                            <th class="px-table-cell-x py-table-cell-y text-left text-xs font-semibold uppercase tracking-wide text-muted">{{ __('By') }}</th>
-                            <th class="px-table-cell-x py-table-cell-y text-left text-xs font-semibold uppercase tracking-wide text-muted">{{ __('Action') }}</th>
-                            <th class="px-table-cell-x py-table-cell-y text-left text-xs font-semibold uppercase tracking-wide text-muted">{{ __('Previous') }}</th>
-                            <th class="px-table-cell-x py-table-cell-y text-left text-xs font-semibold uppercase tracking-wide text-muted">{{ __('New') }}</th>
-                            <th class="px-table-cell-x py-table-cell-y text-left text-xs font-semibold uppercase tracking-wide text-muted">{{ __('Note / Job') }}</th>
+                            <x-ui.th class="text-xs tracking-wide">{{ __('Date') }}</x-ui.th>
+                            <x-ui.th class="text-xs tracking-wide">{{ __('Changed at') }}</x-ui.th>
+                            <x-ui.th class="text-xs tracking-wide">{{ __('By') }}</x-ui.th>
+                            <x-ui.th class="text-xs tracking-wide">{{ __('Action') }}</x-ui.th>
+                            <x-ui.th class="text-xs tracking-wide">{{ __('Previous') }}</x-ui.th>
+                            <x-ui.th class="text-xs tracking-wide">{{ __('New') }}</x-ui.th>
+                            <x-ui.th class="text-xs tracking-wide">{{ __('Note / Job') }}</x-ui.th>
                         </tr>
                     </x-slot>
 

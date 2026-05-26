@@ -10,12 +10,12 @@
 
         <x-slot name="head">
                 <tr>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('No.') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Shift') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Status') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Schedule') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Effective') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Actions') }}</th>
+                    <x-ui.th>{{ __('No.') }}</x-ui.th>
+                    <x-ui.th>{{ __('Shift') }}</x-ui.th>
+                    <x-ui.th>{{ __('Status') }}</x-ui.th>
+                    <x-ui.th>{{ __('Schedule') }}</x-ui.th>
+                    <x-ui.th>{{ __('Effective') }}</x-ui.th>
+                    <x-ui.th align="right">{{ __('Actions') }}</x-ui.th>
                 </tr>
             </x-slot>
 

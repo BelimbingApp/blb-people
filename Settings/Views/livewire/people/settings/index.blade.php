@@ -46,11 +46,11 @@
 
                         <x-slot name="head">
                                 <tr>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Code') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Name') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Source') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
+                                    <x-ui.th>{{ __('Type') }}</x-ui.th>
+                                    <x-ui.th>{{ __('Code') }}</x-ui.th>
+                                    <x-ui.th>{{ __('Name') }}</x-ui.th>
+                                    <x-ui.th>{{ __('Source') }}</x-ui.th>
+                                    <x-ui.th>{{ __('Status') }}</x-ui.th>
                                 </tr>
                             </x-slot>
 

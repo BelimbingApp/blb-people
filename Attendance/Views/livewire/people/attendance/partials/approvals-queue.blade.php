@@ -10,13 +10,13 @@
 
         <x-slot name="head">
                 <tr>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Employee') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Window') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Requested Hours') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Reason') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Status') }}</th>
+                    <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                    <x-ui.th>{{ __('Window') }}</x-ui.th>
+                    <x-ui.th align="right">{{ __('Requested Hours') }}</x-ui.th>
+                    <x-ui.th>{{ __('Reason') }}</x-ui.th>
+                    <x-ui.th>{{ __('Status') }}</x-ui.th>
                     @if ($canApprove)
-                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Actions') }}</th>
+                        <x-ui.th align="right">{{ __('Actions') }}</x-ui.th>
                     @endif
                 </tr>
             </x-slot>

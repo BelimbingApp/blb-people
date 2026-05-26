@@ -17,10 +17,10 @@
 
             <x-slot name="head">
                     <tr>
-                        <th class="px-table-cell-x py-table-cell-y">{{ __('Claim type') }}</th>
-                        <th class="px-table-cell-x py-table-cell-y">{{ __('Current pay-item') }}</th>
-                        <th class="px-table-cell-x py-table-cell-y">{{ __('History') }}</th>
-                        <th class="px-table-cell-x py-table-cell-y"></th>
+                        <x-ui.th>{{ __('Claim type') }}</x-ui.th>
+                        <x-ui.th>{{ __('Current pay-item') }}</x-ui.th>
+                        <x-ui.th>{{ __('History') }}</x-ui.th>
+                        <x-ui.th><span class="sr-only">{{ __('Actions') }}</span></x-ui.th>
                     </tr>
                 </x-slot>
 
