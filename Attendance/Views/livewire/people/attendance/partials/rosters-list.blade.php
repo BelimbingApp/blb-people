@@ -166,62 +166,59 @@
         @if (! $isMySchedule)
         <x-ui.tab id="records">
             <x-ui.card>
-                <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                    <table class="min-w-full divide-y divide-border-default text-sm">
-                        <thead class="bg-surface-subtle/80">
-                            <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('No.') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Employee') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Period') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Shift') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Policy') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Pattern') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Rev') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Actions') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-border-default bg-surface-card">
-                            @forelse ($rosterAssignments as $assignment)
-                                <tr wire:key="roster-assignment-row-{{ $assignment->id }}">
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">{{ $loop->iteration }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <div class="font-medium text-ink">{{ $assignment->employee?->full_name ?? __('Cohort default') }}</div>
-                                        <div class="text-xs text-muted tabular-nums">{{ $assignment->employee?->employee_number ?? '—' }}</div>
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">
-                                        <div>{{ $assignment->effective_from?->format('Y-m-d') ?? '—' }}</div>
-                                        <div>{{ $assignment->effective_to?->format('Y-m-d') ?? __('Open ended') }}</div>
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <div class="font-medium text-ink">{{ $assignment->shiftTemplate?->code ?? '—' }}</div>
-                                        <div class="text-xs text-muted">{{ $assignment->shiftTemplate?->name ?? '' }}</div>
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <div class="text-ink">{{ $assignment->policyGroup?->code ?? '—' }}</div>
-                                        <div class="text-xs text-muted">{{ $assignment->policyGroup?->name ?? '' }}</div>
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted">{{ $assignment->rosterPattern?->code ?? '—' }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">{{ $assignment->revision }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <div class="flex justify-end gap-2">
-                                            <x-ui.button type="button" size="sm" variant="danger" wire:click="deleteRosterAssignment({{ $assignment->id }})" wire:confirm="{{ __('Delete this roster assignment?') }}">{{ __('Delete') }}</x-ui.button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="8" class="px-table-cell-x py-10 text-center text-sm text-muted">
-                                        @if ($rosterIncomplete)
-                                            {{ __('No roster assignments yet. Finish the setup steps above before creating roster assignments.') }}
-                                        @else
-                                            {{ __('No roster assignments yet. Use the bulk assign button in the roster grid to create the first one.') }}
-                                        @endif
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                <x-ui.table container="flush" :caption="$isMySchedule ? __('Your shifts') : __('Roster')" :row-hover="false">
+                    <x-slot name="head">
+                    <tr>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('No.') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Employee') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Period') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Shift') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Policy') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Pattern') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Rev') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Actions') }}</th>
+                    </tr>
+                    </x-slot>
+
+                    @forelse ($rosterAssignments as $assignment)
+                        <tr wire:key="roster-assignment-row-{{ $assignment->id }}">
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">{{ $loop->iteration }}</td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <div class="font-medium text-ink">{{ $assignment->employee?->full_name ?? __('Cohort default') }}</div>
+                                <div class="text-xs text-muted tabular-nums">{{ $assignment->employee?->employee_number ?? '—' }}</div>
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">
+                                <div>{{ $assignment->effective_from?->format('Y-m-d') ?? '—' }}</div>
+                                <div>{{ $assignment->effective_to?->format('Y-m-d') ?? __('Open ended') }}</div>
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <div class="font-medium text-ink">{{ $assignment->shiftTemplate?->code ?? '—' }}</div>
+                                <div class="text-xs text-muted">{{ $assignment->shiftTemplate?->name ?? '' }}</div>
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <div class="text-ink">{{ $assignment->policyGroup?->code ?? '—' }}</div>
+                                <div class="text-xs text-muted">{{ $assignment->policyGroup?->name ?? '' }}</div>
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted">{{ $assignment->rosterPattern?->code ?? '—' }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">{{ $assignment->revision }}</td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <div class="flex justify-end gap-2">
+                                    <x-ui.button type="button" size="sm" variant="danger" wire:click="deleteRosterAssignment({{ $assignment->id }})" wire:confirm="{{ __('Delete this roster assignment?') }}">{{ __('Delete') }}</x-ui.button>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="8" class="px-table-cell-x py-10 text-center text-sm text-muted">
+                                @if ($rosterIncomplete)
+                                    {{ __('No roster assignments yet. Finish the setup steps above before creating roster assignments.') }}
+                                @else
+                                    {{ __('No roster assignments yet. Use the bulk assign button in the roster grid to create the first one.') }}
+                                @endif
+                            </td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
             </x-ui.card>
         </x-ui.tab>
         @endif

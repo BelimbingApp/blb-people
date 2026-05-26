@@ -69,54 +69,51 @@
                     </x-ui.button>
                 </div>
 
-                <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                    <table class="min-w-full divide-y divide-border-default text-sm">
-                        <thead class="bg-surface-subtle/80">
-                            <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Reference') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Requested') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Risk') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-border-default bg-surface-card">
-                            @forelse ($myRequests as $request)
-                                @php
-                                    $duplicateRisks = $request->metadata['duplicate_risks'] ?? [];
-                                @endphp
-                                <tr wire:key="claim-request-{{ $request->id }}">
-                                    <td class="px-table-cell-x py-table-cell-y font-mono text-xs text-ink">{{ $request->reference_number ?? __('Draft #:id', ['id' => $request->id]) }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y text-ink">{{ $request->employee?->full_name ?? __('Employee #:id', ['id' => $request->employee_id]) }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $request->currency }} {{ number_format((float) $request->requested_amount, 2) }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y"><x-ui.badge :variant="$this->statusVariant($request->status)">{{ __(str_replace('_', ' ', ucfirst($request->status))) }}</x-ui.badge></td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        @if ($duplicateRisks !== [])
-                                            <div class="space-y-1">
-                                                <x-ui.badge variant="warning">{{ trans_choice(':count warning|:count warnings', count($duplicateRisks), ['count' => count($duplicateRisks)]) }}</x-ui.badge>
-                                                <div class="max-w-xs text-xs text-muted">{{ __($duplicateRisks[0]['message'] ?? 'Duplicate risk detected.') }}</div>
-                                            </div>
-                                        @else
-                                            <span class="text-xs text-muted">{{ __('None') }}</span>
-                                        @endif
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <div class="flex flex-wrap justify-end gap-2">
-                                            @if ($request->employee_id === $currentEmployeeId && in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO], true))
-                                                <x-ui.button type="button" size="sm" variant="secondary" wire:click="withdrawOwnRequest({{ $request->id }})">{{ __('Withdraw') }}</x-ui.button>
-                                            @endif
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="6" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim requests yet.') }}</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                <x-ui.table container="flush" :caption="__('My claim requests')" :row-hover="false">
+                    <x-slot name="head">
+                    <tr>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Reference') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Requested') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Risk') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                    </tr>
+                    </x-slot>
+
+                    @forelse ($myRequests as $request)
+                        @php
+                            $duplicateRisks = $request->metadata['duplicate_risks'] ?? [];
+                        @endphp
+                        <tr wire:key="claim-request-{{ $request->id }}">
+                            <td class="px-table-cell-x py-table-cell-y font-mono text-xs text-ink">{{ $request->reference_number ?? __('Draft #:id', ['id' => $request->id]) }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-ink">{{ $request->employee?->full_name ?? __('Employee #:id', ['id' => $request->employee_id]) }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $request->currency }} {{ number_format((float) $request->requested_amount, 2) }}</td>
+                            <td class="px-table-cell-x py-table-cell-y"><x-ui.badge :variant="$this->statusVariant($request->status)">{{ __(str_replace('_', ' ', ucfirst($request->status))) }}</x-ui.badge></td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                @if ($duplicateRisks !== [])
+                                    <div class="space-y-1">
+                                        <x-ui.badge variant="warning">{{ trans_choice(':count warning|:count warnings', count($duplicateRisks), ['count' => count($duplicateRisks)]) }}</x-ui.badge>
+                                        <div class="max-w-xs text-xs text-muted">{{ __($duplicateRisks[0]['message'] ?? 'Duplicate risk detected.') }}</div>
+                                    </div>
+                                @else
+                                    <span class="text-xs text-muted">{{ __('None') }}</span>
+                                @endif
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <div class="flex flex-wrap justify-end gap-2">
+                                    @if ($request->employee_id === $currentEmployeeId && in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO], true))
+                                        <x-ui.button type="button" size="sm" variant="secondary" wire:click="withdrawOwnRequest({{ $request->id }})">{{ __('Withdraw') }}</x-ui.button>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim requests yet.') }}</td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
 
                 @if ($currentEmployeeId === null)
                     <x-ui.alert variant="warning" class="mt-4">{{ __('Your user account is not linked to an employee record, so claims cannot be submitted from this workbench yet.') }}</x-ui.alert>
@@ -147,146 +144,140 @@
                     </x-ui.select>
                 </div>
 
-                <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                    <table class="min-w-full divide-y divide-border-default text-sm">
-                        <thead class="bg-surface-subtle/80">
-                            <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Reference') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Lines') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Requested') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Risk') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Payroll') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-border-default bg-surface-card">
-                            @forelse ($operationsRequests as $request)
-                                @php
-                                    $duplicateRisks = $request->metadata['duplicate_risks'] ?? [];
-                                    $handoff = $request->metadata['payroll_handoff'] ?? null;
-                                    $eligiblePayrollLines = $request->lines->filter(fn ($line) => (bool) $line->type?->payroll_eligible && $line->payroll_pay_item_code !== null);
-                                @endphp
-                                <tr wire:key="claim-operations-request-{{ $request->id }}">
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <div class="font-mono text-xs text-ink">{{ $request->reference_number ?? __('Draft #:id', ['id' => $request->id]) }}</div>
-                                        <div class="text-xs text-muted tabular-nums">{{ $request->submitted_at?->format('Y-m-d H:i') ?? __('Not submitted') }}</div>
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <div class="font-medium text-ink">{{ $request->employee?->full_name ?? __('Employee #:id', ['id' => $request->employee_id]) }}</div>
-                                        <div class="font-mono text-xs text-muted">{{ $request->employee?->employee_number }}</div>
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <div class="flex flex-wrap gap-2">
-                                            @forelse ($request->lines as $line)
-                                                <x-ui.badge wire:key="claim-operations-line-{{ $line->id }}">{{ $line->type?->code ?? __('Line #:id', ['id' => $line->id]) }}</x-ui.badge>
-                                            @empty
-                                                <span class="text-xs text-muted">{{ __('No lines') }}</span>
-                                            @endforelse
-                                        </div>
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $request->currency }} {{ number_format((float) $request->requested_amount, 2) }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y"><x-ui.badge :variant="$this->statusVariant($request->status)">{{ __(str_replace('_', ' ', ucfirst($request->status))) }}</x-ui.badge></td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        @if ($duplicateRisks !== [])
-                                            <div class="space-y-1">
-                                                <x-ui.badge variant="warning">{{ trans_choice(':count warning|:count warnings', count($duplicateRisks), ['count' => count($duplicateRisks)]) }}</x-ui.badge>
-                                                <div class="max-w-xs text-xs text-muted">{{ __($duplicateRisks[0]['message'] ?? 'Duplicate risk detected.') }}</div>
-                                            </div>
-                                        @else
-                                            <span class="text-xs text-muted">{{ __('None') }}</span>
+                <x-ui.table container="flush" :caption="__('Claim operations requests')" :row-hover="false">
+                    <x-slot name="head">
+                    <tr>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Reference') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Lines') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Requested') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Risk') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Payroll') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                    </tr>
+                    </x-slot>
+
+                    @forelse ($operationsRequests as $request)
+                        @php
+                            $duplicateRisks = $request->metadata['duplicate_risks'] ?? [];
+                            $handoff = $request->metadata['payroll_handoff'] ?? null;
+                            $eligiblePayrollLines = $request->lines->filter(fn ($line) => (bool) $line->type?->payroll_eligible && $line->payroll_pay_item_code !== null);
+                        @endphp
+                        <tr wire:key="claim-operations-request-{{ $request->id }}">
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <div class="font-mono text-xs text-ink">{{ $request->reference_number ?? __('Draft #:id', ['id' => $request->id]) }}</div>
+                                <div class="text-xs text-muted tabular-nums">{{ $request->submitted_at?->format('Y-m-d H:i') ?? __('Not submitted') }}</div>
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <div class="font-medium text-ink">{{ $request->employee?->full_name ?? __('Employee #:id', ['id' => $request->employee_id]) }}</div>
+                                <div class="font-mono text-xs text-muted">{{ $request->employee?->employee_number }}</div>
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <div class="flex flex-wrap gap-2">
+                                    @forelse ($request->lines as $line)
+                                        <x-ui.badge wire:key="claim-operations-line-{{ $line->id }}">{{ $line->type?->code ?? __('Line #:id', ['id' => $line->id]) }}</x-ui.badge>
+                                    @empty
+                                        <span class="text-xs text-muted">{{ __('No lines') }}</span>
+                                    @endforelse
+                                </div>
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $request->currency }} {{ number_format((float) $request->requested_amount, 2) }}</td>
+                            <td class="px-table-cell-x py-table-cell-y"><x-ui.badge :variant="$this->statusVariant($request->status)">{{ __(str_replace('_', ' ', ucfirst($request->status))) }}</x-ui.badge></td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                @if ($duplicateRisks !== [])
+                                    <div class="space-y-1">
+                                        <x-ui.badge variant="warning">{{ trans_choice(':count warning|:count warnings', count($duplicateRisks), ['count' => count($duplicateRisks)]) }}</x-ui.badge>
+                                        <div class="max-w-xs text-xs text-muted">{{ __($duplicateRisks[0]['message'] ?? 'Duplicate risk detected.') }}</div>
+                                    </div>
+                                @else
+                                    <span class="text-xs text-muted">{{ __('None') }}</span>
+                                @endif
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                @if (is_array($handoff))
+                                    <div class="space-y-1 text-xs text-muted">
+                                        <x-ui.badge :variant="($handoff['pending'] ?? 0) > 0 ? 'warning' : 'success'">{{ __('Queued :queued/:eligible', ['queued' => $handoff['queued'] ?? 0, 'eligible' => $handoff['eligible'] ?? 0]) }}</x-ui.badge>
+                                        @if (($handoff['pending'] ?? 0) > 0)
+                                            <div>{{ trans_choice(':count pending open payroll run|:count pending open payroll runs', $handoff['pending'], ['count' => $handoff['pending']]) }}</div>
                                         @endif
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        @if (is_array($handoff))
-                                            <div class="space-y-1 text-xs text-muted">
-                                                <x-ui.badge :variant="($handoff['pending'] ?? 0) > 0 ? 'warning' : 'success'">{{ __('Queued :queued/:eligible', ['queued' => $handoff['queued'] ?? 0, 'eligible' => $handoff['eligible'] ?? 0]) }}</x-ui.badge>
-                                                @if (($handoff['pending'] ?? 0) > 0)
-                                                    <div>{{ trans_choice(':count pending open payroll run|:count pending open payroll runs', $handoff['pending'], ['count' => $handoff['pending']]) }}</div>
-                                                @endif
-                                            </div>
-                                        @elseif ($eligiblePayrollLines->isNotEmpty())
-                                            <x-ui.badge variant="info">{{ trans_choice(':count payroll line|:count payroll lines', $eligiblePayrollLines->count(), ['count' => $eligiblePayrollLines->count()]) }}</x-ui.badge>
-                                        @else
-                                            <span class="text-xs text-muted">{{ __('Not payroll eligible') }}</span>
-                                        @endif
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y text-right">
-                                        <div class="flex flex-wrap justify-end gap-1">
-                                            @if (in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_APPROVED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_QUEUED_FOR_PAYROLL], true))
-                                                <x-ui.button type="button" size="sm" variant="primary" wire:click="markReimbursed({{ $request->id }})" wire:confirm="{{ __('Mark this claim as reimbursed?') }}">{{ __('Reimburse') }}</x-ui.button>
-                                            @endif
-                                            @if (in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_RESUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_APPROVED], true))
-                                                <x-ui.button type="button" size="sm" variant="ghost" wire:click="cancelRequest({{ $request->id }})" wire:confirm="{{ __('Cancel this claim request?') }}">{{ __('Cancel') }}</x-ui.button>
-                                            @endif
-                                            @if (! in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_RESUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_APPROVED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_QUEUED_FOR_PAYROLL], true))
-                                                <span class="text-xs text-muted">{{ __('—') }}</span>
-                                            @endif
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="8" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim requests match the current filters.') }}</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                                    </div>
+                                @elseif ($eligiblePayrollLines->isNotEmpty())
+                                    <x-ui.badge variant="info">{{ trans_choice(':count payroll line|:count payroll lines', $eligiblePayrollLines->count(), ['count' => $eligiblePayrollLines->count()]) }}</x-ui.badge>
+                                @else
+                                    <span class="text-xs text-muted">{{ __('Not payroll eligible') }}</span>
+                                @endif
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y text-right">
+                                <div class="flex flex-wrap justify-end gap-1">
+                                    @if (in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_APPROVED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_QUEUED_FOR_PAYROLL], true))
+                                        <x-ui.button type="button" size="sm" variant="primary" wire:click="markReimbursed({{ $request->id }})" wire:confirm="{{ __('Mark this claim as reimbursed?') }}">{{ __('Reimburse') }}</x-ui.button>
+                                    @endif
+                                    @if (in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_RESUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_APPROVED], true))
+                                        <x-ui.button type="button" size="sm" variant="ghost" wire:click="cancelRequest({{ $request->id }})" wire:confirm="{{ __('Cancel this claim request?') }}">{{ __('Cancel') }}</x-ui.button>
+                                    @endif
+                                    @if (! in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_RESUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_APPROVED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_QUEUED_FOR_PAYROLL], true))
+                                        <span class="text-xs text-muted">{{ __('—') }}</span>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="8" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim requests match the current filters.') }}</td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
 
             @elseif ($tab === 'approvals')
                 <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.8fr)]">
-                    <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                        <table class="min-w-full divide-y divide-border-default text-sm">
-                            <thead class="bg-surface-subtle/80">
-                                <tr>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Reference') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Requested') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Risk') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-border-default bg-surface-card">
-                                @forelse ($pendingRequests as $request)
-                                    @php
-                                        $duplicateRisks = $request->metadata['duplicate_risks'] ?? [];
-                                    @endphp
-                                    <tr wire:key="pending-claim-{{ $request->id }}" class="hover:bg-surface-subtle/50 transition-colors">
-                                        <td class="px-table-cell-x py-table-cell-y">
-                                            <button type="button" wire:click="selectRequest({{ $request->id }})" class="text-left">
-                                                <div class="font-mono text-xs text-ink">{{ $request->reference_number }}</div>
-                                                <div class="text-xs text-muted tabular-nums">{{ $request->submitted_at?->format('Y-m-d H:i') }}</div>
-                                            </button>
-                                        </td>
-                                        <td class="px-table-cell-x py-table-cell-y text-ink">{{ $request->employee?->displayName() ?? __('Employee #:id', ['id' => $request->employee_id]) }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $request->currency }} {{ number_format((float) $request->requested_amount, 2) }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y">
-                                            @if ($duplicateRisks !== [])
-                                                <x-ui.badge variant="warning">{{ trans_choice(':count warning|:count warnings', count($duplicateRisks), ['count' => count($duplicateRisks)]) }}</x-ui.badge>
-                                            @else
-                                                <span class="text-xs text-muted">{{ __('None') }}</span>
-                                            @endif
-                                        </td>
-                                        <td class="px-table-cell-x py-table-cell-y">
-                                            <div class="flex flex-wrap justify-end gap-2">
-                                                @if ($canApprove)
-                                                    <x-ui.button type="button" size="sm" variant="primary" wire:click="approveRequest({{ $request->id }})">{{ __('Approve') }}</x-ui.button>
-                                                    <x-ui.button type="button" size="sm" variant="secondary" wire:click="requestMoreInfo({{ $request->id }})">{{ __('More info') }}</x-ui.button>
-                                                    <x-ui.button type="button" size="sm" variant="ghost" wire:click="rejectRequest({{ $request->id }})">{{ __('Reject') }}</x-ui.button>
-                                                @else
-                                                    <span class="text-xs text-muted">{{ __('View only') }}</span>
-                                                @endif
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim requests are awaiting approval.') }}</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
+                    <x-ui.table container="flush" :caption="__('Pending claim approvals')" :row-hover="false">
+                        <x-slot name="head">
+                        <tr>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Reference') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Requested') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Risk') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                        </tr>
+                        </x-slot>
+
+                        @forelse ($pendingRequests as $request)
+                            @php
+                                $duplicateRisks = $request->metadata['duplicate_risks'] ?? [];
+                            @endphp
+                            <tr wire:key="pending-claim-{{ $request->id }}" class="hover:bg-surface-subtle/50 transition-colors">
+                                <td class="px-table-cell-x py-table-cell-y">
+                                    <button type="button" wire:click="selectRequest({{ $request->id }})" class="text-left">
+                                        <div class="font-mono text-xs text-ink">{{ $request->reference_number }}</div>
+                                        <div class="text-xs text-muted tabular-nums">{{ $request->submitted_at?->format('Y-m-d H:i') }}</div>
+                                    </button>
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y text-ink">{{ $request->employee?->displayName() ?? __('Employee #:id', ['id' => $request->employee_id]) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $request->currency }} {{ number_format((float) $request->requested_amount, 2) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y">
+                                    @if ($duplicateRisks !== [])
+                                        <x-ui.badge variant="warning">{{ trans_choice(':count warning|:count warnings', count($duplicateRisks), ['count' => count($duplicateRisks)]) }}</x-ui.badge>
+                                    @else
+                                        <span class="text-xs text-muted">{{ __('None') }}</span>
+                                    @endif
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y">
+                                    <div class="flex flex-wrap justify-end gap-2">
+                                        @if ($canApprove)
+                                            <x-ui.button type="button" size="sm" variant="primary" wire:click="approveRequest({{ $request->id }})">{{ __('Approve') }}</x-ui.button>
+                                            <x-ui.button type="button" size="sm" variant="secondary" wire:click="requestMoreInfo({{ $request->id }})">{{ __('More info') }}</x-ui.button>
+                                            <x-ui.button type="button" size="sm" variant="ghost" wire:click="rejectRequest({{ $request->id }})">{{ __('Reject') }}</x-ui.button>
+                                        @else
+                                            <span class="text-xs text-muted">{{ __('View only') }}</span>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim requests are awaiting approval.') }}</td></tr>
+                        @endforelse
+                    </x-ui.table>
 
                     <div class="space-y-4">
                         @if ($selectedRequest)
@@ -374,28 +365,25 @@
                     </x-ui.card>
                 @endif
 
-                <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                    <table class="min-w-full divide-y divide-border-default text-sm">
-                        <thead class="bg-surface-subtle/80">
-                            <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Code') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Name') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-border-default bg-surface-card">
-                            @forelse ($categories as $category)
-                                <tr wire:key="claim-category-{{ $category->id }}">
-                                    <td class="px-table-cell-x py-table-cell-y font-mono text-xs text-ink">{{ $category->code }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y text-ink">{{ $category->name }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y"><x-ui.badge variant="success">{{ __(ucfirst($category->status)) }}</x-ui.badge></td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="3" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim categories yet.') }}</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                <x-ui.table container="flush" :caption="__('Claim categories')" :row-hover="false">
+                    <x-slot name="head">
+                    <tr>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Code') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Name') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
+                    </tr>
+                    </x-slot>
+
+                    @forelse ($categories as $category)
+                        <tr wire:key="claim-category-{{ $category->id }}">
+                            <td class="px-table-cell-x py-table-cell-y font-mono text-xs text-ink">{{ $category->code }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-ink">{{ $category->name }}</td>
+                            <td class="px-table-cell-x py-table-cell-y"><x-ui.badge variant="success">{{ __(ucfirst($category->status)) }}</x-ui.badge></td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="3" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim categories yet.') }}</td></tr>
+                    @endforelse
+                </x-ui.table>
 
             @elseif ($tab === 'types')
                 @if ($canManage)
@@ -440,30 +428,27 @@
                     </x-ui.card>
                 @endif
 
-                <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                    <table class="min-w-full divide-y divide-border-default text-sm">
-                        <thead class="bg-surface-subtle/80">
-                            <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Category') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Payroll / Accounts') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Rules') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-border-default bg-surface-card">
-                            @forelse ($types as $type)
-                                <tr wire:key="claim-type-{{ $type->id }}">
-                                    <td class="px-table-cell-x py-table-cell-y"><div class="font-medium text-ink">{{ $type->name }}</div><div class="font-mono text-xs text-muted">{{ $type->code }}</div></td>
-                                    <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $type->category?->name ?? __('Uncategorised') }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted"><div>{{ $type->payroll_eligible ? __('Mapped in Payroll') : __('No payroll handoff') }}</div><div>{{ __('DR: :dr / CR: :cr', ['dr' => $type->debit_account_code ?? '—', 'cr' => $type->credit_account_code ?? '—']) }}</div></td>
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted">{{ __(str_replace('_', ' ', ucfirst($type->receipt_requirement))) }}</td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="4" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim types yet.') }}</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                <x-ui.table container="flush" :caption="__('Claim types')" :row-hover="false">
+                    <x-slot name="head">
+                    <tr>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Category') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Payroll / Accounts') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Rules') }}</th>
+                    </tr>
+                    </x-slot>
+
+                    @forelse ($types as $type)
+                        <tr wire:key="claim-type-{{ $type->id }}">
+                            <td class="px-table-cell-x py-table-cell-y"><div class="font-medium text-ink">{{ $type->name }}</div><div class="font-mono text-xs text-muted">{{ $type->code }}</div></td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $type->category?->name ?? __('Uncategorised') }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted"><div>{{ $type->payroll_eligible ? __('Mapped in Payroll') : __('No payroll handoff') }}</div><div>{{ __('DR: :dr / CR: :cr', ['dr' => $type->debit_account_code ?? '—', 'cr' => $type->credit_account_code ?? '—']) }}</div></td>
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted">{{ __(str_replace('_', ' ', ucfirst($type->receipt_requirement))) }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim types yet.') }}</td></tr>
+                    @endforelse
+                </x-ui.table>
 
             @elseif ($tab === 'policies')
                 @if ($canManage)
@@ -525,18 +510,17 @@
                                 <div><div class="font-medium text-ink">{{ $policy->name }}</div><div class="font-mono text-xs text-muted">{{ $policy->code }} · {{ __(str_replace('_', ' ', ucfirst($policy->item_mode))) }}</div></div>
                                 <x-ui.badge variant="success">{{ __(ucfirst($policy->status)) }}</x-ui.badge>
                             </div>
-                            <div class="mt-4 overflow-x-auto">
-                                <table class="min-w-full divide-y divide-border-default text-xs">
-                                    <thead class="bg-surface-subtle/80"><tr><th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Threshold') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Rate') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Per Claim') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Per Month') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Per Year') }}</th></tr></thead>
-                                    <tbody class="divide-y divide-border-default bg-surface-card">
-                                        @forelse ($policy->bands as $band)
-                                            <tr wire:key="claim-policy-band-{{ $band->id }}"><td class="px-table-cell-x py-table-cell-y text-muted">{{ $band->logical_operator }} {{ $band->threshold_value ?? __('Unlimited') }}</td><td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $band->rate }}</td><td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $band->per_claim_limit ?? '—' }}</td><td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $band->per_month_limit ?? '—' }}</td><td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $band->per_year_limit ?? '—' }}</td></tr>
-                                        @empty
-                                            <tr><td colspan="5" class="px-table-cell-x py-6 text-center text-muted">{{ __('No bands configured.') }}</td></tr>
-                                        @endforelse
-                                    </tbody>
-                                </table>
-                            </div>
+                            <x-ui.table container="plain" size="xs" class="mt-4" :caption="__('Claim policy bands')" :row-hover="false">
+                                <x-slot name="head">
+                                    <tr><th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Threshold') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Rate') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Per Claim') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Per Month') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Per Year') }}</th></tr>
+                                </x-slot>
+
+                                @forelse ($policy->bands as $band)
+                                    <tr wire:key="claim-policy-band-{{ $band->id }}"><td class="px-table-cell-x py-table-cell-y text-muted">{{ $band->logical_operator }} {{ $band->threshold_value ?? __('Unlimited') }}</td><td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $band->rate }}</td><td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $band->per_claim_limit ?? '—' }}</td><td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $band->per_month_limit ?? '—' }}</td><td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $band->per_year_limit ?? '—' }}</td></tr>
+                                @empty
+                                    <tr><td colspan="5" class="px-table-cell-x py-6 text-center text-muted">{{ __('No bands configured.') }}</td></tr>
+                                @endforelse
+                            </x-ui.table>
                         </x-ui.card>
                     @empty
                         <x-ui.alert variant="info">{{ __('No claim policies yet.') }}</x-ui.alert>
@@ -597,18 +581,17 @@
                     </x-ui.card>
                 @endif
 
-                <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                    <table class="min-w-full divide-y divide-border-default text-sm">
-                        <thead class="bg-surface-subtle/80"><tr><th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Code') }}</th><th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Label') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Max Limit') }}</th></tr></thead>
-                        <tbody class="divide-y divide-border-default bg-surface-card">
-                            @forelse ($contexts as $context)
-                                <tr wire:key="claim-context-{{ $context->id }}"><td class="px-table-cell-x py-table-cell-y font-mono text-xs text-ink">{{ $context->code }}</td><td class="px-table-cell-x py-table-cell-y text-ink">{{ $context->label }}</td><td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $context->max_claim_limit ?? '—' }}</td></tr>
-                            @empty
-                                <tr><td colspan="3" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim contexts yet.') }}</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                <x-ui.table container="flush" :caption="__('Claim contexts')" :row-hover="false">
+                    <x-slot name="head">
+                        <tr><th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Code') }}</th><th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Label') }}</th><th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Max Limit') }}</th></tr>
+                    </x-slot>
+
+                    @forelse ($contexts as $context)
+                        <tr wire:key="claim-context-{{ $context->id }}"><td class="px-table-cell-x py-table-cell-y font-mono text-xs text-ink">{{ $context->code }}</td><td class="px-table-cell-x py-table-cell-y text-ink">{{ $context->label }}</td><td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $context->max_claim_limit ?? '—' }}</td></tr>
+                    @empty
+                        <tr><td colspan="3" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No claim contexts yet.') }}</td></tr>
+                    @endforelse
+                </x-ui.table>
             @endif
         </x-ui.card>
     </div>

@@ -37,61 +37,58 @@
         <x-ui.alert variant="warning" class="mb-4">{{ __('Your user account is not linked to an employee record, so web clocking is disabled.') }}</x-ui.alert>
     @endif
 
-    <div class="overflow-x-auto -mx-card-inner px-card-inner">
-        <table class="min-w-full divide-y divide-border-default text-sm">
-            <thead class="bg-surface-subtle/80">
-                <tr>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Date') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Employee') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Shift') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Worked') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Late') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('OT Candidate') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Status') }}</th>
-                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Exceptions') }}</th>
-                    @if ($actionsColumn)
-                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Actions') }}</th>
-                    @endif
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-border-default bg-surface-card">
-                @forelse ($attendanceDays as $day)
-                    <tr wire:key="attendance-day-{{ $day->id }}">
-                        <td class="px-table-cell-x py-table-cell-y font-mono text-xs text-ink">{{ $day->attendance_date?->format('Y-m-d') }}</td>
-                        <td class="px-table-cell-x py-table-cell-y">
-                            <div class="font-medium text-ink">{{ $day->employee?->full_name ?? __('Employee #:id', ['id' => $day->employee_id]) }}</div>
-                            <div class="font-mono text-xs text-muted">{{ $day->employee?->employee_number }}</div>
-                        </td>
-                        <td class="px-table-cell-x py-table-cell-y">
-                            <div class="text-ink">{{ $day->shiftTemplate?->name ?? __('Unassigned') }}</div>
-                            <div class="text-xs text-muted">{{ $day->policyGroup?->code }}</div>
-                        </td>
-                        <td class="px-table-cell-x py-table-cell-y text-right tabular-nums">{{ number_format($day->worked_minutes / 60, 2) }}</td>
-                        <td class="px-table-cell-x py-table-cell-y text-right tabular-nums">{{ $day->late_minutes }}</td>
-                        <td class="px-table-cell-x py-table-cell-y text-right tabular-nums">{{ number_format($day->overtime_candidate_minutes / 60, 2) }}</td>
-                        <td class="px-table-cell-x py-table-cell-y"><x-ui.badge :variant="$this->statusVariant($day->status)">{{ $this->statusLabel($day->status) }}</x-ui.badge></td>
-                        <td class="px-table-cell-x py-table-cell-y text-xs text-muted">
-                            {{ collect($day->exception_tags ?? [])->map(fn ($tag) => str_replace('_', ' ', $tag))->implode(', ') ?: '-' }}
-                        </td>
-                        @if ($actionsColumn)
-                            <td class="px-table-cell-x py-table-cell-y">
-                                <div class="flex justify-end gap-2">
-                                    @if (in_array($day->status, ['ready_for_review', 'exception_pending'], true))
-                                        <x-ui.button size="sm" type="button" variant="primary" wire:click="finalizeDay({{ $day->id }})">{{ __('Finalize') }}</x-ui.button>
-                                    @endif
-                                    @if ($day->locked_at === null && $day->status !== 'locked')
-                                        <x-ui.button size="sm" type="button" variant="secondary" wire:click="lockDay({{ $day->id }})">{{ __('Lock') }}</x-ui.button>
-                                    @endif
-                                </div>
-                            </td>
-                        @endif
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="{{ $actionsColumn ? 9 : 8 }}" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No attendance days found.') }}</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
+    <x-ui.table container="flush" :caption="__('Attendance days')" :row-hover="false">
+        <x-slot name="head">
+        <tr>
+            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Date') }}</th>
+            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Employee') }}</th>
+            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Shift') }}</th>
+            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Worked') }}</th>
+            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Late') }}</th>
+            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('OT Candidate') }}</th>
+            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Status') }}</th>
+            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Exceptions') }}</th>
+            @if ($actionsColumn)
+                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold uppercase tracking-wider text-muted">{{ __('Actions') }}</th>
+            @endif
+        </tr>
+        </x-slot>
+
+        @forelse ($attendanceDays as $day)
+            <tr wire:key="attendance-day-{{ $day->id }}">
+                <td class="px-table-cell-x py-table-cell-y font-mono text-xs text-ink">{{ $day->attendance_date?->format('Y-m-d') }}</td>
+                <td class="px-table-cell-x py-table-cell-y">
+                    <div class="font-medium text-ink">{{ $day->employee?->full_name ?? __('Employee #:id', ['id' => $day->employee_id]) }}</div>
+                    <div class="font-mono text-xs text-muted">{{ $day->employee?->employee_number }}</div>
+                </td>
+                <td class="px-table-cell-x py-table-cell-y">
+                    <div class="text-ink">{{ $day->shiftTemplate?->name ?? __('Unassigned') }}</div>
+                    <div class="text-xs text-muted">{{ $day->policyGroup?->code }}</div>
+                </td>
+                <td class="px-table-cell-x py-table-cell-y text-right tabular-nums">{{ number_format($day->worked_minutes / 60, 2) }}</td>
+                <td class="px-table-cell-x py-table-cell-y text-right tabular-nums">{{ $day->late_minutes }}</td>
+                <td class="px-table-cell-x py-table-cell-y text-right tabular-nums">{{ number_format($day->overtime_candidate_minutes / 60, 2) }}</td>
+                <td class="px-table-cell-x py-table-cell-y"><x-ui.badge :variant="$this->statusVariant($day->status)">{{ $this->statusLabel($day->status) }}</x-ui.badge></td>
+                <td class="px-table-cell-x py-table-cell-y text-xs text-muted">
+                    {{ collect($day->exception_tags ?? [])->map(fn ($tag) => str_replace('_', ' ', $tag))->implode(', ') ?: '-' }}
+                </td>
+                @if ($actionsColumn)
+                    <td class="px-table-cell-x py-table-cell-y">
+                        <div class="flex justify-end gap-2">
+                            @if (in_array($day->status, ['ready_for_review', 'exception_pending'], true))
+                                <x-ui.button size="sm" type="button" variant="primary" wire:click="finalizeDay({{ $day->id }})">{{ __('Finalize') }}</x-ui.button>
+                            @endif
+                            @if ($day->locked_at === null && $day->status !== 'locked')
+                                <x-ui.button size="sm" type="button" variant="secondary" wire:click="lockDay({{ $day->id }})">{{ __('Lock') }}</x-ui.button>
+                            @endif
+                        </div>
+                    </td>
+                @endif
+            </tr>
+        @empty
+            <tr>
+                <td colspan="{{ $actionsColumn ? 9 : 8 }}" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No attendance days found.') }}</td>
+            </tr>
+        @endforelse
+    </x-ui.table>
 </x-ui.card>

@@ -71,43 +71,40 @@
                         </x-ui.button>
                     </div>
 
-                    <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                        <table class="min-w-full divide-y divide-border-default text-sm">
-                            <thead class="bg-surface-subtle/80">
-                                <tr>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Period') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-surface-card divide-y divide-border-default">
-                                @forelse ($myRequests as $request)
-                                    <tr wire:key="my-recent-{{ $request->id }}">
-                                        <td class="px-table-cell-x py-table-cell-y">
-                                            <div class="font-medium text-ink">{{ $request->leaveType?->name }}</div>
-                                            <div class="text-xs text-muted font-mono">{{ $request->leaveType?->code }}</div>
-                                        </td>
-                                        <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono tabular-nums">{{ $request->starts_on?->toDateString() }} &rarr; {{ $request->ends_on?->toDateString() }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-right text-xs text-ink tabular-nums">{{ $request->quantity }} {{ $request->unit }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y"><x-ui.badge :variant="$this->statusVariant($request->status)">{{ __(ucfirst($request->status)) }}</x-ui.badge></td>
-                                        <td class="px-table-cell-x py-table-cell-y">
-                                            <div class="flex justify-end">
-                                                @if (in_array($request->status, [\App\Modules\People\Leave\Models\LeaveRequest::STATUS_DRAFT, \App\Modules\People\Leave\Models\LeaveRequest::STATUS_SUBMITTED], true))
-                                                    <x-ui.button size="sm" variant="secondary" wire:click="withdrawOwnRequest({{ $request->id }})">{{ __('Withdraw') }}</x-ui.button>
-                                                @else
-                                                    <span class="text-xs text-muted">{{ __('No action') }}</span>
-                                                @endif
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('You have no leave requests yet.') }}</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
+                    <x-ui.table container="flush" :caption="__('My leave requests')" :row-hover="false">
+                        <x-slot name="head">
+                        <tr>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Period') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                        </tr>
+                        </x-slot>
+
+                        @forelse ($myRequests as $request)
+                            <tr wire:key="my-recent-{{ $request->id }}">
+                                <td class="px-table-cell-x py-table-cell-y">
+                                    <div class="font-medium text-ink">{{ $request->leaveType?->name }}</div>
+                                    <div class="text-xs text-muted font-mono">{{ $request->leaveType?->code }}</div>
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono tabular-nums">{{ $request->starts_on?->toDateString() }} &rarr; {{ $request->ends_on?->toDateString() }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-right text-xs text-ink tabular-nums">{{ $request->quantity }} {{ $request->unit }}</td>
+                                <td class="px-table-cell-x py-table-cell-y"><x-ui.badge :variant="$this->statusVariant($request->status)">{{ __(ucfirst($request->status)) }}</x-ui.badge></td>
+                                <td class="px-table-cell-x py-table-cell-y">
+                                    <div class="flex justify-end">
+                                        @if (in_array($request->status, [\App\Modules\People\Leave\Models\LeaveRequest::STATUS_DRAFT, \App\Modules\People\Leave\Models\LeaveRequest::STATUS_SUBMITTED], true))
+                                            <x-ui.button size="sm" variant="secondary" wire:click="withdrawOwnRequest({{ $request->id }})">{{ __('Withdraw') }}</x-ui.button>
+                                        @else
+                                            <span class="text-xs text-muted">{{ __('No action') }}</span>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('You have no leave requests yet.') }}</td></tr>
+                        @endforelse
+                    </x-ui.table>
                 @endif
 
             {{-- ====================== My Balance (employee self-service) ====================== --}}
@@ -120,117 +117,108 @@
                     </div>
 
                     @if ($myBalanceStatement && count($myBalanceStatement->rows))
-                        <div class="overflow-x-auto -mx-card-inner px-card-inner mb-6">
-                            <table class="min-w-full divide-y divide-border-default text-sm">
-                                <thead class="bg-surface-subtle/80">
-                                    <tr>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Opening') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Accrued') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Taken') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Balance') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-surface-card divide-y divide-border-default">
-                                    @foreach ($myBalanceStatement->rows as $row)
-                                        <tr wire:key="my-balance-row-{{ $row->leaveTypeId }}">
-                                            <td class="px-table-cell-x py-table-cell-y">
-                                                <div class="font-medium text-ink">{{ $row->leaveTypeName }}</div>
-                                                <div class="text-xs text-muted font-mono">{{ $row->leaveTypeCode }}</div>
-                                            </td>
-                                            <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->opening, 2) }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->accrued, 2) }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->taken, 2) }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y text-right font-semibold text-ink tabular-nums">{{ number_format($row->balance, 2) }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
+                        <x-ui.table container="flush" class="mb-6" :caption="__('My leave balance statement')" :row-hover="false">
+                            <x-slot name="head">
+                            <tr>
+                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Opening') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Accrued') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Taken') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Balance') }}</th>
+                            </tr>
+                            </x-slot>
+
+                            @foreach ($myBalanceStatement->rows as $row)
+                                <tr wire:key="my-balance-row-{{ $row->leaveTypeId }}">
+                                    <td class="px-table-cell-x py-table-cell-y">
+                                        <div class="font-medium text-ink">{{ $row->leaveTypeName }}</div>
+                                        <div class="text-xs text-muted font-mono">{{ $row->leaveTypeCode }}</div>
+                                    </td>
+                                    <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->opening, 2) }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->accrued, 2) }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->taken, 2) }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y text-right font-semibold text-ink tabular-nums">{{ number_format($row->balance, 2) }}</td>
+                                </tr>
+                            @endforeach
+                        </x-ui.table>
                     @else
                         <x-ui.alert variant="info">{{ __('No ledger entries for :year yet.', ['year' => $balanceYear]) }}</x-ui.alert>
                     @endif
 
                     <x-ui.card :title="__('My Leave History')">
-                        <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                            <table class="min-w-full divide-y divide-border-default text-sm">
-                                <thead class="bg-surface-subtle/80">
-                                    <tr>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Period') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-surface-card divide-y divide-border-default">
-                                    @forelse ($myRequests as $request)
-                                        <tr wire:key="my-history-{{ $request->id }}">
-                                            <td class="px-table-cell-x py-table-cell-y">
-                                                <div class="font-medium text-ink">{{ $request->leaveType?->name }}</div>
-                                                <div class="text-xs text-muted font-mono">{{ $request->leaveType?->code }}</div>
-                                            </td>
-                                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">{{ $request->starts_on?->toDateString() }} → {{ $request->ends_on?->toDateString() }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y text-right text-xs text-ink tabular-nums">{{ $request->quantity }} {{ $request->unit }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y">
-                                                <x-ui.badge :variant="$this->statusVariant($request->status)">{{ __(ucfirst($request->status)) }}</x-ui.badge>
-                                            </td>
-                                            <td class="px-table-cell-x py-table-cell-y text-right">
-                                                @if (in_array($request->status, [\App\Modules\People\Leave\Models\LeaveRequest::STATUS_APPROVED, \App\Modules\People\Leave\Models\LeaveRequest::STATUS_APPLIED], true))
-                                                    <x-ui.button size="sm" variant="ghost" wire:click="withdrawOwnRequest({{ $request->id }})" wire:confirm="{{ __('Withdraw this leave request?') }}">{{ __('Withdraw') }}</x-ui.button>
-                                                @endif
-                                            </td>
-                                        </tr>
-                                    @empty
-                                        <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No leave history.') }}</td></tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
+                        <x-ui.table container="flush" :caption="__('My leave history')" :row-hover="false">
+                            <x-slot name="head">
+                            <tr>
+                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Period') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                            </tr>
+                            </x-slot>
+
+                            @forelse ($myRequests as $request)
+                                <tr wire:key="my-history-{{ $request->id }}">
+                                    <td class="px-table-cell-x py-table-cell-y">
+                                        <div class="font-medium text-ink">{{ $request->leaveType?->name }}</div>
+                                        <div class="text-xs text-muted font-mono">{{ $request->leaveType?->code }}</div>
+                                    </td>
+                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">{{ $request->starts_on?->toDateString() }} → {{ $request->ends_on?->toDateString() }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y text-right text-xs text-ink tabular-nums">{{ $request->quantity }} {{ $request->unit }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y">
+                                        <x-ui.badge :variant="$this->statusVariant($request->status)">{{ __(ucfirst($request->status)) }}</x-ui.badge>
+                                    </td>
+                                    <td class="px-table-cell-x py-table-cell-y text-right">
+                                        @if (in_array($request->status, [\App\Modules\People\Leave\Models\LeaveRequest::STATUS_APPROVED, \App\Modules\People\Leave\Models\LeaveRequest::STATUS_APPLIED], true))
+                                            <x-ui.button size="sm" variant="ghost" wire:click="withdrawOwnRequest({{ $request->id }})" wire:confirm="{{ __('Withdraw this leave request?') }}">{{ __('Withdraw') }}</x-ui.button>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No leave history.') }}</td></tr>
+                            @endforelse
+                        </x-ui.table>
                     </x-ui.card>
                 @endif
 
             {{-- ====================== Types ====================== --}}
             @elseif ($tab === 'types')
-                <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                    <table class="min-w-full divide-y divide-border-default text-sm">
-                        <thead class="bg-surface-subtle/80">
-                            <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Unit') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Disposition') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Payroll') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-surface-card divide-y divide-border-default">
-                            @forelse ($leaveTypes as $type)
-                                <tr wire:key="leave-type-{{ $type->id }}" class="hover:bg-surface-subtle/50 transition-colors">
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <div class="font-medium text-ink">{{ $type->name }}</div>
-                                        <div class="text-xs text-muted font-mono">{{ $type->code }}</div>
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted">{{ __(ucfirst(str_replace('_', '-', $type->default_unit))) }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <x-ui.badge :variant="$type->paid ? 'success' : 'warning'">{{ $type->paid ? __('Paid') : __('Unpaid') }}</x-ui.badge>
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted">
-                                        @if ($type->interacts_with_payroll)
-                                            <span class="text-muted">{{ __('Mapped in Payroll') }}</span>
-                                        @else
-                                            <span class="text-muted">{{ __('No payroll handoff') }}</span>
-                                        @endif
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <x-ui.badge :variant="$type->status === 'active' ? 'success' : 'default'">{{ __(ucfirst($type->status)) }}</x-ui.badge>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No leave types defined yet.') }}</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                <x-ui.table container="flush" :caption="__('Leave types')" :row-hover="false">
+                    <x-slot name="head">
+                    <tr>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Unit') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Disposition') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Payroll') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Status') }}</th>
+                    </tr>
+                    </x-slot>
+
+                    @forelse ($leaveTypes as $type)
+                        <tr wire:key="leave-type-{{ $type->id }}" class="hover:bg-surface-subtle/50 transition-colors">
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <div class="font-medium text-ink">{{ $type->name }}</div>
+                                <div class="text-xs text-muted font-mono">{{ $type->code }}</div>
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted">{{ __(ucfirst(str_replace('_', '-', $type->default_unit))) }}</td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <x-ui.badge :variant="$type->paid ? 'success' : 'warning'">{{ $type->paid ? __('Paid') : __('Unpaid') }}</x-ui.badge>
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted">
+                                @if ($type->interacts_with_payroll)
+                                    <span class="text-muted">{{ __('Mapped in Payroll') }}</span>
+                                @else
+                                    <span class="text-muted">{{ __('No payroll handoff') }}</span>
+                                @endif
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <x-ui.badge :variant="$type->status === 'active' ? 'success' : 'default'">{{ __(ucfirst($type->status)) }}</x-ui.badge>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No leave types defined yet.') }}</td></tr>
+                    @endforelse
+                </x-ui.table>
 
                 @if (count($countryPacks))
                     <div class="mt-6 grid gap-4 xl:grid-cols-2">
@@ -358,91 +346,85 @@
                     </div>
                 @endif
 
-                <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                    <table class="min-w-full divide-y divide-border-default text-sm">
-                        <thead class="bg-surface-subtle/80">
-                            <tr>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Assignment') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Entitlement') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Request') }}</th>
-                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Effective') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-surface-card divide-y divide-border-default">
-                            @forelse ($assignments as $assignment)
-                                <tr wire:key="assignment-{{ $assignment->id }}">
-                                    <td class="px-table-cell-x py-table-cell-y">
-                                        <div class="font-medium text-ink">{{ $assignment->name }}</div>
-                                        <div class="text-xs text-muted font-mono">{{ $assignment->code }}</div>
-                                    </td>
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $assignment->leaveType?->code ?? '-' }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $assignment->entitlementPolicy?->code ?? '-' }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $assignment->requestPolicy?->code ?? '-' }}</td>
-                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">
-                                        {{ $assignment->effective_from?->toDateString() }} → {{ $assignment->effective_to?->toDateString() ?? __('open') }}
-                                        @if (! empty($assignment->cohort_predicate))
-                                            <div class="mt-1 flex flex-wrap gap-1">
-                                                @foreach ($assignment->cohort_predicate as $key => $value)
-                                                    <x-ui.badge variant="info">{{ $key }}: {{ $value }}</x-ui.badge>
-                                                @endforeach
-                                            </div>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No assignments defined yet.') }}</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                <x-ui.table container="flush" :caption="__('Leave assignments')" :row-hover="false">
+                    <x-slot name="head">
+                    <tr>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Assignment') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Entitlement') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Request') }}</th>
+                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Effective') }}</th>
+                    </tr>
+                    </x-slot>
+
+                    @forelse ($assignments as $assignment)
+                        <tr wire:key="assignment-{{ $assignment->id }}">
+                            <td class="px-table-cell-x py-table-cell-y">
+                                <div class="font-medium text-ink">{{ $assignment->name }}</div>
+                                <div class="text-xs text-muted font-mono">{{ $assignment->code }}</div>
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $assignment->leaveType?->code ?? '-' }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $assignment->entitlementPolicy?->code ?? '-' }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $assignment->requestPolicy?->code ?? '-' }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">
+                                {{ $assignment->effective_from?->toDateString() }} → {{ $assignment->effective_to?->toDateString() ?? __('open') }}
+                                @if (! empty($assignment->cohort_predicate))
+                                    <div class="mt-1 flex flex-wrap gap-1">
+                                        @foreach ($assignment->cohort_predicate as $key => $value)
+                                            <x-ui.badge variant="info">{{ $key }}: {{ $value }}</x-ui.badge>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No assignments defined yet.') }}</td></tr>
+                    @endforelse
+                </x-ui.table>
 
             {{-- ====================== Approvals ====================== --}}
             @elseif ($tab === 'approvals')
                 <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.8fr)]">
                     <div class="space-y-4">
-                        <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                            <table class="min-w-full divide-y divide-border-default text-sm">
-                                <thead class="bg-surface-subtle/80">
-                                    <tr>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Period') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-surface-card divide-y divide-border-default">
-                                    @forelse ($pendingRequests as $request)
-                                        <tr wire:key="pending-request-{{ $request->id }}" class="hover:bg-surface-subtle/50 transition-colors">
-                                            <td class="px-table-cell-x py-table-cell-y">
-                                                <button type="button" wire:click="selectRequest({{ $request->id }})" class="text-left">
-                                                    <div class="font-medium text-ink">{{ $request->employee?->displayName() ?? __('Unknown') }}</div>
-                                                    <div class="text-xs text-muted font-mono">{{ $request->employee?->employee_number }}</div>
-                                                </button>
-                                            </td>
-                                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $request->leaveType?->code }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">
-                                                {{ $request->starts_on?->toDateString() }} → {{ $request->ends_on?->toDateString() }}
-                                            </td>
-                                            <td class="px-table-cell-x py-table-cell-y text-right text-xs text-ink tabular-nums">{{ $request->quantity }} {{ $request->unit }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y">
-                                                <div class="flex flex-wrap justify-end gap-2">
-                                                    @if ($canApprove)
-                                                        <x-ui.button size="sm" variant="primary" wire:click="approveRequest({{ $request->id }})">{{ __('Approve') }}</x-ui.button>
-                                                        <x-ui.button size="sm" variant="ghost" wire:click="rejectRequest({{ $request->id }})">{{ __('Reject') }}</x-ui.button>
-                                                    @else
-                                                        <span class="text-xs text-muted">{{ __('View only') }}</span>
-                                                    @endif
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    @empty
-                                        <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No leave requests are awaiting approval.') }}</td></tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
+                        <x-ui.table container="flush" :caption="__('Leave requests awaiting approval')" :row-hover="false">
+                            <x-slot name="head">
+                            <tr>
+                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Type') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Period') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Actions') }}</th>
+                            </tr>
+                            </x-slot>
+
+                            @forelse ($pendingRequests as $request)
+                                <tr wire:key="pending-request-{{ $request->id }}" class="hover:bg-surface-subtle/50 transition-colors">
+                                    <td class="px-table-cell-x py-table-cell-y">
+                                        <button type="button" wire:click="selectRequest({{ $request->id }})" class="text-left">
+                                            <div class="font-medium text-ink">{{ $request->employee?->displayName() ?? __('Unknown') }}</div>
+                                            <div class="text-xs text-muted font-mono">{{ $request->employee?->employee_number }}</div>
+                                        </button>
+                                    </td>
+                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $request->leaveType?->code }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">
+                                        {{ $request->starts_on?->toDateString() }} → {{ $request->ends_on?->toDateString() }}
+                                    </td>
+                                    <td class="px-table-cell-x py-table-cell-y text-right text-xs text-ink tabular-nums">{{ $request->quantity }} {{ $request->unit }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y">
+                                        <div class="flex flex-wrap justify-end gap-2">
+                                            @if ($canApprove)
+                                                <x-ui.button size="sm" variant="primary" wire:click="approveRequest({{ $request->id }})">{{ __('Approve') }}</x-ui.button>
+                                                <x-ui.button size="sm" variant="ghost" wire:click="rejectRequest({{ $request->id }})">{{ __('Reject') }}</x-ui.button>
+                                            @else
+                                                <span class="text-xs text-muted">{{ __('View only') }}</span>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No leave requests are awaiting approval.') }}</td></tr>
+                            @endforelse
+                        </x-ui.table>
                         <div>{{ $pendingRequests->links() }}</div>
                     </div>
 
@@ -573,41 +555,38 @@
                 </div>
 
                 @if ($balanceStatement && count($balanceStatement->rows))
-                    <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                        <table class="min-w-full divide-y divide-border-default text-sm">
-                            <thead class="bg-surface-subtle/80">
-                                <tr>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Opening') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Accrued') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Carry-Fwd') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Adjusted') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Taken') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Expired') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Encashed') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Balance') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-surface-card divide-y divide-border-default">
-                                @foreach ($balanceStatement->rows as $row)
-                                    <tr wire:key="balance-row-{{ $row->leaveTypeId }}">
-                                        <td class="px-table-cell-x py-table-cell-y">
-                                            <div class="font-medium text-ink">{{ $row->leaveTypeName }}</div>
-                                            <div class="text-xs text-muted font-mono">{{ $row->leaveTypeCode }}</div>
-                                        </td>
-                                        <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->opening, 2) }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->accrued, 2) }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->carriedForward, 2) }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->adjusted, 2) }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->taken, 2) }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->expired, 2) }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->encashed, 2) }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-right font-semibold text-ink tabular-nums">{{ number_format($row->balance, 2) }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
+                    <x-ui.table container="flush" :caption="__('Leave balances')" :row-hover="false">
+                        <x-slot name="head">
+                        <tr>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Opening') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Accrued') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Carry-Fwd') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Adjusted') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Taken') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Expired') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Encashed') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Balance') }}</th>
+                        </tr>
+                        </x-slot>
+
+                        @foreach ($balanceStatement->rows as $row)
+                            <tr wire:key="balance-row-{{ $row->leaveTypeId }}">
+                                <td class="px-table-cell-x py-table-cell-y">
+                                    <div class="font-medium text-ink">{{ $row->leaveTypeName }}</div>
+                                    <div class="text-xs text-muted font-mono">{{ $row->leaveTypeCode }}</div>
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->opening, 2) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->accrued, 2) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->carriedForward, 2) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->adjusted, 2) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->taken, 2) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->expired, 2) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format($row->encashed, 2) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-right font-semibold text-ink tabular-nums">{{ number_format($row->balance, 2) }}</td>
+                            </tr>
+                        @endforeach
+                    </x-ui.table>
                 @elseif ($balanceStatement)
                     <p class="text-sm text-muted">{{ __('No ledger entries for this employee in :year.', ['year' => $balanceYear]) }}</p>
                 @else
@@ -626,36 +605,33 @@
                 @endif
 
                 <x-ui.card :title="__('Recent Manual Entries')">
-                    <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                        <table class="min-w-full divide-y divide-border-default text-sm">
-                            <thead class="bg-surface-subtle/80">
-                                <tr>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Recorded') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Entry') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
-                                    <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Note') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-surface-card divide-y divide-border-default">
-                                @forelse ($recentManualEntries as $entry)
-                                    <tr wire:key="manual-entry-{{ $entry->id }}">
-                                        <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">{{ $entry->created_at?->format('Y-m-d H:i') }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-xs text-ink">{{ $entry->employee?->displayName() ?? '-' }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $entry->leaveType?->code }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y">
-                                            <x-ui.badge>{{ $entry->entry_type }}</x-ui.badge>
-                                        </td>
-                                        <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format((float) $entry->quantity, 2) }} {{ $entry->unit }}</td>
-                                        <td class="px-table-cell-x py-table-cell-y text-xs text-muted">{{ $entry->note }}</td>
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="6" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No manual ledger entries yet.') }}</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
+                    <x-ui.table container="flush" :caption="__('Recent manual leave entries')" :row-hover="false">
+                        <x-slot name="head">
+                        <tr>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Recorded') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Entry') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Qty') }}</th>
+                            <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Note') }}</th>
+                        </tr>
+                        </x-slot>
+
+                        @forelse ($recentManualEntries as $entry)
+                            <tr wire:key="manual-entry-{{ $entry->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-xs text-muted tabular-nums">{{ $entry->created_at?->format('Y-m-d H:i') }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-xs text-ink">{{ $entry->employee?->displayName() ?? '-' }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $entry->leaveType?->code }}</td>
+                                <td class="px-table-cell-x py-table-cell-y">
+                                    <x-ui.badge>{{ $entry->entry_type }}</x-ui.badge>
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format((float) $entry->quantity, 2) }} {{ $entry->unit }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-xs text-muted">{{ $entry->note }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="px-table-cell-x py-10 text-center text-sm text-muted">{{ __('No manual ledger entries yet.') }}</td></tr>
+                        @endforelse
+                    </x-ui.table>
                 </x-ui.card>
 
             {{-- ====================== Carry-Forward ====================== --}}
@@ -689,36 +665,33 @@
 
                 @if (count($carryForwardPreview))
                     <x-ui.card :title="__('Preview (:n pair(s))', ['n' => count($carryForwardPreview)])">
-                        <div class="overflow-x-auto -mx-card-inner px-card-inner">
-                            <table class="min-w-full divide-y divide-border-default text-sm">
-                                <thead class="bg-surface-subtle/80">
-                                    <tr>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Policy') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Remaining') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Cap') }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Carried → :to', ['to' => $carryForwardPreview[0]['to_year'] ?? '']) }}</th>
-                                        <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Expired') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-surface-card divide-y divide-border-default">
-                                    @foreach ($carryForwardPreview as $row)
-                                        @php($employeeLookup = $employees->firstWhere('id', $row['employee_id']))
-                                        @php($leaveTypeLookup = $leaveTypes->firstWhere('id', $row['leave_type_id']))
-                                        <tr wire:key="cf-preview-{{ $row['employee_id'] }}-{{ $row['leave_type_id'] }}">
-                                            <td class="px-table-cell-x py-table-cell-y text-xs text-ink">{{ $employeeLookup?->displayName() ?? '#'.$row['employee_id'] }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $leaveTypeLookup?->code ?? '#'.$row['leave_type_id'] }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $row['policy_code'] }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format((float) $row['remaining'], 2) }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y text-right text-muted tabular-nums">{{ number_format((float) $row['cap'], 2) }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format((float) $row['carried'], 2) }}</td>
-                                            <td class="px-table-cell-x py-table-cell-y text-right text-status-danger tabular-nums">{{ number_format((float) $row['expired'], 2) }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
+                        <x-ui.table container="flush" :caption="__('Carry-forward preview')" :row-hover="false">
+                            <x-slot name="head">
+                            <tr>
+                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Employee') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Leave Type') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-left text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Policy') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Remaining') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Cap') }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Carried → :to', ['to' => $carryForwardPreview[0]['to_year'] ?? '']) }}</th>
+                                <th class="px-table-cell-x py-table-header-y text-right text-[11px] font-semibold text-muted uppercase tracking-wider">{{ __('Expired') }}</th>
+                            </tr>
+                            </x-slot>
+
+                            @foreach ($carryForwardPreview as $row)
+                                @php($employeeLookup = $employees->firstWhere('id', $row['employee_id']))
+                                @php($leaveTypeLookup = $leaveTypes->firstWhere('id', $row['leave_type_id']))
+                                <tr wire:key="cf-preview-{{ $row['employee_id'] }}-{{ $row['leave_type_id'] }}">
+                                    <td class="px-table-cell-x py-table-cell-y text-xs text-ink">{{ $employeeLookup?->displayName() ?? '#'.$row['employee_id'] }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $leaveTypeLookup?->code ?? '#'.$row['leave_type_id'] }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y text-xs text-muted font-mono">{{ $row['policy_code'] }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format((float) $row['remaining'], 2) }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y text-right text-muted tabular-nums">{{ number_format((float) $row['cap'], 2) }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y text-right text-ink tabular-nums">{{ number_format((float) $row['carried'], 2) }}</td>
+                                    <td class="px-table-cell-x py-table-cell-y text-right text-status-danger tabular-nums">{{ number_format((float) $row['expired'], 2) }}</td>
+                                </tr>
+                            @endforeach
+                        </x-ui.table>
                     </x-ui.card>
                 @else
                     <p class="text-sm text-muted">{{ __('Run Preview to compute carry-forward outcomes for the selected scope.') }}</p>
