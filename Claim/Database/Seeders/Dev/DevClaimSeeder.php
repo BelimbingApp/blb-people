@@ -94,19 +94,19 @@ class DevClaimSeeder extends DevSeeder
             [
                 'code' => 'medical_gp', 'name' => 'Medical - GP Visit', 'category' => 'MEDICAL',
                 'receipt_requirement' => ClaimType::RECEIPT_ALWAYS, 'provider_required' => true,
-                'default_unit' => ClaimType::UNIT_AMOUNT, 'payroll_pay_item_code' => 'REIMB_MEDICAL',
+                'default_unit' => ClaimType::UNIT_AMOUNT, 'pay_item_code' => 'REIMB_MEDICAL',
                 'taxability_hint' => 'exempt_medical', 'sort_order' => 10,
             ],
             [
                 'code' => 'mileage', 'name' => 'Mileage', 'category' => 'TRAVEL',
                 'receipt_requirement' => ClaimType::RECEIPT_NEVER, 'provider_required' => false,
                 'default_unit' => ClaimType::UNIT_DISTANCE, 'calculation_mode' => 'rate_times_quantity',
-                'payroll_pay_item_code' => 'REIMB_MILEAGE', 'sort_order' => 20,
+                'pay_item_code' => 'REIMB_MILEAGE', 'sort_order' => 20,
             ],
             [
                 'code' => 'meal_overtime', 'name' => 'Meal - Overtime', 'category' => 'MEAL',
                 'receipt_requirement' => ClaimType::RECEIPT_ABOVE_AMOUNT, 'provider_required' => false,
-                'default_unit' => ClaimType::UNIT_AMOUNT, 'payroll_pay_item_code' => 'REIMB_MEAL',
+                'default_unit' => ClaimType::UNIT_AMOUNT, 'pay_item_code' => 'REIMB_MEAL',
                 'sort_order' => 30,
             ],
         ];
@@ -142,7 +142,7 @@ class DevClaimSeeder extends DevSeeder
                     ['claim_type_id' => $out[$def['code']]->id, 'effective_from' => '2026-01-01'],
                     [
                         'company_id' => $company->id,
-                        'payroll_pay_item_code' => $def['payroll_pay_item_code'],
+                        'payroll_pay_item_code' => $def['pay_item_code'],
                         'effective_to' => null,
                         'metadata' => json_encode(['scenario' => 'browser-demo']),
                         'updated_at' => now(),
