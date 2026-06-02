@@ -48,7 +48,7 @@ class ClaimUtilizationReportBuilder
     {
         $entryQuery = ClaimEntitlementUsageEntry::query()
             ->where('company_id', $companyId)
-            ->with(['type', 'line'])
+            ->with(['type', 'line', 'employee'])
             ->whereIn('entry_type', [
                 ClaimEntitlementUsageEntry::ENTRY_APPROVED,
                 ClaimEntitlementUsageEntry::ENTRY_REIMBURSED,
