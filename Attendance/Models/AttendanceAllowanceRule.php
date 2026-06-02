@@ -26,7 +26,6 @@ class AttendanceAllowanceRule extends Model
         'attendance_shift_template_id',
         'code',
         'name',
-        'payroll_pay_item_code',
         'allowance_type',
         'ceiling_amount',
         'resolution_method',
