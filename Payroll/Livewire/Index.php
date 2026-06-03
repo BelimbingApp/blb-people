@@ -421,7 +421,12 @@ class Index extends Component
             ->latest('id')
             ->paginate(10);
 
-        $selectedRun = $this->selectedRunId !== null
+        // Default to the first run when none is explicitly selected, but always
+        // resolve it through the fully-eager query below — $runs only withCount()s
+        // participants, so using $runs->first() directly would lazy-load
+        // $selectedRun->participants in the view (and throw under strict mode).
+        $selectedRunId = $this->selectedRunId ?? $runs->first()?->id;
+        $selectedRun = $selectedRunId !== null
             ? PayrollIndexWorkbenchData::runQuery($companyId, $this->search)
                 ->with([
                     'calendar',
@@ -431,8 +436,8 @@ class Index extends Component
                     'participants.resultLines',
                     'auditEvents' => fn ($query) => $query->latest('occurred_at')->latest('id'),
                 ])
-                ->find($this->selectedRunId)
-            : $runs->first();
+                ->find($selectedRunId)
+            : null;
 
         return view('people-payroll::livewire.people.payroll.index', [
             'runs' => $runs,

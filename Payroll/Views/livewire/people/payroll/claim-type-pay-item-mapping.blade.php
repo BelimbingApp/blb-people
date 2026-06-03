@@ -5,7 +5,7 @@
                 <h2 class="text-lg font-semibold text-ink">{{ __('Claim type pay-item mapping') }}</h2>
                 <p class="text-sm text-muted">{{ __('Assign payroll pay-item codes to payroll-eligible claim types.') }}</p>
             </div>
-            <a href="{{ route('people.claim.workbench') }}" class="text-sm text-accent hover:underline">{{ __('Open Claim types') }}</a>
+            <a href="{{ route('people.claim.settings.types') }}" wire:navigate class="text-sm text-accent hover:underline">{{ __('Open Claim types') }}</a>
         </div>
 
         @if (session('success'))
