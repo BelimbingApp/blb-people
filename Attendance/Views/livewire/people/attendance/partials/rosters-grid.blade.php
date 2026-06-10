@@ -260,7 +260,7 @@ td:hover .roster-fill-handle, .roster-fill-handle.roster-handle-visible { opacit
 
 <div class="roster-grid-print mt-4 overflow-x-auto rounded-2xl border border-border-default">
     <table class="min-w-full divide-y divide-border-default text-xs">
-        <x-ui.day-strip :days="$rosterGridDays" :leading-label="__('Employee')" :compact="$compact" :clickable="$showDayDrawer" />
+        <x-people-attendance::day-strip :days="$rosterGridDays" :leading-label="__('Employee')" :compact="$compact" :clickable="$showDayDrawer" />
         <tbody class="divide-y divide-border-default bg-surface-card">
             @forelse ($rosterGridRows as $row)
                 @php($employee = $row['employee'])
@@ -310,7 +310,7 @@ td:hover .roster-fill-handle, .roster-fill-handle.roster-handle-visible { opacit
                                     aria-label="{{ __('Select :date for :employee', ['date' => $day['date'], 'employee' => $employee->displayName()]) }}"
                                     class="block w-full {{ $cellMinWidth }} cursor-pointer text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset focus-visible:rounded-md"
                                 >
-                                    <x-ui.day-tile
+                                    <x-people-attendance::day-tile
                                         :day-type="$dayType"
                                         :state="$isEmpty ? null : $cell['state']"
                                         :tooltip="$cell['title']"
@@ -321,7 +321,7 @@ td:hover .roster-fill-handle, .roster-fill-handle.roster-handle-visible { opacit
                                         @if ($cell['on_non_working_day'] ?? false)
                                             <span class="text-[9px] font-medium uppercase leading-tight tracking-wide {{ $dayTypeInk }}">{{ $cell['day_type_label'] }}</span>
                                         @endif
-                                    </x-ui.day-tile>
+                                    </x-people-attendance::day-tile>
                                 </button>
                                 {{-- Fill handle: visible on hover via CSS; activates drag-fill on mousedown --}}
                                 <button
@@ -336,7 +336,7 @@ td:hover .roster-fill-handle, .roster-fill-handle.roster-handle-visible { opacit
                                 ></button>
                             @else
                                 {{-- Read-only tile: locked period, actual mode, or non-manager --}}
-                                <x-ui.day-tile
+                                <x-people-attendance::day-tile
                                     :day-type="$dayType"
                                     :state="$isEmpty ? null : $cell['state']"
                                     :tooltip="$isDateLocked ? __('Locked period') : $cell['title']"
@@ -350,7 +350,7 @@ td:hover .roster-fill-handle, .roster-fill-handle.roster-handle-visible { opacit
                                     @if ($actualOutcome && $actualOutcome !== 'matched' && $actualOutcome !== 'no_record')
                                         <span class="text-[9px] font-medium uppercase leading-tight tracking-wide {{ $actualOutcome === 'absent' ? 'text-danger' : 'text-warning' }}">{{ __($actualOutcome) }}</span>
                                     @endif
-                                </x-ui.day-tile>
+                                </x-people-attendance::day-tile>
                             @endif
                         </td>
                     @endforeach
