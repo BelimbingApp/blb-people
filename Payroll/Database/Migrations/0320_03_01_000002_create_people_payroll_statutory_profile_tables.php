@@ -13,7 +13,7 @@ return new class extends Migration
 
     public function up(): void
     {
-        $this->createRegisteredTable('people_payroll_employer_statutory_profiles', function (Blueprint $table): void {
+        Schema::create('people_payroll_employer_statutory_profiles', function (Blueprint $table): void {
             $this->addCommonStatutoryProfileColumns($table);
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
 
@@ -24,8 +24,9 @@ return new class extends Migration
                 'effective_to',
             ], 'people_payroll_employer_statutory_profiles_effective_index');
         });
+        $this->registerTable('people_payroll_employer_statutory_profiles');
 
-        $this->createRegisteredTable('people_payroll_employee_statutory_profiles', function (Blueprint $table): void {
+        Schema::create('people_payroll_employee_statutory_profiles', function (Blueprint $table): void {
             $this->addCommonStatutoryProfileColumns($table);
             $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
             $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
@@ -38,6 +39,7 @@ return new class extends Migration
             ], 'people_payroll_employee_statutory_profiles_effective_index');
             $table->index(['company_id', 'country_iso'], 'people_payroll_employee_stat_profiles_company_country_index');
         });
+        $this->registerTable('people_payroll_employee_statutory_profiles');
     }
 
     public function down(): void
@@ -60,14 +62,5 @@ return new class extends Migration
         $table->json('validation_messages')->nullable();
         $table->json('metadata')->nullable();
         $table->timestamps();
-    }
-
-    /**
-     * @param  callable(Blueprint):void  $blueprint
-     */
-    private function createRegisteredTable(string $tableName, callable $blueprint): void
-    {
-        Schema::create($tableName, $blueprint);
-        $this->registerTable($tableName);
     }
 };

@@ -13,7 +13,7 @@ return new class extends Migration
 
     public function up(): void
     {
-        $this->createRegisteredTable('people_payroll_calendars', function (Blueprint $table): void {
+        Schema::create('people_payroll_calendars', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies');
             $table->string('code');
@@ -28,8 +28,9 @@ return new class extends Migration
             $table->unique(['company_id', 'code']);
             $table->index(['company_id', 'status']);
         });
+        $this->registerTable('people_payroll_calendars');
 
-        $this->createRegisteredTable('people_payroll_periods', function (Blueprint $table): void {
+        Schema::create('people_payroll_periods', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('payroll_calendar_id')->constrained('people_payroll_calendars')->cascadeOnDelete();
             $table->string('code');
@@ -44,8 +45,9 @@ return new class extends Migration
             $table->unique(['payroll_calendar_id', 'code']);
             $table->index(['payroll_calendar_id', 'starts_on', 'ends_on'], 'people_payroll_periods_calendar_dates_index');
         });
+        $this->registerTable('people_payroll_periods');
 
-        $this->createRegisteredTable('people_payroll_runs', function (Blueprint $table): void {
+        Schema::create('people_payroll_runs', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->constrained('companies');
             $table->foreignId('payroll_calendar_id')->constrained('people_payroll_calendars');
@@ -66,8 +68,9 @@ return new class extends Migration
             $table->index(['company_id', 'status']);
             $table->index(['payroll_period_id', 'status']);
         });
+        $this->registerTable('people_payroll_runs');
 
-        $this->createRegisteredTable('people_payroll_run_participants', function (Blueprint $table): void {
+        Schema::create('people_payroll_run_participants', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('payroll_run_id')->constrained('people_payroll_runs')->cascadeOnDelete();
             $table->foreignId('company_id')->constrained('companies');
@@ -84,8 +87,9 @@ return new class extends Migration
             $table->unique(['payroll_run_id', 'employee_id'], 'people_payroll_run_participants_run_employee_unique');
             $table->index(['company_id', 'employee_id']);
         });
+        $this->registerTable('people_payroll_run_participants');
 
-        $this->createRegisteredTable('people_payroll_inputs', function (Blueprint $table): void {
+        Schema::create('people_payroll_inputs', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('payroll_run_id')->constrained('people_payroll_runs')->cascadeOnDelete();
             $table->foreignId('payroll_run_participant_id')->constrained('people_payroll_run_participants')->cascadeOnDelete();
@@ -106,8 +110,9 @@ return new class extends Migration
             $table->index(['payroll_run_id', 'input_type']);
             $table->index(['source_type', 'source_id']);
         });
+        $this->registerTable('people_payroll_inputs');
 
-        $this->createRegisteredTable('people_payroll_result_lines', function (Blueprint $table): void {
+        Schema::create('people_payroll_result_lines', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('payroll_run_id')->constrained('people_payroll_runs')->cascadeOnDelete();
             $table->foreignId('payroll_run_participant_id')->constrained('people_payroll_run_participants')->cascadeOnDelete();
@@ -127,8 +132,9 @@ return new class extends Migration
             $table->index(['payroll_run_id', 'line_type']);
             $table->index(['payroll_run_participant_id', 'line_type'], 'people_payroll_result_lines_participant_type_index');
         });
+        $this->registerTable('people_payroll_result_lines');
 
-        $this->createRegisteredTable('people_payroll_run_audit_events', function (Blueprint $table): void {
+        Schema::create('people_payroll_run_audit_events', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('payroll_run_id')->constrained('people_payroll_runs')->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
@@ -140,6 +146,7 @@ return new class extends Migration
 
             $table->index(['payroll_run_id', 'occurred_at'], 'people_payroll_run_audit_events_run_occurred_index');
         });
+        $this->registerTable('people_payroll_run_audit_events');
     }
 
     public function down(): void
@@ -156,14 +163,5 @@ return new class extends Migration
             $this->unregisterTable($tableName);
             Schema::dropIfExists($tableName);
         }
-    }
-
-    /**
-     * @param  callable(Blueprint):void  $blueprint
-     */
-    private function createRegisteredTable(string $tableName, callable $blueprint): void
-    {
-        Schema::create($tableName, $blueprint);
-        $this->registerTable($tableName);
     }
 };

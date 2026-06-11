@@ -13,7 +13,7 @@ return new class extends Migration
 
     public function up(): void
     {
-        $this->createRegisteredTable('people_payroll_pay_items', function (Blueprint $table): void {
+        Schema::create('people_payroll_pay_items', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('company_id')->nullable()->constrained('companies')->cascadeOnDelete();
             $table->string('code');
@@ -26,8 +26,9 @@ return new class extends Migration
             $table->unique(['company_id', 'code']);
             $table->index(['company_id', 'status']);
         });
+        $this->registerTable('people_payroll_pay_items');
 
-        $this->createRegisteredTable('people_payroll_pay_item_classifications', function (Blueprint $table): void {
+        Schema::create('people_payroll_pay_item_classifications', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('payroll_pay_item_id')->constrained('people_payroll_pay_items', indexName: 'people_payroll_pay_item_classes_item_fk')->cascadeOnDelete();
             $table->char('country_iso', 2)->nullable();
@@ -54,6 +55,7 @@ return new class extends Migration
                 'effective_to',
             ], 'people_payroll_pay_item_classifications_effective_index');
         });
+        $this->registerTable('people_payroll_pay_item_classifications');
     }
 
     public function down(): void
@@ -62,14 +64,5 @@ return new class extends Migration
             $this->unregisterTable($tableName);
             Schema::dropIfExists($tableName);
         }
-    }
-
-    /**
-     * @param  callable(Blueprint):void  $blueprint
-     */
-    private function createRegisteredTable(string $tableName, callable $blueprint): void
-    {
-        Schema::create($tableName, $blueprint);
-        $this->registerTable($tableName);
     }
 };
