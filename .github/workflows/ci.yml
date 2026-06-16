@@ -1,0 +1,23 @@
+name: ci
+
+# Thin caller for the BLB People Distribution Bundle. All build/test/scan logic
+# lives once in the platform repo's reusable module-ci workflow; this repo only
+# declares its contract path and SonarCloud identity.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci:
+    uses: BelimbingApp/belimbing/.github/workflows/module-ci.yml@main
+    with:
+      module-path: app/Modules/People
+      sonar-project-key: BelimbingApp_blb-people
+      sonar-organization: belimbingapp
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
