@@ -4,13 +4,14 @@ use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Employees\Livewire\Index;
 use App\Modules\People\Employees\Livewire\Show;
-use App\Modules\People\Payroll\Models\PayrollEmployeeStatutoryProfile;
 use App\Modules\People\Settings\Models\EmployeePortalAccess;
 use App\Modules\People\Settings\Models\EmployeeProfileChangeRequest;
 use App\Modules\People\Settings\Models\EmployeeWorkProfile;
 use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
 use App\Modules\People\Settings\Models\PeopleReferenceEntry;
 use App\Modules\People\Settings\Models\PeopleSavedEmployeeView;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 
 function createPeopleReference(Company $company, string $type, string $code, string $name): PeopleReferenceEntry
@@ -24,6 +25,30 @@ function createPeopleReference(Company $company, string $type, string $code, str
         'source_system' => 'ipayroll',
         'source_label' => ucfirst(str_replace('_', ' ', $type)),
         'source_code' => $code,
+    ]);
+}
+
+function createEmployeeStatutoryProfileFixture(Company $company, Employee $employee, array $attributes = []): void
+{
+    if (! Schema::hasTable('people_payroll_employee_statutory_profiles')) {
+        return;
+    }
+
+    $now = now();
+
+    DB::table('people_payroll_employee_statutory_profiles')->insert([
+        'company_id' => $company->id,
+        'employee_id' => $employee->id,
+        'country_iso' => $attributes['country_iso'] ?? 'MY',
+        'source_pack' => $attributes['source_pack'] ?? 'malaysia',
+        'source_version' => $attributes['source_version'] ?? '2026.1',
+        'effective_from' => $attributes['effective_from'] ?? '2026-01-01',
+        'effective_to' => $attributes['effective_to'] ?? null,
+        'profile_data' => json_encode($attributes['profile_data'] ?? [], JSON_THROW_ON_ERROR),
+        'validation_messages' => json_encode($attributes['validation_messages'] ?? [], JSON_THROW_ON_ERROR),
+        'metadata' => json_encode($attributes['metadata'] ?? [], JSON_THROW_ON_ERROR),
+        'created_at' => $now,
+        'updated_at' => $now,
     ]);
 }
 
@@ -73,15 +98,8 @@ test('employee workbench renders readiness and saved view controls', function ()
         'status' => EmployeePortalAccess::STATUS_ACTIVE,
     ]);
 
-    PayrollEmployeeStatutoryProfile::query()->create([
-        'company_id' => $company->id,
-        'employee_id' => $readyEmployee->id,
-        'country_iso' => 'MY',
-        'source_pack' => 'malaysia',
-        'source_version' => '2026.1',
-        'effective_from' => '2026-01-01',
+    createEmployeeStatutoryProfileFixture($company, $readyEmployee, [
         'profile_data' => ['epf' => '123'],
-        'validation_messages' => [],
     ]);
 
     Employee::factory()->create([
@@ -125,15 +143,8 @@ test('employee workbench can save a shared view and export active filters', func
         'hired_on' => '2026-01-01',
     ]);
 
-    PayrollEmployeeStatutoryProfile::query()->create([
-        'company_id' => $company->id,
-        'employee_id' => $employee->id,
-        'country_iso' => 'MY',
-        'source_pack' => 'malaysia',
-        'source_version' => '2026.1',
-        'effective_from' => '2026-01-01',
+    createEmployeeStatutoryProfileFixture($company, $employee, [
         'profile_data' => ['pcb' => 'A1'],
-        'validation_messages' => [],
     ]);
 
     $this->actingAs($user);
