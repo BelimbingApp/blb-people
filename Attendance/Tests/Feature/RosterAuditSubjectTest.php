@@ -73,7 +73,7 @@ it('writes expanded roster assignment rows to the audit subject index', function
 
     $rows = AuditMutation::query()
         ->where('subject_name', 'employee')
-        ->where('subject_id', $employee->id)
+        ->where('subject_id', (string) $employee->id)
         ->where('source', 'expanded')
         ->orderBy('subject_identifier')
         ->get();
@@ -103,7 +103,7 @@ it('writes only changed cells when a roster assignment date range changes', func
 
     $updatedRows = AuditMutation::query()
         ->where('subject_name', 'employee')
-        ->where('subject_id', $employee->id)
+        ->where('subject_id', (string) $employee->id)
         ->where('source', 'expanded')
         ->where('event', 'updated')
         ->get();

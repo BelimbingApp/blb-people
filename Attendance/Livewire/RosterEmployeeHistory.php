@@ -44,7 +44,7 @@ class RosterEmployeeHistory extends Component
             $query = AuditMutation::query()
                 ->where('company_id', $companyId)
                 ->where('subject_name', 'employee')
-                ->where('subject_id', $employee->id)
+                ->where('subject_id', (string) $employee->id)
                 ->where('source', 'expanded')
                 ->orderByDesc('occurred_at')
                 ->orderByDesc('id');

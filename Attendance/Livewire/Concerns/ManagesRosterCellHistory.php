@@ -38,7 +38,7 @@ trait ManagesRosterCellHistory
         $logs = AuditMutation::query()
             ->where('company_id', $companyId)
             ->where('subject_name', 'employee')
-            ->where('subject_id', $employeeId)
+            ->where('subject_id', (string) $employeeId)
             ->where('subject_identifier', $date)
             ->where('source', 'expanded')
             ->orderByDesc('occurred_at')
