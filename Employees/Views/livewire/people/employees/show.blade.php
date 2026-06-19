@@ -10,6 +10,13 @@
             :subtitle="$employee->designation ?: $employee->employee_number"
         >
             <x-slot name="actions">
+                <x-ui.record-history
+                    :title="__('History for :name', ['name' => $employee->displayName()])"
+                    :subjects="[['name' => 'employee', 'id' => $employee->id]]"
+                    :auditable-type="$employee->getMorphClass()"
+                    :auditable-id="$employee->id"
+                    source-capability="people.employee.view"
+                />
                 <a href="{{ route('people.employees.index') }}" wire:navigate class="inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-accent hover:bg-surface-subtle transition-colors">
                     <x-icon name="heroicon-o-arrow-left" class="w-5 h-5" />
                     {{ __('Back to Workbench') }}
