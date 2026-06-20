@@ -21,6 +21,15 @@ trait ManagesShiftBreaks
         $this->shiftBreaks = array_values($this->shiftBreaks);
     }
 
+    public function toggleShiftBreakPaid(int $index): void
+    {
+        if (! isset($this->shiftBreaks[$index])) {
+            $this->shiftBreaks[$index] = ['label' => 'Break', 'starts_at' => '', 'ends_at' => '', 'paid' => false];
+        }
+
+        $this->shiftBreaks[$index]['paid'] = ! ($this->shiftBreaks[$index]['paid'] ?? false);
+    }
+
     /**
      * @param  array<string, mixed>  $validated
      * @return list<array{starts_at: string, ends_at: string, label: string, paid: bool}>

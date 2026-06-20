@@ -47,7 +47,7 @@
         {{-- ── Work schedule + punch grace (unified card) ───────────────────── --}}
         <div
             x-data="shiftBuilder"
-            style="--sb-dial-day:var(--color-surface-card,#faf9f5);--sb-dial-night:var(--color-surface-pinned,#dfd9cf);--sb-break:#7a7548;"
+            style="--sb-dial-day:var(--color-surface-card,#faf9f5);--sb-dial-night:var(--color-surface-pinned,#dfd9cf);--sb-break:#7a7548;--sb-tea:#5c7f99;"
         >
         <div class="bg-surface-card border border-border-default rounded-2xl shadow-sm">
 
@@ -80,148 +80,138 @@
                 <div class="px-4 py-3 space-y-1.5">
                     <p class="text-xs font-semibold text-ink">{{ __('About punch grace') }}</p>
                     <p class="text-xs text-muted">{{ __('Punch grace is the window of time around a shift boundary where a clock punch (in or out) is still accepted as belonging to that shift. Without it, a clock-in one minute late would be rejected or flagged.') }}</p>
-                    <p class="text-xs text-muted">{{ __('Drag the striped handles on the lower strip to set each window. Terracotta = outer (before start, after end). Olive = inner slip (just inside each boundary).') }}</p>
+                    <p class="text-xs text-muted">{{ __('Type each window in the steppers, or drag the striped handles on the dial\'s outer ring. Terracotta = outer (before start, after end). Olive = inner slip (just inside each boundary).') }}</p>
                     <p class="text-xs text-muted border-t border-border-default pt-1.5">{{ __('Policy Builder decides rounding, lateness and overtime — Shift Builder only defines scheduled time and punch expectations.') }} <x-ui.link kind="new-tab" href="{{ route('people.attendance.policy-groups') }}" class="font-medium" :title="__('Open Policy Groups in a new tab')" @click.stop>{{ __('Open Policy Groups') }}</x-ui.link></p>
                 </div>
             </div>
 
             <div class="px-6 pb-6">
 
-                {{-- ── Shift Builder strip ── --}}
-                <div class="mb-5">
+                {{-- ── Dial (left) + controls panel (right) ── --}}
+                <div class="grid gap-7 items-center lg:grid-cols-[320px_1fr]">
 
-                    {{-- Legend: two labelled groups --}}
-                    <div class="flex justify-end items-center gap-3 mb-2">
-                        {{-- Shift group --}}
-                        <div class="flex items-center gap-2 text-[11px] text-muted">
-                            <span class="text-[9px] font-semibold uppercase tracking-widest text-muted/50 select-none">{{ __('Shift') }}</span>
-                            <span class="inline-flex items-center gap-1.5">
-                                <span class="w-2.5 h-2.5 rounded-sm bg-accent inline-block shrink-0"></span>{{ __('on the clock') }}
-                            </span>
-                            <span class="inline-flex items-center gap-1.5">
-                                <span class="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style="background:var(--sb-break,#7a7548)"></span>{{ __('break') }}
-                            </span>
-                        </div>
-                        {{-- Separator --}}
-                        <div class="w-px h-3.5 bg-border-default shrink-0"></div>
-                        {{-- Grace group --}}
-                        <div class="flex items-center gap-2 text-[11px] text-muted">
-                            <span class="text-[9px] font-semibold uppercase tracking-widest text-muted/50 select-none">{{ __('Grace') }}</span>
-                            <span class="inline-flex items-center gap-1.5">
-                                <span class="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style="background-image:repeating-linear-gradient(45deg,rgba(181,98,47,.50) 0,rgba(181,98,47,.50) 1.5px,rgba(181,98,47,.12) 1.5px,rgba(181,98,47,.12) 4.5px)"></span>{{ __('outer window') }}
-                            </span>
-                            <span class="inline-flex items-center gap-1.5">
-                                <span class="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style="background-image:repeating-linear-gradient(45deg,rgba(122,117,72,.55) 0,rgba(122,117,72,.55) 1.5px,rgba(122,117,72,.12) 1.5px,rgba(122,117,72,.12) 4.5px)"></span>{{ __('inner slip') }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div x-ref="stripContainer" wire:ignore></div>
-                </div>
-
-                {{-- Dial + readouts --}}
-                <div class="grid gap-7 items-start" style="grid-template-columns: min(340px, 42%) 1fr">
                     {{-- Clock dial --}}
-                    <div class="flex flex-col items-center gap-3">
-                        <div x-ref="dialContainer" class="w-full max-w-[320px] mx-auto" wire:ignore></div>
+                    <div class="flex justify-center lg:justify-start">
+                        <div x-ref="dialContainer" class="w-full max-w-[320px]" wire:ignore></div>
                     </div>
 
-                    {{-- Readouts + time steppers --}}
-                    <div class="flex flex-col gap-5 min-w-0">
+                    {{-- Controls panel --}}
+                    <div class="min-w-0 space-y-5">
 
-                        {{-- On the clock --}}
-                        <div>
-                            <p class="text-[10.5px] font-semibold uppercase tracking-widest text-muted mb-2">{{ __('On the clock') }}</p>
-                            <div class="flex items-center justify-between py-1 gap-3">
-                                <div class="flex items-center gap-2.5 text-sm text-ink shrink-0">
-                                    <span class="w-2.5 h-2.5 rounded-sm bg-accent inline-block"></span>
-                                    {{ __('Shift starts') }}
+                        {{-- Time ranges: on the clock + breaks --}}
+                        <div class="space-y-2.5">
+
+                        <div class="flex items-center gap-4 bg-surface-card border border-border-default rounded-xl px-4 py-2.5">
+                            <div class="flex items-center gap-2.5 w-[150px] shrink-0">
+                                <span class="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style="background:var(--color-accent,#b5622f)"></span>
+                                <div class="leading-tight">
+                                    <p class="text-[11px] font-semibold uppercase tracking-wider text-ink">{{ __('On the clock') }}</p>
+                                    <p class="text-[11px] text-muted">{{ __('Shift window') }}</p>
                                 </div>
+                            </div>
+                            <div class="flex items-center gap-2">
                                 <x-ui.time-input field="shiftStart" />
-                            </div>
-                            <div class="flex items-center justify-between py-1 gap-3">
-                                <div class="flex items-center gap-2.5 text-sm text-ink shrink-0">
-                                    <span class="w-2.5 h-2.5 rounded-sm bg-accent inline-block"></span>
-                                    {{ __('Shift ends') }}
-                                    <template x-if="crossesMidnight">
-                                        <span class="text-[10px] font-semibold uppercase tracking-wider text-muted border border-border-default rounded px-1 py-0.5">{{ __('next day') }}</span>
-                                    </template>
-                                </div>
+                                <span class="text-muted select-none">→</span>
                                 <x-ui.time-input field="shiftEnd" />
+                                <template x-if="crossesMidnight">
+                                    <span class="text-[10px] font-semibold uppercase tracking-wider text-muted border border-border-default rounded px-1 py-0.5">{{ __('next day') }}</span>
+                                </template>
                             </div>
+                            <span class="ml-auto text-sm font-semibold text-ink tabular-nums" x-text="shiftDurStr"></span>
+                            <span class="w-4 shrink-0"></span>
                         </div>
 
-                        {{-- Break (visualised on dial) --}}
-                        <div>
-                            <p class="text-[10.5px] font-semibold uppercase tracking-widest text-muted mb-2">{{ $shiftBreaks[0]['label'] ?? __('Break') }}</p>
-                            <div class="flex items-center justify-between py-1 gap-3">
-                                <div class="flex items-center gap-2.5 text-sm text-ink shrink-0">
-                                    <span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--sb-break,#7a7548)"></span>
-                                    {{ __('Starts') }}
+                        <div class="flex items-center gap-4 bg-surface-card border border-border-default rounded-xl px-4 py-2.5">
+                            <div class="flex items-center gap-2.5 w-[150px] shrink-0">
+                                <span class="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style="background:var(--sb-break,#7a7548)"></span>
+                                <div class="leading-tight">
+                                    <p class="text-[11px] font-semibold uppercase tracking-wider text-ink">{{ $shiftBreaks[0]['label'] ?? __('Break') }}</p>
+                                    <button type="button" class="text-[11px] text-muted hover:text-accent underline decoration-dotted underline-offset-2 transition-colors" wire:click="toggleShiftBreakPaid(0)" title="{{ __('Toggle paid / unpaid') }}">{{ ($shiftBreaks[0]['paid'] ?? false) ? __('Paid') : __('Unpaid') }}</button>
                                 </div>
-                                <x-ui.time-input field="breakStart" />
                             </div>
-                            <div class="flex items-center justify-between py-1 gap-3">
-                                <div class="flex items-center gap-2.5 text-sm text-ink shrink-0">
-                                    <span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--sb-break,#7a7548)"></span>
-                                    {{ __('Ends') }}
-                                </div>
+                            <div class="flex items-center gap-2">
+                                <x-ui.time-input field="breakStart" />
+                                <span class="text-muted select-none">→</span>
                                 <x-ui.time-input field="breakEnd" />
                             </div>
+                            <span class="ml-auto text-sm font-semibold text-ink tabular-nums" x-text="break1DurStr"></span>
+                            <span class="w-4 shrink-0"></span>
                         </div>
 
-                        {{-- Additional break (tea break etc., Livewire-bound, not on dial) --}}
-                        @if (!empty($shiftBreaks[1]))
-                        <div class="mt-3">
-                            <div class="flex items-center justify-between mb-2">
-                                <p class="text-[10.5px] font-semibold uppercase tracking-widest text-muted">{{ $shiftBreaks[1]['label'] ?? __('Break 2') }}</p>
-                                <button type="button" class="text-[10px] font-medium text-muted hover:text-status-danger transition-colors" wire:click="removeShiftBreak(1)">{{ __('Remove') }}</button>
-                            </div>
-                            <div class="flex items-center justify-between py-1 gap-3">
-                                <div class="flex items-center gap-2.5 text-sm text-ink shrink-0">
-                                    <span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--sb-break,#7a7548)"></span>
-                                    {{ __('Starts') }}
+                            @if (!empty($shiftBreaks[1]))
+
+                        <div class="flex items-center gap-4 bg-surface-card border border-border-default rounded-xl px-4 py-2.5" x-show="hasBreak2">
+                            <div class="flex items-center gap-2.5 w-[150px] shrink-0">
+                                <span class="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style="background:var(--sb-tea,#5c7f99)"></span>
+                                <div class="leading-tight">
+                                    <p class="text-[11px] font-semibold uppercase tracking-wider text-ink">{{ $shiftBreaks[1]['label'] ?? __('Break 2') }}</p>
+                                    <button type="button" class="text-[11px] text-muted hover:text-accent underline decoration-dotted underline-offset-2 transition-colors" wire:click="toggleShiftBreakPaid(1)" title="{{ __('Toggle paid / unpaid') }}">{{ ($shiftBreaks[1]['paid'] ?? false) ? __('Paid') : __('Unpaid') }}</button>
                                 </div>
+                            </div>
+                            <div class="flex items-center gap-2">
                                 <x-ui.time-input field="break2Start" />
-                            </div>
-                            <div class="flex items-center justify-between py-1 gap-3">
-                                <div class="flex items-center gap-2.5 text-sm text-ink shrink-0">
-                                    <span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:var(--sb-break,#7a7548)"></span>
-                                    {{ __('Ends') }}
-                                </div>
+                                <span class="text-muted select-none">→</span>
                                 <x-ui.time-input field="break2End" />
                             </div>
+                            <span class="ml-auto text-sm font-semibold text-ink tabular-nums" x-text="break2DurStr"></span>
+                            <button type="button" class="shrink-0 text-muted hover:text-status-danger transition-colors" wire:click="removeShiftBreak(1)" aria-label="{{ __('Remove break') }}" title="{{ __('Remove break') }}">
+                                <x-icon name="heroicon-o-trash" class="h-4 w-4" />
+                            </button>
                         </div>
-                        @endif
-
-                        @if (count($shiftBreaks) < 2)
-                        <div class="mt-2">
-                            <button type="button" class="text-[10px] font-medium text-muted hover:text-accent transition-colors" wire:click="addShiftBreak">{{ __('+ Add break') }}</button>
-                        </div>
-                        @endif
-
-                        {{-- Duration totals --}}
-                        <div class="border-t border-border-default pt-3 flex flex-col gap-0.5">
-                            <div class="flex justify-between items-baseline py-1">
-                                <span class="text-sm text-muted">{{ __('Day length') }}</span>
-                                <span class="text-sm text-ink tabular-nums" x-text="shiftDurStr"></span>
-                            </div>
-                            <div class="flex justify-between items-baseline py-1">
-                                <span class="text-sm text-muted">{{ $shiftBreaks[0]['label'] ?? __('Break') }}</span>
-                                <span class="text-sm text-ink tabular-nums" x-text="break1DurStr"></span>
-                            </div>
-                            @if (!empty($shiftBreaks[1]))
-                            <div class="flex justify-between items-baseline py-1" x-show="hasBreak2">
-                                <span class="text-sm text-muted">{{ $shiftBreaks[1]['label'] ?? __('Break 2') }}</span>
-                                <span class="text-sm text-ink tabular-nums" x-text="break2DurStr"></span>
-                            </div>
                             @endif
-                            <div class="flex justify-between items-baseline py-1">
-                                <span class="text-sm font-semibold text-ink">{{ __('Paid work') }}</span>
-                                <span class="text-lg font-semibold text-accent tabular-nums" x-text="paidStr"></span>
+
+                            @if (count($shiftBreaks) < 2)
+                            <button type="button" class="text-[11px] font-medium text-muted hover:text-accent transition-colors pl-1" wire:click="addShiftBreak">{{ __('+ Add break') }}</button>
+                            @endif
+                        </div>
+
+                        {{-- Punch grace --}}
+                        <div class="pt-4 border-t border-border-default">
+                            <div class="flex items-center justify-between mb-2.5">
+                                <p class="text-[10.5px] font-semibold uppercase tracking-widest text-muted">{{ __('Punch grace') }}</p>
+                                <span class="text-[10px] font-medium uppercase tracking-wider text-muted/70">{{ __('minutes') }}</span>
+                            </div>
+                            <div class="grid gap-x-8 gap-y-1 sm:grid-cols-2">
+
+                        <div class="flex items-center justify-between gap-3 py-0.5">
+                            <div class="flex items-center gap-2.5 text-sm text-ink shrink-0">
+                                <span class="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style="background-image:repeating-linear-gradient(45deg,rgba(181,98,47,.50) 0,rgba(181,98,47,.50) 1.5px,rgba(181,98,47,.12) 1.5px,rgba(181,98,47,.12) 4.5px)"></span>
+                                {{ __('Clock-in before') }}
+                            </div>
+                            <x-ui.integer-input field="graceIn" set="setGrace" step="snap" />
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3 py-0.5">
+                            <div class="flex items-center gap-2.5 text-sm text-ink shrink-0">
+                                <span class="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style="background-image:repeating-linear-gradient(45deg,rgba(122,117,72,.55) 0,rgba(122,117,72,.55) 1.5px,rgba(122,117,72,.12) 1.5px,rgba(122,117,72,.12) 4.5px)"></span>
+                                {{ __('Clock-in after') }}
+                            </div>
+                            <x-ui.integer-input field="inAfter" set="setGrace" step="snap" />
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3 py-0.5">
+                            <div class="flex items-center gap-2.5 text-sm text-ink shrink-0">
+                                <span class="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style="background-image:repeating-linear-gradient(45deg,rgba(122,117,72,.55) 0,rgba(122,117,72,.55) 1.5px,rgba(122,117,72,.12) 1.5px,rgba(122,117,72,.12) 4.5px)"></span>
+                                {{ __('Clock-out before') }}
+                            </div>
+                            <x-ui.integer-input field="outBefore" set="setGrace" step="snap" />
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3 py-0.5">
+                            <div class="flex items-center gap-2.5 text-sm text-ink shrink-0">
+                                <span class="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style="background-image:repeating-linear-gradient(45deg,rgba(181,98,47,.50) 0,rgba(181,98,47,.50) 1.5px,rgba(181,98,47,.12) 1.5px,rgba(181,98,47,.12) 4.5px)"></span>
+                                {{ __('Clock-out after') }}
+                            </div>
+                            <x-ui.integer-input field="graceOut" set="setGrace" step="snap" />
+                        </div>
                             </div>
                         </div>
 
+                        {{-- Paid work headline --}}
+                        <div class="pt-4 border-t border-border-default flex items-baseline justify-between">
+                            <span class="text-sm font-semibold text-ink">{{ __('Paid work') }}</span>
+                            <span class="text-xl font-semibold text-accent tabular-nums" x-text="paidStr"></span>
+                        </div>
                     </div>
                 </div>
 
