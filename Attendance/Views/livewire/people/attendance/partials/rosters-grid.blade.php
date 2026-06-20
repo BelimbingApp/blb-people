@@ -251,8 +251,10 @@ td:hover .roster-fill-handle, .roster-fill-handle.roster-handle-visible { opacit
     <div class="border-t border-border-default px-4 py-2.5">
         <a :href="`{{ route('people.attendance.roster.employee-history') }}?employee_id=${$wire.cellHistoryEmployeeId}`"
            target="_blank"
-           class="text-xs font-medium text-accent hover:underline">
-            {{ __('Open full history') }} →
+           rel="noopener"
+           class="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline">
+            {{ __('Open full history') }}
+            <x-icon name="heroicon-o-arrow-top-right-on-square" class="h-3.5 w-3.5 opacity-60" />
         </a>
     </div>
 </div>

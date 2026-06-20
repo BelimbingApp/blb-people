@@ -81,7 +81,7 @@
                     <p class="text-xs font-semibold text-ink">{{ __('About punch grace') }}</p>
                     <p class="text-xs text-muted">{{ __('Punch grace is the window of time around a shift boundary where a clock punch (in or out) is still accepted as belonging to that shift. Without it, a clock-in one minute late would be rejected or flagged.') }}</p>
                     <p class="text-xs text-muted">{{ __('Drag the striped handles on the lower strip to set each window. Terracotta = outer (before start, after end). Olive = inner slip (just inside each boundary).') }}</p>
-                    <p class="text-xs text-muted border-t border-border-default pt-1.5">{{ __('Policy Builder decides rounding, lateness and overtime — Shift Builder only defines scheduled time and punch expectations.') }} <a href="{{ route('people.attendance.policy-groups') }}" target="_blank" rel="noopener noreferrer" class="font-medium text-ink underline hover:text-accent" @click.stop>{{ __('Open Policy Groups →') }}</a></p>
+                    <p class="text-xs text-muted border-t border-border-default pt-1.5">{{ __('Policy Builder decides rounding, lateness and overtime — Shift Builder only defines scheduled time and punch expectations.') }} <x-ui.link kind="new-tab" href="{{ route('people.attendance.policy-groups') }}" class="font-medium" :title="__('Open Policy Groups in a new tab')" @click.stop>{{ __('Open Policy Groups') }}</x-ui.link></p>
                 </div>
             </div>
 

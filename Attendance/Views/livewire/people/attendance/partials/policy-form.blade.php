@@ -52,7 +52,7 @@
             <div class="mt-4 space-y-4">
                 <x-ui.alert variant="info">
                     {{ __('Shift start, shift end and break windows are defined in Shift Builder. This policy decides how those scheduled times become payable time, lateness and overtime.') }}
-                    <a href="{{ route('people.attendance.shifts') }}" target="_blank" rel="noopener noreferrer" class="font-medium text-accent hover:underline">{{ __('Open Shifts in a new tab') }}</a>
+                    <x-ui.link kind="new-tab" href="{{ route('people.attendance.shifts') }}" class="font-medium" :title="__('Open Shifts in a new tab')">{{ __('Open Shifts') }}</x-ui.link>
                 </x-ui.alert>
                 @if ($shiftTemplates->isNotEmpty())
                     @php($sampleShift = $shiftTemplates->first())
@@ -63,8 +63,9 @@
                                 <p class="mt-1 text-sm font-medium text-ink">{{ $sampleShift->code }} · {{ $sampleShift->name }}</p>
                                 <p class="mt-0.5 font-mono text-xs text-muted">{{ $sampleShift->starts_at }} → {{ $sampleShift->ends_at }} · {{ trans_choice(':count punch window|:count punch windows', $sampleShift->punchWindows->count(), ['count' => $sampleShift->punchWindows->count()]) }}</p>
                             </div>
-                            <x-ui.button as="a" variant="secondary" href="{{ route('people.attendance.shifts') }}" target="_blank" rel="noopener noreferrer">
+                            <x-ui.button as="a" variant="secondary" href="{{ route('people.attendance.shifts') }}" target="_blank" rel="noopener">
                                 {{ __('Tune shifts') }}
+                                <x-icon name="heroicon-o-arrow-top-right-on-square" class="h-3.5 w-3.5 opacity-60" />
                             </x-ui.button>
                         </div>
                     </div>
