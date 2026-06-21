@@ -4,6 +4,7 @@ namespace App\Modules\People\Attendance\Livewire;
 
 use App\Base\Audit\Models\AuditMutation;
 use App\Base\Authz\Enums\PrincipalType;
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\Core\User\Models\User;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
@@ -15,6 +16,7 @@ use Livewire\WithPagination;
 class RosterEmployeeHistory extends Component
 {
     use InteractsWithAttendanceScreen;
+    use InteractsWithNotifications;
     use WithPagination;
 
     public string $employeeId = '';

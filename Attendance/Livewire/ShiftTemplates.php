@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Attendance\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Livewire\Concerns\ManagesShiftBreaks;
 use App\Modules\People\Attendance\Livewire\Concerns\ManagesShiftPunchWindows;
@@ -24,6 +25,7 @@ use Livewire\WithFileUploads;
 class ShiftTemplates extends Component
 {
     use InteractsWithAttendanceScreen;
+    use InteractsWithNotifications;
     use ManagesShiftBreaks;
     use ManagesShiftPunchWindows;
     use WithFileUploads;
@@ -181,7 +183,7 @@ class ShiftTemplates extends Component
             'status' => $shift->status === 'active' ? 'inactive' : 'active',
         ]);
 
-        session()->flash('success', __('Shift status updated.'));
+        $this->notify(__('Shift status updated.'));
     }
 
     public function exportShiftTemplate(int $shiftTemplateId): void
@@ -196,7 +198,7 @@ class ShiftTemplates extends Component
         $serializer = app(ShiftTemplateSerializer::class);
         $this->shiftTemplateExportJson = $serializer->toJson($serializer->fromShiftTemplate($shift));
 
-        session()->flash('success', __('Shift template JSON ready to download from :shift.', ['shift' => $shift->code]));
+        $this->notify(__('Shift template JSON ready to download from :shift.', ['shift' => $shift->code]));
     }
 
     // === Mode transitions ===
@@ -322,7 +324,7 @@ class ShiftTemplates extends Component
         $this->showShiftBuilderForm = false;
         $this->showAllShiftTemplates = true;
         $this->mode = 'list';
-        session()->flash('success', __('Shift template saved.'));
+        $this->notify(__('Shift template saved.'));
     }
 
     public function importShiftTemplate(): void
@@ -360,7 +362,7 @@ class ShiftTemplates extends Component
         $this->shiftTemplateUpload = null;
         $this->mode = 'form';
 
-        session()->flash('success', __('Shift template loaded. Review and save it as a reusable shift.'));
+        $this->notify(__('Shift template loaded. Review and save it as a reusable shift.'));
     }
 
     public function render(): View

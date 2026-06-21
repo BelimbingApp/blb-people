@@ -80,7 +80,7 @@ trait ManagesRosterOperations
         }
 
         $this->lastDraftAssignmentIds = $createdIds;
-        session()->flash('success', trans_choice('Copied :count roster assignment from the previous period.|Copied :count roster assignments from the previous period.', $created, ['count' => $created]));
+        $this->notify(trans_choice('Copied :count roster assignment from the previous period.|Copied :count roster assignments from the previous period.', $created, ['count' => $created]));
     }
 
     public function saveCellOverride(int $employeeId, string $date, mixed $shiftTemplateId = null, mixed $policyGroupId = null, string $note = '', string $job = ''): void
@@ -92,7 +92,7 @@ trait ManagesRosterOperations
         $this->authorizeAttendance('people.attendance.manage');
 
         if ($this->isDateLocked($date)) {
-            session()->flash('error', __('This date is in a locked roster period and cannot be edited.'));
+            $this->notifyError(__('This date is in a locked roster period and cannot be edited.'));
 
             return;
         }
@@ -112,7 +112,7 @@ trait ManagesRosterOperations
         $policyGroup = $this->activePolicyGroupForDate($resolvedPolicyId, $date);
 
         if (! $employee instanceof Employee || ! $shiftTemplate instanceof AttendanceShiftTemplate || ! $policyGroup instanceof AttendancePolicyGroup) {
-            session()->flash('error', __('Pick a shift and a policy before applying the override.'));
+            $this->notifyError(__('Pick a shift and a policy before applying the override.'));
 
             return;
         }
@@ -122,7 +122,7 @@ trait ManagesRosterOperations
 
         if ($assignment instanceof AttendanceRosterAssignment) {
             $this->appendExceptionOverride($assignment, $date, (int) $shiftTemplate->id, (int) $policyGroup->id, 'cell_override', $meta);
-            session()->flash('success', __('Roster cell override saved.'));
+            $this->notify(__('Roster cell override saved.'));
 
             return;
         }
@@ -141,7 +141,7 @@ trait ManagesRosterOperations
         ]);
 
         $this->lastDraftAssignmentIds = [$created->id];
-        session()->flash('success', __('Roster cell override saved.'));
+        $this->notify(__('Roster cell override saved.'));
     }
 
     /**
@@ -184,7 +184,7 @@ trait ManagesRosterOperations
         $this->lastDraftAssignmentIds = [...$this->lastDraftAssignmentIds, ...$createdIds];
 
         if ($savedCount > 0) {
-            session()->flash('success', trans_choice(
+            $this->notify(trans_choice(
                 'Cell override saved.|:count cell overrides saved.',
                 $savedCount,
                 ['count' => $savedCount],
@@ -390,7 +390,7 @@ trait ManagesRosterOperations
         $this->appendExceptionOverride($from, $this->swapDate, (int) $to->attendance_shift_template_id, (int) $to->attendance_policy_group_id, 'swap');
         $this->appendExceptionOverride($to, $this->swapDate, (int) $from->attendance_shift_template_id, (int) $from->attendance_policy_group_id, 'swap');
         $this->dispatch('close-swap-modal');
-        session()->flash('success', __('Roster shift swap saved.'));
+        $this->notify(__('Roster shift swap saved.'));
     }
 
     public function importSpreadsheetRosterRows(): void
@@ -449,7 +449,7 @@ trait ManagesRosterOperations
 
         $this->lastDraftAssignmentIds = $createdIds;
         $this->spreadsheetRosterRows = '';
-        session()->flash('success', __('Spreadsheet roster import saved :created draft rows and :overrides overrides.', ['created' => count($createdIds), 'overrides' => $overrides]));
+        $this->notify(__('Spreadsheet roster import saved :created draft rows and :overrides overrides.', ['created' => count($createdIds), 'overrides' => $overrides]));
     }
 
     public function undoLastDraftRosterOperation(): void
@@ -466,7 +466,7 @@ trait ManagesRosterOperations
             ->delete();
 
         $this->lastDraftAssignmentIds = [];
-        session()->flash('success', trans_choice('Undid :count draft roster assignment.|Undid :count draft roster assignments.', $deleted, ['count' => $deleted]));
+        $this->notify(trans_choice('Undid :count draft roster assignment.|Undid :count draft roster assignments.', $deleted, ['count' => $deleted]));
     }
 
     public function saveRosterAssignment(): void
@@ -541,7 +541,7 @@ trait ManagesRosterOperations
         $this->lastDraftAssignmentIds = $createdIds;
         $this->dispatch('close-bulk-modal');
         $this->resetForm();
-        session()->flash('success', trans_choice(
+        $this->notify(trans_choice(
             'Roster assignment saved. :skipped skipped because of existing roster overlaps.|:count roster assignments saved. :skipped skipped because of existing roster overlaps.',
             $created,
             ['count' => $created, 'skipped' => $skipped],
@@ -567,7 +567,7 @@ trait ManagesRosterOperations
             ],
         );
 
-        session()->flash('success', __('Roster period locked. Overrides are blocked until unlocked.'));
+        $this->notify(__('Roster period locked. Overrides are blocked until unlocked.'));
     }
 
     public function unlockRosterPeriod(string $from, string $to, string $reason): void
@@ -595,7 +595,7 @@ trait ManagesRosterOperations
                 'unlock_reason' => trim($reason),
             ]);
 
-        session()->flash('success', __('Roster period unlocked.'));
+        $this->notify(__('Roster period unlocked.'));
     }
 
     public function deleteRosterAssignment(int $assignmentId): void
@@ -611,7 +611,7 @@ trait ManagesRosterOperations
             ->findOrFail($assignmentId)
             ->delete();
 
-        session()->flash('success', __('Roster assignment deleted.'));
+        $this->notify(__('Roster assignment deleted.'));
     }
 
     private function isDateLocked(string $date): bool

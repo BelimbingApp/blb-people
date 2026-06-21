@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Attendance\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendanceAdjustmentRequest;
@@ -20,6 +21,7 @@ use Livewire\Component;
 class MyAttendance extends Component
 {
     use InteractsWithAttendanceScreen;
+    use InteractsWithNotifications;
 
     public string $search = '';
 
@@ -75,7 +77,7 @@ class MyAttendance extends Component
 
         $employeeId = $this->currentEmployeeId();
         if ($employeeId === null) {
-            session()->flash('error', __('Your user account is not linked to an employee record.'));
+            $this->notifyError(__('Your user account is not linked to an employee record.'));
 
             return;
         }
@@ -92,7 +94,7 @@ class MyAttendance extends Component
             timezone: config('app.timezone'),
         );
 
-        session()->flash('success', __('Clock event recorded.'));
+        $this->notify(__('Clock event recorded.'));
     }
 
     public function openOvertimeModal(): void
@@ -115,7 +117,7 @@ class MyAttendance extends Component
 
         $employeeId = $this->currentEmployeeId();
         if ($employeeId === null) {
-            session()->flash('error', __('Your user account is not linked to an employee record.'));
+            $this->notifyError(__('Your user account is not linked to an employee record.'));
 
             return;
         }
@@ -155,7 +157,7 @@ class MyAttendance extends Component
 
         $this->showOvertimeModal = false;
         $this->overtimeReason = '';
-        session()->flash('success', __('Overtime request submitted.'));
+        $this->notify(__('Overtime request submitted.'));
     }
 
     public function openAdjustmentModal(): void
@@ -178,7 +180,7 @@ class MyAttendance extends Component
 
         $employeeId = $this->currentEmployeeId();
         if ($employeeId === null) {
-            session()->flash('error', __('Your user account is not linked to an employee record.'));
+            $this->notifyError(__('Your user account is not linked to an employee record.'));
 
             return;
         }
@@ -210,7 +212,7 @@ class MyAttendance extends Component
 
         $this->showAdjustmentModal = false;
         $this->adjustmentReason = '';
-        session()->flash('success', __('Adjustment request submitted.'));
+        $this->notify(__('Adjustment request submitted.'));
     }
 
     public function render(): View

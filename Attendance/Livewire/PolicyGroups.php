@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Attendance\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\People\Attendance\Livewire\Concerns\HasPolicyRuleBuilders;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
@@ -26,6 +27,7 @@ class PolicyGroups extends Component
 {
     use HasPolicyRuleBuilders;
     use InteractsWithAttendanceScreen;
+    use InteractsWithNotifications;
     use WithFileUploads;
 
     #[Url(as: 'mode')]
@@ -209,7 +211,7 @@ class PolicyGroups extends Component
                 : AttendancePolicyGroup::STATUS_ACTIVE,
         ]);
 
-        session()->flash('success', __('Policy status updated.'));
+        $this->notify(__('Policy status updated.'));
     }
 
     public function deletePolicyGroup(int $policyGroupId): void
@@ -222,7 +224,7 @@ class PolicyGroups extends Component
 
         $this->policyGroup($policyGroupId)->delete();
 
-        session()->flash('success', __('Policy group deleted.'));
+        $this->notify(__('Policy group deleted.'));
     }
 
     public function simulatePolicyGroup(int $policyGroupId)
@@ -242,7 +244,7 @@ class PolicyGroups extends Component
         $serializer = app(PolicyTemplateSerializer::class);
         $this->policyTemplateExportJson = $serializer->toJson($serializer->fromPolicyGroup($policy));
 
-        session()->flash('success', __('Policy template JSON ready to download from :policy.', ['policy' => $policy->code]));
+        $this->notify(__('Policy template JSON ready to download from :policy.', ['policy' => $policy->code]));
     }
 
     // === Mode transitions ===
@@ -362,7 +364,7 @@ class PolicyGroups extends Component
         $this->showPolicyBuilderForm = false;
         $this->showAllPolicyTemplates = true;
         $this->mode = 'list';
-        session()->flash('success', __('Policy group saved.'));
+        $this->notify(__('Policy group saved.'));
     }
 
     public function usePolicyTemplate(string $templateKey): void
@@ -423,7 +425,7 @@ class PolicyGroups extends Component
         $this->policyTemplateUpload = null;
         $this->mode = 'form';
 
-        session()->flash('success', __('Policy template loaded. Review and save it as a policy group.'));
+        $this->notify(__('Policy template loaded. Review and save it as a policy group.'));
     }
 
     public function render(): View

@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Attendance\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\People\Attendance\Livewire\Concerns\BuildsRosterGrid;
 use App\Modules\People\Attendance\Livewire\Concerns\BuildsRosterRenderingData;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
@@ -20,6 +21,7 @@ class Rosters extends Component
     use BuildsRosterGrid;
     use BuildsRosterRenderingData;
     use InteractsWithAttendanceScreen;
+    use InteractsWithNotifications;
     use ManagesRosterCellHistory;
     use ManagesRosterOperations;
     use ManagesRosterSelection;

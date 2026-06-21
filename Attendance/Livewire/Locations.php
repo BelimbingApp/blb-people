@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Attendance\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendanceGeofence;
 use App\Modules\People\Attendance\Models\AttendanceGeofenceGroup;
@@ -11,6 +12,7 @@ use Livewire\Component;
 class Locations extends Component
 {
     use InteractsWithAttendanceScreen;
+    use InteractsWithNotifications;
 
     public function render(): View
     {

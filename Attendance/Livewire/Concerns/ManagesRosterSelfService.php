@@ -31,7 +31,7 @@ trait ManagesRosterSelfService
             ],
         );
 
-        session()->flash('success', __('Schedule acknowledged.'));
+        $this->notify(__('Schedule acknowledged.'));
     }
 
     public function exportRosterCsv(): mixed

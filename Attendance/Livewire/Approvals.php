@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Attendance\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendanceAdjustmentRequest;
 use App\Modules\People\Attendance\Models\AttendanceOvertimeRequest;
@@ -14,6 +15,7 @@ use Livewire\Component;
 class Approvals extends Component
 {
     use InteractsWithAttendanceScreen;
+    use InteractsWithNotifications;
 
     public string $decisionReason = '';
 
@@ -29,7 +31,7 @@ class Approvals extends Component
         app(AttendanceOvertimeService::class)->approve($request, decisionReason: $this->blankToNull($this->decisionReason));
         $this->decisionReason = '';
 
-        session()->flash('success', __('Overtime request approved.'));
+        $this->notify(__('Overtime request approved.'));
     }
 
     public function rejectOvertime(int $requestId): void
@@ -44,7 +46,7 @@ class Approvals extends Component
         app(AttendanceOvertimeService::class)->reject($request, $this->blankToNull($this->decisionReason));
         $this->decisionReason = '';
 
-        session()->flash('success', __('Overtime request rejected.'));
+        $this->notify(__('Overtime request rejected.'));
     }
 
     public function queueOvertimePayroll(int $requestId): void
@@ -59,12 +61,12 @@ class Approvals extends Component
         $dispatched = app(AttendanceOvertimeService::class)->queuePayrollHandoff($request);
 
         if (! $dispatched) {
-            session()->flash('error', __('No payable minutes on this overtime request.'));
+            $this->notifyError(__('No payable minutes on this overtime request.'));
 
             return;
         }
 
-        session()->flash('success', __('Overtime queued to payroll. Check the Payroll module for the contribution status.'));
+        $this->notify(__('Overtime queued to payroll. Check the Payroll module for the contribution status.'));
     }
 
     public function approveAdjustment(int $requestId): void
@@ -79,7 +81,7 @@ class Approvals extends Component
         app(AttendanceAdjustmentService::class)->approve($request, (int) Auth::id(), $this->blankToNull($this->decisionReason));
         $this->decisionReason = '';
 
-        session()->flash('success', __('Adjustment request approved; clock event recorded.'));
+        $this->notify(__('Adjustment request approved; clock event recorded.'));
     }
 
     public function rejectAdjustment(int $requestId): void
@@ -94,7 +96,7 @@ class Approvals extends Component
         app(AttendanceAdjustmentService::class)->reject($request, (int) Auth::id(), $this->blankToNull($this->decisionReason));
         $this->decisionReason = '';
 
-        session()->flash('success', __('Adjustment request rejected.'));
+        $this->notify(__('Adjustment request rejected.'));
     }
 
     public function render(): View

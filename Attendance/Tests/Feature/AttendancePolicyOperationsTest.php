@@ -377,7 +377,7 @@ it('lets managers build, save, and edit policies inline on the studio page', fun
         ->call('savePolicyGroup')
         ->assertHasNoErrors()
         ->assertSet('mode', 'list')
-        ->assertSee('Policy group saved.')
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Policy group saved.'))
         ->assertSee('STD_8_5');
 
     $policy = AttendancePolicyGroup::query()
@@ -504,7 +504,7 @@ it('lets managers upload and download attendance policy templates as JSON', func
         ->set('policyTemplateUpload', UploadedFile::fake()->createWithContent('policy-template.json', json_encode($template)))
         ->call('importPolicyTemplate')
         ->assertHasNoErrors()
-        ->assertSee('Policy template loaded.')
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Policy template loaded.'))
         ->assertSee('Identification')
         ->assertSet('mode', 'form')
         ->assertSet('showPolicyBuilderForm', true)
@@ -527,7 +527,7 @@ it('downloads policy template JSON directly from the list without entering the b
 
     Livewire::test(PolicyGroups::class)
         ->call('exportPolicyGroupTemplate', $policyGroup->id)
-        ->assertSee('Policy template JSON ready to download from EXPORT_ME.')
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Policy template JSON ready to download from EXPORT_ME.'))
         ->assertSet('policyTemplateExportJson', fn (string $json): bool => str_contains($json, 'belimbing.attendance.policy-template.v1') && str_contains($json, 'EXPORT_ME'));
 });
 
@@ -562,7 +562,7 @@ it('lets managers create attendance allowance rules', function (): void {
         ->call('saveAllowanceRule')
         ->assertHasNoErrors()
         ->assertSet('mode', 'list')
-        ->assertSee('Allowance rule saved.')
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Allowance rule saved.'))
         ->assertSee('NIGHT_ALLOWANCE');
 
     $rule = AttendanceAllowanceRule::query()
@@ -586,7 +586,7 @@ it('lets managers create attendance allowance rules', function (): void {
 
     $component
         ->call('deleteAllowanceRule', $rule->id)
-        ->assertSee('Allowance rule deleted.');
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Allowance rule deleted.'));
 
     expect(AttendanceAllowanceRule::query()->whereKey($rule->id)->exists())->toBeFalse();
 });
@@ -657,7 +657,7 @@ it('lets managers create roster assignments from the guided roster builder', fun
         ->set('rosterEffectiveTo', '2026-06-30')
         ->call('saveRosterAssignment')
         ->assertHasNoErrors()
-        ->assertSee('Roster assignment saved.')
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Roster assignment saved.'))
         ->assertSee($employee->full_name);
 
     $assignment = AttendanceRosterAssignment::query()
@@ -724,7 +724,7 @@ it('lets managers bulk-create roster assignments from filtered employee selectio
         ->set('rosterEffectiveTo', '2026-07-31')
         ->call('saveRosterAssignment')
         ->assertHasNoErrors()
-        ->assertSee('3 roster assignments saved.');
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), '3 roster assignments saved.'));
 
     expect(AttendanceRosterAssignment::query()
         ->where('company_id', $company->id)
@@ -759,7 +759,7 @@ it('skips overlapping employees while saving valid bulk roster assignments', fun
         ->set('rosterEffectiveTo', '2026-08-15')
         ->call('saveRosterAssignment')
         ->assertHasNoErrors()
-        ->assertSee('Roster assignment saved. 1 skipped because of existing roster overlaps.');
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Roster assignment saved. 1 skipped because of existing roster overlaps.'));
 
     expect(AttendanceRosterAssignment::query()
         ->where('company_id', $company->id)
@@ -880,7 +880,7 @@ it('applies a per-cell shift override from list mode without requiring form stat
         ->call('saveCellOverride', $employee->id, $targetDate, $shift->id, $policyGroup->id)
         ->assertHasNoErrors()
         ->assertSee('DAY')
-        ->assertSee('Roster cell override saved.');
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Roster cell override saved.'));
 
     $assignment = AttendanceRosterAssignment::query()
         ->where('company_id', $company->id)
@@ -903,7 +903,7 @@ it('flashes a soft error when the cell override is called without shift or polic
     Livewire::test(Rosters::class)
         ->call('saveCellOverride', $employee->id, '2026-09-10', null, null)
         ->assertHasNoErrors()
-        ->assertSee('Pick a shift and a policy before applying the override.');
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Pick a shift and a policy before applying the override.'));
 
     expect(AttendanceRosterAssignment::query()->where('employee_id', $employee->id)->exists())->toBeFalse();
 });
@@ -931,7 +931,7 @@ it('records a cell override on an existing roster assignment and bumps revision'
     Livewire::test(Rosters::class)
         ->call('saveCellOverride', $employee->id, '2026-09-15', $eveShift->id, $policyGroup->id)
         ->assertHasNoErrors()
-        ->assertSee('Roster cell override saved.');
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Roster cell override saved.'));
 
     $assignment->refresh();
     $override = collect($assignment->exceptions)->firstWhere('date', '2026-09-15');
@@ -1066,7 +1066,7 @@ it('rejects cell overrides for employees and roster dimensions outside the curre
         ->set('rosterShiftTemplateId', (string) $shift->id)
         ->set('rosterPolicyGroupId', (string) $policyGroup->id)
         ->call('saveCellOverride', $foreignEmployee->id, '2026-08-03')
-        ->assertSee('Pick a shift and a policy before applying the override.');
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Pick a shift and a policy before applying the override.'));
 
     expect(AttendanceRosterAssignment::query()
         ->where('company_id', $company->id)
@@ -1092,7 +1092,7 @@ it('imports spreadsheet roster rows without disturbing unrelated draft assignmen
         ->set('spreadsheetRosterRows', "EMP-SPREAD,2026-09-01,DAY,STD,Line one\n")
         ->call('importSpreadsheetRosterRows')
         ->assertHasNoErrors()
-        ->assertSee('Spreadsheet roster import saved');
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Spreadsheet roster import saved'));
 
     $assignment = AttendanceRosterAssignment::query()
         ->where('company_id', $company->id)
@@ -1159,7 +1159,7 @@ it('lets managers build shift templates inline from guided templates and import 
         ->call('saveShiftTemplate')
         ->assertHasNoErrors()
         ->assertSet('mode', 'list')
-        ->assertSee('Shift template saved.');
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Shift template saved.'));
 
     $shift = AttendanceShiftTemplate::query()
         ->where('company_id', $user->company_id)
@@ -1293,7 +1293,7 @@ it('toggles shift template status from the list', function (): void {
     Livewire::test(ShiftTemplates::class)
         ->call('toggleShiftStatus', $shift->id)
         ->assertHasNoErrors()
-        ->assertSee('Shift status updated.');
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), 'Shift status updated.'));
 
     expect($shift->refresh()->status)->toBe('inactive');
 });
@@ -1349,7 +1349,7 @@ it('saves batch cell overrides across a date range in one call', function (): vo
             ['employee_id' => $employee->id, 'date' => $dates[2], 'shift_template_id' => $shift->id, 'policy_group_id' => $policyGroup->id],
         ])
         ->assertHasNoErrors()
-        ->assertSee('3 cell overrides saved.');
+        ->assertDispatched('notify', fn ($event, $params) => str_contains((string) ($params['message'] ?? ''), '3 cell overrides saved.'));
 
     expect(AttendanceRosterAssignment::query()->where('company_id', $company->id)->where('employee_id', $employee->id)->count())->toBe(3);
 });

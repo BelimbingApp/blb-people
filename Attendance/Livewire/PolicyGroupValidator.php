@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Attendance\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
 use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
@@ -13,6 +14,7 @@ use Livewire\Component;
 class PolicyGroupValidator extends Component
 {
     use InteractsWithAttendanceScreen;
+    use InteractsWithNotifications;
 
     public string $policyPreviewPolicyId = '';
 

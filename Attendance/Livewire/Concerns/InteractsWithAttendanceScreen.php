@@ -70,7 +70,7 @@ trait InteractsWithAttendanceScreen
             return true;
         }
 
-        session()->flash('error', __('Attendance database tables are not installed yet. Run the Attendance migration first.'));
+        $this->notifyError(__('Attendance database tables are not installed yet. Run the Attendance migration first.'));
 
         return false;
     }

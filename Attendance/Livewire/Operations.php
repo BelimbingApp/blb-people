@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Attendance\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendanceAbsenceBatch;
 use App\Modules\People\Attendance\Models\AttendanceClockEvent;
@@ -15,6 +16,7 @@ use Livewire\Component;
 class Operations extends Component
 {
     use InteractsWithAttendanceScreen;
+    use InteractsWithNotifications;
 
     public string $search = '';
 
@@ -35,7 +37,7 @@ class Operations extends Component
 
         app(AttendanceLifecycleService::class)->finalize($this->attendanceDay($dayId));
 
-        session()->flash('success', __('Attendance day finalized.'));
+        $this->notify(__('Attendance day finalized.'));
     }
 
     public function lockDay(int $dayId): void
@@ -48,7 +50,7 @@ class Operations extends Component
 
         app(AttendanceLifecycleService::class)->lock($this->attendanceDay($dayId));
 
-        session()->flash('success', __('Attendance day locked.'));
+        $this->notify(__('Attendance day locked.'));
     }
 
     public function render(): View

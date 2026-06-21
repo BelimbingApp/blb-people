@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Attendance\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
 use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
@@ -21,6 +22,7 @@ use Livewire\Component;
 class AllowanceRules extends Component
 {
     use InteractsWithAttendanceScreen;
+    use InteractsWithNotifications;
 
     #[Url(as: 'mode')]
     public string $mode = 'list';
@@ -191,7 +193,7 @@ class AllowanceRules extends Component
         $this->showAllowanceBuilderForm = false;
         $this->showAllAllowanceTemplates = true;
         $this->mode = 'list';
-        session()->flash('success', __('Allowance rule saved. Validate the linked policy group before using it for payroll handoff.'));
+        $this->notify(__('Allowance rule saved. Validate the linked policy group before using it for payroll handoff.'));
     }
 
     public function editAllowanceRule(int $ruleId): void
@@ -258,7 +260,7 @@ class AllowanceRules extends Component
             $this->resetForm();
         }
 
-        session()->flash('success', __('Allowance rule deleted.'));
+        $this->notify(__('Allowance rule deleted.'));
     }
 
     public function toggleAllowanceStatus(int $ruleId): void
@@ -274,7 +276,7 @@ class AllowanceRules extends Component
             'status' => $rule->status === 'active' ? 'inactive' : 'active',
         ]);
 
-        session()->flash('success', __('Allowance rule status updated.'));
+        $this->notify(__('Allowance rule status updated.'));
     }
 
     public function render(): View
