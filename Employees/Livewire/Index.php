@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Employees\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Base\Foundation\Livewire\Concerns\ResetsPaginationOnSearch;
 use App\Base\Foundation\Livewire\Concerns\TogglesSort;
 use App\Modules\Core\Company\Models\Company;
@@ -18,6 +19,7 @@ use Livewire\WithPagination;
 
 class Index extends Component
 {
+    use InteractsWithNotifications;
     use ResetsPaginationOnSearch;
     use TogglesSort;
     use WithPagination;
@@ -121,7 +123,7 @@ class Index extends Component
     public function saveCurrentView(): void
     {
         if (! $this->savedEmployeeViewsTableExists()) {
-            session()->flash('error', __('Saved employee views are unavailable until People settings tables are rebuilt.'));
+            $this->notifyError(__('Saved employee views are unavailable until People settings tables are rebuilt.'));
 
             return;
         }
@@ -153,13 +155,13 @@ class Index extends Component
         );
 
         $this->savedViewName = '';
-        session()->flash('success', __('Saved employee view updated.'));
+        $this->notify(__('Saved employee view updated.'));
     }
 
     public function applySavedView(int $viewId): void
     {
         if (! $this->savedEmployeeViewsTableExists()) {
-            session()->flash('error', __('Saved employee views are unavailable until People settings tables are rebuilt.'));
+            $this->notifyError(__('Saved employee views are unavailable until People settings tables are rebuilt.'));
 
             return;
         }

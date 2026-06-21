@@ -4,6 +4,7 @@ namespace App\Modules\People\Claim\Livewire;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Claim\Livewire\Concerns\HasClaimSetupActions;
@@ -33,6 +34,7 @@ class Index extends Component
 {
     use HasClaimSetupActions;
     use HasPayrollOperationsStatus;
+    use InteractsWithNotifications;
 
     public string $surface = 'my';
 
@@ -196,7 +198,7 @@ class Index extends Component
     {
         $employeeId = $this->currentEmployeeId();
         if ($employeeId === null) {
-            session()->flash('error', __('Your user account is not linked to an employee record.'));
+            $this->notifyError(__('Your user account is not linked to an employee record.'));
 
             return;
         }
@@ -245,9 +247,9 @@ class Index extends Component
             $this->reset('applyAssignmentLineId', 'applyDescription', 'applyRequestedAmount', 'applyProviderName', 'applyReceiptNumber');
             $this->applyAttachmentCount = '0';
             $this->showClaimModal = false;
-            session()->flash('success', __('Claim request submitted for approval.'));
+            $this->notify(__('Claim request submitted for approval.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -262,9 +264,9 @@ class Index extends Component
 
             app(ApproveClaimRequestService::class)->approve($request, Auth::id(), $this->approvalReason ?: null);
             $this->approvalReason = '';
-            session()->flash('success', __('Claim request approved.'));
+            $this->notify(__('Claim request approved.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -279,9 +281,9 @@ class Index extends Component
 
             app(RejectClaimRequestService::class)->reject($request, Auth::id(), $this->approvalReason ?: null);
             $this->approvalReason = '';
-            session()->flash('success', __('Claim request rejected.'));
+            $this->notify(__('Claim request rejected.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -296,9 +298,9 @@ class Index extends Component
 
             app(RequestClaimMoreInfoService::class)->requestMoreInfo($request, Auth::id(), $this->approvalReason ?: null);
             $this->approvalReason = '';
-            session()->flash('success', __('Claim request sent back for more information.'));
+            $this->notify(__('Claim request sent back for more information.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -313,9 +315,9 @@ class Index extends Component
 
             app(ReimburseClaimRequestService::class)->reimburse($request, Auth::id(), $this->approvalReason ?: 'Marked reimbursed by operations');
             $this->approvalReason = '';
-            session()->flash('success', __('Claim request marked as reimbursed.'));
+            $this->notify(__('Claim request marked as reimbursed.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -330,9 +332,9 @@ class Index extends Component
 
             app(CancelClaimRequestService::class)->cancel($request, Auth::id(), $this->approvalReason ?: 'Cancelled by operations');
             $this->approvalReason = '';
-            session()->flash('success', __('Claim request cancelled.'));
+            $this->notify(__('Claim request cancelled.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -350,9 +352,9 @@ class Index extends Component
                 ->findOrFail($requestId);
 
             app(WithdrawClaimRequestService::class)->withdraw($request, Auth::id(), 'Withdrawn by employee');
-            session()->flash('success', __('Claim request withdrawn.'));
+            $this->notify(__('Claim request withdrawn.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 

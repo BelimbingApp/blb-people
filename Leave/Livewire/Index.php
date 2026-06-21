@@ -4,6 +4,7 @@ namespace App\Modules\People\Leave\Livewire;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Leave\Livewire\Concerns\HasLeaveBalanceActions;
@@ -30,6 +31,8 @@ use Throwable;
 
 class Index extends Component
 {
+    use InteractsWithNotifications;
+
     private const DEFAULT_EFFECTIVE_FROM = '2026-01-01';
 
     use HasLeaveBalanceActions;
@@ -240,7 +243,7 @@ class Index extends Component
     {
         $employeeId = $this->currentEmployeeId();
         if ($employeeId === null) {
-            session()->flash('error', __('Your user account is not linked to an employee record.'));
+            $this->notifyError(__('Your user account is not linked to an employee record.'));
 
             return;
         }
@@ -275,9 +278,9 @@ class Index extends Component
 
             $this->reset('applyNote', 'applyHoursCount', 'applyShortNotice');
             $this->showApplyModal = false;
-            session()->flash('success', __('Leave request submitted for approval.'));
+            $this->notify(__('Leave request submitted for approval.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -295,9 +298,9 @@ class Index extends Component
                 ->findOrFail($requestId);
 
             app(WithdrawLeaveRequestService::class)->withdraw($request, Auth::id(), 'Withdrawn by employee');
-            session()->flash('success', __('Leave request withdrawn.'));
+            $this->notify(__('Leave request withdrawn.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -353,7 +356,7 @@ class Index extends Component
         $this->typeCompulsoryAttachment = false;
         $this->showLeaveTypeModal = false;
 
-        session()->flash('success', __('Leave type created.'));
+        $this->notify(__('Leave type created.'));
     }
 
     public function createEntitlementPolicy(): void
@@ -392,7 +395,7 @@ class Index extends Component
 
         $this->reset('entitlementCode', 'entitlementName', 'entitlementBringForwardCap', 'entitlementBringForwardExpiryMonth');
         $this->showEntitlementPolicyModal = false;
-        session()->flash('success', __('Entitlement policy created.'));
+        $this->notify(__('Entitlement policy created.'));
     }
 
     public function createRequestPolicy(): void
@@ -429,7 +432,7 @@ class Index extends Component
 
         $this->reset('requestCode', 'requestName', 'requestMaxDaysPerApplication');
         $this->showRequestPolicyModal = false;
-        session()->flash('success', __('Request policy created.'));
+        $this->notify(__('Request policy created.'));
     }
 
     public function createAssignment(): void
@@ -468,7 +471,7 @@ class Index extends Component
 
         $this->reset('assignmentCode', 'assignmentName', 'assignmentCohortGender', 'assignmentCohortMaritalStatus', 'assignmentCohortCitizenship');
         $this->showAssignmentModal = false;
-        session()->flash('success', __('Leave assignment created.'));
+        $this->notify(__('Leave assignment created.'));
     }
 
     public function addEntitlementBand(): void
@@ -500,7 +503,7 @@ class Index extends Component
         $this->reset('bandMinYears', 'bandMaxYears', 'bandDays', 'bandCarryForwardOverride');
         $this->bandMinYears = '0';
         $this->showEntitlementBandModal = false;
-        session()->flash('success', __('Entitlement band added.'));
+        $this->notify(__('Entitlement band added.'));
     }
 
     public function selectRequest(int $requestId): void
@@ -520,9 +523,9 @@ class Index extends Component
 
             app(ApproveLeaveRequestService::class)->approve($request, Auth::id(), $this->approvalReason ?: null);
             $this->approvalReason = '';
-            session()->flash('success', __('Leave request approved.'));
+            $this->notify(__('Leave request approved.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -537,9 +540,9 @@ class Index extends Component
 
             app(RejectLeaveRequestService::class)->reject($request, Auth::id(), $this->approvalReason ?: null);
             $this->approvalReason = '';
-            session()->flash('success', __('Leave request rejected.'));
+            $this->notify(__('Leave request rejected.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 

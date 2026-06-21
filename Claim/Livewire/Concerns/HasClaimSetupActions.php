@@ -35,7 +35,7 @@ trait HasClaimSetupActions
         );
 
         $this->reset('categoryCode', 'categoryName');
-        session()->flash('success', __('Claim category saved.'));
+        $this->notify(__('Claim category saved.'));
     }
 
     public function createClaimType(): void
@@ -79,7 +79,7 @@ trait HasClaimSetupActions
         $this->typeReceiptRequirement = ClaimType::RECEIPT_ALWAYS;
         $this->typeProviderRequired = false;
         $this->typePayrollEligible = true;
-        session()->flash('success', __('Claim type saved.'));
+        $this->notify(__('Claim type saved.'));
     }
 
     public function createPolicy(): void
@@ -115,7 +115,7 @@ trait HasClaimSetupActions
         );
 
         $this->reset('policyCode', 'policyName', 'policyRateType', 'policyApprovalProfileKey');
-        session()->flash('success', __('Claim policy saved.'));
+        $this->notify(__('Claim policy saved.'));
     }
 
     public function addPolicyBand(): void
@@ -151,7 +151,7 @@ trait HasClaimSetupActions
 
         $this->reset('bandThreshold', 'bandPerDayUnitLimit', 'bandPerClaimLimit', 'bandPerMonthLimit', 'bandPerYearLimit');
         $this->bandRate = '0';
-        session()->flash('success', __('Claim policy band added.'));
+        $this->notify(__('Claim policy band added.'));
     }
 
     public function createAssignment(): void
@@ -178,7 +178,7 @@ trait HasClaimSetupActions
         );
 
         $this->reset('assignmentCode', 'assignmentName');
-        session()->flash('success', __('Claim assignment saved.'));
+        $this->notify(__('Claim assignment saved.'));
     }
 
     public function addAssignmentLine(): void
@@ -215,7 +215,7 @@ trait HasClaimSetupActions
         $this->reset('lineClaimTypeId', 'lineClaimPolicyId', 'lineCombineTag');
         $this->lineUsesCombinedCap = false;
         $this->lineHiddenFromApplication = false;
-        session()->flash('success', __('Claim assignment line saved.'));
+        $this->notify(__('Claim assignment line saved.'));
     }
 
     public function createContext(): void
@@ -242,7 +242,7 @@ trait HasClaimSetupActions
         );
 
         $this->reset('contextCode', 'contextLabel', 'contextMaxClaimLimit');
-        session()->flash('success', __('Claim context saved.'));
+        $this->notify(__('Claim context saved.'));
     }
 
     private function normalizeCode(string $value): string

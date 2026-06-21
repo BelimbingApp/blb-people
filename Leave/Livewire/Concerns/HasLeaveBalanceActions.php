@@ -66,9 +66,9 @@ trait HasLeaveBalanceActions
 
             $this->reset('adjustmentQuantity', 'adjustmentNote');
             $this->showAdjustmentModal = false;
-            session()->flash('success', __('Ledger adjustment recorded.'));
+            $this->notify(__('Ledger adjustment recorded.'));
         } catch (Throwable $e) {
-            session()->flash('error', $e->getMessage());
+            $this->notifyError($e->getMessage());
         }
     }
 
@@ -131,7 +131,7 @@ trait HasLeaveBalanceActions
         $this->carryForwardPreview = $preview;
 
         if ($preview === []) {
-            session()->flash('error', __('No ledger entries found for the chosen filters.'));
+            $this->notifyError(__('No ledger entries found for the chosen filters.'));
         }
     }
 
@@ -140,7 +140,7 @@ trait HasLeaveBalanceActions
         $this->authorizeManage();
 
         if ($this->carryForwardPreview === []) {
-            session()->flash('error', __('Generate a preview first.'));
+            $this->notifyError(__('Generate a preview first.'));
 
             return;
         }
@@ -172,7 +172,7 @@ trait HasLeaveBalanceActions
         }
 
         $this->carryForwardPreview = [];
-        session()->flash('success', __('Carry-forward committed for :n (employee, leave-type) pair(s).', ['n' => $count]));
+        $this->notify(__('Carry-forward committed for :n (employee, leave-type) pair(s).', ['n' => $count]));
     }
 
     /** @return list<array{occurs_on: string, name: string, scope: string, state_codes: list<string>, substituted: bool}> */

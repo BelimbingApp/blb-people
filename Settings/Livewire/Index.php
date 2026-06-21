@@ -4,6 +4,7 @@ namespace App\Modules\People\Settings\Livewire;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Base\Foundation\Livewire\Concerns\ResetsPaginationOnSearch;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\People\Settings\Models\EmployeePortalAccess;
@@ -20,6 +21,7 @@ use Livewire\WithPagination;
 
 class Index extends Component
 {
+    use InteractsWithNotifications;
     use ResetsPaginationOnSearch;
     use WithPagination;
 
@@ -79,7 +81,7 @@ class Index extends Component
 
         $this->reset('entryCode', 'entryName', 'entryLevel', 'entrySourceLabel');
         $this->showReferenceEntryModal = false;
-        session()->flash('success', __('Reference entry saved.'));
+        $this->notify(__('Reference entry saved.'));
     }
 
     public function dryRunSampleImport(PeopleReferenceImportService $imports): void
@@ -95,7 +97,7 @@ class Index extends Component
             createdByUserId: Auth::id(),
         );
 
-        session()->flash('success', __('Empty dry-run import recorded. Upload parsing is intentionally scoped to dedicated import jobs.'));
+        $this->notify(__('Empty dry-run import recorded. Upload parsing is intentionally scoped to dedicated import jobs.'));
     }
 
     public function render(): View

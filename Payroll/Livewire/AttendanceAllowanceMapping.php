@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Payroll\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
 use App\Modules\People\Payroll\Livewire\Concerns\ManagesPayrollMappingAuthorization;
 use App\Modules\People\Payroll\Models\PayrollAttendanceRulePayItem;
@@ -22,6 +23,7 @@ use Livewire\Component;
  */
 class AttendanceAllowanceMapping extends Component
 {
+    use InteractsWithNotifications;
     use ManagesPayrollMappingAuthorization;
 
     public int $editingRuleId = 0;
@@ -92,7 +94,7 @@ class AttendanceAllowanceMapping extends Component
 
         $this->cancelEditing();
 
-        session()->flash('success', __('Pay-item mapping saved.'));
+        $this->notify(__('Pay-item mapping saved.'));
     }
 
     public function deleteMapping(int $ruleId, string $effectiveFrom): void
@@ -104,7 +106,7 @@ class AttendanceAllowanceMapping extends Component
             ->whereDate('effective_from', Carbon::parse($effectiveFrom))
             ->delete();
 
-        session()->flash('success', __('Pay-item mapping removed.'));
+        $this->notify(__('Pay-item mapping removed.'));
     }
 
     public function render(): View

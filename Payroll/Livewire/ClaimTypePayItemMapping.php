@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Payroll\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\People\Claim\Models\ClaimType;
 use App\Modules\People\Payroll\Livewire\Concerns\ManagesPayrollMappingAuthorization;
 use App\Modules\People\Payroll\Models\PayrollClaimTypePayItem;
@@ -17,6 +18,7 @@ use Livewire\Component;
  */
 class ClaimTypePayItemMapping extends Component
 {
+    use InteractsWithNotifications;
     use ManagesPayrollMappingAuthorization;
 
     public int $editingClaimTypeId = 0;
@@ -86,7 +88,7 @@ class ClaimTypePayItemMapping extends Component
         );
 
         $this->cancelEditing();
-        session()->flash('success', __('Claim-type pay-item mapping saved.'));
+        $this->notify(__('Claim-type pay-item mapping saved.'));
     }
 
     public function deleteMapping(int $claimTypeId, string $effectiveFrom): void
@@ -98,7 +100,7 @@ class ClaimTypePayItemMapping extends Component
             ->whereDate('effective_from', Carbon::parse($effectiveFrom))
             ->delete();
 
-        session()->flash('success', __('Claim-type pay-item mapping removed.'));
+        $this->notify(__('Claim-type pay-item mapping removed.'));
     }
 
     public function render(): View

@@ -4,6 +4,7 @@ namespace App\Modules\People\Employees\Livewire;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\Core\User\Models\User;
@@ -23,6 +24,8 @@ use Livewire\Component;
 
 class Show extends Component
 {
+    use InteractsWithNotifications;
+
     public Employee $employee;
 
     public string $fullName = '';
@@ -109,7 +112,7 @@ class Show extends Component
         ])->save();
 
         $this->refreshEmployee();
-        session()->flash('success', __('Employee details saved.'));
+        $this->notify(__('Employee details saved.'));
     }
 
     public function saveWorkProfile(): void
@@ -147,7 +150,7 @@ class Show extends Component
 
         $this->refreshEmployee();
         $this->fillForms();
-        session()->flash('success', __('Work profile saved.'));
+        $this->notify(__('Work profile saved.'));
     }
 
     public function provisionAccess(EmployeePortalAccessService $portalAccesses): void
@@ -163,7 +166,7 @@ class Show extends Component
 
         $this->refreshEmployee();
         $this->fillForms();
-        session()->flash('success', __('Employee account access provisioned.'));
+        $this->notify(__('Employee account access provisioned.'));
     }
 
     public function sendAccessInvitation(EmployeePortalAccessService $portalAccesses): void
@@ -177,7 +180,7 @@ class Show extends Component
         $portalAccesses->sendAccessInvitation($this->employee->portalAccess->fresh(['employee']), $this->employee->company_id);
 
         $this->refreshEmployee();
-        session()->flash('success', __('Access invitation queued.'));
+        $this->notify(__('Access invitation queued.'));
     }
 
     public function activateAccess(): void
@@ -187,7 +190,7 @@ class Show extends Component
 
         $this->employee->portalAccess->activate();
         $this->refreshEmployee();
-        session()->flash('success', __('Employee account access activated.'));
+        $this->notify(__('Employee account access activated.'));
     }
 
     public function revokeAccess(): void
@@ -197,7 +200,7 @@ class Show extends Component
 
         $this->employee->portalAccess->revoke();
         $this->refreshEmployee();
-        session()->flash('success', __('Employee account access revoked.'));
+        $this->notify(__('Employee account access revoked.'));
     }
 
     public function approveRequest(int $requestId, EmployeeProfileChangeRequestReviewService $reviews): void
@@ -211,7 +214,7 @@ class Show extends Component
         $reviews->approve($request, $reviewer, $this->requestReviewNotes[$requestId] ?? null);
 
         $this->refreshEmployee();
-        session()->flash('success', __('Profile change request approved.'));
+        $this->notify(__('Profile change request approved.'));
     }
 
     public function rejectRequest(int $requestId, EmployeeProfileChangeRequestReviewService $reviews): void
@@ -225,7 +228,7 @@ class Show extends Component
         $reviews->reject($request, $reviewer, $this->requestReviewNotes[$requestId] ?? null);
 
         $this->refreshEmployee();
-        session()->flash('success', __('Profile change request rejected.'));
+        $this->notify(__('Profile change request rejected.'));
     }
 
     public function statusVariant(string $status): string

@@ -4,6 +4,7 @@ namespace App\Modules\People\Payroll\Livewire;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Payroll\Exceptions\ClosedPayrollRunException;
@@ -23,6 +24,7 @@ use Livewire\WithPagination;
 
 class Index extends Component
 {
+    use InteractsWithNotifications;
     use WithPagination;
 
     private const DEFAULT_EFFECTIVE_FROM = '2026-01-01';
@@ -155,9 +157,9 @@ class Index extends Component
             $run = PayrollIndexWorkbenchData::runQuery($this->companyId(), $this->search)->findOrFail($runId);
             app(PayrollRunCalculator::class)->calculate($run);
             $this->selectedRunId = $runId;
-            session()->flash('success', __('Payroll run calculated.'));
+            $this->notify(__('Payroll run calculated.'));
         } catch (ClosedPayrollRunException $exception) {
-            session()->flash('error', $exception->getMessage());
+            $this->notifyError($exception->getMessage());
         }
     }
 
@@ -181,9 +183,9 @@ class Index extends Component
             $run = PayrollIndexWorkbenchData::runQuery($this->companyId(), $this->search)->findOrFail($runId);
             $run->{$method}();
             $this->selectedRunId = $runId;
-            session()->flash('success', $message);
+            $this->notify($message);
         } catch (ClosedPayrollRunException $exception) {
-            session()->flash('error', $exception->getMessage());
+            $this->notifyError($exception->getMessage());
         }
     }
 
@@ -222,7 +224,7 @@ class Index extends Component
         $this->classificationPayItemId = (string) $payItem->id;
         $this->reset('payItemCode', 'payItemName');
         $this->payItemInputType = PayrollInput::TYPE_EARNING;
-        session()->flash('success', __('Pay item created.'));
+        $this->notify(__('Pay item created.'));
     }
 
     public function createClassification(): void
@@ -264,7 +266,7 @@ class Index extends Component
         ])->save();
 
         $this->reset('classificationValue');
-        session()->flash('success', __('Pay item classification saved.'));
+        $this->notify(__('Pay item classification saved.'));
     }
 
     public function createEmployerProfile(): void
@@ -294,7 +296,7 @@ class Index extends Component
             ],
         );
 
-        session()->flash('success', __('Employer statutory profile saved.'));
+        $this->notify(__('Employer statutory profile saved.'));
     }
 
     public function createEmployeeProfile(): void
@@ -326,7 +328,7 @@ class Index extends Component
             ],
         );
 
-        session()->flash('success', __('Employee statutory profile saved.'));
+        $this->notify(__('Employee statutory profile saved.'));
     }
 
     public function createRuleSet(): void
@@ -359,7 +361,7 @@ class Index extends Component
         );
 
         $this->ruleRowRuleSetId = (string) $ruleSet->id;
-        session()->flash('success', __('Statutory rule set saved.'));
+        $this->notify(__('Statutory rule set saved.'));
     }
 
     public function createRuleRow(): void
@@ -393,7 +395,7 @@ class Index extends Component
         ]);
 
         $this->reset('ruleRowKey', 'ruleRowMinWage', 'ruleRowMaxWage', 'ruleRowEmployeeRate', 'ruleRowEmployerRate', 'ruleRowLevyRate');
-        session()->flash('success', __('Statutory rule row added.'));
+        $this->notify(__('Statutory rule row added.'));
     }
 
     public function statusVariant(string $status): string

@@ -2,6 +2,7 @@
 
 namespace App\Modules\People\Payroll\Livewire;
 
+use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\People\Leave\Models\LeaveType;
 use App\Modules\People\Payroll\Livewire\Concerns\ManagesPayrollMappingAuthorization;
 use App\Modules\People\Payroll\Models\PayrollLeaveTypePayItem;
@@ -17,6 +18,7 @@ use Livewire\Component;
  */
 class LeaveTypePayItemMapping extends Component
 {
+    use InteractsWithNotifications;
     use ManagesPayrollMappingAuthorization;
 
     public int $editingLeaveTypeId = 0;
@@ -86,7 +88,7 @@ class LeaveTypePayItemMapping extends Component
         );
 
         $this->cancelEditing();
-        session()->flash('success', __('Leave-type pay-item mapping saved.'));
+        $this->notify(__('Leave-type pay-item mapping saved.'));
     }
 
     public function deleteMapping(int $leaveTypeId, string $effectiveFrom): void
@@ -98,7 +100,7 @@ class LeaveTypePayItemMapping extends Component
             ->whereDate('effective_from', Carbon::parse($effectiveFrom))
             ->delete();
 
-        session()->flash('success', __('Leave-type pay-item mapping removed.'));
+        $this->notify(__('Leave-type pay-item mapping removed.'));
     }
 
     public function render(): View
