@@ -1,7 +1,7 @@
 {
-    "name": "blb/payroll-my",
+    "name": "blb/payroll",
     "type": "blb-plugin",
-    "description": "BLB Payroll — Malaysia reference plugin. Listens to source-module events, classifies pay items, calculates statutory deductions, posts payroll lines.",
+    "description": "BLB Payroll engine — country-neutral. Listens to source-module events, classifies pay items and calculates statutory deductions through the installed country pack, posts payroll lines.",
     "license": "AGPL-3.0-only",
     "autoload": {
         "psr-4": {
@@ -12,7 +12,7 @@
         "blb": {
             "module": "people/payroll",
             "version": "0.1.0",
-            "description": "Payroll — Malaysia reference plugin. Listens to HR source events, classifies pay items, calculates statutory deductions.",
+            "description": "Payroll engine — country-neutral. Listens to HR source events; classifies pay items and calculates statutory deductions via the installed country pack.",
             "requires-modules": {
                 "core/company": "*",
                 "core/employee": "*",
