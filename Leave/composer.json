@@ -11,7 +11,6 @@
     "extra": {
         "blb": {
             "module": "people/leave",
-            "role": "source",
             "version": "0.1.0",
             "description": "Leave — entitlement, balance ledger, leave requests, and encashment dispatch.",
             "requires-modules": {
