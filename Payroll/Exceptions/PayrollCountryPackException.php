@@ -40,4 +40,12 @@ class PayrollCountryPackException extends BlbConfigurationException
             context: ['country_iso' => $countryIso],
         );
     }
+
+    public static function companyCountryHasNoInstalledPack(string $countryIso): self
+    {
+        return new self(
+            "Payroll for [{$countryIso}] cannot be finalized: no [{$countryIso}] payroll country pack is installed, so statutory deductions would be omitted. Install the country pack before approving, closing, or exporting this run.",
+            context: ['country_iso' => $countryIso],
+        );
+    }
 }
