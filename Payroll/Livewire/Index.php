@@ -8,6 +8,7 @@ use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Payroll\Exceptions\ClosedPayrollRunException;
+use App\Modules\People\Payroll\Exceptions\PayrollCountryPackException;
 use App\Modules\People\Payroll\Models\PayrollInput;
 use App\Modules\People\Payroll\Models\PayrollPayItem;
 use App\Modules\People\Payroll\Models\PayrollPayItemClassification;
@@ -15,6 +16,7 @@ use App\Modules\People\Payroll\Models\PayrollRun;
 use App\Modules\People\Payroll\Models\PayrollStatutoryRuleRow;
 use App\Modules\People\Payroll\Models\PayrollStatutoryRuleSet;
 use App\Modules\People\Payroll\Services\PayrollRunCalculator;
+use App\Modules\People\Payroll\Services\PayrollRunCountryPackGuard;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -181,10 +183,18 @@ class Index extends Component
 
         try {
             $run = PayrollIndexWorkbenchData::runQuery($this->companyId(), $this->search)->findOrFail($runId);
+
+            // Approval and close make a run final; refuse if its statutory country pack
+            // is missing, so a run that silently omits statutory deductions cannot be
+            // signed off or exported as complete.
+            if (in_array($transition, ['approve', 'close'], true)) {
+                app(PayrollRunCountryPackGuard::class)->assertReadyForFinalization($run);
+            }
+
             $run->{$method}();
             $this->selectedRunId = $runId;
             $this->notify($message);
-        } catch (ClosedPayrollRunException $exception) {
+        } catch (ClosedPayrollRunException|PayrollCountryPackException $exception) {
             $this->notifyError($exception->getMessage());
         }
     }
@@ -444,6 +454,9 @@ class Index extends Component
         return view('people-payroll::livewire.people.payroll.index', [
             'runs' => $runs,
             'selectedRun' => $selectedRun,
+            'selectedRunCountryPackGap' => $selectedRun !== null
+                ? app(PayrollRunCountryPackGuard::class)->missingCountryPack($selectedRun)
+                : null,
             'payslips' => PayrollIndexWorkbenchData::payslips($selectedRun),
             'payItems' => PayrollIndexWorkbenchData::payItems($companyId),
             'employerProfiles' => PayrollIndexWorkbenchData::employerProfiles($companyId),

@@ -116,6 +116,12 @@
                                         <x-ui.badge :variant="$this->statusVariant($selectedRun->status)">{{ __(ucfirst($selectedRun->status)) }}</x-ui.badge>
                                     </div>
 
+                                    @if ($selectedRunCountryPackGap)
+                                        <x-ui.alert variant="warning">
+                                            {{ __('No :country payroll country pack is installed, so statutory deductions are omitted. Install the country pack before approving, closing, or exporting this run.', ['country' => $selectedRunCountryPackGap]) }}
+                                        </x-ui.alert>
+                                    @endif
+
                                     <dl class="grid grid-cols-2 gap-3 text-xs">
                                         <div><dt class="text-muted">{{ __('Calendar') }}</dt><dd class="text-ink">{{ $selectedRun->calendar?->name ?? '-' }}</dd></div>
                                         <div><dt class="text-muted">{{ __('Pay date') }}</dt><dd class="text-ink tabular-nums">{{ $selectedRun->period?->pay_date?->toDateString() ?? '-' }}</dd></div>
