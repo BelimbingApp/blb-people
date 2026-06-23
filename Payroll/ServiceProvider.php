@@ -18,6 +18,7 @@ use App\Modules\People\Payroll\Listeners\RecordLeaveContribution;
 use App\Modules\People\Payroll\Listeners\RecordLeaveEncashmentContribution;
 use App\Modules\People\Payroll\Listeners\ReverseClaimReimbursement;
 use App\Modules\People\Payroll\Listeners\StorePayrollPdfArtifact;
+use App\Modules\People\Payroll\Services\PayrollCountryPackDiscoveryService;
 use App\Modules\People\Payroll\Services\PayrollCountryPackRegistry;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
@@ -27,16 +28,15 @@ class ServiceProvider extends BaseServiceProvider
     public function register(): void
     {
         $this->app->singleton(PayrollCountryPackRegistry::class);
+        $this->app->singleton(PayrollCountryPackDiscoveryService::class);
         $this->app->singleton(MalaysiaPayrollCountryPack::class);
     }
 
-    public function boot(): void
+    public function boot(PayrollCountryPackDiscoveryService $countryPacks): void
     {
         $this->loadViewsFrom(__DIR__.'/Views', 'people-payroll');
 
-        $this->app
-            ->make(PayrollCountryPackRegistry::class)
-            ->register($this->app->make(MalaysiaPayrollCountryPack::class));
+        $countryPacks->discoverInto($this->app->make(PayrollCountryPackRegistry::class));
 
         Event::listen(PdfArtifactRendered::class, StorePayrollPdfArtifact::class);
         Event::listen(AttendanceOvertimeApproved::class, RecordAttendanceOvertimeContribution::class);

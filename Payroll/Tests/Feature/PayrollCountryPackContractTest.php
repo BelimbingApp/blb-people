@@ -168,6 +168,19 @@ test('payroll country pack registry is a singleton service for extension registr
     expect($first)->toBe($second);
 });
 
+test('resolves distinct country packs per country in one deployment', function (): void {
+    // The adapter model's core promise: one deployment can serve companies in
+    // different countries at once (which a one-variant-per-deployment slot
+    // cannot). Each country resolves its own pack independently.
+    $registry = new PayrollCountryPackRegistry;
+    $registry->register(createPayrollContractTestPack(countryIso: 'MY', packIdentifier: 'belimbing/payroll-my'));
+    $registry->register(createPayrollContractTestPack(countryIso: 'SG', packIdentifier: 'belimbing/payroll-sg'));
+
+    expect($registry->countries())->toHaveCount(2)->toContain('MY')->toContain('SG')
+        ->and($registry->forCountry('MY')->manifest()->packIdentifier)->toBe('belimbing/payroll-my')
+        ->and($registry->forCountry('SG')->manifest()->packIdentifier)->toBe('belimbing/payroll-sg');
+});
+
 test('malaysia payroll country pack is registered with profile schemas and planned exports', function (): void {
     $pack = app(PayrollCountryPackRegistry::class)->forCountry('my');
     $manifest = $pack->manifest();
