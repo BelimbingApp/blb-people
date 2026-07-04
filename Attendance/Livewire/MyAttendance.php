@@ -17,6 +17,7 @@ use DateTimeImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
+use Throwable;
 
 class MyAttendance extends Component
 {
@@ -36,6 +37,14 @@ class MyAttendance extends Component
     public string $overtimeEndsAt = '';
 
     public string $overtimeRequestedHours = '1.00';
+
+    /**
+     * Tracks whether the user has manually edited Requested Hours. While
+     * false, changes to start/end time auto-fill the field from the derived
+     * duration (rounded to the input's 0.25h step). Once the user edits it,
+     * we stop overriding their intent.
+     */
+    public bool $overtimeRequestedHoursTouched = false;
 
     public string $overtimeReason = '';
 
@@ -61,6 +70,63 @@ class MyAttendance extends Component
     public function updatedSearch(): void
     {
         $this->search = trim($this->search);
+    }
+
+    public function updatedOvertimeStartsAt(): void
+    {
+        $this->recomputeRequestedHours();
+    }
+
+    public function updatedOvertimeEndsAt(): void
+    {
+        $this->recomputeRequestedHours();
+    }
+
+    public function updatedOvertimeDate(): void
+    {
+        $this->recomputeRequestedHours();
+    }
+
+    public function updatedOvertimeRequestedHours(): void
+    {
+        $this->overtimeRequestedHoursTouched = true;
+    }
+
+    /**
+     * Auto-fill Requested Hours from the start/end duration while the user
+     * has not manually edited it. Mirrors the midnight-rollover rule used at
+     * submission so the previewed value matches what will be persisted, and
+     * rounds to the 0.25h step declared on the input.
+     */
+    private function recomputeRequestedHours(): void
+    {
+        if ($this->overtimeRequestedHoursTouched) {
+            return;
+        }
+
+        if ($this->overtimeDate === '' || $this->overtimeStartsAt === '' || $this->overtimeEndsAt === '') {
+            return;
+        }
+
+        try {
+            $startsAt = new DateTimeImmutable($this->overtimeDate.' '.$this->overtimeStartsAt);
+            $endsAt = new DateTimeImmutable($this->overtimeDate.' '.$this->overtimeEndsAt);
+        } catch (Throwable) {
+            return;
+        }
+
+        if ($endsAt <= $startsAt) {
+            $endsAt = $endsAt->modify('+1 day');
+        }
+
+        $minutes = (int) round(($endsAt->getTimestamp() - $startsAt->getTimestamp()) / 60);
+        if ($minutes <= 0) {
+            return;
+        }
+
+        // Round to the nearest quarter-hour to honor the input's step=0.25.
+        $hours = round($minutes / 60 * 4) / 4;
+        $this->overtimeRequestedHours = number_format($hours, 2, '.', '');
     }
 
     public function clock(string $eventType): void
@@ -104,6 +170,8 @@ class MyAttendance extends Component
         }
 
         $this->resetValidation();
+        $this->overtimeRequestedHoursTouched = false;
+        $this->recomputeRequestedHours();
         $this->showOvertimeModal = true;
     }
 

@@ -850,6 +850,68 @@ it('lets linked employees submit overtime from the attendance workbench', functi
         ->exists())->toBeTrue();
 });
 
+it('auto-fills Requested Hours from the start–end duration and stops once the user edits it', function (): void {
+    $user = createAdminUser();
+    $company = Company::query()->findOrFail($user->company_id);
+    $employee = Employee::factory()->active()->create(['company_id' => $company->id]);
+    $user->forceFill(['employee_id' => $employee->id])->save();
+
+    $this->actingAs($user);
+
+    $component = Livewire::test(MyAttendance::class)
+        ->call('openOvertimeModal')
+        ->set('overtimeDate', ATTENDANCE_TEST_DATE)
+        ->set('overtimeStartsAt', '17:00')
+        ->set('overtimeEndsAt', '19:00');
+
+    // 17:00–19:00 = 2h, auto-filled while untouched.
+    $component->assertSet('overtimeRequestedHours', '2.00')
+        ->assertSet('overtimeRequestedHoursTouched', false);
+
+    // Changing the end time keeps re-deriving while untouched.
+    $component->set('overtimeEndsAt', '19:30')
+        ->assertSet('overtimeRequestedHours', '2.50')
+        ->assertSet('overtimeRequestedHoursTouched', false);
+
+    // A manual edit locks the field: later start/end changes leave it alone.
+    $component->set('overtimeRequestedHours', '1.50')
+        ->assertSet('overtimeRequestedHoursTouched', true)
+        ->set('overtimeEndsAt', '21:00')
+        ->assertSet('overtimeRequestedHours', '1.50');
+});
+
+it('rounds the auto-filled Requested Hours to the quarter-hour step', function (): void {
+    $user = createAdminUser();
+    $company = Company::query()->findOrFail($user->company_id);
+    $employee = Employee::factory()->active()->create(['company_id' => $company->id]);
+    $user->forceFill(['employee_id' => $employee->id])->save();
+
+    $this->actingAs($user);
+
+    Livewire::test(MyAttendance::class)
+        ->call('openOvertimeModal')
+        ->set('overtimeDate', ATTENDANCE_TEST_DATE)
+        ->set('overtimeStartsAt', '17:00')
+        ->set('overtimeEndsAt', '18:10') // 70 min -> rounds to nearest 0.25h = 1.25
+        ->assertSet('overtimeRequestedHours', '1.25');
+});
+
+it('auto-fills across the midnight boundary when end precedes start', function (): void {
+    $user = createAdminUser();
+    $company = Company::query()->findOrFail($user->company_id);
+    $employee = Employee::factory()->active()->create(['company_id' => $company->id]);
+    $user->forceFill(['employee_id' => $employee->id])->save();
+
+    $this->actingAs($user);
+
+    Livewire::test(MyAttendance::class)
+        ->call('openOvertimeModal')
+        ->set('overtimeDate', ATTENDANCE_TEST_DATE)
+        ->set('overtimeStartsAt', '22:00')
+        ->set('overtimeEndsAt', '01:00') // ends <= start -> rolls to next day, 3h
+        ->assertSet('overtimeRequestedHours', '3.00');
+});
+
 it('lets linked employees submit adjustment requests from the attendance workbench', function (): void {
     $user = createAdminUser();
     $company = Company::query()->findOrFail($user->company_id);

@@ -99,11 +99,11 @@ use App\Modules\People\Attendance\Livewire\MyAttendance;
                     <p class="mt-1 text-sm text-muted">{{ __('Submitted overtime stays out of payroll until an approver approves and queues it.') }}</p>
                 </div>
                 <div class="grid gap-4 md:grid-cols-3">
-                    <x-ui.input id="attendance-ot-date" type="date" wire:model="overtimeDate" label="{{ __('Date') }}" required :error="$errors->first('overtimeDate')" />
-                    <x-ui.input id="attendance-ot-start" type="time" wire:model="overtimeStartsAt" label="{{ __('Start') }}" required :error="$errors->first('overtimeStartsAt')" />
-                    <x-ui.input id="attendance-ot-end" type="time" wire:model="overtimeEndsAt" label="{{ __('End') }}" required :error="$errors->first('overtimeEndsAt')" />
+                    <x-ui.input id="attendance-ot-date" type="date" wire:model.live.debounce.300ms="overtimeDate" label="{{ __('Date') }}" required :error="$errors->first('overtimeDate')" />
+                    <x-ui.input id="attendance-ot-start" type="time" wire:model.live.debounce.300ms="overtimeStartsAt" label="{{ __('Start') }}" required :error="$errors->first('overtimeStartsAt')" />
+                    <x-ui.input id="attendance-ot-end" type="time" wire:model.live.debounce.300ms="overtimeEndsAt" label="{{ __('End') }}" required :error="$errors->first('overtimeEndsAt')" />
                 </div>
-                <x-ui.input id="attendance-ot-hours" type="number" step="0.25" min="0.25" max="24" wire:model="overtimeRequestedHours" label="{{ __('Requested Hours') }}" required :error="$errors->first('overtimeRequestedHours')" />
+                <x-ui.input id="attendance-ot-hours" type="number" step="0.25" min="0.25" max="24" wire:model.live.debounce.300ms="overtimeRequestedHours" label="{{ __('Requested Hours') }}" required :error="$errors->first('overtimeRequestedHours')" :help="__('Auto-filled from the start–end duration. Adjust if you took an unpaid break.')" />
                 <x-ui.textarea id="attendance-ot-reason" wire:model="overtimeReason" label="{{ __('Reason') }}" rows="3" :error="$errors->first('overtimeReason')" />
                 <div class="flex justify-end gap-2">
                     <x-ui.button type="button" variant="secondary" wire:click="$set('showOvertimeModal', false)">{{ __('Cancel') }}</x-ui.button>
