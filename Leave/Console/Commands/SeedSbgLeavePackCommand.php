@@ -11,6 +11,7 @@ use App\Modules\People\Leave\Models\LeaveRequestPolicy;
 use App\Modules\People\Leave\Models\LeaveType;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
@@ -127,8 +128,8 @@ class SeedSbgLeavePackCommand extends Command
                 ],
             );
 
-            if ($interactsWithPayroll && \Illuminate\Support\Facades\Schema::hasTable('people_payroll_leave_type_pay_items')) {
-                \Illuminate\Support\Facades\DB::table('people_payroll_leave_type_pay_items')->updateOrInsert(
+            if ($interactsWithPayroll && Schema::hasTable('people_payroll_leave_type_pay_items')) {
+                DB::table('people_payroll_leave_type_pay_items')->updateOrInsert(
                     ['leave_type_id' => $out[$statutoryCode]->id, 'effective_from' => '2026-01-01'],
                     [
                         'company_id' => $companyId,

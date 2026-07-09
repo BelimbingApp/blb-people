@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Modules\People\Payroll\Models;
 
 use Illuminate\Database\Eloquent\Model;

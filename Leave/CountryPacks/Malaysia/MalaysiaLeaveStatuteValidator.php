@@ -4,7 +4,9 @@ namespace App\Modules\People\Leave\CountryPacks\Malaysia;
 
 use App\Modules\People\Leave\Contracts\ValidatesLeaveAgainstStatute;
 use App\Modules\People\Leave\Data\LeaveValidationIssue;
+use App\Modules\People\Leave\Data\StatutoryEntitlementPolicy;
 use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
+use App\Modules\People\Leave\Models\LeaveEntitlementPolicyBand;
 use App\Modules\People\Leave\Models\LeaveType;
 
 class MalaysiaLeaveStatuteValidator implements ValidatesLeaveAgainstStatute
@@ -50,6 +52,7 @@ class MalaysiaLeaveStatuteValidator implements ValidatesLeaveAgainstStatute
                         'statutory_floor_days' => $statutoryBand->entitlementDays,
                     ],
                 );
+
                 continue;
             }
 
@@ -77,7 +80,7 @@ class MalaysiaLeaveStatuteValidator implements ValidatesLeaveAgainstStatute
         return $issues;
     }
 
-    private function floorForLeaveTypeCode(string $code): ?\App\Modules\People\Leave\Data\StatutoryEntitlementPolicy
+    private function floorForLeaveTypeCode(string $code): ?StatutoryEntitlementPolicy
     {
         foreach ($this->statutoryPolicies->statutoryEntitlementPolicies() as $policy) {
             if ($policy->leaveTypeCode === $code) {
@@ -88,7 +91,7 @@ class MalaysiaLeaveStatuteValidator implements ValidatesLeaveAgainstStatute
         return null;
     }
 
-    /** @param iterable<\App\Modules\People\Leave\Models\LeaveEntitlementPolicyBand> $configuredBands */
+    /** @param iterable<LeaveEntitlementPolicyBand> $configuredBands */
     private function configuredEntitlementAt(iterable $configuredBands, float $yearsOfService): ?float
     {
         $match = null;

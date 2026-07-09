@@ -8,13 +8,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class LeaveRequestDay extends Model
 {
     public const PORTION_FULL = 'full';
+
     public const PORTION_AM = 'am';
+
     public const PORTION_PM = 'pm';
+
     public const PORTION_HOURS = 'hours';
 
     public const DAYTYPE_WORKING = 'working';
+
     public const DAYTYPE_HOLIDAY = 'holiday';
+
     public const DAYTYPE_OFF_DAY = 'off_day';
+
     public const DAYTYPE_REST_DAY = 'rest_day';
 
     protected $table = 'people_leave_request_days';

@@ -27,8 +27,7 @@ class AttendanceAdjustmentService
 {
     public function __construct(
         private readonly ClockEventIngestionService $ingestion,
-    ) {
-    }
+    ) {}
 
     public function submit(AttendanceAdjustmentRequest $request, int $actorUserId): AttendanceAdjustmentRequest
     {

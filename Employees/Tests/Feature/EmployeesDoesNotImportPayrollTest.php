@@ -24,7 +24,7 @@ function employeesBoundaryScanImports(): array
         return $violations;
     }
 
-    $finder = (new Finder())->files()->in(EMPLOYEES_BOUNDARY_MODULE_PATH)->name('*.php');
+    $finder = (new Finder)->files()->in(EMPLOYEES_BOUNDARY_MODULE_PATH)->name('*.php');
     foreach ($finder as $file) {
         $contents = file_get_contents($file->getRealPath());
         if ($contents === false) {

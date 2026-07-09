@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Modules\People\Payroll\Models;
 
 use App\Modules\Core\Employee\Models\Employee;
@@ -8,13 +9,21 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PayrollResultLine extends Model
 {
     public const TYPE_EARNING = 'earning';
+
     public const TYPE_EMPLOYEE_DEDUCTION = 'employee_deduction';
+
     public const TYPE_EMPLOYEE_CONTRIBUTION = 'employee_contribution';
+
     public const TYPE_EMPLOYER_CONTRIBUTION = 'employer_contribution';
+
     public const TYPE_EMPLOYER_LEVY = 'employer_levy';
+
     public const TYPE_TAX = 'tax';
+
     public const TYPE_REIMBURSEMENT = 'reimbursement';
+
     public const TYPE_NET_PAY = 'net_pay';
+
     public const TYPE_INFORMATIONAL = 'informational';
 
     protected $table = 'people_payroll_result_lines';

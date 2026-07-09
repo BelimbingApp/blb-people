@@ -9,11 +9,17 @@ use App\Modules\People\Leave\Models\LeaveType;
 class MalaysiaStatutoryLeaveTypes implements ProvidesStatutoryLeaveTypes
 {
     public const CODE_ANNUAL = 'annual_leave';
+
     public const CODE_SICK = 'sick_leave';
+
     public const CODE_HOSPITALIZATION = 'hospitalization_leave';
+
     public const CODE_MATERNITY = 'maternity_leave';
+
     public const CODE_PATERNITY = 'paternity_leave';
+
     public const CODE_UNPAID = 'unpaid_leave';
+
     public const CODE_UNAUTHORIZED_ABSENCE = 'unauthorized_absence';
 
     public function statutoryLeaveTypes(): array

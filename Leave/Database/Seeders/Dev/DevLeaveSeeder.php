@@ -17,6 +17,9 @@ use App\Modules\People\Leave\Models\LeaveRequestPolicy;
 use App\Modules\People\Leave\Models\LeaveType;
 use App\Modules\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
 use DateTimeImmutable;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class DevLeaveSeeder extends DevSeeder
 {
@@ -89,8 +92,8 @@ class DevLeaveSeeder extends DevSeeder
                 ],
             );
 
-            if (isset($def['payroll_pay_item_code']) && \Illuminate\Support\Facades\Schema::hasTable('people_payroll_leave_type_pay_items')) {
-                \Illuminate\Support\Facades\DB::table('people_payroll_leave_type_pay_items')->updateOrInsert(
+            if (isset($def['payroll_pay_item_code']) && Schema::hasTable('people_payroll_leave_type_pay_items')) {
+                DB::table('people_payroll_leave_type_pay_items')->updateOrInsert(
                     ['leave_type_id' => $type->id, 'effective_from' => '2026-01-01'],
                     [
                         'company_id' => $company->id,
@@ -267,7 +270,7 @@ class DevLeaveSeeder extends DevSeeder
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Collection<int, Employee>  $employees
+     * @param  Collection<int, Employee>  $employees
      * @param  array<string, LeaveType>  $types
      */
     private function seedOpeningBalances(Company $company, $employees, array $types): void
@@ -316,7 +319,7 @@ class DevLeaveSeeder extends DevSeeder
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Collection<int, Employee>  $employees
+     * @param  Collection<int, Employee>  $employees
      * @param  array<string, LeaveType>  $types
      * @param  array<string, LeaveAssignment>  $assignments
      */

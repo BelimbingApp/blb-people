@@ -2,8 +2,8 @@
 
 namespace App\Modules\People\Payroll\Models;
 
-use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
 use App\Modules\Core\Company\Models\Company;
+use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 

@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Modules\People\Payroll\Models;
 
 use App\Modules\Core\Employee\Models\Employee;
@@ -8,7 +9,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PayrollInput extends Model
 {
     public const TYPE_EARNING = 'earning';
+
     public const TYPE_DEDUCTION = 'deduction';
+
     public const TYPE_REIMBURSEMENT = 'reimbursement';
 
     protected $table = 'people_payroll_inputs';

@@ -6,6 +6,7 @@ use App\Modules\Core\Employee\Models\Employee;
 use App\Modules\People\Leave\Models\LeaveAssignment;
 use App\Modules\People\Leave\Services\CarryForwardService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
@@ -96,7 +97,7 @@ class CarryForwardCommand extends Command
         return self::SUCCESS;
     }
 
-    /** @return \Illuminate\Support\Collection<int, Employee> */
+    /** @return Collection<int, Employee> */
     private function employeesForAssignment(LeaveAssignment $assignment)
     {
         return Employee::query()->where('company_id', $assignment->company_id)->get();

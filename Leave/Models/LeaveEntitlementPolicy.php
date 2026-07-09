@@ -9,15 +9,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class LeaveEntitlementPolicy extends Model
 {
     public const ACCRUAL_ANNUAL_LUMP_NO_PRORATE = 'annual_lump_no_prorate';
+
     public const ACCRUAL_MONTHLY = 'monthly_accrual';
+
     public const ACCRUAL_EARNED_UNTIL_MONTH_N = 'earned_until_month_n';
+
     public const ACCRUAL_ANNIVERSARY = 'anniversary';
 
     public const ROUNDING_NONE = 'none';
+
     public const ROUNDING_NEAREST_DAY = 'nearest_1_day';
+
     public const ROUNDING_NEAREST_HALF_DAY = 'nearest_half_day';
 
     public const ANCHOR_YEAR_START = 'year_start';
+
     public const ANCHOR_ANNIVERSARY = 'anniversary';
 
     protected $table = 'people_leave_entitlement_policies';

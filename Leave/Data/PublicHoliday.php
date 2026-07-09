@@ -7,6 +7,7 @@ use DateTimeImmutable;
 class PublicHoliday
 {
     public const SCOPE_FEDERAL = 'federal';
+
     public const SCOPE_STATE = 'state';
 
     /**

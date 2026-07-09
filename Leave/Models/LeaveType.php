@@ -8,15 +8,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class LeaveType extends Model
 {
     public const UNIT_DAY = 'day';
+
     public const UNIT_HALF_DAY = 'half_day';
+
     public const UNIT_HOUR = 'hour';
 
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_ARCHIVED = 'archived';
 
     public const PAYROLL_CODE_UNPAID_LEAVE = 'unpaid_leave';
+
     public const PAYROLL_CODE_UNAUTHORIZED_ABSENCE = 'unauthorized_absence';
+
     public const PAYROLL_CODE_LEAVE_ENCASHMENT = 'leave_encashment';
+
     public const PAYROLL_CODE_REPLACEMENT_LEAVE_PAYOUT = 'replacement_leave_payout';
 
     protected $table = 'people_leave_types';

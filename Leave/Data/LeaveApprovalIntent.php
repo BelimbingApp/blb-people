@@ -2,13 +2,15 @@
 
 namespace App\Modules\People\Leave\Data;
 
+use App\Modules\People\Leave\Contracts\RoutesLeaveApprovals;
+
 class LeaveApprovalIntent
 {
     /**
      * Describes how a leave request should be routed for approval.
      *
      * Leave Core does not own approval execution — this intent is handed to
-     * a {@see \App\Modules\People\Leave\Contracts\RoutesLeaveApprovals}
+     * a {@see RoutesLeaveApprovals}
      * implementation (today: NullLeaveApprovalRouter; later: the Workflow module).
      *
      * @param  list<int|string>  $approverChain  Optional explicit chain (supervisor IDs / role keys).

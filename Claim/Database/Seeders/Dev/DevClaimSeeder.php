@@ -18,6 +18,8 @@ use App\Modules\People\Claim\Models\ClaimRequestAuditEvent;
 use App\Modules\People\Claim\Models\ClaimType;
 use App\Modules\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class DevClaimSeeder extends DevSeeder
 {
@@ -137,8 +139,8 @@ class DevClaimSeeder extends DevSeeder
                 ],
             );
 
-            if (\Illuminate\Support\Facades\Schema::hasTable('people_payroll_claim_type_pay_items')) {
-                \Illuminate\Support\Facades\DB::table('people_payroll_claim_type_pay_items')->updateOrInsert(
+            if (Schema::hasTable('people_payroll_claim_type_pay_items')) {
+                DB::table('people_payroll_claim_type_pay_items')->updateOrInsert(
                     ['claim_type_id' => $out[$def['code']]->id, 'effective_from' => '2026-01-01'],
                     [
                         'company_id' => $company->id,
@@ -520,11 +522,11 @@ class DevClaimSeeder extends DevSeeder
 
     private function mappedPayItemCode(ClaimType $type): ?string
     {
-        if (! \Illuminate\Support\Facades\Schema::hasTable('people_payroll_claim_type_pay_items')) {
+        if (! Schema::hasTable('people_payroll_claim_type_pay_items')) {
             return null;
         }
 
-        return \Illuminate\Support\Facades\DB::table('people_payroll_claim_type_pay_items')
+        return DB::table('people_payroll_claim_type_pay_items')
             ->where('claim_type_id', $type->id)
             ->orderByDesc('effective_from')
             ->value('payroll_pay_item_code');

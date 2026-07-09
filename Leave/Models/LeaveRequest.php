@@ -20,15 +20,23 @@ class LeaveRequest extends Model
     }
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_SUBMITTED = 'submitted';
+
     public const STATUS_APPROVED = 'approved';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_APPLIED = 'applied';
+
     public const STATUS_WITHDRAWN = 'withdrawn';
 
     public const UNIT_DAY = 'day';
+
     public const UNIT_HALF_DAY = 'half_day';
+
     public const UNIT_HOUR = 'hour';
 
     protected $table = 'people_leave_requests';

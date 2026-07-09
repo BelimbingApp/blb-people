@@ -3,8 +3,8 @@
 namespace App\Modules\People\Leave\Services;
 
 use App\Modules\Core\Employee\Models\Employee;
+use App\Modules\People\Leave\Data\PublicHoliday;
 use App\Modules\People\Leave\Data\WorkCalendarDay;
-use App\Modules\People\Leave\Services\LeaveCountryPackRegistry;
 use App\Modules\People\Settings\Models\EmployeeWorkProfile;
 use App\Modules\People\Settings\Models\PeopleCalendarException;
 use DateTimeImmutable;
@@ -100,7 +100,7 @@ class WorkCalendarResolver
         return $byDate;
     }
 
-    /** @return array<string, \App\Modules\People\Leave\Data\PublicHoliday> */
+    /** @return array<string, PublicHoliday> */
     private function loadHolidays(?string $countryIso, ?string $stateCode, DateTimeImmutable $from, DateTimeImmutable $to): array
     {
         if ($countryIso === null || ! $this->packRegistry->hasCountry($countryIso)) {

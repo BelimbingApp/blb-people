@@ -108,7 +108,7 @@ class AttendanceDayProjectionService
 
     /**
      * @param  Collection<int, AttendanceClockEvent>  $events
-     * @return array{0: int, 1: int, 2: int}  [worked minutes after break deduction, unpaid break minutes, total break minutes]
+     * @return array{0: int, 1: int, 2: int} [worked minutes after break deduction, unpaid break minutes, total break minutes]
      */
     private function workSpanMinutes(?AttendanceShiftTemplate $shift, Collection $events): array
     {

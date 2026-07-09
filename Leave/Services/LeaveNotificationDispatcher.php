@@ -8,13 +8,21 @@ use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
 class LeaveNotificationDispatcher
 {
     public const EVENT_SUBMITTED = 'leave.request.submitted';
+
     public const EVENT_APPROVED = 'leave.request.approved';
+
     public const EVENT_REJECTED = 'leave.request.rejected';
+
     public const EVENT_CANCELLED = 'leave.request.cancelled';
+
     public const EVENT_APPLIED = 'leave.request.applied';
+
     public const EVENT_WITHDRAWN = 'leave.request.withdrawn';
+
     public const EVENT_LOW_BALANCE = 'leave.balance.low';
+
     public const EVENT_EXPIRY_APPROACHING = 'leave.balance.expiry_approaching';
+
     public const EVENT_YEAR_PLANNER_PUBLISHED = 'leave.year_planner.published';
 
     /**

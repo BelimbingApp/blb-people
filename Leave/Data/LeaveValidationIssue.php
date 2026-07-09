@@ -5,6 +5,7 @@ namespace App\Modules\People\Leave\Data;
 class LeaveValidationIssue
 {
     public const SEVERITY_BLOCKING = 'blocking';
+
     public const SEVERITY_WARNING = 'warning';
 
     /** @param array<string, mixed> $explanation */

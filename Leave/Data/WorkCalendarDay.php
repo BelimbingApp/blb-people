@@ -7,8 +7,11 @@ use DateTimeImmutable;
 class WorkCalendarDay
 {
     public const DAYTYPE_WORKING = 'working';
+
     public const DAYTYPE_HOLIDAY = 'holiday';
+
     public const DAYTYPE_OFF_DAY = 'off_day';
+
     public const DAYTYPE_REST_DAY = 'rest_day';
 
     public function __construct(

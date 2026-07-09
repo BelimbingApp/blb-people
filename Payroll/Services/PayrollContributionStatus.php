@@ -99,8 +99,7 @@ class PayrollContributionStatus
 
         return match ($run->status) {
             PayrollRun::STATUS_DRAFT => PayrollContributionState::QUEUED_IN_RUN,
-            PayrollRun::STATUS_CALCULATED, PayrollRun::STATUS_REVIEWED, PayrollRun::STATUS_APPROVED
-                => PayrollContributionState::CALCULATED,
+            PayrollRun::STATUS_CALCULATED, PayrollRun::STATUS_REVIEWED, PayrollRun::STATUS_APPROVED => PayrollContributionState::CALCULATED,
             PayrollRun::STATUS_CLOSED => PayrollContributionState::CLOSED,
             PayrollRun::STATUS_VOIDED => PayrollContributionState::VOIDED,
             default => $pendingState,

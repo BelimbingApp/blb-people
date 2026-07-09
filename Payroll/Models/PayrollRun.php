@@ -4,6 +4,7 @@ namespace App\Modules\People\Payroll\Models;
 
 use App\Modules\Core\Company\Models\Company;
 use App\Modules\People\Payroll\Exceptions\ClosedPayrollRunException;
+use App\Modules\People\Payroll\Services\PayrollContributionIntake;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -29,7 +30,7 @@ class PayrollRun extends Model
         static::created(function (PayrollRun $run): void {
             // Materialise any pending payroll contributions whose period_anchor
             // falls inside the new run's period. See docs/architecture/payroll-intake.md.
-            app(\App\Modules\People\Payroll\Services\PayrollContributionIntake::class)
+            app(PayrollContributionIntake::class)
                 ->materializePendingForRun($run);
         });
     }

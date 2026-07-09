@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Modules\People\Payroll\Services;
 
 use App\Modules\Core\Company\Models\Company;

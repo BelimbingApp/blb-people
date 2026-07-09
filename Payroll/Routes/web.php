@@ -1,4 +1,5 @@
 <?php
+
 use App\Modules\People\Payroll\Livewire\AttendanceAllowanceMapping;
 use App\Modules\People\Payroll\Livewire\ClaimTypePayItemMapping;
 use App\Modules\People\Payroll\Livewire\Index;
