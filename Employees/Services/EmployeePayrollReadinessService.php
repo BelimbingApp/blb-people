@@ -4,6 +4,7 @@ namespace App\Modules\People\Employees\Services;
 
 use App\Modules\Core\Employee\Models\Employee;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use stdClass;
@@ -41,6 +42,73 @@ class EmployeePayrollReadinessService
     private const STATUTORY_PROFILE_EMPLOYEE_ID_COLUMN = self::STATUTORY_PROFILE_TABLE.'.employee_id';
 
     private const STATUTORY_PROFILE_VALIDATION_MESSAGES_COLUMN = self::STATUTORY_PROFILE_TABLE.'.validation_messages';
+
+    /** @var array<int, ?stdClass> memoized latest statutory profile per employee */
+    private array $statutoryProfiles = [];
+
+    /**
+     * Instance-scoped (the service lives for one render): tests and installs
+     * legitimately change table existence between requests.
+     *
+     * @var array<string, bool>
+     */
+    private array $tableExists = [];
+
+    /**
+     * Batch-load everything summarize() needs before iterating a page of
+     * employees: relations in one loadMissing and the latest statutory
+     * profile per employee in one query, instead of three schema probes and
+     * a profile lookup per row (the perf log clocked the workbench at ~30
+     * per-row queries per page before priming).
+     *
+     * @param  Collection<int, Employee>  $employees
+     */
+    public function primeFor(Collection $employees): void
+    {
+        if ($employees->isEmpty()) {
+            return;
+        }
+
+        $relations = [];
+
+        if ($this->workProfileTableExists()) {
+            $relations[] = 'workProfile';
+        }
+
+        if ($this->portalAccessTableExists()) {
+            $relations[] = 'portalAccess.user';
+        }
+
+        if ($relations !== []) {
+            $employees->loadMissing($relations);
+        }
+
+        if (! $this->statutoryProfileTableExists()) {
+            return;
+        }
+
+        $ids = $employees->pluck('id')
+            ->reject(fn (int $id): bool => array_key_exists($id, $this->statutoryProfiles))
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        // Profiles per employee are few (one per statutory change), so load
+        // and keep the newest by the same ordering the single lookup uses.
+        $latest = DB::table(self::STATUTORY_PROFILE_TABLE)
+            ->whereIn('employee_id', $ids)
+            ->orderByDesc('effective_from')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('employee_id')
+            ->keyBy('employee_id');
+
+        foreach ($ids as $id) {
+            $this->statutoryProfiles[$id] = $latest->get($id);
+        }
+    }
 
     /**
      * @return array<string, string>
@@ -256,36 +324,34 @@ class EmployeePayrollReadinessService
 
     private function latestStatutoryProfile(Employee $employee): ?stdClass
     {
+        if (array_key_exists($employee->id, $this->statutoryProfiles)) {
+            return $this->statutoryProfiles[$employee->id];
+        }
+
         if (! $this->statutoryProfileTableExists()) {
             return null;
         }
 
-        $row = DB::table(self::STATUTORY_PROFILE_TABLE)
+        return $this->statutoryProfiles[$employee->id] = DB::table(self::STATUTORY_PROFILE_TABLE)
             ->where('employee_id', $employee->id)
             ->orderByDesc('effective_from')
             ->orderByDesc('id')
             ->first();
-
-        if ($row === null) {
-            return null;
-        }
-
-        return $row;
     }
 
     private function statutoryProfileTableExists(): bool
     {
-        return Schema::hasTable(self::STATUTORY_PROFILE_TABLE);
+        return $this->tableExists[self::STATUTORY_PROFILE_TABLE] ??= Schema::hasTable(self::STATUTORY_PROFILE_TABLE);
     }
 
     private function workProfileTableExists(): bool
     {
-        return Schema::hasTable(self::WORK_PROFILE_TABLE);
+        return $this->tableExists[self::WORK_PROFILE_TABLE] ??= Schema::hasTable(self::WORK_PROFILE_TABLE);
     }
 
     private function portalAccessTableExists(): bool
     {
-        return Schema::hasTable(self::PORTAL_ACCESS_TABLE);
+        return $this->tableExists[self::PORTAL_ACCESS_TABLE] ??= Schema::hasTable(self::PORTAL_ACCESS_TABLE);
     }
 
     /**

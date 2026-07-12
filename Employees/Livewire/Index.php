@@ -227,6 +227,10 @@ class Index extends Component
             ->orderBy('employees.id')
             ->paginate(15);
 
+        // One relation load and one statutory-profile query for the page,
+        // instead of schema probes and lookups per row.
+        $readiness->primeFor($employees->getCollection());
+
         $employees->getCollection()->transform(function ($employee) use ($readiness) {
             $employee->setAttribute('payroll_readiness', $readiness->summarize($employee));
 
