@@ -9,26 +9,23 @@
         <x-ui.page-header :title="$surfaceTitle" :subtitle="$surfaceSubtitle">
             @if ($surface === 'operations')
                 <x-slot name="actions">
-                    <x-ui.button as="a" :href="$operationsExportUrl" variant="secondary">
-                        <x-icon name="heroicon-o-arrow-down-tray" class="h-4 w-4" />
-                        {{ __('Export CSV') }}
-                    </x-ui.button>
-                    <x-ui.button as="a" :href="$accountingExportUrl" variant="secondary">
-                        <x-icon name="heroicon-o-banknotes" class="h-4 w-4" />
-                        {{ __('Accounting CSV') }}
-                    </x-ui.button>
-                    <x-ui.button as="a" :href="$reimbursementStatementUrl" variant="secondary">
-                        <x-icon name="heroicon-o-document-text" class="h-4 w-4" />
-                        {{ __('Reimbursement Statement') }}
-                    </x-ui.button>
-                    <x-ui.button as="a" :href="$utilizationReportUrl" variant="secondary">
-                        <x-icon name="heroicon-o-chart-bar" class="h-4 w-4" />
-                        {{ __('Utilization Report') }}
-                    </x-ui.button>
-                    <x-ui.button as="a" :href="$approvalAgingUrl" variant="secondary">
-                        <x-icon name="heroicon-o-clock" class="h-4 w-4" />
-                        {{ __('Approval Aging') }}
-                    </x-ui.button>
+                    <x-ui.link-group>
+                        <x-ui.link kind="download" :href="$operationsExportUrl">
+                            {{ __('Export CSV') }}
+                        </x-ui.link>
+                        <x-ui.link kind="download" :href="$accountingExportUrl">
+                            {{ __('Accounting CSV') }}
+                        </x-ui.link>
+                        <x-ui.link kind="download" :href="$reimbursementStatementUrl">
+                            {{ __('Reimbursement Statement') }}
+                        </x-ui.link>
+                        <x-ui.link kind="download" :href="$utilizationReportUrl">
+                            {{ __('Utilization Report') }}
+                        </x-ui.link>
+                        <x-ui.link kind="download" :href="$approvalAgingUrl">
+                            {{ __('Approval Aging') }}
+                        </x-ui.link>
+                    </x-ui.link-group>
                 </x-slot>
             @endif
             <x-slot name="help">
