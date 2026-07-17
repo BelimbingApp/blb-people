@@ -15,7 +15,7 @@ use Illuminate\Contracts\View\View;
  */
 class PendingApprovals extends Widget
 {
-    public function render(DateTimeDisplayService $dates): View
+    protected function content(DateTimeDisplayService $dates): View
     {
         $pending = LeaveRequest::query()
             ->where('company_id', $this->companyId())
