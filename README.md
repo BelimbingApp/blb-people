@@ -9,4 +9,4 @@ git clone https://github.com/BelimbingApp/belimbing
 git clone https://github.com/BelimbingApp/blb-people belimbing/app/Modules/People
 ```
 
-Licensed under AGPL-3.0-only, same as the framework.
+Licensed under MIT, same as the framework.
