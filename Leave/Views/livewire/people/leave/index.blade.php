@@ -24,6 +24,7 @@
                 <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     @if ($surface !== 'settings')
                         <x-ui.tabs
+                            tabs-id="people-leave-tabs"
                             :tabs="$tabs"
                             :default="$tab"
                             size="sm"

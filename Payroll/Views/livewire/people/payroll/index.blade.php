@@ -19,6 +19,7 @@
         <x-ui.card>
             <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <x-ui.tabs
+                    tabs-id="people-payroll-tabs"
                     :tabs="$tabs"
                     :default="$tab"
                     size="sm"

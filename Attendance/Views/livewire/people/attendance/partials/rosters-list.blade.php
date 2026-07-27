@@ -26,7 +26,7 @@
         </x-ui.alert>
     @endif
 
-    <x-ui.tabs :tabs="$isMySchedule
+    <x-ui.tabs tabs-id="attendance-rosters-tabs" :tabs="$isMySchedule
         ? [['id' => 'calendar', 'label' => __('Calendar'), 'icon' => 'heroicon-o-calendar-days']]
         : [
             ['id' => 'calendar', 'label' => __('Calendar'), 'icon' => 'heroicon-o-calendar-days'],
