@@ -1,5 +1,6 @@
 <?php
 
+use App\Base\Database\Concerns\IncubatingSchema;
 use App\Modules\People\Payroll\Database\Support\PayrollPayItemMigrationSupport;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -14,6 +15,7 @@ use Illuminate\Database\Schema\Blueprint;
  */
 return new class extends Migration
 {
+    use IncubatingSchema;
     use PayrollPayItemMigrationSupport;
 
     public function up(): void
