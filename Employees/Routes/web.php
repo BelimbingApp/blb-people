@@ -1,8 +1,8 @@
 <?php
 
-use App\Modules\People\Employees\Http\Controllers\EmployeeWorkbenchExportController;
-use App\Modules\People\Employees\Livewire\Index;
-use App\Modules\People\Employees\Livewire\Show;
+use App\Domains\People\Employees\Http\Controllers\EmployeeWorkbenchExportController;
+use App\Domains\People\Employees\Livewire\Index;
+use App\Domains\People\Employees\Livewire\Show;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function () {

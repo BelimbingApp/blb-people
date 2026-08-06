@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Employees\Services;
+namespace App\Domains\People\Employees\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
+use App\Core\Employee\Models\Employee;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -12,12 +12,12 @@ use stdClass;
 /**
  * Computes an employee's readiness for payroll processing.
  *
- * Reads from the Payroll plugin's `people_payroll_employee_statutory_profiles`
- * table when Payroll is installed; degrades to "missing statutory profile"
- * for every employee when the plugin is absent. The boundary is kept by
+ * Reads from the Payroll module's `people_payroll_employee_statutory_profiles`
+ * table when Payroll is available; degrades to "missing statutory profile"
+ * for every employee when the module is absent. The boundary is kept by
  * accessing the table via the DB facade rather than importing the Payroll
  * Eloquent model — same pattern used by other source-side helpers that
- * need read-only access to plugin tables.
+ * need read-only access to another module's tables.
  */
 class EmployeePayrollReadinessService
 {
@@ -230,7 +230,7 @@ class EmployeePayrollReadinessService
                 ->where(self::BANK_ACCOUNT_NUMBER_METADATA_PATH, '!=', '');
 
             if (! $statutoryTableExists) {
-                // No payroll plugin installed → no employee is payroll-ready.
+                // No Payroll module available → no employee is payroll-ready.
                 $query->whereRaw(self::NO_ROWS_CONDITION);
 
                 return;

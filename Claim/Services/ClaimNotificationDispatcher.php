@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Claim\Services;
+namespace App\Domains\People\Claim\Services;
 
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Settings\Models\PeopleNotificationDeliveryLog;
 
 class ClaimNotificationDispatcher
 {

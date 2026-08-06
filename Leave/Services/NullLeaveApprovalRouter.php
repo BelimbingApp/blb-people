@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Leave\Services;
+namespace App\Domains\People\Leave\Services;
 
-use App\Modules\People\Leave\Contracts\RoutesLeaveApprovals;
-use App\Modules\People\Leave\Data\LeaveApprovalIntent;
-use App\Modules\People\Leave\Models\LeaveRequest;
+use App\Domains\People\Leave\Contracts\RoutesLeaveApprovals;
+use App\Domains\People\Leave\Data\LeaveApprovalIntent;
+use App\Domains\People\Leave\Models\LeaveRequest;
 use Illuminate\Support\Facades\Log;
 
 /**

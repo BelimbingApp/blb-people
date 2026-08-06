@@ -1,11 +1,11 @@
 {
     "name": "blb/people-leave",
-    "type": "blb-source-module",
+    "type": "blb-module",
     "description": "BLB Leave — entitlement, balance, leave requests, and encashment.",
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "App\\Modules\\People\\Leave\\": ""
+            "App\\Domains\\People\\Leave\\": ""
         }
     },
     "extra": {

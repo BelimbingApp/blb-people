@@ -1,11 +1,11 @@
 {
     "name": "blb/people-settings",
-    "type": "blb-source-module",
+    "type": "blb-module",
     "description": "BLB People Settings — work profiles, calendars, reference data, and notification log.",
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "App\\Modules\\People\\Settings\\": ""
+            "App\\Domains\\People\\Settings\\": ""
         }
     },
     "extra": {

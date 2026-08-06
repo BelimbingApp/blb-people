@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Payroll\Database\Support;
+namespace App\Domains\People\Payroll\Database\Support;
 
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;

@@ -1,5 +1,8 @@
 <?php
-/** @var \App\Modules\People\Claim\Livewire\Index $this */
+
+use App\Domains\People\Claim\Livewire\Index;
+
+/** @var Index $this */
 ?>
 
 <div>
@@ -99,7 +102,7 @@
                             </td>
                             <td class="px-table-cell-x py-table-cell-y">
                                 <div class="flex flex-wrap justify-end gap-2">
-                                    @if ($request->employee_id === $currentEmployeeId && in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO], true))
+                                    @if ($request->employee_id === $currentEmployeeId && in_array($request->status, [\App\Domains\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO], true))
                                         <x-ui.button type="button" size="sm" variant="secondary" wire:click="withdrawOwnRequest({{ $request->id }})">{{ __('Withdraw') }}</x-ui.button>
                                     @endif
                                 </div>
@@ -207,13 +210,13 @@
                             </td>
                             <td class="px-table-cell-x py-table-cell-y text-right">
                                 <div class="flex flex-wrap justify-end gap-1">
-                                    @if (in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_APPROVED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_QUEUED_FOR_PAYROLL], true))
+                                    @if (in_array($request->status, [\App\Domains\People\Claim\Models\ClaimRequest::STATUS_APPROVED, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_QUEUED_FOR_PAYROLL], true))
                                         <x-ui.button type="button" size="sm" variant="primary" wire:click="markReimbursed({{ $request->id }})" wire:confirm="{{ __('Mark this claim as reimbursed?') }}">{{ __('Reimburse') }}</x-ui.button>
                                     @endif
-                                    @if (in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_RESUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_APPROVED], true))
+                                    @if (in_array($request->status, [\App\Domains\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_RESUBMITTED, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_APPROVED], true))
                                         <x-ui.button type="button" size="sm" variant="ghost" wire:click="cancelRequest({{ $request->id }})" wire:confirm="{{ __('Cancel this claim request?') }}">{{ __('Cancel') }}</x-ui.button>
                                     @endif
-                                    @if (! in_array($request->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_RESUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_APPROVED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_QUEUED_FOR_PAYROLL], true))
+                                    @if (! in_array($request->status, [\App\Domains\People\Claim\Models\ClaimRequest::STATUS_DRAFT, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_NEEDS_MORE_INFO, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_RESUBMITTED, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_APPROVED, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_QUEUED_FOR_PAYROLL], true))
                                         <span class="text-xs text-muted">{{ __('—') }}</span>
                                     @endif
                                 </div>
@@ -293,7 +296,7 @@
                                         <div><dt class="text-muted">{{ __('Assignment') }}</dt><dd class="text-ink">{{ $selectedRequest->assignment?->name ?? '-' }}</dd></div>
                                         <div><dt class="text-muted">{{ __('Context') }}</dt><dd class="text-ink">{{ $selectedRequest->context?->label ?? '-' }}</dd></div>
                                     </dl>
-                                    @if ($canApprove && in_array($selectedRequest->status, [\App\Modules\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Modules\People\Claim\Models\ClaimRequest::STATUS_RESUBMITTED], true))
+                                    @if ($canApprove && in_array($selectedRequest->status, [\App\Domains\People\Claim\Models\ClaimRequest::STATUS_SUBMITTED, \App\Domains\People\Claim\Models\ClaimRequest::STATUS_RESUBMITTED], true))
                                         <x-ui.textarea id="claim-approval-reason" wire:model="approvalReason" label="{{ __('Reason / Note') }}" rows="2" />
                                         <div class="flex gap-2">
                                             <x-ui.button type="button" size="sm" variant="primary" wire:click="approveRequest({{ $selectedRequest->id }})">{{ __('Approve') }}</x-ui.button>

@@ -1,10 +1,10 @@
 <?php
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Claim\Exceptions\ClaimCohortPredicateException;
-use App\Modules\People\Claim\Exceptions\ClaimRequestLifecycleException;
-use App\Modules\People\Claim\Services\ClaimCohortPredicateService;
-use App\Modules\People\Claim\Services\SubmitClaimRequestService;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Claim\Exceptions\ClaimCohortPredicateException;
+use App\Domains\People\Claim\Exceptions\ClaimRequestLifecycleException;
+use App\Domains\People\Claim\Services\ClaimCohortPredicateService;
+use App\Domains\People\Claim\Services\SubmitClaimRequestService;
 
 require_once __DIR__.'/ClaimPolicyEvaluationTest.php';
 

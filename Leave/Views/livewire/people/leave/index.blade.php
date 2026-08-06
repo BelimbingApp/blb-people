@@ -1,5 +1,8 @@
 <?php
-/** @var \App\Modules\People\Leave\Livewire\Index $this */
+
+use App\Domains\People\Leave\Livewire\Index;
+
+/** @var Index $this */
 ?>
 <div>
     <x-slot name="title">{{ __('Leave') }}</x-slot>
@@ -94,7 +97,7 @@
                                 <td class="px-table-cell-x py-table-cell-y"><x-ui.badge :variant="$this->statusVariant($request->status)">{{ __(ucfirst($request->status)) }}</x-ui.badge></td>
                                 <td class="px-table-cell-x py-table-cell-y">
                                     <div class="flex justify-end">
-                                        @if (in_array($request->status, [\App\Modules\People\Leave\Models\LeaveRequest::STATUS_DRAFT, \App\Modules\People\Leave\Models\LeaveRequest::STATUS_SUBMITTED], true))
+                                        @if (in_array($request->status, [\App\Domains\People\Leave\Models\LeaveRequest::STATUS_DRAFT, \App\Domains\People\Leave\Models\LeaveRequest::STATUS_SUBMITTED], true))
                                             <x-ui.button size="sm" variant="secondary" wire:click="withdrawOwnRequest({{ $request->id }})">{{ __('Withdraw') }}</x-ui.button>
                                         @else
                                             <span class="text-xs text-muted">{{ __('No action') }}</span>
@@ -170,7 +173,7 @@
                                         <x-ui.badge :variant="$this->statusVariant($request->status)">{{ __(ucfirst($request->status)) }}</x-ui.badge>
                                     </td>
                                     <td class="px-table-cell-x py-table-cell-y text-right">
-                                        @if (in_array($request->status, [\App\Modules\People\Leave\Models\LeaveRequest::STATUS_APPROVED, \App\Modules\People\Leave\Models\LeaveRequest::STATUS_APPLIED], true))
+                                        @if (in_array($request->status, [\App\Domains\People\Leave\Models\LeaveRequest::STATUS_APPROVED, \App\Domains\People\Leave\Models\LeaveRequest::STATUS_APPLIED], true))
                                             <x-ui.button size="sm" variant="ghost" wire:click="withdrawOwnRequest({{ $request->id }})" wire:confirm="{{ __('Withdraw this leave request?') }}">{{ __('Withdraw') }}</x-ui.button>
                                         @endif
                                     </td>
@@ -446,7 +449,7 @@
                                         <div><dt class="text-muted">{{ __('Quantity') }}</dt><dd class="text-ink tabular-nums">{{ $selectedRequest->quantity }} {{ $selectedRequest->unit }}</dd></div>
                                         <div><dt class="text-muted">{{ __('Submitted') }}</dt><dd class="text-ink tabular-nums">{{ $selectedRequest->submitted_at?->format('Y-m-d H:i') ?? '-' }}</dd></div>
                                     </dl>
-                                    @if ($canApprove && $selectedRequest->status === \App\Modules\People\Leave\Models\LeaveRequest::STATUS_SUBMITTED)
+                                    @if ($canApprove && $selectedRequest->status === \App\Domains\People\Leave\Models\LeaveRequest::STATUS_SUBMITTED)
                                         <x-ui.textarea id="approval-reason" wire:model="approvalReason" label="{{ __('Reason / Note') }}" rows="2" />
                                         <div class="flex gap-2">
                                             <x-ui.button size="sm" variant="primary" wire:click="approveRequest({{ $selectedRequest->id }})">{{ __('Approve') }}</x-ui.button>

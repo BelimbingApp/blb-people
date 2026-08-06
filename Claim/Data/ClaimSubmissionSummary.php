@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Claim\Data;
+namespace App\Domains\People\Claim\Data;
 
 readonly class ClaimSubmissionSummary
 {

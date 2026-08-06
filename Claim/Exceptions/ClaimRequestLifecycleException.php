@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Claim\Exceptions;
+namespace App\Domains\People\Claim\Exceptions;
 
 use RuntimeException;
 

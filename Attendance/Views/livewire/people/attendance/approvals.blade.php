@@ -1,6 +1,6 @@
 <?php
 
-use App\Modules\People\Attendance\Livewire\Approvals;
+use App\Domains\People\Attendance\Livewire\Approvals;
 
 /** @var Approvals $this */
 ?>

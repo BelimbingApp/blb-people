@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Leave\Services;
+namespace App\Domains\People\Leave\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Leave\Data\PublicHoliday;
-use App\Modules\People\Leave\Data\WorkCalendarDay;
-use App\Modules\People\Settings\Models\EmployeeWorkProfile;
-use App\Modules\People\Settings\Models\PeopleCalendarException;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Leave\Data\PublicHoliday;
+use App\Domains\People\Leave\Data\WorkCalendarDay;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
+use App\Domains\People\Settings\Models\PeopleCalendarException;
 use DateTimeImmutable;
 
 class WorkCalendarResolver

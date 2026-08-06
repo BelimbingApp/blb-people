@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Payroll\Listeners;
+namespace App\Domains\People\Payroll\Listeners;
 
-use App\Modules\People\Leave\Events\LeaveApplied;
-use App\Modules\People\Leave\Models\LeaveType;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
-use App\Modules\People\Payroll\Models\PayrollLeaveTypePayItem;
-use App\Modules\People\Payroll\Services\PayrollContributionIntake;
+use App\Domains\People\Leave\Events\LeaveApplied;
+use App\Domains\People\Leave\Models\LeaveType;
+use App\Domains\People\Payroll\Contracts\Intake\PayrollContributionPayload;
+use App\Domains\People\Payroll\Models\PayrollLeaveTypePayItem;
+use App\Domains\People\Payroll\Services\PayrollContributionIntake;
 
 /**
  * Translates a LeaveApplied event into a payroll contribution when the

@@ -1,16 +1,16 @@
 <?php
 
-namespace App\Modules\People\Leave\Services;
+namespace App\Domains\People\Leave\Services;
 
-use App\Modules\People\Leave\Data\LeaveLedgerEntryData;
-use App\Modules\People\Leave\Data\LeaveLedgerEntryOptions;
-use App\Modules\People\Leave\Data\LeaveLedgerEntryPolicySnapshot;
-use App\Modules\People\Leave\Data\LeaveLedgerEntrySource;
-use App\Modules\People\Leave\Data\LeaveLedgerEntrySubject;
-use App\Modules\People\Leave\Exceptions\LeaveRequestLifecycleException;
-use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
-use App\Modules\People\Leave\Models\LeaveRequest;
-use App\Modules\People\Leave\Models\LeaveRequestAuditEvent;
+use App\Domains\People\Leave\Data\LeaveLedgerEntryData;
+use App\Domains\People\Leave\Data\LeaveLedgerEntryOptions;
+use App\Domains\People\Leave\Data\LeaveLedgerEntryPolicySnapshot;
+use App\Domains\People\Leave\Data\LeaveLedgerEntrySource;
+use App\Domains\People\Leave\Data\LeaveLedgerEntrySubject;
+use App\Domains\People\Leave\Exceptions\LeaveRequestLifecycleException;
+use App\Domains\People\Leave\Models\LeaveBalanceLedgerEntry;
+use App\Domains\People\Leave\Models\LeaveRequest;
+use App\Domains\People\Leave\Models\LeaveRequestAuditEvent;
 use Illuminate\Support\Facades\DB;
 
 /**

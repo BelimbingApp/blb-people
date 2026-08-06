@@ -1,24 +1,24 @@
 <?php
 
-namespace App\Modules\People\Payroll\Database\Seeders\Dev;
+namespace App\Domains\People\Payroll\Database\Seeders\Dev;
 
 use App\Base\Database\Seeders\DevSeeder;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Database\Seeders\Dev\DevEmployeeSeeder;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Payroll\Models\PayrollCalendar;
-use App\Modules\People\Payroll\Models\PayrollEmployeeStatutoryProfile;
-use App\Modules\People\Payroll\Models\PayrollEmployerStatutoryProfile;
-use App\Modules\People\Payroll\Models\PayrollInput;
-use App\Modules\People\Payroll\Models\PayrollPayItem;
-use App\Modules\People\Payroll\Models\PayrollPayItemClassification;
-use App\Modules\People\Payroll\Models\PayrollPeriod;
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Models\PayrollRunParticipant;
-use App\Modules\People\Payroll\Models\PayrollStatutoryRuleRow;
-use App\Modules\People\Payroll\Models\PayrollStatutoryRuleSet;
-use App\Modules\People\Payroll\Services\PayrollRunCalculator;
-use App\Modules\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Database\Seeders\Dev\DevEmployeeSeeder;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Payroll\Models\PayrollCalendar;
+use App\Domains\People\Payroll\Models\PayrollEmployeeStatutoryProfile;
+use App\Domains\People\Payroll\Models\PayrollEmployerStatutoryProfile;
+use App\Domains\People\Payroll\Models\PayrollInput;
+use App\Domains\People\Payroll\Models\PayrollPayItem;
+use App\Domains\People\Payroll\Models\PayrollPayItemClassification;
+use App\Domains\People\Payroll\Models\PayrollPeriod;
+use App\Domains\People\Payroll\Models\PayrollRun;
+use App\Domains\People\Payroll\Models\PayrollRunParticipant;
+use App\Domains\People\Payroll\Models\PayrollStatutoryRuleRow;
+use App\Domains\People\Payroll\Models\PayrollStatutoryRuleSet;
+use App\Domains\People\Payroll\Services\PayrollRunCalculator;
+use App\Domains\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
 
 class DevPayrollSeeder extends DevSeeder
 {

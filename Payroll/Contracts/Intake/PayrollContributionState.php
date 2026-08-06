@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Payroll\Contracts\Intake;
+namespace App\Domains\People\Payroll\Contracts\Intake;
 
 /**
  * State vocabulary aligned to PayrollRun status. Returned by

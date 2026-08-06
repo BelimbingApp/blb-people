@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Attendance\Models;
+namespace App\Domains\People\Attendance\Models;
 
 use App\Base\Database\Concerns\BelongsToCompanyAndEmployee;
-use App\Modules\People\Attendance\Models\Concerns\BelongsToAttendanceDay;
+use App\Domains\People\Attendance\Models\Concerns\BelongsToAttendanceDay;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 

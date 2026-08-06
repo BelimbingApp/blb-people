@@ -1,25 +1,25 @@
 <?php
 
-namespace App\Modules\People\Payroll;
+namespace App\Domains\People\Payroll;
 
 use App\Base\Pdf\Events\PdfArtifactRendered;
-use App\Modules\People\Attendance\Events\AttendanceAllowanceMaterialized;
-use App\Modules\People\Attendance\Events\AttendanceOvertimeApproved;
-use App\Modules\People\Claim\Events\ClaimReimbursementQueued;
-use App\Modules\People\Claim\Events\ClaimReimbursementReversed;
-use App\Modules\People\Leave\Events\LeaveApplied;
-use App\Modules\People\Leave\Events\LeaveEncashed;
-use App\Modules\People\Payroll\Console\Commands\MaterializePendingContributionsCommand;
-use App\Modules\People\Payroll\CountryPacks\Malaysia\MalaysiaPayrollCountryPack;
-use App\Modules\People\Payroll\Listeners\RecordAttendanceAllowanceContribution;
-use App\Modules\People\Payroll\Listeners\RecordAttendanceOvertimeContribution;
-use App\Modules\People\Payroll\Listeners\RecordClaimReimbursement;
-use App\Modules\People\Payroll\Listeners\RecordLeaveContribution;
-use App\Modules\People\Payroll\Listeners\RecordLeaveEncashmentContribution;
-use App\Modules\People\Payroll\Listeners\ReverseClaimReimbursement;
-use App\Modules\People\Payroll\Listeners\StorePayrollPdfArtifact;
-use App\Modules\People\Payroll\Services\PayrollCountryPackDiscoveryService;
-use App\Modules\People\Payroll\Services\PayrollCountryPackRegistry;
+use App\Domains\People\Attendance\Events\AttendanceAllowanceMaterialized;
+use App\Domains\People\Attendance\Events\AttendanceOvertimeApproved;
+use App\Domains\People\Claim\Events\ClaimReimbursementQueued;
+use App\Domains\People\Claim\Events\ClaimReimbursementReversed;
+use App\Domains\People\Leave\Events\LeaveApplied;
+use App\Domains\People\Leave\Events\LeaveEncashed;
+use App\Domains\People\Payroll\Console\Commands\MaterializePendingContributionsCommand;
+use App\Domains\People\Payroll\CountryPacks\Malaysia\MalaysiaPayrollCountryPack;
+use App\Domains\People\Payroll\Listeners\RecordAttendanceAllowanceContribution;
+use App\Domains\People\Payroll\Listeners\RecordAttendanceOvertimeContribution;
+use App\Domains\People\Payroll\Listeners\RecordClaimReimbursement;
+use App\Domains\People\Payroll\Listeners\RecordLeaveContribution;
+use App\Domains\People\Payroll\Listeners\RecordLeaveEncashmentContribution;
+use App\Domains\People\Payroll\Listeners\ReverseClaimReimbursement;
+use App\Domains\People\Payroll\Listeners\StorePayrollPdfArtifact;
+use App\Domains\People\Payroll\Services\PayrollCountryPackDiscoveryService;
+use App\Domains\People\Payroll\Services\PayrollCountryPackRegistry;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
 

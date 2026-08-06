@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Payroll\Livewire;
+namespace App\Domains\People\Payroll\Livewire;
 
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\People\Claim\Models\ClaimType;
-use App\Modules\People\Payroll\Livewire\Concerns\ManagesPayrollMappingAuthorization;
-use App\Modules\People\Payroll\Models\PayrollClaimTypePayItem;
+use App\Domains\People\Claim\Models\ClaimType;
+use App\Domains\People\Payroll\Livewire\Concerns\ManagesPayrollMappingAuthorization;
+use App\Domains\People\Payroll\Models\PayrollClaimTypePayItem;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;

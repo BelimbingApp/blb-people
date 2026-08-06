@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Leave\Data;
+namespace App\Domains\People\Leave\Data;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Leave\Models\LeaveRequest;
-use App\Modules\People\Leave\Models\LeaveRequestPolicy;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Leave\Models\LeaveRequest;
+use App\Domains\People\Leave\Models\LeaveRequestPolicy;
 use DateTimeImmutable;
 
 final readonly class LeaveDaysPreviewInput

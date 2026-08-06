@@ -1,20 +1,20 @@
 <?php
 
-namespace App\Modules\People\Employees\Livewire;
+namespace App\Domains\People\Employees\Livewire;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\Core\User\Models\User;
-use App\Modules\People\Employees\Services\EmployeePayrollReadinessService;
-use App\Modules\People\Employees\Services\EmployeeProfileChangeRequestReviewService;
-use App\Modules\People\Settings\Models\EmployeeProfileChangeRequest;
-use App\Modules\People\Settings\Models\EmployeeWorkProfile;
-use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
-use App\Modules\People\Settings\Services\EmployeePortalAccessService;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Core\User\Models\User;
+use App\Domains\People\Employees\Services\EmployeePayrollReadinessService;
+use App\Domains\People\Employees\Services\EmployeeProfileChangeRequestReviewService;
+use App\Domains\People\Settings\Models\EmployeeProfileChangeRequest;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
+use App\Domains\People\Settings\Models\PeopleNotificationDeliveryLog;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
+use App\Domains\People\Settings\Services\EmployeePortalAccessService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;

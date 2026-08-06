@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Leave\Console\Commands;
+namespace App\Domains\People\Leave\Console\Commands;
 
-use App\Modules\People\Leave\Services\ReplacementLeaveExpiryService;
+use App\Domains\People\Leave\Services\ReplacementLeaveExpiryService;
 use DateTimeImmutable;
 use Illuminate\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;

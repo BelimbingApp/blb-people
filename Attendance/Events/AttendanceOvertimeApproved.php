@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Attendance\Events;
+namespace App\Domains\People\Attendance\Events;
 
 use DateTimeImmutable;
 
 /**
  * Producer-domain event: an attendance overtime request has been approved
- * and the producer wants downstream consumers (payroll plugins, audit
+ * and the producer wants downstream consumers (the Payroll module, audit
  * sinks) to learn about it.
  *
  * Payload carries only producer-domain facts. Pay-item codes, statutory

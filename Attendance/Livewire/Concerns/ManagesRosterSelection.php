@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\Concerns;
+namespace App\Domains\People\Attendance\Livewire\Concerns;
 
 trait ManagesRosterSelection
 {

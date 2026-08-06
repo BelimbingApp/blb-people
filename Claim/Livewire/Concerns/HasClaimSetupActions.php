@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Modules\People\Claim\Livewire\Concerns;
+namespace App\Domains\People\Claim\Livewire\Concerns;
 
-use App\Modules\People\Claim\Models\ClaimAssignment;
-use App\Modules\People\Claim\Models\ClaimAssignmentLine;
-use App\Modules\People\Claim\Models\ClaimCategory;
-use App\Modules\People\Claim\Models\ClaimContext;
-use App\Modules\People\Claim\Models\ClaimPolicy;
-use App\Modules\People\Claim\Models\ClaimPolicyBand;
-use App\Modules\People\Claim\Models\ClaimType;
+use App\Domains\People\Claim\Models\ClaimAssignment;
+use App\Domains\People\Claim\Models\ClaimAssignmentLine;
+use App\Domains\People\Claim\Models\ClaimCategory;
+use App\Domains\People\Claim\Models\ClaimContext;
+use App\Domains\People\Claim\Models\ClaimPolicy;
+use App\Domains\People\Claim\Models\ClaimPolicyBand;
+use App\Domains\People\Claim\Models\ClaimType;
 use Illuminate\Validation\Rule;
 
 trait HasClaimSetupActions

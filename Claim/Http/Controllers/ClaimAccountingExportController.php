@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Claim\Http\Controllers;
+namespace App\Domains\People\Claim\Http\Controllers;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\User\Models\User;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Services\ClaimAccountingExportBuilder;
+use App\Core\Company\Models\Company;
+use App\Core\User\Models\User;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Services\ClaimAccountingExportBuilder;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 

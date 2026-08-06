@@ -1,16 +1,16 @@
 <?php
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionState;
-use App\Modules\People\Payroll\Models\PayrollCalendar;
-use App\Modules\People\Payroll\Models\PayrollInput;
-use App\Modules\People\Payroll\Models\PayrollPendingContribution;
-use App\Modules\People\Payroll\Models\PayrollPeriod;
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Services\PayrollContributionIntake;
-use App\Modules\People\Payroll\Services\PayrollContributionStatus;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Payroll\Contracts\Intake\PayrollContributionPayload;
+use App\Domains\People\Payroll\Contracts\Intake\PayrollContributionState;
+use App\Domains\People\Payroll\Models\PayrollCalendar;
+use App\Domains\People\Payroll\Models\PayrollInput;
+use App\Domains\People\Payroll\Models\PayrollPendingContribution;
+use App\Domains\People\Payroll\Models\PayrollPeriod;
+use App\Domains\People\Payroll\Models\PayrollRun;
+use App\Domains\People\Payroll\Services\PayrollContributionIntake;
+use App\Domains\People\Payroll\Services\PayrollContributionStatus;
 
 const INTAKE_PERIOD_CODE = '2026-05';
 const INTAKE_PERIOD_NAME = 'May 2026';

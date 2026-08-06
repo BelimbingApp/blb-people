@@ -1,11 +1,11 @@
 {
     "name": "blb/people-claim",
-    "type": "blb-source-module",
+    "type": "blb-module",
     "description": "BLB Claim — expense reimbursement requests with attachments and approval.",
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "App\\Modules\\People\\Claim\\": ""
+            "App\\Domains\\People\\Claim\\": ""
         }
     },
     "extra": {

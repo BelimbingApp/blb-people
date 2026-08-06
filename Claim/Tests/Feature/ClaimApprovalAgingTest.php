@@ -1,7 +1,7 @@
 <?php
 
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Services\ClaimApprovalAgingBuilder;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Services\ClaimApprovalAgingBuilder;
 use Carbon\CarbonImmutable;
 
 require_once __DIR__.'/ClaimPolicyEvaluationTest.php';

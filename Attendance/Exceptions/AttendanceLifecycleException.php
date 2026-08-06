@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Exceptions;
+namespace App\Domains\People\Attendance\Exceptions;
 
 use RuntimeException;
 

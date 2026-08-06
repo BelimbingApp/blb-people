@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire;
+namespace App\Domains\People\Attendance\Livewire;
 
 use App\Base\Audit\Models\AuditMutation;
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\Core\User\Models\User;
-use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Core\Employee\Models\Employee;
+use App\Core\User\Models\User;
+use App\Domains\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
 use Illuminate\Contracts\View\View;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Component;

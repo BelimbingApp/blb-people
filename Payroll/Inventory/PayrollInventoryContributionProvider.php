@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Payroll\Inventory;
+namespace App\Domains\People\Payroll\Inventory;
 
 use App\Base\Software\Inventory\Contracts\InventoryContributionProvider;
 use App\Base\Software\Inventory\ContributionSummary;
-use App\Modules\People\Payroll\Services\PayrollCountryPackRegistry;
+use App\Domains\People\Payroll\Services\PayrollCountryPackRegistry;
 
 /**
  * Reports the Payroll country packs registered on the country-pack seam to the

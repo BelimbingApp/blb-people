@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Data;
+namespace App\Domains\People\Attendance\Data;
 
 readonly class ClockEventAttributes
 {

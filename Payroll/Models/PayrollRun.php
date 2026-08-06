@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Payroll\Models;
+namespace App\Domains\People\Payroll\Models;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\People\Payroll\Exceptions\ClosedPayrollRunException;
-use App\Modules\People\Payroll\Services\PayrollContributionIntake;
+use App\Core\Company\Models\Company;
+use App\Domains\People\Payroll\Exceptions\ClosedPayrollRunException;
+use App\Domains\People\Payroll\Services\PayrollContributionIntake;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;

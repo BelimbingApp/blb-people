@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Leave\Contracts;
+namespace App\Domains\People\Leave\Contracts;
 
-use App\Modules\People\Leave\Data\LeaveApprovalIntent;
-use App\Modules\People\Leave\Models\LeaveRequest;
+use App\Domains\People\Leave\Data\LeaveApprovalIntent;
+use App\Domains\People\Leave\Models\LeaveRequest;
 
 interface RoutesLeaveApprovals
 {

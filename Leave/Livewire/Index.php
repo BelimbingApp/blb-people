@@ -1,26 +1,26 @@
 <?php
 
-namespace App\Modules\People\Leave\Livewire;
+namespace App\Domains\People\Leave\Livewire;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Leave\Livewire\Concerns\HasLeaveBalanceActions;
-use App\Modules\People\Leave\Models\LeaveAssignment;
-use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicyBand;
-use App\Modules\People\Leave\Models\LeaveRequest;
-use App\Modules\People\Leave\Models\LeaveRequestPolicy;
-use App\Modules\People\Leave\Models\LeaveType;
-use App\Modules\People\Leave\Services\ApproveLeaveRequestService;
-use App\Modules\People\Leave\Services\LeaveBalanceStatementBuilder;
-use App\Modules\People\Leave\Services\LeaveCountryPackRegistry;
-use App\Modules\People\Leave\Services\RejectLeaveRequestService;
-use App\Modules\People\Leave\Services\SubmitLeaveRequestService;
-use App\Modules\People\Leave\Services\WithdrawLeaveRequestService;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Leave\Livewire\Concerns\HasLeaveBalanceActions;
+use App\Domains\People\Leave\Models\LeaveAssignment;
+use App\Domains\People\Leave\Models\LeaveBalanceLedgerEntry;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicy;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicyBand;
+use App\Domains\People\Leave\Models\LeaveRequest;
+use App\Domains\People\Leave\Models\LeaveRequestPolicy;
+use App\Domains\People\Leave\Models\LeaveType;
+use App\Domains\People\Leave\Services\ApproveLeaveRequestService;
+use App\Domains\People\Leave\Services\LeaveBalanceStatementBuilder;
+use App\Domains\People\Leave\Services\LeaveCountryPackRegistry;
+use App\Domains\People\Leave\Services\RejectLeaveRequestService;
+use App\Domains\People\Leave\Services\SubmitLeaveRequestService;
+use App\Domains\People\Leave\Services\WithdrawLeaveRequestService;
 use DateTimeImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;

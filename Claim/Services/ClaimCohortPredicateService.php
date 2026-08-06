@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Claim\Services;
+namespace App\Domains\People\Claim\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Claim\Exceptions\ClaimCohortPredicateException;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Claim\Exceptions\ClaimCohortPredicateException;
 
 /**
  * Evaluates a cohort_predicate JSON against an employee.

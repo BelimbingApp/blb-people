@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Payroll\Listeners;
+namespace App\Domains\People\Payroll\Listeners;
 
 use App\Base\Pdf\Events\PdfArtifactRendered;
-use App\Modules\People\Payroll\Models\PayrollPdfArtifact;
+use App\Domains\People\Payroll\Models\PayrollPdfArtifact;
 
 class StorePayrollPdfArtifact
 {

@@ -1,10 +1,10 @@
 <?php
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\People\Claim\Models\ClaimEntitlementUsageEntry;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Services\ClaimReimbursementStatementBuilder;
-use App\Modules\People\Claim\Services\ClaimUtilizationReportBuilder;
+use App\Core\Company\Models\Company;
+use App\Domains\People\Claim\Models\ClaimEntitlementUsageEntry;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Services\ClaimReimbursementStatementBuilder;
+use App\Domains\People\Claim\Services\ClaimUtilizationReportBuilder;
 
 require_once __DIR__.'/ClaimPolicyEvaluationTest.php';
 

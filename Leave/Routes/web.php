@@ -1,6 +1,6 @@
 <?php
 
-use App\Modules\People\Leave\Livewire\Index;
+use App\Domains\People\Leave\Livewire\Index;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function (): void {

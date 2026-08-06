@@ -1,9 +1,9 @@
 <?php
 
-use App\Modules\People\Claim\Http\Controllers\ClaimAccountingExportController;
-use App\Modules\People\Claim\Http\Controllers\ClaimOperationsExportController;
-use App\Modules\People\Claim\Http\Controllers\ClaimReportsExportController;
-use App\Modules\People\Claim\Livewire\Index;
+use App\Domains\People\Claim\Http\Controllers\ClaimAccountingExportController;
+use App\Domains\People\Claim\Http\Controllers\ClaimOperationsExportController;
+use App\Domains\People\Claim\Http\Controllers\ClaimReportsExportController;
+use App\Domains\People\Claim\Livewire\Index;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function (): void {

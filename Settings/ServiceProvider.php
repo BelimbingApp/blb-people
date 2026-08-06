@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Settings;
+namespace App\Domains\People\Settings;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Settings\Models\EmployeePortalAccess;
-use App\Modules\People\Settings\Models\EmployeeProfileChangeRequest;
-use App\Modules\People\Settings\Models\EmployeeWorkProfile;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\EmployeeProfileChangeRequest;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
 
 class ServiceProvider extends BaseServiceProvider

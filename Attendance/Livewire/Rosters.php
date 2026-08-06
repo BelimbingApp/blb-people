@@ -1,17 +1,17 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire;
+namespace App\Domains\People\Attendance\Livewire;
 
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\People\Attendance\Livewire\Concerns\BuildsRosterGrid;
-use App\Modules\People\Attendance\Livewire\Concerns\BuildsRosterRenderingData;
-use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
-use App\Modules\People\Attendance\Livewire\Concerns\ManagesRosterCellHistory;
-use App\Modules\People\Attendance\Livewire\Concerns\ManagesRosterOperations;
-use App\Modules\People\Attendance\Livewire\Concerns\ManagesRosterSelection;
-use App\Modules\People\Attendance\Livewire\Concerns\ManagesRosterSelfService;
-use App\Modules\People\Attendance\Livewire\Concerns\ResolvesRosterPolicySchedule;
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
+use App\Domains\People\Attendance\Livewire\Concerns\BuildsRosterGrid;
+use App\Domains\People\Attendance\Livewire\Concerns\BuildsRosterRenderingData;
+use App\Domains\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Domains\People\Attendance\Livewire\Concerns\ManagesRosterCellHistory;
+use App\Domains\People\Attendance\Livewire\Concerns\ManagesRosterOperations;
+use App\Domains\People\Attendance\Livewire\Concerns\ManagesRosterSelection;
+use App\Domains\People\Attendance\Livewire\Concerns\ManagesRosterSelfService;
+use App\Domains\People\Attendance\Livewire\Concerns\ResolvesRosterPolicySchedule;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
 use Livewire\WithPagination;

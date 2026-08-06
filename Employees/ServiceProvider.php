@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Employees;
+namespace App\Domains\People\Employees;
 
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
 

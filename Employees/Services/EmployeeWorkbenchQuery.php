@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Employees\Services;
+namespace App\Domains\People\Employees\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Collection;

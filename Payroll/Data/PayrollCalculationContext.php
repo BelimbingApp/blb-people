@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Payroll\Data;
+namespace App\Domains\People\Payroll\Data;
 
-use App\Modules\People\Payroll\Models\PayrollEmployeeStatutoryProfile;
-use App\Modules\People\Payroll\Models\PayrollEmployerStatutoryProfile;
-use App\Modules\People\Payroll\Models\PayrollInput;
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Models\PayrollRunParticipant;
+use App\Domains\People\Payroll\Models\PayrollEmployeeStatutoryProfile;
+use App\Domains\People\Payroll\Models\PayrollEmployerStatutoryProfile;
+use App\Domains\People\Payroll\Models\PayrollInput;
+use App\Domains\People\Payroll\Models\PayrollRun;
+use App\Domains\People\Payroll\Models\PayrollRunParticipant;
 use Illuminate\Support\Collection;
 
 class PayrollCalculationContext

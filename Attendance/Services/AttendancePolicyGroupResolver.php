@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Attendance\Services;
+namespace App\Domains\People\Attendance\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
-use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
+use App\Domains\People\Attendance\Models\AttendanceRosterAssignment;
 use DateTimeInterface;
 
 class AttendancePolicyGroupResolver

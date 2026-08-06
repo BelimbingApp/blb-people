@@ -1,9 +1,9 @@
 <?php
 
-use App\Modules\People\Claim\Exceptions\ClaimRequestLifecycleException;
-use App\Modules\People\Claim\Models\ClaimLine;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Services\ApproveClaimRequestService;
+use App\Domains\People\Claim\Exceptions\ClaimRequestLifecycleException;
+use App\Domains\People\Claim\Models\ClaimLine;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Services\ApproveClaimRequestService;
 
 require_once __DIR__.'/ClaimPolicyEvaluationTest.php';
 

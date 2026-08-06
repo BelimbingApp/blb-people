@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Payroll\CountryPacks\Malaysia;
+namespace App\Domains\People\Payroll\CountryPacks\Malaysia;
 
-use App\Modules\People\Payroll\Contracts\ProvidesPayrollExports;
-use App\Modules\People\Payroll\Data\PayrollExportDefinition;
+use App\Domains\People\Payroll\Contracts\ProvidesPayrollExports;
+use App\Domains\People\Payroll\Data\PayrollExportDefinition;
 
 class MalaysiaPayrollExports implements ProvidesPayrollExports
 {

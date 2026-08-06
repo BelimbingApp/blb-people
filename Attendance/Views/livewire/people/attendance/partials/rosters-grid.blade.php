@@ -1,4 +1,4 @@
-@use('App\Modules\People\Attendance\Support\DayTypeVocabulary')
+@use('App\Domains\People\Attendance\Support\DayTypeVocabulary')
 @php
     $compact = $compact ?? false;
     $gridIntro = $gridIntro ?? __('Assigned cells reflect the current roster; rest, off, and holiday days surface from each employee\'s work calendar.');

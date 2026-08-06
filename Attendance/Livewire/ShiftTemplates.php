@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire;
+namespace App\Domains\People\Attendance\Livewire;
 
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
-use App\Modules\People\Attendance\Livewire\Concerns\ManagesShiftBreaks;
-use App\Modules\People\Attendance\Livewire\Concerns\ManagesShiftPunchWindows;
-use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
-use App\Modules\People\Attendance\Services\ShiftTemplateSerializer;
+use App\Domains\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Domains\People\Attendance\Livewire\Concerns\ManagesShiftBreaks;
+use App\Domains\People\Attendance\Livewire\Concerns\ManagesShiftPunchWindows;
+use App\Domains\People\Attendance\Models\AttendanceShiftTemplate;
+use App\Domains\People\Attendance\Services\ShiftTemplateSerializer;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;

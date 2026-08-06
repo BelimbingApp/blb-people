@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Claim\Services;
+namespace App\Domains\People\Claim\Services;
 
-use App\Modules\People\Claim\Models\ClaimPolicy;
-use App\Modules\People\Claim\Models\ClaimPolicyBand;
+use App\Domains\People\Claim\Models\ClaimPolicy;
+use App\Domains\People\Claim\Models\ClaimPolicyBand;
 
 /**
  * Lints a {@see ClaimPolicy} and returns linter-style findings.

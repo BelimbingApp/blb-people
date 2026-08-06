@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Leave\Console\Commands;
+namespace App\Domains\People\Leave\Console\Commands;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Leave\Models\LeaveAssignment;
-use App\Modules\People\Leave\Services\CarryForwardService;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Leave\Models\LeaveAssignment;
+use App\Domains\People\Leave\Services\CarryForwardService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;

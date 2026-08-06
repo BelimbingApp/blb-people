@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Attendance\Services;
+namespace App\Domains\People\Attendance\Services;
 
-use App\Modules\People\Attendance\Exceptions\AttendanceLifecycleException;
-use App\Modules\People\Attendance\Models\AttendanceDay;
+use App\Domains\People\Attendance\Exceptions\AttendanceLifecycleException;
+use App\Domains\People\Attendance\Models\AttendanceDay;
 
 class AttendanceLifecycleService
 {

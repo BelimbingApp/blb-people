@@ -1,28 +1,28 @@
 <?php
 
-namespace App\Modules\People\Claim\Livewire;
+namespace App\Domains\People\Claim\Livewire;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Claim\Livewire\Concerns\HasClaimSetupActions;
-use App\Modules\People\Claim\Livewire\Concerns\HasPayrollOperationsStatus;
-use App\Modules\People\Claim\Models\ClaimAssignment;
-use App\Modules\People\Claim\Models\ClaimAssignmentLine;
-use App\Modules\People\Claim\Models\ClaimCategory;
-use App\Modules\People\Claim\Models\ClaimContext;
-use App\Modules\People\Claim\Models\ClaimPolicy;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Models\ClaimType;
-use App\Modules\People\Claim\Services\ApproveClaimRequestService;
-use App\Modules\People\Claim\Services\CancelClaimRequestService;
-use App\Modules\People\Claim\Services\ReimburseClaimRequestService;
-use App\Modules\People\Claim\Services\RejectClaimRequestService;
-use App\Modules\People\Claim\Services\RequestClaimMoreInfoService;
-use App\Modules\People\Claim\Services\SubmitClaimRequestService;
-use App\Modules\People\Claim\Services\WithdrawClaimRequestService;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Claim\Livewire\Concerns\HasClaimSetupActions;
+use App\Domains\People\Claim\Livewire\Concerns\HasPayrollOperationsStatus;
+use App\Domains\People\Claim\Models\ClaimAssignment;
+use App\Domains\People\Claim\Models\ClaimAssignmentLine;
+use App\Domains\People\Claim\Models\ClaimCategory;
+use App\Domains\People\Claim\Models\ClaimContext;
+use App\Domains\People\Claim\Models\ClaimPolicy;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Models\ClaimType;
+use App\Domains\People\Claim\Services\ApproveClaimRequestService;
+use App\Domains\People\Claim\Services\CancelClaimRequestService;
+use App\Domains\People\Claim\Services\ReimburseClaimRequestService;
+use App\Domains\People\Claim\Services\RejectClaimRequestService;
+use App\Domains\People\Claim\Services\RequestClaimMoreInfoService;
+use App\Domains\People\Claim\Services\SubmitClaimRequestService;
+use App\Domains\People\Claim\Services\WithdrawClaimRequestService;
 use DateTimeImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;

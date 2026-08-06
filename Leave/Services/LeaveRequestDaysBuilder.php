@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Modules\People\Leave\Services;
+namespace App\Domains\People\Leave\Services;
 
-use App\Modules\People\Leave\Data\LeaveDayBreakdown;
-use App\Modules\People\Leave\Data\LeaveDaysPreview;
-use App\Modules\People\Leave\Data\LeaveDaysPreviewInput;
-use App\Modules\People\Leave\Data\LeaveDaysPreviewOptions;
-use App\Modules\People\Leave\Data\WorkCalendarDay;
-use App\Modules\People\Leave\Models\LeaveRequest;
-use App\Modules\People\Leave\Models\LeaveRequestDay;
-use App\Modules\People\Leave\Models\LeaveType;
+use App\Domains\People\Leave\Data\LeaveDayBreakdown;
+use App\Domains\People\Leave\Data\LeaveDaysPreview;
+use App\Domains\People\Leave\Data\LeaveDaysPreviewInput;
+use App\Domains\People\Leave\Data\LeaveDaysPreviewOptions;
+use App\Domains\People\Leave\Data\WorkCalendarDay;
+use App\Domains\People\Leave\Models\LeaveRequest;
+use App\Domains\People\Leave\Models\LeaveRequestDay;
+use App\Domains\People\Leave\Models\LeaveType;
 
 class LeaveRequestDaysBuilder
 {

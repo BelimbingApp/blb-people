@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Attendance\Services;
+namespace App\Domains\People\Attendance\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Attendance\Models\AttendanceDay;
-use App\Modules\People\Settings\Models\EmployeeWorkProfile;
-use App\Modules\People\Settings\Models\PeopleCalendarException;
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Attendance\Models\AttendanceDay;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
+use App\Domains\People\Settings\Models\PeopleCalendarException;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 

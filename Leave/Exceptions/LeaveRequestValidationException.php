@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Leave\Exceptions;
+namespace App\Domains\People\Leave\Exceptions;
 
-use App\Modules\People\Leave\Data\LeaveValidationIssue;
+use App\Domains\People\Leave\Data\LeaveValidationIssue;
 use RuntimeException;
 
 class LeaveRequestValidationException extends RuntimeException

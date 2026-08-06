@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Leave\CountryPacks\Malaysia;
+namespace App\Domains\People\Leave\CountryPacks\Malaysia;
 
-use App\Modules\People\Leave\Contracts\ProvidesStatutoryEntitlementPolicies;
-use App\Modules\People\Leave\Data\StatutoryEntitlementBand;
-use App\Modules\People\Leave\Data\StatutoryEntitlementPolicy;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
+use App\Domains\People\Leave\Contracts\ProvidesStatutoryEntitlementPolicies;
+use App\Domains\People\Leave\Data\StatutoryEntitlementBand;
+use App\Domains\People\Leave\Data\StatutoryEntitlementPolicy;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicy;
 
 class MalaysiaStatutoryEntitlementPolicies implements ProvidesStatutoryEntitlementPolicies
 {

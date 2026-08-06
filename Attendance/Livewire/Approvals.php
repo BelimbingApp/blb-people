@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire;
+namespace App\Domains\People\Attendance\Livewire;
 
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
-use App\Modules\People\Attendance\Models\AttendanceAdjustmentRequest;
-use App\Modules\People\Attendance\Models\AttendanceOvertimeRequest;
-use App\Modules\People\Attendance\Services\AttendanceAdjustmentService;
-use App\Modules\People\Attendance\Services\AttendanceOvertimeService;
+use App\Domains\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Domains\People\Attendance\Models\AttendanceAdjustmentRequest;
+use App\Domains\People\Attendance\Models\AttendanceOvertimeRequest;
+use App\Domains\People\Attendance\Services\AttendanceAdjustmentService;
+use App\Domains\People\Attendance\Services\AttendanceOvertimeService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;

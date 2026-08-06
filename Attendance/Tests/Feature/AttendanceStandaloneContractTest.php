@@ -3,7 +3,7 @@
 /**
  * Plan 12 Phase 6 — plug-out contract test for Attendance.
  *
- * Asserts that Attendance can operate without the Payroll plugin
+ * Asserts that Attendance can operate without the Payroll module
  * installed by checking the seam from three angles:
  *
  *  1. Manifest: Attendance does NOT declare Payroll as a required
@@ -12,7 +12,7 @@
  *     class. (Already enforced by AttendanceDoesNotImportPayrollTest;
  *     re-asserted here as a regression net.)
  *  3. Event dispatch: dispatching AttendanceOvertimeApproved with NO
- *     listeners registered (the Payroll plugin's listener absent) does
+ *     listeners registered (the Payroll module's listener absent) does
  *     not throw or warn.
  *
  * The full runtime variant — boot the app with Payroll's ServiceProvider
@@ -23,12 +23,12 @@
  */
 
 use App\Base\Foundation\ModuleManifest\ModuleManifestReader;
-use App\Modules\People\Attendance\Events\AttendanceAllowanceMaterialized;
-use App\Modules\People\Attendance\Events\AttendanceOvertimeApproved;
+use App\Domains\People\Attendance\Events\AttendanceAllowanceMaterialized;
+use App\Domains\People\Attendance\Events\AttendanceOvertimeApproved;
 use Illuminate\Support\Facades\Event;
 
-it('declares Attendance as not depending on the Payroll plugin', function (): void {
-    $reader = new ModuleManifestReader([base_path('app/Modules/People')]);
+it('declares Attendance as not depending on the Payroll module', function (): void {
+    $reader = new ModuleManifestReader([base_path('app/Domains/People')]);
 
     $attendance = collect($reader->all())->firstWhere('module', 'people/attendance');
 
@@ -37,7 +37,7 @@ it('declares Attendance as not depending on the Payroll plugin', function (): vo
 });
 
 it('declares Payroll as treating Attendance as an optional listener target', function (): void {
-    $reader = new ModuleManifestReader([base_path('app/Modules/People')]);
+    $reader = new ModuleManifestReader([base_path('app/Domains/People')]);
 
     $payroll = collect($reader->all())->firstWhere('module', 'people/payroll');
 

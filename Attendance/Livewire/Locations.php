@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire;
+namespace App\Domains\People\Attendance\Livewire;
 
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
-use App\Modules\People\Attendance\Models\AttendanceGeofence;
-use App\Modules\People\Attendance\Models\AttendanceGeofenceGroup;
+use App\Domains\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Domains\People\Attendance\Models\AttendanceGeofence;
+use App\Domains\People\Attendance\Models\AttendanceGeofenceGroup;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
 

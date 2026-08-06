@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Settings\Models;
+namespace App\Domains\People\Settings\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;

@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Payroll\Contracts;
+namespace App\Domains\People\Payroll\Contracts;
 
-use App\Modules\People\Payroll\Data\PayrollCalculationContext;
-use App\Modules\People\Payroll\Data\PayrollCalculationResult;
+use App\Domains\People\Payroll\Data\PayrollCalculationContext;
+use App\Domains\People\Payroll\Data\PayrollCalculationResult;
 
 interface CalculatesPayrollRun
 {

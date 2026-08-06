@@ -1,9 +1,9 @@
 <?php
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Leave\Models\LeaveRequest;
-use App\Modules\People\Leave\Models\LeaveType;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Leave\Models\LeaveRequest;
+use App\Domains\People\Leave\Models\LeaveType;
 use Livewire\Livewire;
 
 function createLeaveWidgetFixture(int $companyId): array

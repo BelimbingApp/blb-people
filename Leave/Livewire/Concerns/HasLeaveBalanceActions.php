@@ -1,18 +1,18 @@
 <?php
 
-namespace App\Modules\People\Leave\Livewire\Concerns;
+namespace App\Domains\People\Leave\Livewire\Concerns;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Leave\Data\LeaveLedgerEntryData;
-use App\Modules\People\Leave\Data\LeaveLedgerEntryOptions;
-use App\Modules\People\Leave\Data\LeaveLedgerEntrySource;
-use App\Modules\People\Leave\Data\LeaveLedgerEntrySubject;
-use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
-use App\Modules\People\Leave\Models\LeaveType;
-use App\Modules\People\Leave\Services\CarryForwardService;
-use App\Modules\People\Leave\Services\LeaveBalanceLedgerService;
-use App\Modules\People\Leave\Services\LeaveCountryPackRegistry;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Leave\Data\LeaveLedgerEntryData;
+use App\Domains\People\Leave\Data\LeaveLedgerEntryOptions;
+use App\Domains\People\Leave\Data\LeaveLedgerEntrySource;
+use App\Domains\People\Leave\Data\LeaveLedgerEntrySubject;
+use App\Domains\People\Leave\Models\LeaveBalanceLedgerEntry;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicy;
+use App\Domains\People\Leave\Models\LeaveType;
+use App\Domains\People\Leave\Services\CarryForwardService;
+use App\Domains\People\Leave\Services\LeaveBalanceLedgerService;
+use App\Domains\People\Leave\Services\LeaveCountryPackRegistry;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;

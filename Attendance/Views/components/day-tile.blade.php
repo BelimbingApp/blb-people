@@ -20,7 +20,7 @@
             <span class="text-[12px] font-semibold">DAY</span>
         </x-people-attendance::day-tile>
 --}}
-@use('App\Modules\People\Attendance\Support\DayTypeVocabulary')
+@use('App\Domains\People\Attendance\Support\DayTypeVocabulary')
 @props([
     'dayType' => 'normal',
     'state' => null,

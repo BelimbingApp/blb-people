@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\Concerns;
+namespace App\Domains\People\Attendance\Livewire\Concerns;
 
-use App\Modules\People\Attendance\Models\AttendanceRosterAcknowledgment;
+use App\Domains\People\Attendance\Models\AttendanceRosterAcknowledgment;
 use Illuminate\Support\Collection;
 
 trait ManagesRosterSelfService

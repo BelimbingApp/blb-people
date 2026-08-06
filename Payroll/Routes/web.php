@@ -1,9 +1,9 @@
 <?php
 
-use App\Modules\People\Payroll\Livewire\AttendanceAllowanceMapping;
-use App\Modules\People\Payroll\Livewire\ClaimTypePayItemMapping;
-use App\Modules\People\Payroll\Livewire\Index;
-use App\Modules\People\Payroll\Livewire\LeaveTypePayItemMapping;
+use App\Domains\People\Payroll\Livewire\AttendanceAllowanceMapping;
+use App\Domains\People\Payroll\Livewire\ClaimTypePayItemMapping;
+use App\Domains\People\Payroll\Livewire\Index;
+use App\Domains\People\Payroll\Livewire\LeaveTypePayItemMapping;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function (): void {

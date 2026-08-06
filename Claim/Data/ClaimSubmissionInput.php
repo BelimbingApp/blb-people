@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Claim\Data;
+namespace App\Domains\People\Claim\Data;
 
-use App\Modules\Core\Employee\Models\Employee;
+use App\Core\Employee\Models\Employee;
 use DateTimeImmutable;
 
 readonly class ClaimSubmissionInput

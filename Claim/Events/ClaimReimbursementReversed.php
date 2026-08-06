@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Claim\Events;
+namespace App\Domains\People\Claim\Events;
 
 use DateTimeImmutable;
 

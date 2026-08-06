@@ -1,21 +1,21 @@
 <?php
 
-namespace App\Modules\People\Settings\Database\Seeders\Dev;
+namespace App\Domains\People\Settings\Database\Seeders\Dev;
 
 use App\Base\Database\Seeders\DevSeeder;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Database\Seeders\Dev\DevEmployeeSeeder;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\Core\User\Models\User;
-use App\Modules\People\Settings\Models\EmployeePortalAccess;
-use App\Modules\People\Settings\Models\EmployeeProfileChangeRequest;
-use App\Modules\People\Settings\Models\EmployeeWorkProfile;
-use App\Modules\People\Settings\Models\PeopleCalendarException;
-use App\Modules\People\Settings\Models\PeopleImportJob;
-use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
-use App\Modules\People\Settings\Models\PeopleReferenceAlias;
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
-use App\Modules\People\Settings\Models\PeopleRestrictedPersonEntry;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Database\Seeders\Dev\DevEmployeeSeeder;
+use App\Core\Employee\Models\Employee;
+use App\Core\User\Models\User;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\EmployeeProfileChangeRequest;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
+use App\Domains\People\Settings\Models\PeopleCalendarException;
+use App\Domains\People\Settings\Models\PeopleImportJob;
+use App\Domains\People\Settings\Models\PeopleNotificationDeliveryLog;
+use App\Domains\People\Settings\Models\PeopleReferenceAlias;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
+use App\Domains\People\Settings\Models\PeopleRestrictedPersonEntry;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 

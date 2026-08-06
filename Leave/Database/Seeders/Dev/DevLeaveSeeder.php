@@ -1,21 +1,21 @@
 <?php
 
-namespace App\Modules\People\Leave\Database\Seeders\Dev;
+namespace App\Domains\People\Leave\Database\Seeders\Dev;
 
 use App\Base\Database\Seeders\DevSeeder;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Database\Seeders\Dev\DevEmployeeSeeder;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Leave\Models\LeaveAssignment;
-use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicyBand;
-use App\Modules\People\Leave\Models\LeaveRequest;
-use App\Modules\People\Leave\Models\LeaveRequestAuditEvent;
-use App\Modules\People\Leave\Models\LeaveRequestDay;
-use App\Modules\People\Leave\Models\LeaveRequestPolicy;
-use App\Modules\People\Leave\Models\LeaveType;
-use App\Modules\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Database\Seeders\Dev\DevEmployeeSeeder;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Leave\Models\LeaveAssignment;
+use App\Domains\People\Leave\Models\LeaveBalanceLedgerEntry;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicy;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicyBand;
+use App\Domains\People\Leave\Models\LeaveRequest;
+use App\Domains\People\Leave\Models\LeaveRequestAuditEvent;
+use App\Domains\People\Leave\Models\LeaveRequestDay;
+use App\Domains\People\Leave\Models\LeaveRequestPolicy;
+use App\Domains\People\Leave\Models\LeaveType;
+use App\Domains\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
 use DateTimeImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;

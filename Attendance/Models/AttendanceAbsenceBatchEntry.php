@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Attendance\Models;
+namespace App\Domains\People\Attendance\Models;
 
-use App\Modules\Core\Employee\Models\Employee;
+use App\Core\Employee\Models\Employee;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 

@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Leave\Services;
+namespace App\Domains\People\Leave\Services;
 
-use App\Modules\People\Leave\Models\LeaveRequest;
-use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
+use App\Domains\People\Leave\Models\LeaveRequest;
+use App\Domains\People\Settings\Models\PeopleNotificationDeliveryLog;
 
 class LeaveNotificationDispatcher
 {

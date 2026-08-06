@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Leave\CountryPacks\Malaysia;
+namespace App\Domains\People\Leave\CountryPacks\Malaysia;
 
-use App\Modules\People\Leave\Contracts\ProvidesPublicHolidayCalendar;
-use App\Modules\People\Leave\Data\PublicHoliday;
+use App\Domains\People\Leave\Contracts\ProvidesPublicHolidayCalendar;
+use App\Domains\People\Leave\Data\PublicHoliday;
 use DateTimeImmutable;
 
 class MalaysiaPublicHolidayCalendar implements ProvidesPublicHolidayCalendar

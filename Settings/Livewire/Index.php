@@ -1,19 +1,19 @@
 <?php
 
-namespace App\Modules\People\Settings\Livewire;
+namespace App\Domains\People\Settings\Livewire;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Base\Foundation\Livewire\Concerns\ResetsPaginationOnSearch;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\People\Settings\Models\EmployeePortalAccess;
-use App\Modules\People\Settings\Models\EmployeeProfileChangeRequest;
-use App\Modules\People\Settings\Models\PeopleImportJob;
-use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
-use App\Modules\People\Settings\Models\PeopleRestrictedPersonEntry;
-use App\Modules\People\Settings\Services\PeopleReferenceImportService;
+use App\Core\Company\Models\Company;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\EmployeeProfileChangeRequest;
+use App\Domains\People\Settings\Models\PeopleImportJob;
+use App\Domains\People\Settings\Models\PeopleNotificationDeliveryLog;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
+use App\Domains\People\Settings\Models\PeopleRestrictedPersonEntry;
+use App\Domains\People\Settings\Services\PeopleReferenceImportService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;

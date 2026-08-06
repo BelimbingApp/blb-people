@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Settings\Exceptions;
+namespace App\Domains\People\Settings\Exceptions;
 
 use App\Base\Foundation\Exceptions\BlbDataContractException;
 

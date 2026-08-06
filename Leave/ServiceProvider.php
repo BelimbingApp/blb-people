@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Modules\People\Leave;
+namespace App\Domains\People\Leave;
 
-use App\Modules\People\Leave\Console\Commands\CarryForwardCommand;
-use App\Modules\People\Leave\Console\Commands\ExpireReplacementCommand;
-use App\Modules\People\Leave\Console\Commands\SeedSbgLeavePackCommand;
-use App\Modules\People\Leave\Contracts\RoutesLeaveApprovals;
-use App\Modules\People\Leave\CountryPacks\Malaysia\MalaysiaLeaveCountryPack;
-use App\Modules\People\Leave\Services\LeaveCountryPackRegistry;
-use App\Modules\People\Leave\Services\NullLeaveApprovalRouter;
+use App\Domains\People\Leave\Console\Commands\CarryForwardCommand;
+use App\Domains\People\Leave\Console\Commands\ExpireReplacementCommand;
+use App\Domains\People\Leave\Console\Commands\SeedSbgLeavePackCommand;
+use App\Domains\People\Leave\Contracts\RoutesLeaveApprovals;
+use App\Domains\People\Leave\CountryPacks\Malaysia\MalaysiaLeaveCountryPack;
+use App\Domains\People\Leave\Services\LeaveCountryPackRegistry;
+use App\Domains\People\Leave\Services\NullLeaveApprovalRouter;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
 
 class ServiceProvider extends BaseServiceProvider

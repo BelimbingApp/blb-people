@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Attendance\Console\Commands;
+namespace App\Domains\People\Attendance\Console\Commands;
 
-use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
-use App\Modules\People\Attendance\Services\AttendancePolicyValidationService;
+use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
+use App\Domains\People\Attendance\Services\AttendancePolicyValidationService;
 use Illuminate\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
 

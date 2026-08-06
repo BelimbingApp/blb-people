@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Attendance\Console\Commands;
+namespace App\Domains\People\Attendance\Console\Commands;
 
-use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
+use App\Domains\People\Attendance\Models\AttendanceRosterAssignment;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;

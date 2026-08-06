@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\Concerns;
+namespace App\Domains\People\Attendance\Livewire\Concerns;
 
 use App\Base\Audit\Models\AuditMutation;
 use App\Base\Authz\Enums\PrincipalType;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\Core\User\Models\User;
+use App\Core\Employee\Models\Employee;
+use App\Core\User\Models\User;
 
 trait ManagesRosterCellHistory
 {

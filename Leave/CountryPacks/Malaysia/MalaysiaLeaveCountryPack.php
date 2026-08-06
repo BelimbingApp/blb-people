@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Modules\People\Leave\CountryPacks\Malaysia;
+namespace App\Domains\People\Leave\CountryPacks\Malaysia;
 
-use App\Modules\People\Leave\Contracts\LeaveCountryPack;
-use App\Modules\People\Leave\Contracts\ProvidesPublicHolidayCalendar;
-use App\Modules\People\Leave\Contracts\ProvidesStatutoryEntitlementPolicies;
-use App\Modules\People\Leave\Contracts\ProvidesStatutoryLeaveTypes;
-use App\Modules\People\Leave\Contracts\ValidatesLeaveAgainstStatute;
-use App\Modules\People\Leave\Data\LeaveCountryPackManifest;
-use App\Modules\People\Leave\Services\LeaveCountryPackRegistry;
+use App\Domains\People\Leave\Contracts\LeaveCountryPack;
+use App\Domains\People\Leave\Contracts\ProvidesPublicHolidayCalendar;
+use App\Domains\People\Leave\Contracts\ProvidesStatutoryEntitlementPolicies;
+use App\Domains\People\Leave\Contracts\ProvidesStatutoryLeaveTypes;
+use App\Domains\People\Leave\Contracts\ValidatesLeaveAgainstStatute;
+use App\Domains\People\Leave\Data\LeaveCountryPackManifest;
+use App\Domains\People\Leave\Services\LeaveCountryPackRegistry;
 
 class MalaysiaLeaveCountryPack implements LeaveCountryPack
 {

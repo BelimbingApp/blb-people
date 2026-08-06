@@ -1,20 +1,20 @@
 <?php
 
-use App\Modules\People\Payroll\Contracts\CalculatesPayrollRun;
-use App\Modules\People\Payroll\Contracts\ClassifiesPayrollPayItems;
-use App\Modules\People\Payroll\Contracts\PayrollCountryPack;
-use App\Modules\People\Payroll\Contracts\ProvidesPayrollExports;
-use App\Modules\People\Payroll\Contracts\ProvidesPayrollProfileSchemas;
-use App\Modules\People\Payroll\Data\CountryPackManifest;
-use App\Modules\People\Payroll\Data\PayrollCalculationContext;
-use App\Modules\People\Payroll\Data\PayrollCalculationResult;
-use App\Modules\People\Payroll\Data\PayrollExportDefinition;
-use App\Modules\People\Payroll\Data\PayrollProposedResultLine;
-use App\Modules\People\Payroll\Data\ProfileSchema;
-use App\Modules\People\Payroll\Exceptions\PayrollCountryPackException;
-use App\Modules\People\Payroll\Models\PayrollPayItem;
-use App\Modules\People\Payroll\Models\PayrollResultLine;
-use App\Modules\People\Payroll\Services\PayrollCountryPackRegistry;
+use App\Domains\People\Payroll\Contracts\CalculatesPayrollRun;
+use App\Domains\People\Payroll\Contracts\ClassifiesPayrollPayItems;
+use App\Domains\People\Payroll\Contracts\PayrollCountryPack;
+use App\Domains\People\Payroll\Contracts\ProvidesPayrollExports;
+use App\Domains\People\Payroll\Contracts\ProvidesPayrollProfileSchemas;
+use App\Domains\People\Payroll\Data\CountryPackManifest;
+use App\Domains\People\Payroll\Data\PayrollCalculationContext;
+use App\Domains\People\Payroll\Data\PayrollCalculationResult;
+use App\Domains\People\Payroll\Data\PayrollExportDefinition;
+use App\Domains\People\Payroll\Data\PayrollProposedResultLine;
+use App\Domains\People\Payroll\Data\ProfileSchema;
+use App\Domains\People\Payroll\Exceptions\PayrollCountryPackException;
+use App\Domains\People\Payroll\Models\PayrollPayItem;
+use App\Domains\People\Payroll\Models\PayrollResultLine;
+use App\Domains\People\Payroll\Services\PayrollCountryPackRegistry;
 use Illuminate\Support\Carbon;
 
 defined('PAYROLL_MY_PACK') || define('PAYROLL_MY_PACK', 'belimbing/payroll-my');

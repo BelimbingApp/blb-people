@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Leave\Contracts;
+namespace App\Domains\People\Leave\Contracts;
 
-use App\Modules\People\Leave\Data\StatutoryLeaveTypeDefinition;
+use App\Domains\People\Leave\Data\StatutoryLeaveTypeDefinition;
 
 interface ProvidesStatutoryLeaveTypes
 {

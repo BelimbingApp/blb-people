@@ -1,6 +1,6 @@
 <?php
 
-use App\Modules\People\Payroll\Inventory\PayrollInventoryContributionProvider;
+use App\Domains\People\Payroll\Inventory\PayrollInventoryContributionProvider;
 
 return [
     /*
@@ -8,8 +8,8 @@ return [
     |
     | Discovered from `Config/inventory.php` by the Base
     | InventoryContributionDiscoveryService. The Payroll provider reports its
-    | registered country packs so they appear as contributions on the Modules
-    | screen, under the bundle that delivers `people/payroll`.
+    | registered country packs so they appear as contributions on the Domains
+    | screen, under the Domain that contains `people/payroll`.
     */
     'contribution_providers' => [
         PayrollInventoryContributionProvider::class,

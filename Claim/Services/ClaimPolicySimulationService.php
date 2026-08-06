@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Claim\Services;
+namespace App\Domains\People\Claim\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Claim\Data\ClaimSubmissionInput;
-use App\Modules\People\Claim\Models\ClaimAssignmentLine;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Claim\Data\ClaimSubmissionInput;
+use App\Domains\People\Claim\Models\ClaimAssignmentLine;
 use DateTimeImmutable;
 
 /**

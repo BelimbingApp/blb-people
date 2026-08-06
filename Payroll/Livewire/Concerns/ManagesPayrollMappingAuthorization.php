@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Payroll\Livewire\Concerns;
+namespace App\Domains\People\Payroll\Livewire\Concerns;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\People\Payroll\Models\PayrollPayItem;
+use App\Core\Company\Models\Company;
+use App\Domains\People\Payroll\Models\PayrollPayItem;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 

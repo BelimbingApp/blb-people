@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire;
+namespace App\Domains\People\Attendance\Livewire;
 
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\People\Attendance\Livewire\Concerns\HasPolicyRuleBuilders;
-use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
-use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
-use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
-use App\Modules\People\Attendance\Services\PolicyTemplateSerializer;
+use App\Domains\People\Attendance\Livewire\Concerns\HasPolicyRuleBuilders;
+use App\Domains\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
+use App\Domains\People\Attendance\Models\AttendanceShiftTemplate;
+use App\Domains\People\Attendance\Services\PolicyTemplateSerializer;
 use Illuminate\Contracts\View\View;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;

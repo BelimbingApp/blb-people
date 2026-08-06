@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Payroll\Models;
+namespace App\Domains\People\Payroll\Models;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\People\Leave\Models\LeaveType;
+use App\Core\Company\Models\Company;
+use App\Domains\People\Leave\Models\LeaveType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 

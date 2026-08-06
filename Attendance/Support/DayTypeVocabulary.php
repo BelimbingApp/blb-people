@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Attendance\Support;
+namespace App\Domains\People\Attendance\Support;
 
-use App\Modules\People\Attendance\Models\AttendanceDay;
+use App\Domains\People\Attendance\Models\AttendanceDay;
 
 /**
  * Single source of truth for how a day type renders.

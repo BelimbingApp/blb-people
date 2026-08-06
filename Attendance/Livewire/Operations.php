@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire;
+namespace App\Domains\People\Attendance\Livewire;
 
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
-use App\Modules\People\Attendance\Models\AttendanceAbsenceBatch;
-use App\Modules\People\Attendance\Models\AttendanceClockEvent;
-use App\Modules\People\Attendance\Models\AttendanceDay;
-use App\Modules\People\Attendance\Models\AttendanceOvertimeRequest;
-use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
-use App\Modules\People\Attendance\Services\AttendanceLifecycleService;
+use App\Domains\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Domains\People\Attendance\Models\AttendanceAbsenceBatch;
+use App\Domains\People\Attendance\Models\AttendanceClockEvent;
+use App\Domains\People\Attendance\Models\AttendanceDay;
+use App\Domains\People\Attendance\Models\AttendanceOvertimeRequest;
+use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
+use App\Domains\People\Attendance\Services\AttendanceLifecycleService;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
 

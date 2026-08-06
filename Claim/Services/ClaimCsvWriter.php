@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Claim\Services;
+namespace App\Domains\People\Claim\Services;
 
 final class ClaimCsvWriter
 {

@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Modules\People\Claim\Http\Controllers;
+namespace App\Domains\People\Claim\Http\Controllers;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\User\Models\User;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Services\ClaimApprovalAgingBuilder;
-use App\Modules\People\Claim\Services\ClaimReimbursementStatementBuilder;
-use App\Modules\People\Claim\Services\ClaimUtilizationReportBuilder;
+use App\Core\Company\Models\Company;
+use App\Core\User\Models\User;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Services\ClaimApprovalAgingBuilder;
+use App\Domains\People\Claim\Services\ClaimReimbursementStatementBuilder;
+use App\Domains\People\Claim\Services\ClaimUtilizationReportBuilder;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 

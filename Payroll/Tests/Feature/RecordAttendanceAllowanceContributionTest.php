@@ -12,15 +12,15 @@
  * intact.
  */
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Attendance\Events\AttendanceAllowanceMaterialized;
-use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
-use App\Modules\People\Payroll\Models\PayrollAttendanceRulePayItem;
-use App\Modules\People\Payroll\Models\PayrollCalendar;
-use App\Modules\People\Payroll\Models\PayrollInput;
-use App\Modules\People\Payroll\Models\PayrollPeriod;
-use App\Modules\People\Payroll\Models\PayrollRun;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Attendance\Events\AttendanceAllowanceMaterialized;
+use App\Domains\People\Attendance\Models\AttendanceAllowanceRule;
+use App\Domains\People\Payroll\Models\PayrollAttendanceRulePayItem;
+use App\Domains\People\Payroll\Models\PayrollCalendar;
+use App\Domains\People\Payroll\Models\PayrollInput;
+use App\Domains\People\Payroll\Models\PayrollPeriod;
+use App\Domains\People\Payroll\Models\PayrollRun;
 
 it('materialises a PayrollInput from an AttendanceAllowanceMaterialized event', function (): void {
     $company = Company::factory()->minimal()->create();

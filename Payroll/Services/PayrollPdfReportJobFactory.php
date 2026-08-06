@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Payroll\Services;
+namespace App\Domains\People\Payroll\Services;
 
 use App\Base\Pdf\Jobs\RenderPdfJob;
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Models\PayrollRunParticipant;
+use App\Domains\People\Payroll\Models\PayrollRun;
+use App\Domains\People\Payroll\Models\PayrollRunParticipant;
 
 class PayrollPdfReportJobFactory
 {

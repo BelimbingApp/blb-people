@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Leave\Data;
+namespace App\Domains\People\Leave\Data;
 
 class StatutoryEntitlementBand
 {

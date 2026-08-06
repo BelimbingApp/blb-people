@@ -1,6 +1,6 @@
 <?php
 
-use App\Modules\People\Attendance\Livewire\PolicyGroups;
+use App\Domains\People\Attendance\Livewire\PolicyGroups;
 
 /** @var PolicyGroups $this */
 ?>

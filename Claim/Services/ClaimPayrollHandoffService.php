@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Claim\Services;
+namespace App\Domains\People\Claim\Services;
 
-use App\Modules\People\Claim\Events\ClaimReimbursementQueued;
-use App\Modules\People\Claim\Events\ClaimReimbursementReversed;
-use App\Modules\People\Claim\Models\ClaimLine;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Models\ClaimRequestAuditEvent;
+use App\Domains\People\Claim\Events\ClaimReimbursementQueued;
+use App\Domains\People\Claim\Events\ClaimReimbursementReversed;
+use App\Domains\People\Claim\Models\ClaimLine;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Models\ClaimRequestAuditEvent;
 use DateTimeImmutable;
 
 class ClaimPayrollHandoffService

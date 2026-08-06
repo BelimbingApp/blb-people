@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Attendance\Services;
+namespace App\Domains\People\Attendance\Services;
 
-use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
-use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
+use App\Domains\People\Attendance\Models\AttendanceAllowanceRule;
+use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
 
 class AttendancePolicyValidationService
 {

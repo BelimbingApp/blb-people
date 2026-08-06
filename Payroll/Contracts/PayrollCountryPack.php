@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Payroll\Contracts;
+namespace App\Domains\People\Payroll\Contracts;
 
-use App\Modules\People\Payroll\Data\CountryPackManifest;
+use App\Domains\People\Payroll\Data\CountryPackManifest;
 
 interface PayrollCountryPack
 {

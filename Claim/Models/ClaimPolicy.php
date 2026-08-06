@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Claim\Models;
+namespace App\Domains\People\Claim\Models;
 
 use App\Base\Database\Concerns\HasCompanyScopedExternalLifecycle;
 use Illuminate\Database\Eloquent\Model;

@@ -1,16 +1,16 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\Concerns;
+namespace App\Domains\People\Attendance\Livewire\Concerns;
 
-use App\Modules\Core\Company\Models\Department;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Attendance\Models\AttendanceDay;
-use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
-use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
-use App\Modules\People\Attendance\Models\AttendanceRosterLock;
-use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
-use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
+use App\Core\Company\Models\Department;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Attendance\Models\AttendanceDay;
+use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
+use App\Domains\People\Attendance\Models\AttendanceRosterAssignment;
+use App\Domains\People\Attendance\Models\AttendanceRosterLock;
+use App\Domains\People\Attendance\Models\AttendanceRosterPattern;
+use App\Domains\People\Attendance\Models\AttendanceShiftTemplate;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;

@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Leave\Livewire\Widgets;
+namespace App\Domains\People\Leave\Livewire\Widgets;
 
 use App\Base\Dashboard\Widget;
 use App\Base\DateTime\Contracts\DateTimeDisplayService;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\People\Leave\Models\LeaveRequest;
+use App\Core\Company\Models\Company;
+use App\Domains\People\Leave\Models\LeaveRequest;
 use Illuminate\Contracts\View\View;
 
 /**

@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Attendance\Services;
+namespace App\Domains\People\Attendance\Services;
 
-use App\Modules\People\Attendance\Events\AttendanceOvertimeApproved;
-use App\Modules\People\Attendance\Exceptions\AttendanceOvertimeException;
-use App\Modules\People\Attendance\Models\AttendanceOvertimeRequest;
+use App\Domains\People\Attendance\Events\AttendanceOvertimeApproved;
+use App\Domains\People\Attendance\Exceptions\AttendanceOvertimeException;
+use App\Domains\People\Attendance\Models\AttendanceOvertimeRequest;
 use DateTimeImmutable;
 
 class AttendanceOvertimeService
@@ -62,7 +62,7 @@ class AttendanceOvertimeService
 
     /**
      * Dispatch an AttendanceOvertimeApproved event so downstream consumers
-     * (the Payroll plugin, audit sinks) can record the contribution.
+     * (the Payroll module, audit sinks) can record the contribution.
      *
      * Returns true when an event was dispatched, false when the request had
      * nothing payable. The producer no longer learns whether the listener

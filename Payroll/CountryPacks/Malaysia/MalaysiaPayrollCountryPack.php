@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Modules\People\Payroll\CountryPacks\Malaysia;
+namespace App\Domains\People\Payroll\CountryPacks\Malaysia;
 
-use App\Modules\People\Payroll\Contracts\CalculatesPayrollRun;
-use App\Modules\People\Payroll\Contracts\ClassifiesPayrollPayItems;
-use App\Modules\People\Payroll\Contracts\PayrollCountryPack;
-use App\Modules\People\Payroll\Contracts\ProvidesPayrollExports;
-use App\Modules\People\Payroll\Contracts\ProvidesPayrollProfileSchemas;
-use App\Modules\People\Payroll\Data\CountryPackManifest;
-use App\Modules\People\Payroll\Services\PayrollCountryPackRegistry;
+use App\Domains\People\Payroll\Contracts\CalculatesPayrollRun;
+use App\Domains\People\Payroll\Contracts\ClassifiesPayrollPayItems;
+use App\Domains\People\Payroll\Contracts\PayrollCountryPack;
+use App\Domains\People\Payroll\Contracts\ProvidesPayrollExports;
+use App\Domains\People\Payroll\Contracts\ProvidesPayrollProfileSchemas;
+use App\Domains\People\Payroll\Data\CountryPackManifest;
+use App\Domains\People\Payroll\Services\PayrollCountryPackRegistry;
 
 class MalaysiaPayrollCountryPack implements PayrollCountryPack
 {

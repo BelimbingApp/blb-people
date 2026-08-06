@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Events;
+namespace App\Domains\People\Attendance\Events;
 
 use DateTimeImmutable;
 

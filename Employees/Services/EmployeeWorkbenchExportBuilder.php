@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Employees\Services;
+namespace App\Domains\People\Employees\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
+use App\Core\Employee\Models\Employee;
 
 class EmployeeWorkbenchExportBuilder
 {

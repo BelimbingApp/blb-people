@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Settings\Services;
+namespace App\Domains\People\Settings\Services;
 
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 
 class PeopleReferenceExportBuilder
 {

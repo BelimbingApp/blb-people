@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Payroll\Services;
+namespace App\Domains\People\Payroll\Services;
 
-use App\Modules\People\Payroll\Models\PayrollResultLine;
-use App\Modules\People\Payroll\Models\PayrollRunParticipant;
+use App\Domains\People\Payroll\Models\PayrollResultLine;
+use App\Domains\People\Payroll\Models\PayrollRunParticipant;
 
 class PayrollPayslipBuilder
 {

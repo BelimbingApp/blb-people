@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\Concerns;
+namespace App\Domains\People\Attendance\Livewire\Concerns;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Attendance\Models\AttendanceDay;
-use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
-use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
-use App\Modules\People\Attendance\Services\AttendanceCalendarResolver;
-use App\Modules\People\Attendance\Support\DayTypeVocabulary;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Attendance\Models\AttendanceDay;
+use App\Domains\People\Attendance\Models\AttendanceRosterAssignment;
+use App\Domains\People\Attendance\Models\AttendanceShiftTemplate;
+use App\Domains\People\Attendance\Services\AttendanceCalendarResolver;
+use App\Domains\People\Attendance\Support\DayTypeVocabulary;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 

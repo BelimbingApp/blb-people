@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Payroll\Models;
+namespace App\Domains\People\Payroll\Models;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionState;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Payroll\Contracts\Intake\PayrollContributionState;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 

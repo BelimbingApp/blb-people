@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Settings\Services;
+namespace App\Domains\People\Settings\Services;
 
-use App\Modules\People\Settings\Exceptions\PeopleReferenceImportException;
-use App\Modules\People\Settings\Models\PeopleImportJob;
-use App\Modules\People\Settings\Models\PeopleReferenceAlias;
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
+use App\Domains\People\Settings\Exceptions\PeopleReferenceImportException;
+use App\Domains\People\Settings\Models\PeopleImportJob;
+use App\Domains\People\Settings\Models\PeopleReferenceAlias;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use Illuminate\Support\Str;
 use SimpleXMLElement;
 use ZipArchive;

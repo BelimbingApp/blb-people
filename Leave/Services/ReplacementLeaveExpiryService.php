@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Leave\Services;
+namespace App\Domains\People\Leave\Services;
 
-use App\Modules\People\Leave\Data\LeaveLedgerEntryData;
-use App\Modules\People\Leave\Data\LeaveLedgerEntryOptions;
-use App\Modules\People\Leave\Data\LeaveLedgerEntrySource;
-use App\Modules\People\Leave\Data\LeaveLedgerEntrySubject;
-use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
+use App\Domains\People\Leave\Data\LeaveLedgerEntryData;
+use App\Domains\People\Leave\Data\LeaveLedgerEntryOptions;
+use App\Domains\People\Leave\Data\LeaveLedgerEntrySource;
+use App\Domains\People\Leave\Data\LeaveLedgerEntrySubject;
+use App\Domains\People\Leave\Models\LeaveBalanceLedgerEntry;
 use DateTimeImmutable;
 
 /**

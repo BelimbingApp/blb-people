@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Leave\Data;
+namespace App\Domains\People\Leave\Data;
 
-use App\Modules\People\Leave\Contracts\RoutesLeaveApprovals;
+use App\Domains\People\Leave\Contracts\RoutesLeaveApprovals;
 
 class LeaveApprovalIntent
 {

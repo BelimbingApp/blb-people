@@ -1,14 +1,14 @@
 <?php
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Claim\Exceptions\ClaimRequestLifecycleException;
-use App\Modules\People\Claim\Models\ClaimAssignmentLine;
-use App\Modules\People\Claim\Models\ClaimPolicy;
-use App\Modules\People\Claim\Models\ClaimPolicyBand;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Models\ClaimType;
-use App\Modules\People\Claim\Services\SubmitClaimRequestService;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Claim\Exceptions\ClaimRequestLifecycleException;
+use App\Domains\People\Claim\Models\ClaimAssignmentLine;
+use App\Domains\People\Claim\Models\ClaimPolicy;
+use App\Domains\People\Claim\Models\ClaimPolicyBand;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Models\ClaimType;
+use App\Domains\People\Claim\Services\SubmitClaimRequestService;
 
 require_once __DIR__.'/ClaimPolicyEvaluationTest.php';
 

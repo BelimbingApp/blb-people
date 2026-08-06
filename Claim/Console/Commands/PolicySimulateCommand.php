@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Claim\Console\Commands;
+namespace App\Domains\People\Claim\Console\Commands;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Claim\Models\ClaimAssignmentLine;
-use App\Modules\People\Claim\Services\ClaimPolicySimulationService;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Claim\Models\ClaimAssignmentLine;
+use App\Domains\People\Claim\Services\ClaimPolicySimulationService;
 use DateTimeImmutable;
 use Illuminate\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;

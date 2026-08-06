@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Modules\People\Attendance\Services;
+namespace App\Domains\People\Attendance\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Attendance\Models\AttendanceDay;
-use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
-use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
-use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
-use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Attendance\Models\AttendanceDay;
+use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
+use App\Domains\People\Attendance\Models\AttendanceRosterAssignment;
+use App\Domains\People\Attendance\Models\AttendanceRosterPattern;
+use App\Domains\People\Attendance\Models\AttendanceShiftTemplate;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 

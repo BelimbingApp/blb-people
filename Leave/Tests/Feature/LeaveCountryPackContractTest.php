@@ -1,18 +1,18 @@
 <?php
 
-use App\Modules\People\Leave\Contracts\LeaveCountryPack;
-use App\Modules\People\Leave\Contracts\ProvidesPublicHolidayCalendar;
-use App\Modules\People\Leave\Contracts\ProvidesStatutoryEntitlementPolicies;
-use App\Modules\People\Leave\Contracts\ProvidesStatutoryLeaveTypes;
-use App\Modules\People\Leave\Contracts\ValidatesLeaveAgainstStatute;
-use App\Modules\People\Leave\CountryPacks\Malaysia\MalaysiaLeaveCountryPack;
-use App\Modules\People\Leave\CountryPacks\Malaysia\MalaysiaStatutoryLeaveTypes;
-use App\Modules\People\Leave\Data\LeaveCountryPackManifest;
-use App\Modules\People\Leave\Exceptions\LeaveCountryPackException;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicyBand;
-use App\Modules\People\Leave\Models\LeaveType;
-use App\Modules\People\Leave\Services\LeaveCountryPackRegistry;
+use App\Domains\People\Leave\Contracts\LeaveCountryPack;
+use App\Domains\People\Leave\Contracts\ProvidesPublicHolidayCalendar;
+use App\Domains\People\Leave\Contracts\ProvidesStatutoryEntitlementPolicies;
+use App\Domains\People\Leave\Contracts\ProvidesStatutoryLeaveTypes;
+use App\Domains\People\Leave\Contracts\ValidatesLeaveAgainstStatute;
+use App\Domains\People\Leave\CountryPacks\Malaysia\MalaysiaLeaveCountryPack;
+use App\Domains\People\Leave\CountryPacks\Malaysia\MalaysiaStatutoryLeaveTypes;
+use App\Domains\People\Leave\Data\LeaveCountryPackManifest;
+use App\Domains\People\Leave\Exceptions\LeaveCountryPackException;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicy;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicyBand;
+use App\Domains\People\Leave\Models\LeaveType;
+use App\Domains\People\Leave\Services\LeaveCountryPackRegistry;
 
 test('malaysia leave pack registers under MY with the v0 core contract', function (): void {
     $registry = app(LeaveCountryPackRegistry::class);

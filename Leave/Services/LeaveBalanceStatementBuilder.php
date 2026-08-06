@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Leave\Services;
+namespace App\Domains\People\Leave\Services;
 
-use App\Modules\People\Leave\Data\LeaveBalanceStatement;
-use App\Modules\People\Leave\Data\LeaveBalanceStatementRow;
-use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
-use App\Modules\People\Leave\Models\LeaveType;
+use App\Domains\People\Leave\Data\LeaveBalanceStatement;
+use App\Domains\People\Leave\Data\LeaveBalanceStatementRow;
+use App\Domains\People\Leave\Models\LeaveBalanceLedgerEntry;
+use App\Domains\People\Leave\Models\LeaveType;
 
 class LeaveBalanceStatementBuilder
 {

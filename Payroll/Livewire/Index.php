@@ -1,22 +1,22 @@
 <?php
 
-namespace App\Modules\People\Payroll\Livewire;
+namespace App\Domains\People\Payroll\Livewire;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Payroll\Exceptions\ClosedPayrollRunException;
-use App\Modules\People\Payroll\Exceptions\PayrollCountryPackException;
-use App\Modules\People\Payroll\Models\PayrollInput;
-use App\Modules\People\Payroll\Models\PayrollPayItem;
-use App\Modules\People\Payroll\Models\PayrollPayItemClassification;
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Models\PayrollStatutoryRuleRow;
-use App\Modules\People\Payroll\Models\PayrollStatutoryRuleSet;
-use App\Modules\People\Payroll\Services\PayrollRunCalculator;
-use App\Modules\People\Payroll\Services\PayrollRunCountryPackGuard;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Payroll\Exceptions\ClosedPayrollRunException;
+use App\Domains\People\Payroll\Exceptions\PayrollCountryPackException;
+use App\Domains\People\Payroll\Models\PayrollInput;
+use App\Domains\People\Payroll\Models\PayrollPayItem;
+use App\Domains\People\Payroll\Models\PayrollPayItemClassification;
+use App\Domains\People\Payroll\Models\PayrollRun;
+use App\Domains\People\Payroll\Models\PayrollStatutoryRuleRow;
+use App\Domains\People\Payroll\Models\PayrollStatutoryRuleSet;
+use App\Domains\People\Payroll\Services\PayrollRunCalculator;
+use App\Domains\People\Payroll\Services\PayrollRunCountryPackGuard;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;

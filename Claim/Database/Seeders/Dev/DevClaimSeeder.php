@@ -1,22 +1,22 @@
 <?php
 
-namespace App\Modules\People\Claim\Database\Seeders\Dev;
+namespace App\Domains\People\Claim\Database\Seeders\Dev;
 
 use App\Base\Database\Seeders\DevSeeder;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Database\Seeders\Dev\DevEmployeeSeeder;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Claim\Models\ClaimAssignment;
-use App\Modules\People\Claim\Models\ClaimAssignmentLine;
-use App\Modules\People\Claim\Models\ClaimCategory;
-use App\Modules\People\Claim\Models\ClaimContext;
-use App\Modules\People\Claim\Models\ClaimLine;
-use App\Modules\People\Claim\Models\ClaimPolicy;
-use App\Modules\People\Claim\Models\ClaimPolicyBand;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Models\ClaimRequestAuditEvent;
-use App\Modules\People\Claim\Models\ClaimType;
-use App\Modules\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Database\Seeders\Dev\DevEmployeeSeeder;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Claim\Models\ClaimAssignment;
+use App\Domains\People\Claim\Models\ClaimAssignmentLine;
+use App\Domains\People\Claim\Models\ClaimCategory;
+use App\Domains\People\Claim\Models\ClaimContext;
+use App\Domains\People\Claim\Models\ClaimLine;
+use App\Domains\People\Claim\Models\ClaimPolicy;
+use App\Domains\People\Claim\Models\ClaimPolicyBand;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Models\ClaimRequestAuditEvent;
+use App\Domains\People\Claim\Models\ClaimType;
+use App\Domains\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;

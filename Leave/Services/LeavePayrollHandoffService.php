@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Modules\People\Leave\Services;
+namespace App\Domains\People\Leave\Services;
 
-use App\Modules\People\Leave\Events\LeaveApplied;
-use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
-use App\Modules\People\Leave\Models\LeaveRequest;
+use App\Domains\People\Leave\Events\LeaveApplied;
+use App\Domains\People\Leave\Models\LeaveBalanceLedgerEntry;
+use App\Domains\People\Leave\Models\LeaveRequest;
 use DateTimeImmutable;
 
 /**
  * Dispatches LeaveApplied for an applied leave request so downstream
- * consumers (Payroll plugin, audit sinks) can pick up the fact.
+ * consumers (the Payroll module, audit sinks) can pick up the fact.
  *
  * Plan 13 Phase 1 — the dispatching producer side. Whether the leave
  * type actually emits a payroll contribution is decided by the

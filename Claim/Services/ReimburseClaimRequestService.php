@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Claim\Services;
+namespace App\Domains\People\Claim\Services;
 
-use App\Modules\People\Claim\Exceptions\ClaimRequestLifecycleException;
-use App\Modules\People\Claim\Models\ClaimEntitlementUsageEntry;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Models\ClaimRequestAuditEvent;
+use App\Domains\People\Claim\Exceptions\ClaimRequestLifecycleException;
+use App\Domains\People\Claim\Models\ClaimEntitlementUsageEntry;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Models\ClaimRequestAuditEvent;
 use Illuminate\Support\Facades\DB;
 
 /**

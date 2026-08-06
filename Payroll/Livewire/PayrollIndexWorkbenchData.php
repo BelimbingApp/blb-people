@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Modules\People\Payroll\Livewire;
+namespace App\Domains\People\Payroll\Livewire;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Payroll\Models\PayrollEmployeeStatutoryProfile;
-use App\Modules\People\Payroll\Models\PayrollEmployerStatutoryProfile;
-use App\Modules\People\Payroll\Models\PayrollPayItem;
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Models\PayrollStatutoryRuleSet;
-use App\Modules\People\Payroll\Services\PayrollCountryPackRegistry;
-use App\Modules\People\Payroll\Services\PayrollPayslipBuilder;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Payroll\Models\PayrollEmployeeStatutoryProfile;
+use App\Domains\People\Payroll\Models\PayrollEmployerStatutoryProfile;
+use App\Domains\People\Payroll\Models\PayrollPayItem;
+use App\Domains\People\Payroll\Models\PayrollRun;
+use App\Domains\People\Payroll\Models\PayrollStatutoryRuleSet;
+use App\Domains\People\Payroll\Services\PayrollCountryPackRegistry;
+use App\Domains\People\Payroll\Services\PayrollPayslipBuilder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 

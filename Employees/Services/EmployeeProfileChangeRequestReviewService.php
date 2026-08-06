@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Employees\Services;
+namespace App\Domains\People\Employees\Services;
 
-use App\Modules\Core\User\Models\User;
-use App\Modules\People\Settings\Models\EmployeeProfileChangeRequest;
-use App\Modules\People\Settings\Models\EmployeeWorkProfile;
+use App\Core\User\Models\User;
+use App\Domains\People\Settings\Models\EmployeeProfileChangeRequest;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 

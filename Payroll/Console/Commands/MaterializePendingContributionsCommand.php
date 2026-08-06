@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Payroll\Console\Commands;
+namespace App\Domains\People\Payroll\Console\Commands;
 
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Services\PayrollContributionIntake;
+use App\Domains\People\Payroll\Models\PayrollRun;
+use App\Domains\People\Payroll\Services\PayrollContributionIntake;
 use Illuminate\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Payroll\Data;
+namespace App\Domains\People\Payroll\Data;
 
 class PayrollCalculationResult
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Leave\Models;
+namespace App\Domains\People\Leave\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;

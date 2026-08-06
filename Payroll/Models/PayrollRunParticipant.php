@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Payroll\Models;
+namespace App\Domains\People\Payroll\Models;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;

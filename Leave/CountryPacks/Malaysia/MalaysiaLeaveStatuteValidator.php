@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Modules\People\Leave\CountryPacks\Malaysia;
+namespace App\Domains\People\Leave\CountryPacks\Malaysia;
 
-use App\Modules\People\Leave\Contracts\ValidatesLeaveAgainstStatute;
-use App\Modules\People\Leave\Data\LeaveValidationIssue;
-use App\Modules\People\Leave\Data\StatutoryEntitlementPolicy;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicyBand;
-use App\Modules\People\Leave\Models\LeaveType;
+use App\Domains\People\Leave\Contracts\ValidatesLeaveAgainstStatute;
+use App\Domains\People\Leave\Data\LeaveValidationIssue;
+use App\Domains\People\Leave\Data\StatutoryEntitlementPolicy;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicy;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicyBand;
+use App\Domains\People\Leave\Models\LeaveType;
 
 class MalaysiaLeaveStatuteValidator implements ValidatesLeaveAgainstStatute
 {

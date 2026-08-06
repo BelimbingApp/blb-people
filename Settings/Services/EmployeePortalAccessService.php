@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Settings\Services;
+namespace App\Domains\People\Settings\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\Core\User\Models\User;
-use App\Modules\People\Settings\Models\EmployeePortalAccess;
-use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
+use App\Core\Employee\Models\Employee;
+use App\Core\User\Models\User;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\PeopleNotificationDeliveryLog;
 
 class EmployeePortalAccessService
 {

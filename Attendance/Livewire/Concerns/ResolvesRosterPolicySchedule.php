@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\Concerns;
+namespace App\Domains\People\Attendance\Livewire\Concerns;
 
-use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
-use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
-use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
-use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
+use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
+use App\Domains\People\Attendance\Models\AttendanceRosterAssignment;
+use App\Domains\People\Attendance\Models\AttendanceRosterPattern;
+use App\Domains\People\Attendance\Models\AttendanceShiftTemplate;
 use Carbon\CarbonImmutable;
 
 trait ResolvesRosterPolicySchedule

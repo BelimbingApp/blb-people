@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Modules\People\Claim;
+namespace App\Domains\People\Claim;
 
-use App\Modules\People\Claim\Console\Commands\PolicySimulateCommand;
-use App\Modules\People\Claim\Console\Commands\PolicyValidateCommand;
-use App\Modules\People\Claim\Services\ClaimCohortPredicateService;
-use App\Modules\People\Claim\Services\ClaimPolicyEvaluationService;
-use App\Modules\People\Claim\Services\ClaimPolicySimulationService;
-use App\Modules\People\Claim\Services\ClaimPolicyValidationService;
+use App\Domains\People\Claim\Console\Commands\PolicySimulateCommand;
+use App\Domains\People\Claim\Console\Commands\PolicyValidateCommand;
+use App\Domains\People\Claim\Services\ClaimCohortPredicateService;
+use App\Domains\People\Claim\Services\ClaimPolicyEvaluationService;
+use App\Domains\People\Claim\Services\ClaimPolicySimulationService;
+use App\Domains\People\Claim\Services\ClaimPolicyValidationService;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
 
 class ServiceProvider extends BaseServiceProvider

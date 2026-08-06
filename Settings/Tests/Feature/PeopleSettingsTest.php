@@ -1,19 +1,19 @@
 <?php
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\Core\User\Models\User;
-use App\Modules\People\Settings\Models\EmployeePortalAccess;
-use App\Modules\People\Settings\Models\EmployeeProfileChangeRequest;
-use App\Modules\People\Settings\Models\EmployeeWorkProfile;
-use App\Modules\People\Settings\Models\PeopleCalendarException;
-use App\Modules\People\Settings\Models\PeopleImportJob;
-use App\Modules\People\Settings\Models\PeopleReferenceAlias;
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
-use App\Modules\People\Settings\Models\PeopleRestrictedPersonEntry;
-use App\Modules\People\Settings\Services\EmployeePortalAccessService;
-use App\Modules\People\Settings\Services\PeopleReferenceExportBuilder;
-use App\Modules\People\Settings\Services\PeopleReferenceImportService;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Core\User\Models\User;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\EmployeeProfileChangeRequest;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
+use App\Domains\People\Settings\Models\PeopleCalendarException;
+use App\Domains\People\Settings\Models\PeopleImportJob;
+use App\Domains\People\Settings\Models\PeopleReferenceAlias;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
+use App\Domains\People\Settings\Models\PeopleRestrictedPersonEntry;
+use App\Domains\People\Settings\Services\EmployeePortalAccessService;
+use App\Domains\People\Settings\Services\PeopleReferenceExportBuilder;
+use App\Domains\People\Settings\Services\PeopleReferenceImportService;
 
 test('people reference data uses honest BLB names and preserves ipayroll source labels', function (): void {
     $company = Company::factory()->create();

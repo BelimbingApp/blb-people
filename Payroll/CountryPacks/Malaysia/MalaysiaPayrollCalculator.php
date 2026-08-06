@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Modules\People\Payroll\CountryPacks\Malaysia;
+namespace App\Domains\People\Payroll\CountryPacks\Malaysia;
 
-use App\Modules\People\Payroll\Contracts\CalculatesPayrollRun;
-use App\Modules\People\Payroll\Data\PayrollCalculationContext;
-use App\Modules\People\Payroll\Data\PayrollCalculationResult;
-use App\Modules\People\Payroll\Data\PayrollProposedResultLine;
-use App\Modules\People\Payroll\Models\PayrollResultLine;
-use App\Modules\People\Payroll\Models\PayrollStatutoryRuleRow;
-use App\Modules\People\Payroll\Services\StatutoryRuleSetResolver;
+use App\Domains\People\Payroll\Contracts\CalculatesPayrollRun;
+use App\Domains\People\Payroll\Data\PayrollCalculationContext;
+use App\Domains\People\Payroll\Data\PayrollCalculationResult;
+use App\Domains\People\Payroll\Data\PayrollProposedResultLine;
+use App\Domains\People\Payroll\Models\PayrollResultLine;
+use App\Domains\People\Payroll\Models\PayrollStatutoryRuleRow;
+use App\Domains\People\Payroll\Services\StatutoryRuleSetResolver;
 
 class MalaysiaPayrollCalculator implements CalculatesPayrollRun
 {

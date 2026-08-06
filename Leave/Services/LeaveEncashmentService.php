@@ -1,16 +1,16 @@
 <?php
 
-namespace App\Modules\People\Leave\Services;
+namespace App\Domains\People\Leave\Services;
 
-use App\Modules\People\Leave\Data\LeaveEncashmentData;
-use App\Modules\People\Leave\Data\LeaveLedgerEntryData;
-use App\Modules\People\Leave\Data\LeaveLedgerEntryOptions;
-use App\Modules\People\Leave\Data\LeaveLedgerEntrySource;
-use App\Modules\People\Leave\Data\LeaveLedgerEntrySubject;
-use App\Modules\People\Leave\Events\LeaveEncashed;
-use App\Modules\People\Leave\Exceptions\LeaveEncashmentException;
-use App\Modules\People\Leave\Models\LeaveBalanceLedgerEntry;
-use App\Modules\People\Leave\Models\LeaveType;
+use App\Domains\People\Leave\Data\LeaveEncashmentData;
+use App\Domains\People\Leave\Data\LeaveLedgerEntryData;
+use App\Domains\People\Leave\Data\LeaveLedgerEntryOptions;
+use App\Domains\People\Leave\Data\LeaveLedgerEntrySource;
+use App\Domains\People\Leave\Data\LeaveLedgerEntrySubject;
+use App\Domains\People\Leave\Events\LeaveEncashed;
+use App\Domains\People\Leave\Exceptions\LeaveEncashmentException;
+use App\Domains\People\Leave\Models\LeaveBalanceLedgerEntry;
+use App\Domains\People\Leave\Models\LeaveType;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 

@@ -1,10 +1,10 @@
 <?php
 
-use App\Modules\People\Claim\Models\ClaimLine;
-use App\Modules\People\Claim\Models\ClaimPolicyBand;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Services\ClaimPolicySimulationService;
-use App\Modules\People\Claim\Services\ClaimPolicyValidationService;
+use App\Domains\People\Claim\Models\ClaimLine;
+use App\Domains\People\Claim\Models\ClaimPolicyBand;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Services\ClaimPolicySimulationService;
+use App\Domains\People\Claim\Services\ClaimPolicyValidationService;
 
 require_once __DIR__.'/ClaimPolicyEvaluationTest.php';
 

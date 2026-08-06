@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Leave\CountryPacks\Malaysia;
+namespace App\Domains\People\Leave\CountryPacks\Malaysia;
 
-use App\Modules\People\Leave\Contracts\ProvidesStatutoryLeaveTypes;
-use App\Modules\People\Leave\Data\StatutoryLeaveTypeDefinition;
-use App\Modules\People\Leave\Models\LeaveType;
+use App\Domains\People\Leave\Contracts\ProvidesStatutoryLeaveTypes;
+use App\Domains\People\Leave\Data\StatutoryLeaveTypeDefinition;
+use App\Domains\People\Leave\Models\LeaveType;
 
 class MalaysiaStatutoryLeaveTypes implements ProvidesStatutoryLeaveTypes
 {

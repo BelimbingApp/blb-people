@@ -1,23 +1,23 @@
 <?php
 
-namespace App\Modules\People\Leave\Services;
+namespace App\Domains\People\Leave\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Leave\Contracts\RoutesLeaveApprovals;
-use App\Modules\People\Leave\Data\LeaveApprovalIntent;
-use App\Modules\People\Leave\Data\LeaveDayBreakdown;
-use App\Modules\People\Leave\Data\LeaveDaysPreview;
-use App\Modules\People\Leave\Data\LeaveDaysPreviewInput;
-use App\Modules\People\Leave\Data\LeaveDaysPreviewOptions;
-use App\Modules\People\Leave\Data\LeaveSubmissionContext;
-use App\Modules\People\Leave\Data\LeaveValidationIssue;
-use App\Modules\People\Leave\Exceptions\LeaveRequestValidationException;
-use App\Modules\People\Leave\Models\LeaveAssignment;
-use App\Modules\People\Leave\Models\LeaveRequest;
-use App\Modules\People\Leave\Models\LeaveRequestAuditEvent;
-use App\Modules\People\Leave\Models\LeaveRequestDay;
-use App\Modules\People\Leave\Models\LeaveRequestPolicy;
-use App\Modules\People\Leave\Models\LeaveType;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Leave\Contracts\RoutesLeaveApprovals;
+use App\Domains\People\Leave\Data\LeaveApprovalIntent;
+use App\Domains\People\Leave\Data\LeaveDayBreakdown;
+use App\Domains\People\Leave\Data\LeaveDaysPreview;
+use App\Domains\People\Leave\Data\LeaveDaysPreviewInput;
+use App\Domains\People\Leave\Data\LeaveDaysPreviewOptions;
+use App\Domains\People\Leave\Data\LeaveSubmissionContext;
+use App\Domains\People\Leave\Data\LeaveValidationIssue;
+use App\Domains\People\Leave\Exceptions\LeaveRequestValidationException;
+use App\Domains\People\Leave\Models\LeaveAssignment;
+use App\Domains\People\Leave\Models\LeaveRequest;
+use App\Domains\People\Leave\Models\LeaveRequestAuditEvent;
+use App\Domains\People\Leave\Models\LeaveRequestDay;
+use App\Domains\People\Leave\Models\LeaveRequestPolicy;
+use App\Domains\People\Leave\Models\LeaveType;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 

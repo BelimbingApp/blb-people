@@ -1,15 +1,15 @@
 <?php
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Employees\Livewire\Index;
-use App\Modules\People\Employees\Livewire\Show;
-use App\Modules\People\Settings\Models\EmployeePortalAccess;
-use App\Modules\People\Settings\Models\EmployeeProfileChangeRequest;
-use App\Modules\People\Settings\Models\EmployeeWorkProfile;
-use App\Modules\People\Settings\Models\PeopleNotificationDeliveryLog;
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
-use App\Modules\People\Settings\Models\PeopleSavedEmployeeView;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Employees\Livewire\Index;
+use App\Domains\People\Employees\Livewire\Show;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\EmployeeProfileChangeRequest;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
+use App\Domains\People\Settings\Models\PeopleNotificationDeliveryLog;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
+use App\Domains\People\Settings\Models\PeopleSavedEmployeeView;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;

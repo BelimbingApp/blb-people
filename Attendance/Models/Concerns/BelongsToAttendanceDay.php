@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Attendance\Models\Concerns;
+namespace App\Domains\People\Attendance\Models\Concerns;
 
-use App\Modules\People\Attendance\Models\AttendanceDay;
+use App\Domains\People\Attendance\Models\AttendanceDay;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 trait BelongsToAttendanceDay

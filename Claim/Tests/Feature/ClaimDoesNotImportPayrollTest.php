@@ -4,25 +4,28 @@
  * Architectural guard for the Claim → Payroll plug-out boundary
  * defined in docs/plans/people/14_claim-event-decoupling.md.
  *
- * After Plan 14 Phase 1, no file under app/Modules/People/Claim/ may
- * import anything under App\Modules\People\Payroll\. Claim communicates
- * with the Payroll plugin only via events it dispatches.
+ * After Plan 14 Phase 1, no production file under
+ * app/Domains/People/Claim/ may import anything under
+ * App\Domains\People\Payroll\. Claim communicates with the Payroll module
+ * only via events it dispatches. Cross-module integration tests may exercise
+ * both sides of the boundary.
  */
 
+use App\Base\Foundation\ApplicationTopology;
 use Symfony\Component\Finder\Finder;
 
-const CLAIM_BOUNDARY_FORBIDDEN_NAMESPACE = 'App\\Modules\\People\\Payroll\\';
+const CLAIM_BOUNDARY_FORBIDDEN_NAMESPACE = 'App\\Domains\\People\\Payroll\\';
 
-const CLAIM_BOUNDARY_MODULE_PATH = 'D:/repo/belimbing/app/Modules/People/Claim';
+function claimBoundaryModulePath(): string
+{
+    return ApplicationTopology::domainPath('People').DIRECTORY_SEPARATOR.'Claim';
+}
 
-function claimBoundaryScanImports(): array
+function claimBoundaryScanImports(string $modulePath): array
 {
     $violations = [];
-    if (! is_dir(CLAIM_BOUNDARY_MODULE_PATH)) {
-        return $violations;
-    }
 
-    $finder = (new Finder)->files()->in(CLAIM_BOUNDARY_MODULE_PATH)->name('*.php');
+    $finder = (new Finder)->files()->in($modulePath)->exclude('Tests')->name('*.php');
     foreach ($finder as $file) {
         $contents = file_get_contents($file->getRealPath());
         if ($contents === false) {
@@ -42,14 +45,18 @@ function claimBoundaryScanImports(): array
     return $violations;
 }
 
-test('Claim module does not import anything under People\Payroll', function (): void {
-    $violations = claimBoundaryScanImports();
+test('Claim production code does not import anything under People\Payroll', function (): void {
+    $modulePath = claimBoundaryModulePath();
+
+    expect($modulePath)->toBeDirectory();
+
+    $violations = claimBoundaryScanImports($modulePath);
 
     expect($violations)->toBe(
         [],
         $violations === []
             ? ''
-            : 'Claim must not import Payroll classes (use events instead). Offenders:'.PHP_EOL
+            : 'Claim production code must not import Payroll classes (use events instead). Offenders:'.PHP_EOL
                 .implode(PHP_EOL, array_map(
                     fn (array $v): string => sprintf('  - %s: %s', $v['file'], $v['import']),
                     $violations,

@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Payroll\Listeners;
+namespace App\Domains\People\Payroll\Listeners;
 
-use App\Modules\People\Attendance\Events\AttendanceAllowanceMaterialized;
-use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
-use App\Modules\People\Payroll\Models\PayrollAttendanceRulePayItem;
-use App\Modules\People\Payroll\Services\PayrollContributionIntake;
+use App\Domains\People\Attendance\Events\AttendanceAllowanceMaterialized;
+use App\Domains\People\Attendance\Models\AttendanceAllowanceRule;
+use App\Domains\People\Payroll\Contracts\Intake\PayrollContributionPayload;
+use App\Domains\People\Payroll\Models\PayrollAttendanceRulePayItem;
+use App\Domains\People\Payroll\Services\PayrollContributionIntake;
 
 /**
  * Translates an attendance allowance materialisation into a payroll

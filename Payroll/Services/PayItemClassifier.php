@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Payroll\Services;
+namespace App\Domains\People\Payroll\Services;
 
-use App\Modules\People\Payroll\Models\PayrollPayItem;
+use App\Domains\People\Payroll\Models\PayrollPayItem;
 use Illuminate\Support\Carbon;
 
 class PayItemClassifier

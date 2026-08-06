@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Payroll\CountryPacks\Malaysia;
+namespace App\Domains\People\Payroll\CountryPacks\Malaysia;
 
-use App\Modules\People\Payroll\Contracts\ClassifiesPayrollPayItems;
-use App\Modules\People\Payroll\Models\PayrollPayItem;
-use App\Modules\People\Payroll\Services\PayItemClassifier;
+use App\Domains\People\Payroll\Contracts\ClassifiesPayrollPayItems;
+use App\Domains\People\Payroll\Models\PayrollPayItem;
+use App\Domains\People\Payroll\Services\PayItemClassifier;
 use Illuminate\Support\Carbon;
 
 class MalaysiaPayItemClassifier implements ClassifiesPayrollPayItems

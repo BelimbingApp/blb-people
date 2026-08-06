@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Leave\Models;
+namespace App\Domains\People\Leave\Models;
 
 use App\Base\Workflow\Concerns\HasWorkflowStatus;
-use App\Modules\Core\Employee\Models\Employee;
+use App\Core\Employee\Models\Employee;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;

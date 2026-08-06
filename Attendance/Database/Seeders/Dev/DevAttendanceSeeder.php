@@ -1,25 +1,25 @@
 <?php
 
-namespace App\Modules\People\Attendance\Database\Seeders\Dev;
+namespace App\Domains\People\Attendance\Database\Seeders\Dev;
 
 use App\Base\Database\Seeders\DevSeeder;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Database\Seeders\Dev\DevEmployeeSeeder;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Attendance\Models\AttendanceAbsenceBatch;
-use App\Modules\People\Attendance\Models\AttendanceAbsenceBatchEntry;
-use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
-use App\Modules\People\Attendance\Models\AttendanceClockEvent;
-use App\Modules\People\Attendance\Models\AttendanceDay;
-use App\Modules\People\Attendance\Models\AttendanceGeofence;
-use App\Modules\People\Attendance\Models\AttendanceGeofenceGroup;
-use App\Modules\People\Attendance\Models\AttendanceOvertimeRequest;
-use App\Modules\People\Attendance\Models\AttendancePolicyGroup;
-use App\Modules\People\Attendance\Models\AttendancePunchWindow;
-use App\Modules\People\Attendance\Models\AttendanceRosterAssignment;
-use App\Modules\People\Attendance\Models\AttendanceRosterPattern;
-use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
-use App\Modules\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Database\Seeders\Dev\DevEmployeeSeeder;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Attendance\Models\AttendanceAbsenceBatch;
+use App\Domains\People\Attendance\Models\AttendanceAbsenceBatchEntry;
+use App\Domains\People\Attendance\Models\AttendanceAllowanceRule;
+use App\Domains\People\Attendance\Models\AttendanceClockEvent;
+use App\Domains\People\Attendance\Models\AttendanceDay;
+use App\Domains\People\Attendance\Models\AttendanceGeofence;
+use App\Domains\People\Attendance\Models\AttendanceGeofenceGroup;
+use App\Domains\People\Attendance\Models\AttendanceOvertimeRequest;
+use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
+use App\Domains\People\Attendance\Models\AttendancePunchWindow;
+use App\Domains\People\Attendance\Models\AttendanceRosterAssignment;
+use App\Domains\People\Attendance\Models\AttendanceRosterPattern;
+use App\Domains\People\Attendance\Models\AttendanceShiftTemplate;
+use App\Domains\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
 use Carbon\CarbonImmutable;
 
 class DevAttendanceSeeder extends DevSeeder

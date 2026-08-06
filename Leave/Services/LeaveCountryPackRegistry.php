@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Leave\Services;
+namespace App\Domains\People\Leave\Services;
 
-use App\Modules\People\Leave\Contracts\LeaveCountryPack;
-use App\Modules\People\Leave\Exceptions\LeaveCountryPackException;
+use App\Domains\People\Leave\Contracts\LeaveCountryPack;
+use App\Domains\People\Leave\Exceptions\LeaveCountryPackException;
 
 class LeaveCountryPackRegistry
 {

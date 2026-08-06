@@ -1,6 +1,6 @@
 <?php
 
-use App\Modules\People\Attendance\Livewire\PolicyGroupValidator;
+use App\Domains\People\Attendance\Livewire\PolicyGroupValidator;
 
 /** @var PolicyGroupValidator $this */
 ?>

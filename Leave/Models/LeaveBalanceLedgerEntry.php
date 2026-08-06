@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Leave\Models;
+namespace App\Domains\People\Leave\Models;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Leave\Exceptions\LeaveLedgerImmutableException;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Leave\Exceptions\LeaveLedgerImmutableException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 

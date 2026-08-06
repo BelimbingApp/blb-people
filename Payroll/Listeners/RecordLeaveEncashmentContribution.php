@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Payroll\Listeners;
+namespace App\Domains\People\Payroll\Listeners;
 
-use App\Modules\People\Leave\Events\LeaveEncashed;
-use App\Modules\People\Leave\Models\LeaveType;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
-use App\Modules\People\Payroll\Services\PayrollContributionIntake;
+use App\Domains\People\Leave\Events\LeaveEncashed;
+use App\Domains\People\Leave\Models\LeaveType;
+use App\Domains\People\Payroll\Contracts\Intake\PayrollContributionPayload;
+use App\Domains\People\Payroll\Services\PayrollContributionIntake;
 
 /**
  * Translates a LeaveEncashed event into a payroll contribution. The

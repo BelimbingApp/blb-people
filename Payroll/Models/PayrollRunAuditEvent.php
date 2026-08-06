@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Payroll\Models;
+namespace App\Domains\People\Payroll\Models;
 
-use App\Modules\Core\User\Models\User;
+use App\Core\User\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 

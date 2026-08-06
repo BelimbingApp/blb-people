@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Leave\Events;
+namespace App\Domains\People\Leave\Events;
 
 use DateTimeImmutable;
 

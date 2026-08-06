@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Attendance\Models;
+namespace App\Domains\People\Attendance\Models;
 
 use App\Base\Database\Concerns\BelongsToCompany;
 use App\Base\Database\Concerns\BelongsToEmployee;

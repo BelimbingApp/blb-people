@@ -1,16 +1,16 @@
 <?php
 
-namespace App\Modules\People\Payroll\Services;
+namespace App\Domains\People\Payroll\Services;
 
 use App\Base\Foundation\Exceptions\BlbDataContractException;
-use App\Modules\People\Payroll\Data\PayrollCalculationContext;
-use App\Modules\People\Payroll\Data\PayrollCalculationResult;
-use App\Modules\People\Payroll\Data\PayrollProposedResultLine;
-use App\Modules\People\Payroll\Models\PayrollInput;
-use App\Modules\People\Payroll\Models\PayrollPayItem;
-use App\Modules\People\Payroll\Models\PayrollResultLine;
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Models\PayrollRunParticipant;
+use App\Domains\People\Payroll\Data\PayrollCalculationContext;
+use App\Domains\People\Payroll\Data\PayrollCalculationResult;
+use App\Domains\People\Payroll\Data\PayrollProposedResultLine;
+use App\Domains\People\Payroll\Models\PayrollInput;
+use App\Domains\People\Payroll\Models\PayrollPayItem;
+use App\Domains\People\Payroll\Models\PayrollResultLine;
+use App\Domains\People\Payroll\Models\PayrollRun;
+use App\Domains\People\Payroll\Models\PayrollRunParticipant;
 use Illuminate\Support\Facades\DB;
 
 class PayrollRunCalculator

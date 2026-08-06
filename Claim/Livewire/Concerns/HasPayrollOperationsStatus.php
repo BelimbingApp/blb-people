@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Modules\People\Claim\Livewire\Concerns;
+namespace App\Domains\People\Claim\Livewire\Concerns;
 
-use App\Modules\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Models\ClaimRequest;
 
 trait HasPayrollOperationsStatus
 {

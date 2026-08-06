@@ -1,9 +1,9 @@
 <?php
 
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Services\ClaimAccountingExportBuilder;
-use App\Modules\People\Claim\Services\SubmitClaimRequestService;
-use App\Modules\People\Payroll\Models\PayrollClaimTypePayItem;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Services\ClaimAccountingExportBuilder;
+use App\Domains\People\Claim\Services\SubmitClaimRequestService;
+use App\Domains\People\Payroll\Models\PayrollClaimTypePayItem;
 
 require_once __DIR__.'/ClaimPolicyEvaluationTest.php';
 

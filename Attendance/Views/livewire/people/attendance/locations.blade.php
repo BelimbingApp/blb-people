@@ -1,6 +1,6 @@
 <?php
 
-use App\Modules\People\Attendance\Livewire\Locations;
+use App\Domains\People\Attendance\Livewire\Locations;
 
 /** @var Locations $this */
 ?>

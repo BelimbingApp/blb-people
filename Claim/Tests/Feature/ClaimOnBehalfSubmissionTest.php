@@ -1,9 +1,9 @@
 <?php
 
-use App\Modules\Core\User\Models\User;
-use App\Modules\People\Claim\Exceptions\ClaimRequestLifecycleException;
-use App\Modules\People\Claim\Models\ClaimRequestAuditEvent;
-use App\Modules\People\Claim\Services\SubmitClaimRequestService;
+use App\Core\User\Models\User;
+use App\Domains\People\Claim\Exceptions\ClaimRequestLifecycleException;
+use App\Domains\People\Claim\Models\ClaimRequestAuditEvent;
+use App\Domains\People\Claim\Services\SubmitClaimRequestService;
 
 require_once __DIR__.'/ClaimPolicyEvaluationTest.php';
 

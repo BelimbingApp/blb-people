@@ -1,6 +1,6 @@
 <?php
 
-use App\Modules\People\Attendance\Livewire\ShiftTemplates;
+use App\Domains\People\Attendance\Livewire\ShiftTemplates;
 
 /** @var ShiftTemplates $this */
 ?>

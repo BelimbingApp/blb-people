@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Payroll\Services;
+namespace App\Domains\People\Payroll\Services;
 
-use App\Modules\People\Payroll\Contracts\PayrollCountryPack;
-use App\Modules\People\Payroll\Exceptions\PayrollCountryPackException;
+use App\Domains\People\Payroll\Contracts\PayrollCountryPack;
+use App\Domains\People\Payroll\Exceptions\PayrollCountryPackException;
 
 class PayrollCountryPackRegistry
 {

@@ -1,9 +1,9 @@
 <?php
 
-use App\Modules\People\Payroll\Exceptions\PayrollCountryPackException;
-use App\Modules\People\Payroll\Models\PayrollCalendar;
-use App\Modules\People\Payroll\Models\PayrollRun;
-use App\Modules\People\Payroll\Services\PayrollRunCountryPackGuard;
+use App\Domains\People\Payroll\Exceptions\PayrollCountryPackException;
+use App\Domains\People\Payroll\Models\PayrollCalendar;
+use App\Domains\People\Payroll\Models\PayrollRun;
+use App\Domains\People\Payroll\Services\PayrollRunCountryPackGuard;
 
 function payrollRunForCountry(?string $iso): PayrollRun
 {

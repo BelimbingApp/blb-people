@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Payroll\Exceptions;
+namespace App\Domains\People\Payroll\Exceptions;
 
 use App\Base\Foundation\Exceptions\BlbInvariantViolationException;
 

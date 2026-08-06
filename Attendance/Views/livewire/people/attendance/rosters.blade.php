@@ -1,6 +1,6 @@
 <?php
 
-use App\Modules\People\Attendance\Livewire\Rosters;
+use App\Domains\People\Attendance\Livewire\Rosters;
 
 /** @var Rosters $this */
 ?>

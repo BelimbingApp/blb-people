@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Claim\Events;
+namespace App\Domains\People\Claim\Events;
 
 use DateTimeImmutable;
 
 /**
  * Producer-domain event: one approved claim line is ready to be paid
- * by a downstream payroll plugin.
+ * by the downstream Payroll module.
  *
  * Emitted once per eligible line by ClaimPayrollHandoffService. Carries
  * the pay-item code as a snapshot of what was captured at claim

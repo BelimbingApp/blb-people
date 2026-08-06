@@ -1,15 +1,15 @@
 <?php
 
-use App\Modules\People\Attendance\Livewire\AllowanceRules;
-use App\Modules\People\Attendance\Livewire\Approvals;
-use App\Modules\People\Attendance\Livewire\Locations;
-use App\Modules\People\Attendance\Livewire\MyAttendance;
-use App\Modules\People\Attendance\Livewire\Operations;
-use App\Modules\People\Attendance\Livewire\PolicyGroups;
-use App\Modules\People\Attendance\Livewire\PolicyGroupValidator;
-use App\Modules\People\Attendance\Livewire\RosterEmployeeHistory;
-use App\Modules\People\Attendance\Livewire\Rosters;
-use App\Modules\People\Attendance\Livewire\ShiftTemplates;
+use App\Domains\People\Attendance\Livewire\AllowanceRules;
+use App\Domains\People\Attendance\Livewire\Approvals;
+use App\Domains\People\Attendance\Livewire\Locations;
+use App\Domains\People\Attendance\Livewire\MyAttendance;
+use App\Domains\People\Attendance\Livewire\Operations;
+use App\Domains\People\Attendance\Livewire\PolicyGroups;
+use App\Domains\People\Attendance\Livewire\PolicyGroupValidator;
+use App\Domains\People\Attendance\Livewire\RosterEmployeeHistory;
+use App\Domains\People\Attendance\Livewire\Rosters;
+use App\Domains\People\Attendance\Livewire\ShiftTemplates;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function (): void {

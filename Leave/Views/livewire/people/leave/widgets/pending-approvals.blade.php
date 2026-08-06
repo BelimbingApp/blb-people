@@ -1,4 +1,4 @@
-@php /** @var \App\Modules\People\Leave\Livewire\Widgets\PendingApprovals $this */ @endphp
+@php /** @var \App\Domains\People\Leave\Livewire\Widgets\PendingApprovals $this */ @endphp
 <div>
     <x-ui.card>
         <x-ui.widget-header :title="__('Leave Approvals')" :href="route('people.leave.approvals')" :openLabel="__('Open approvals')" class="mb-0" />

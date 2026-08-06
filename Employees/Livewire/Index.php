@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Modules\People\Employees\Livewire;
+namespace App\Domains\People\Employees\Livewire;
 
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Base\Foundation\Livewire\Concerns\ResetsPaginationOnSearch;
 use App\Base\Foundation\Livewire\Concerns\TogglesSort;
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\People\Employees\Services\EmployeePayrollReadinessService;
-use App\Modules\People\Employees\Services\EmployeeWorkbenchQuery;
-use App\Modules\People\Settings\Models\PeopleReferenceEntry;
-use App\Modules\People\Settings\Models\PeopleSavedEmployeeView;
+use App\Core\Company\Models\Company;
+use App\Domains\People\Employees\Services\EmployeePayrollReadinessService;
+use App\Domains\People\Employees\Services\EmployeeWorkbenchQuery;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
+use App\Domains\People\Settings\Models\PeopleSavedEmployeeView;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;

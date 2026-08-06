@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Leave\Exceptions;
+namespace App\Domains\People\Leave\Exceptions;
 
 use App\Base\Foundation\Exceptions\BlbInvariantViolationException;
 

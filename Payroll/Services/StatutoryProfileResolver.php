@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Payroll\Services;
+namespace App\Domains\People\Payroll\Services;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Payroll\Models\PayrollEmployeeStatutoryProfile;
-use App\Modules\People\Payroll\Models\PayrollEmployerStatutoryProfile;
+use App\Core\Company\Models\Company;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Payroll\Models\PayrollEmployeeStatutoryProfile;
+use App\Domains\People\Payroll\Models\PayrollEmployerStatutoryProfile;
 use Illuminate\Support\Carbon;
 
 class StatutoryProfileResolver

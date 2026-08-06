@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Modules\People\Claim\Services;
+namespace App\Domains\People\Claim\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Claim\Data\ClaimSubmissionInput;
-use App\Modules\People\Claim\Models\ClaimLine;
-use App\Modules\People\Claim\Models\ClaimPolicy;
-use App\Modules\People\Claim\Models\ClaimPolicyBand;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Models\ClaimType;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Claim\Data\ClaimSubmissionInput;
+use App\Domains\People\Claim\Models\ClaimLine;
+use App\Domains\People\Claim\Models\ClaimPolicy;
+use App\Domains\People\Claim\Models\ClaimPolicyBand;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Models\ClaimType;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
 

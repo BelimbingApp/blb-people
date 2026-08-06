@@ -1,6 +1,6 @@
 <?php
 
-use App\Modules\People\Attendance\Livewire\RosterEmployeeHistory;
+use App\Domains\People\Attendance\Livewire\RosterEmployeeHistory;
 
 /** @var RosterEmployeeHistory $this */
 ?>

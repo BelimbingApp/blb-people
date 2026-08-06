@@ -1,18 +1,18 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire;
+namespace App\Domains\People\Attendance\Livewire;
 
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
-use App\Modules\People\Attendance\Models\AttendanceAdjustmentRequest;
-use App\Modules\People\Attendance\Models\AttendanceClockEvent;
-use App\Modules\People\Attendance\Models\AttendanceDay;
-use App\Modules\People\Attendance\Models\AttendanceOvertimeRequest;
-use App\Modules\People\Attendance\Services\AttendanceAdjustmentService;
-use App\Modules\People\Attendance\Services\AttendanceDayResolverService;
-use App\Modules\People\Attendance\Services\AttendanceOvertimeService;
-use App\Modules\People\Attendance\Services\ClockEventIngestionService;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Domains\People\Attendance\Models\AttendanceAdjustmentRequest;
+use App\Domains\People\Attendance\Models\AttendanceClockEvent;
+use App\Domains\People\Attendance\Models\AttendanceDay;
+use App\Domains\People\Attendance\Models\AttendanceOvertimeRequest;
+use App\Domains\People\Attendance\Services\AttendanceAdjustmentService;
+use App\Domains\People\Attendance\Services\AttendanceDayResolverService;
+use App\Domains\People\Attendance\Services\AttendanceOvertimeService;
+use App\Domains\People\Attendance\Services\ClockEventIngestionService;
 use DateTimeImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;

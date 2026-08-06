@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Leave\Data;
+namespace App\Domains\People\Leave\Data;
 
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
-use App\Modules\People\Leave\Models\LeaveRequestPolicy;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicy;
+use App\Domains\People\Leave\Models\LeaveRequestPolicy;
 
 final readonly class LeaveLedgerEntryPolicySnapshot
 {

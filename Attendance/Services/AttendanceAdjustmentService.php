@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\People\Attendance\Services;
+namespace App\Domains\People\Attendance\Services;
 
-use App\Modules\People\Attendance\Exceptions\AttendanceAdjustmentException;
-use App\Modules\People\Attendance\Models\AttendanceAdjustmentRequest;
-use App\Modules\People\Attendance\Models\AttendanceClockEvent;
+use App\Domains\People\Attendance\Exceptions\AttendanceAdjustmentException;
+use App\Domains\People\Attendance\Models\AttendanceAdjustmentRequest;
+use App\Domains\People\Attendance\Models\AttendanceClockEvent;
 use Illuminate\Support\Facades\DB;
 
 /**

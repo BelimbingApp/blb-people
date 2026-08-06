@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Payroll\Livewire;
+namespace App\Domains\People\Payroll\Livewire;
 
 use Illuminate\Validation\ValidationException;
 

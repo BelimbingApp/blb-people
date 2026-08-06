@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Payroll\Listeners;
+namespace App\Domains\People\Payroll\Listeners;
 
-use App\Modules\People\Attendance\Events\AttendanceOvertimeApproved;
-use App\Modules\People\Attendance\Exceptions\AttendanceOvertimeException;
-use App\Modules\People\Attendance\Models\AttendanceOvertimeRequest;
-use App\Modules\People\Payroll\Contracts\Intake\PayrollContributionPayload;
-use App\Modules\People\Payroll\Services\PayrollContributionIntake;
+use App\Domains\People\Attendance\Events\AttendanceOvertimeApproved;
+use App\Domains\People\Attendance\Exceptions\AttendanceOvertimeException;
+use App\Domains\People\Attendance\Models\AttendanceOvertimeRequest;
+use App\Domains\People\Payroll\Contracts\Intake\PayrollContributionPayload;
+use App\Domains\People\Payroll\Services\PayrollContributionIntake;
 
 /**
  * Translates an attendance overtime approval into a payroll contribution.

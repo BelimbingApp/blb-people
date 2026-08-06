@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Attendance\Services;
+namespace App\Domains\People\Attendance\Services;
 
-use App\Modules\People\Attendance\Models\AttendancePunchWindow;
-use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
+use App\Domains\People\Attendance\Models\AttendancePunchWindow;
+use App\Domains\People\Attendance\Models\AttendanceShiftTemplate;
 
 class ShiftTemplateSerializer
 {

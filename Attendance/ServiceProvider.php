@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Modules\People\Attendance;
+namespace App\Domains\People\Attendance;
 
-use App\Modules\People\Attendance\Console\Commands\PolicySimulateCommand;
-use App\Modules\People\Attendance\Console\Commands\PolicyValidateCommand;
-use App\Modules\People\Attendance\Console\Commands\RosterCommand;
-use App\Modules\People\Attendance\Services\AttendanceDayProjectionService;
-use App\Modules\People\Attendance\Services\AttendancePolicyGroupResolver;
-use App\Modules\People\Attendance\Services\AttendancePolicySimulationService;
-use App\Modules\People\Attendance\Services\AttendancePolicyValidationService;
+use App\Domains\People\Attendance\Console\Commands\PolicySimulateCommand;
+use App\Domains\People\Attendance\Console\Commands\PolicyValidateCommand;
+use App\Domains\People\Attendance\Console\Commands\RosterCommand;
+use App\Domains\People\Attendance\Services\AttendanceDayProjectionService;
+use App\Domains\People\Attendance\Services\AttendancePolicyGroupResolver;
+use App\Domains\People\Attendance\Services\AttendancePolicySimulationService;
+use App\Domains\People\Attendance\Services\AttendancePolicyValidationService;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
 
 class ServiceProvider extends BaseServiceProvider

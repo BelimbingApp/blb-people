@@ -1,14 +1,16 @@
 <?php
 
-namespace App\Modules\People\Payroll\Services;
+namespace App\Domains\People\Payroll\Services;
 
-use App\Modules\People\Payroll\Contracts\PayrollCountryPack;
+use App\Base\Foundation\ApplicationTopology;
+use App\Base\Foundation\Services\DomainState;
+use App\Domains\People\Payroll\Contracts\PayrollCountryPack;
 
 /**
  * Discovers Payroll country packs declared in `Config/payroll.php` files across
  * modules and extensions, and registers them into PayrollCountryPackRegistry.
  *
- * A contributing bundle declares its packs by class:
+ * A contributing Domain or Extension declares its packs by class:
  *
  *     return ['country_packs' => [\Vendor\Pack\SomeCountryPack::class]];
  *
@@ -40,7 +42,10 @@ class PayrollCountryPackDiscoveryService
         $classes = [];
 
         foreach ($this->scanPatterns ?? $this->defaultScanPatterns() as $pattern) {
-            foreach (glob($pattern) ?: [] as $file) {
+            $files = DomainState::filterPaths(glob($pattern) ?: []);
+            sort($files);
+
+            foreach ($files as $file) {
                 $config = require $file;
 
                 if (! is_array($config)) {
@@ -64,8 +69,8 @@ class PayrollCountryPackDiscoveryService
     private function defaultScanPatterns(): array
     {
         return [
-            base_path('app/Modules/*/*/Config/payroll.php'),
-            base_path('extensions/*/*/Config/payroll.php'),
+            ApplicationTopology::domainModulePattern('Config/payroll.php'),
+            ApplicationTopology::extensionModulePattern('Config/payroll.php'),
         ];
     }
 }

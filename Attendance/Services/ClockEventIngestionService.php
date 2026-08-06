@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Attendance\Services;
+namespace App\Domains\People\Attendance\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Attendance\Data\ClockEventAttributes;
-use App\Modules\People\Attendance\Exceptions\AttendanceClockEventIngestionException;
-use App\Modules\People\Attendance\Models\AttendanceClockEvent;
-use App\Modules\People\Attendance\Models\AttendanceDay;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Attendance\Data\ClockEventAttributes;
+use App\Domains\People\Attendance\Exceptions\AttendanceClockEventIngestionException;
+use App\Domains\People\Attendance\Models\AttendanceClockEvent;
+use App\Domains\People\Attendance\Models\AttendanceDay;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Support\Facades\DB;

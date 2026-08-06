@@ -1,18 +1,18 @@
 <?php
 
-namespace App\Modules\People\Claim\Services;
+namespace App\Domains\People\Claim\Services;
 
-use App\Modules\Core\Employee\Models\Employee;
-use App\Modules\People\Claim\Data\ClaimSubmissionInput;
-use App\Modules\People\Claim\Data\ClaimSubmissionSummary;
-use App\Modules\People\Claim\Exceptions\ClaimRequestLifecycleException;
-use App\Modules\People\Claim\Models\ClaimAssignment;
-use App\Modules\People\Claim\Models\ClaimAssignmentLine;
-use App\Modules\People\Claim\Models\ClaimContext;
-use App\Modules\People\Claim\Models\ClaimLine;
-use App\Modules\People\Claim\Models\ClaimRequest;
-use App\Modules\People\Claim\Models\ClaimRequestAuditEvent;
-use App\Modules\People\Claim\Models\ClaimType;
+use App\Core\Employee\Models\Employee;
+use App\Domains\People\Claim\Data\ClaimSubmissionInput;
+use App\Domains\People\Claim\Data\ClaimSubmissionSummary;
+use App\Domains\People\Claim\Exceptions\ClaimRequestLifecycleException;
+use App\Domains\People\Claim\Models\ClaimAssignment;
+use App\Domains\People\Claim\Models\ClaimAssignmentLine;
+use App\Domains\People\Claim\Models\ClaimContext;
+use App\Domains\People\Claim\Models\ClaimLine;
+use App\Domains\People\Claim\Models\ClaimRequest;
+use App\Domains\People\Claim\Models\ClaimRequestAuditEvent;
+use App\Domains\People\Claim\Models\ClaimType;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -519,7 +519,7 @@ class SubmitClaimRequestService
      *
      * Reads from the Payroll-owned mapping table
      * (people_payroll_claim_type_pay_items). Returns null when the table
-     * is absent (Payroll plugin uninstalled) so the line snapshot is
+     * is absent (Payroll module unavailable) so the line snapshot is
      * left empty rather than crashing the submission.
      */
     private function resolvePayItemCode(ClaimType $claimType, mixed $incurredOn): ?string

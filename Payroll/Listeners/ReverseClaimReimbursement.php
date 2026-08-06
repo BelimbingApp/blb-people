@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Payroll\Listeners;
+namespace App\Domains\People\Payroll\Listeners;
 
-use App\Modules\People\Claim\Events\ClaimReimbursementReversed;
-use App\Modules\People\Payroll\Services\PayrollContributionIntake;
+use App\Domains\People\Claim\Events\ClaimReimbursementReversed;
+use App\Domains\People\Payroll\Services\PayrollContributionIntake;
 
 class ReverseClaimReimbursement
 {

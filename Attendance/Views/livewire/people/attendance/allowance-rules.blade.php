@@ -1,6 +1,6 @@
 <?php
 
-use App\Modules\People\Attendance\Livewire\AllowanceRules;
+use App\Domains\People\Attendance\Livewire\AllowanceRules;
 
 /** @var AllowanceRules $this */
 ?>

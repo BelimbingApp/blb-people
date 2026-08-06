@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Modules\People\Leave\Console\Commands;
+namespace App\Domains\People\Leave\Console\Commands;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\People\Leave\CountryPacks\Malaysia\MalaysiaStatutoryLeaveTypes;
-use App\Modules\People\Leave\Models\LeaveAssignment;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicy;
-use App\Modules\People\Leave\Models\LeaveEntitlementPolicyBand;
-use App\Modules\People\Leave\Models\LeaveRequestPolicy;
-use App\Modules\People\Leave\Models\LeaveType;
+use App\Core\Company\Models\Company;
+use App\Domains\People\Leave\CountryPacks\Malaysia\MalaysiaStatutoryLeaveTypes;
+use App\Domains\People\Leave\Models\LeaveAssignment;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicy;
+use App\Domains\People\Leave\Models\LeaveEntitlementPolicyBand;
+use App\Domains\People\Leave\Models\LeaveRequestPolicy;
+use App\Domains\People\Leave\Models\LeaveType;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;

@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Payroll\CountryPacks\Malaysia;
+namespace App\Domains\People\Payroll\CountryPacks\Malaysia;
 
-use App\Modules\People\Payroll\Contracts\ProvidesPayrollProfileSchemas;
-use App\Modules\People\Payroll\Data\ProfileSchema;
+use App\Domains\People\Payroll\Contracts\ProvidesPayrollProfileSchemas;
+use App\Domains\People\Payroll\Data\ProfileSchema;
 
 class MalaysiaPayrollProfileSchemas implements ProvidesPayrollProfileSchemas
 {

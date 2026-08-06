@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Claim\Console\Commands;
+namespace App\Domains\People\Claim\Console\Commands;
 
-use App\Modules\People\Claim\Models\ClaimPolicy;
-use App\Modules\People\Claim\Services\ClaimPolicyValidationService;
+use App\Domains\People\Claim\Models\ClaimPolicy;
+use App\Domains\People\Claim\Services\ClaimPolicyValidationService;
 use Illuminate\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
 

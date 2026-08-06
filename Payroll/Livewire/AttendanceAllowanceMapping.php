@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Modules\People\Payroll\Livewire;
+namespace App\Domains\People\Payroll\Livewire;
 
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Modules\People\Attendance\Models\AttendanceAllowanceRule;
-use App\Modules\People\Payroll\Livewire\Concerns\ManagesPayrollMappingAuthorization;
-use App\Modules\People\Payroll\Models\PayrollAttendanceRulePayItem;
+use App\Domains\People\Attendance\Models\AttendanceAllowanceRule;
+use App\Domains\People\Payroll\Livewire\Concerns\ManagesPayrollMappingAuthorization;
+use App\Domains\People\Payroll\Models\PayrollAttendanceRulePayItem;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;

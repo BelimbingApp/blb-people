@@ -1,11 +1,11 @@
 {
     "name": "blb/people-attendance",
-    "type": "blb-source-module",
+    "type": "blb-module",
     "description": "BLB Attendance — clock events, shifts, overtime, lateness, and attendance-conditioned allowances.",
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "App\\Modules\\People\\Attendance\\": ""
+            "App\\Domains\\People\\Attendance\\": ""
         }
     },
     "extra": {
@@ -20,8 +20,8 @@
             },
             "optional-modules": {},
             "publishes-events": [
-                "App\\Modules\\People\\Attendance\\Events\\AttendanceOvertimeApproved",
-                "App\\Modules\\People\\Attendance\\Events\\AttendanceAllowanceMaterialized"
+                "App\\Domains\\People\\Attendance\\Events\\AttendanceOvertimeApproved",
+                "App\\Domains\\People\\Attendance\\Events\\AttendanceAllowanceMaterialized"
             ],
             "consumes-events": []
         }

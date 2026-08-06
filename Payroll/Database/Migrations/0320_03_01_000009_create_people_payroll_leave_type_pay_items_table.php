@@ -2,7 +2,7 @@
 
 use App\Base\Database\Concerns\IncubatingSchema;
 use App\Base\Database\Concerns\RegistersTables;
-use App\Modules\People\Payroll\Database\Support\PayrollPayItemMigrationSupport;
+use App\Domains\People\Payroll\Database\Support\PayrollPayItemMigrationSupport;
 use Illuminate\Database\Migrations\Migration;
 
 /**

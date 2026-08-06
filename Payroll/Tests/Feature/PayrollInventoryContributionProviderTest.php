@@ -1,7 +1,7 @@
 <?php
 
 use App\Base\Software\Services\InventoryContributionRegistry;
-use App\Modules\People\Payroll\Inventory\PayrollInventoryContributionProvider;
+use App\Domains\People\Payroll\Inventory\PayrollInventoryContributionProvider;
 
 it('reports each registered country pack as an inventory contribution', function (): void {
     $malaysia = collect(app(PayrollInventoryContributionProvider::class)->contributions())

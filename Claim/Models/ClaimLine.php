@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\People\Claim\Models;
+namespace App\Domains\People\Claim\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;

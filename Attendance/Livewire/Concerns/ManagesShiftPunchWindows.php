@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Modules\People\Attendance\Livewire\Concerns;
+namespace App\Domains\People\Attendance\Livewire\Concerns;
 
-use App\Modules\People\Attendance\Models\AttendancePunchWindow;
-use App\Modules\People\Attendance\Models\AttendanceShiftTemplate;
+use App\Domains\People\Attendance\Models\AttendancePunchWindow;
+use App\Domains\People\Attendance\Models\AttendanceShiftTemplate;
 
 trait ManagesShiftPunchWindows
 {

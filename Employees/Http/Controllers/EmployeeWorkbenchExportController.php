@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Modules\People\Employees\Http\Controllers;
+namespace App\Domains\People\Employees\Http\Controllers;
 
-use App\Modules\Core\Company\Models\Company;
-use App\Modules\Core\User\Models\User;
-use App\Modules\People\Employees\Services\EmployeePayrollReadinessService;
-use App\Modules\People\Employees\Services\EmployeeWorkbenchExportBuilder;
-use App\Modules\People\Employees\Services\EmployeeWorkbenchQuery;
+use App\Core\Company\Models\Company;
+use App\Core\User\Models\User;
+use App\Domains\People\Employees\Services\EmployeePayrollReadinessService;
+use App\Domains\People\Employees\Services\EmployeeWorkbenchExportBuilder;
+use App\Domains\People\Employees\Services\EmployeeWorkbenchQuery;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
