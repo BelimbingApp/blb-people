@@ -3,8 +3,10 @@
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Base\Authz\Enums\AuthorizationReasonCode;
+use App\Base\Authz\Enums\PrincipalType;
+use App\Base\Authz\Models\PrincipalRole;
+use App\Base\Authz\Models\Role;
 use App\Base\Authz\Services\AuthorizationEngine;
-use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
 use App\Domains\People\Leave\Models\LeaveType;
 
@@ -13,7 +15,6 @@ use App\Domains\People\Leave\Models\LeaveType;
  * any Domain code change. Leave types carry company_id only — tenant
  * isolation arrives through Authz tenant enrichment, not Domain schema.
  */
-
 beforeEach(function (): void {
     setupAuthzRoles();
 });
@@ -30,18 +31,15 @@ function createLeaveTypeFor(int $companyId, string $code): LeaveType
     ]);
 }
 
-it('keeps two tenants running People leave isolated end to end', function (): void {
+it('enriches company-owned leave types and denies cross-tenant authorization', function (): void {
     [$tenantA, $companyA] = createTenantWithCompany(['name' => 'Tenant A']);
     [$tenantB, $companyB] = createTenantWithCompany(['name' => 'Tenant B']);
 
     $userA = User::factory()->create(['company_id' => $companyA->id]);
     grantPeopleLeaveManage($userA->id, $companyA->id);
 
-    // Both tenants operate the same Domain: read and write leave types.
-    $own = app(TenantContext::class)->runForTenant(
-        $tenantA->id,
-        fn () => createLeaveTypeFor($companyA->id, 'ANNUAL'),
-    );
+    // Both tenants can use the same domain-local code within their own company.
+    $own = createLeaveTypeFor($companyA->id, 'ANNUAL');
     $foreign = createLeaveTypeFor($companyB->id, 'ANNUAL');
 
     $authz = app(AuthorizationService::class);
@@ -77,14 +75,14 @@ it('keeps two tenants running People leave isolated end to end', function (): vo
  */
 function grantPeopleLeaveManage(int $userId, int $companyId): void
 {
-    $role = App\Base\Authz\Models\Role::query()
+    $role = Role::query()
         ->where('code', 'core_admin')
         ->whereNull('company_id')
         ->firstOrFail();
 
-    App\Base\Authz\Models\PrincipalRole::query()->create([
+    PrincipalRole::query()->create([
         'company_id' => $companyId,
-        'principal_type' => App\Base\Authz\Enums\PrincipalType::USER->value,
+        'principal_type' => PrincipalType::USER->value,
         'principal_id' => $userId,
         'role_id' => $role->id,
     ]);
