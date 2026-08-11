@@ -4,7 +4,6 @@ namespace App\Domains\People\Leave\Livewire\Widgets;
 
 use App\Base\Dashboard\Widget;
 use App\Base\DateTime\Contracts\DateTimeDisplayService;
-use App\Core\Company\Models\Company;
 use App\Domains\People\Leave\Models\LeaveRequest;
 use Illuminate\Contracts\View\View;
 
@@ -33,6 +32,9 @@ class PendingApprovals extends Widget
 
     private function companyId(): int
     {
-        return auth()->user()?->company_id ?? Company::LICENSEE_ID;
+        $companyId = auth()->user()?->getCompanyId();
+        abort_if($companyId === null, 403);
+
+        return $companyId;
     }
 }

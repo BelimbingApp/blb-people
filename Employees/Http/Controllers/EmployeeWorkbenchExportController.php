@@ -24,7 +24,10 @@ class EmployeeWorkbenchExportController
             abort(403);
         }
 
-        $query = $workbenchQuery->build($this->companyTreeIds((int) $user->company_id));
+        $companyId = $user->getCompanyId();
+        abort_if($companyId === null, 403);
+
+        $query = $workbenchQuery->build($this->companyTreeIds($companyId));
         $workbenchQuery->applyFilters($query, $request->query(), $readiness);
 
         $export = $exportBuilder->csv(
@@ -53,7 +56,7 @@ class EmployeeWorkbenchExportController
     private function companyTreeIds(int $rootCompanyId): array
     {
         $ids = [];
-        $queue = [$rootCompanyId ?: Company::LICENSEE_ID];
+        $queue = [$rootCompanyId];
 
         while ($queue !== []) {
             $batch = $queue;

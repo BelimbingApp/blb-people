@@ -71,7 +71,7 @@ function recordLeaveLedgerEntry(LeaveBalanceLedgerService $ledger, array $attrib
 
 function createLeaveAssignment(array $overrides = []): array
 {
-    $company = Company::query()->findOrFail(Company::LICENSEE_ID);
+    $company = platformOperatorCompany();
     $employee = Employee::factory()->create(['company_id' => $company->id]);
 
     $typeAttributes = array_merge([

@@ -165,7 +165,7 @@ function createPayrollCoreTestCountryPack(string $countryIso = 'SG'): PayrollCou
 
 function createPayrollCoreRun(string $runCode = 'MY-2026-01-MAIN'): array
 {
-    $company = Company::query()->findOrFail(Company::LICENSEE_ID);
+    $company = platformOperatorCompany();
     $employee = Employee::factory()->create(['company_id' => $company->id]);
     $calendar = PayrollCalendar::query()->create([
         'company_id' => $company->id,
@@ -643,7 +643,7 @@ test('payroll core persists registered country pack result lines before net pay'
 
 test('malaysia pack calculates epf socso eis and hrd levy from classified statutory wages', function (): void {
     [$run, $participant, $employee] = createPayrollCoreRun('MY-2026-01-EPF');
-    $company = Company::query()->findOrFail(Company::LICENSEE_ID);
+    $company = platformOperatorCompany();
 
     createMalaysiaEmployerStatutoryProfile($company);
     createMalaysiaPayItemRecord($company, [
@@ -680,7 +680,7 @@ test('malaysia pack calculates epf socso eis and hrd levy from classified statut
 
 test('malaysia pack uses component wage bases and employee category rule rows', function (): void {
     [$run, $participant, $employee] = createPayrollCoreRun('MY-2026-01-CATEGORY');
-    $company = Company::query()->findOrFail(Company::LICENSEE_ID);
+    $company = platformOperatorCompany();
 
     createMalaysiaEmployerStatutoryProfile($company);
     createMalaysiaEmployeeStatutoryProfile($company, $employee, [
@@ -738,7 +738,7 @@ test('malaysia pack uses component wage bases and employee category rule rows', 
 
 test('malaysia pack blocks calculation when an applicable required schedule is missing', function (): void {
     [$run, $participant, $employee] = createPayrollCoreRun('MY-2026-01-MISSING-RULE');
-    $company = Company::query()->findOrFail(Company::LICENSEE_ID);
+    $company = platformOperatorCompany();
 
     $payItem = PayrollPayItem::query()->create([
         'company_id' => $company->id,
@@ -1434,7 +1434,7 @@ test('payroll core tables are registered for stability management', function ():
 });
 
 test('pay item classifications resolve by country and effective date without country columns in core inputs', function (): void {
-    $company = Company::query()->findOrFail(Company::LICENSEE_ID);
+    $company = platformOperatorCompany();
     $payItem = PayrollPayItem::query()->create([
         'company_id' => $company->id,
         'code' => 'basic_salary',
@@ -1500,7 +1500,7 @@ test('pay item classifications resolve by country and effective date without cou
 });
 
 test('statutory profile resolver selects effective employer and employee profiles without Malaysia-specific columns', function (): void {
-    $company = Company::query()->findOrFail(Company::LICENSEE_ID);
+    $company = platformOperatorCompany();
     $employee = Employee::factory()->create(['company_id' => $company->id]);
 
     PayrollEmployerStatutoryProfile::query()->create([

@@ -5,7 +5,6 @@ namespace App\Domains\People\Leave\Livewire;
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Core\Company\Models\Company;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Leave\Livewire\Concerns\HasLeaveBalanceActions;
 use App\Domains\People\Leave\Models\LeaveAssignment;
@@ -696,7 +695,7 @@ class Index extends Component
         };
 
         $settingsSectionSubtitle = [
-            'types' => __('Neutral leave-type catalog. Country packs and the SBG seeder layer statutory and licensee-specific types on top.'),
+            'types' => __('Neutral leave-type catalog. Country packs and the SBG seeder layer statutory and company-specific types on top.'),
             'policies' => __('Effective-dated entitlement bands and request-side rules (notice, attachments, day-counting).'),
             'assignments' => __('Bind employee cohorts to a (leave type, entitlement, request policy) triple.'),
             'balances' => __('Per-employee balance projected from the append-only ledger.'),
@@ -738,7 +737,10 @@ class Index extends Component
 
     private function companyId(): int
     {
-        return auth()->user()?->company_id ?? Company::LICENSEE_ID;
+        $companyId = auth()->user()?->getCompanyId();
+        abort_if($companyId === null, 403);
+
+        return $companyId;
     }
 
     private function currentEmployeeId(): ?int

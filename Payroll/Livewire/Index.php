@@ -5,7 +5,6 @@ namespace App\Domains\People\Payroll\Livewire;
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
-use App\Core\Company\Models\Company;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Payroll\Exceptions\ClosedPayrollRunException;
 use App\Domains\People\Payroll\Exceptions\PayrollCountryPackException;
@@ -476,7 +475,10 @@ class Index extends Component
 
     private function companyId(): int
     {
-        return auth()->user()?->company_id ?? Company::LICENSEE_ID;
+        $companyId = auth()->user()?->getCompanyId();
+        abort_if($companyId === null, 403);
+
+        return $companyId;
     }
 
     private function authorizeManage(): void

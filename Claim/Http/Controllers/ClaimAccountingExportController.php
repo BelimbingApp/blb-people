@@ -2,7 +2,6 @@
 
 namespace App\Domains\People\Claim\Http\Controllers;
 
-use App\Core\Company\Models\Company;
 use App\Core\User\Models\User;
 use App\Domains\People\Claim\Models\ClaimRequest;
 use App\Domains\People\Claim\Services\ClaimAccountingExportBuilder;
@@ -33,13 +32,16 @@ class ClaimAccountingExportController
             abort(403);
         }
 
+        $companyId = $user->getCompanyId();
+        abort_if($companyId === null, 403);
+
         $statusParam = (string) $request->query('status', '');
         $statuses = $statusParam === ''
             ? self::DEFAULT_STATUSES
             : array_filter(array_map('trim', explode(',', $statusParam)));
 
         $claims = ClaimRequest::query()
-            ->where('company_id', $user->company_id ?? Company::LICENSEE_ID)
+            ->where('company_id', $companyId)
             ->whereIn('status', $statuses)
             ->with(['employee.department', 'lines.type'])
             ->when(
