@@ -3,7 +3,7 @@
 /*
  * People domain anchor.
  *
- * Declares the `people` top-level bucket — licensee-facing people workflows
+ * Declares the `people` top-level bucket — business-facing people workflows
  * and views.
  */
 

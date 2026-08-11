@@ -2,7 +2,6 @@
 
 namespace App\Domains\People\Claim\Http\Controllers;
 
-use App\Core\Company\Models\Company;
 use App\Core\User\Models\User;
 use App\Domains\People\Claim\Models\ClaimRequest;
 use App\Domains\People\Claim\Services\ClaimOperationsExportBuilder;
@@ -19,8 +18,11 @@ class ClaimOperationsExportController
             abort(403);
         }
 
+        $companyId = $user->getCompanyId();
+        abort_if($companyId === null, 403);
+
         $claims = ClaimRequest::query()
-            ->where('company_id', $user->company_id ?? Company::LICENSEE_ID)
+            ->where('company_id', $companyId)
             ->with(['employee', 'lines.type'])
             ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
             ->latest('submitted_at')

@@ -4,7 +4,6 @@ namespace App\Domains\People\Attendance\Livewire\Concerns;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
-use App\Core\Company\Models\Company;
 use App\Domains\People\Attendance\Models\AttendanceDay;
 use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
 use App\Domains\People\Attendance\Models\AttendanceShiftTemplate;
@@ -34,7 +33,10 @@ trait InteractsWithAttendanceScreen
 
     protected function companyId(): int
     {
-        return auth()->user()?->company_id ?? Company::LICENSEE_ID;
+        $companyId = auth()->user()?->getCompanyId();
+        abort_if($companyId === null, 403);
+
+        return $companyId;
     }
 
     protected function currentEmployeeId(): ?int

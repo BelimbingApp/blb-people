@@ -1,6 +1,5 @@
 <?php
 
-use App\Core\Company\Models\Company;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Claim\Exceptions\ClaimRequestLifecycleException;
 use App\Domains\People\Claim\Models\ClaimAssignmentLine;
@@ -14,7 +13,7 @@ require_once __DIR__.'/ClaimPolicyEvaluationTest.php';
 
 function makeSecondaryAssignmentLine(array $f, array $typeOverrides = [], array $policyOverrides = []): ClaimAssignmentLine
 {
-    $company = Company::query()->findOrFail(Company::LICENSEE_ID);
+    $company = platformOperatorCompany();
 
     $type = ClaimType::query()->create(array_merge([
         'company_id' => $company->id,

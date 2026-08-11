@@ -1,6 +1,5 @@
 <?php
 
-use App\Core\Company\Models\Company;
 use App\Domains\People\Claim\Models\ClaimEntitlementUsageEntry;
 use App\Domains\People\Claim\Models\ClaimRequest;
 use App\Domains\People\Claim\Services\ClaimReimbursementStatementBuilder;
@@ -37,7 +36,7 @@ it('aggregates per-employee approved/reimbursed/outstanding totals', function ()
 
 it('utilization aggregates approved + reimbursed usage entries and pending lines', function () {
     $f = makeClaimFixture();
-    $company = Company::query()->findOrFail(Company::LICENSEE_ID);
+    $company = platformOperatorCompany();
 
     // Pending submitted line → encumbrance only
     makeClaimWith($f, ClaimRequest::STATUS_SUBMITTED, requested: 80, incurred: '2026-06-10');

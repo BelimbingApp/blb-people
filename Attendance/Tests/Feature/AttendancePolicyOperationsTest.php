@@ -1422,7 +1422,7 @@ function createRosterViewOnlyUser(Company $company, Employee $employee): User
     setupAuthzRoles();
 
     $role = Role::query()->create([
-        'company_id' => null,
+        'company_id' => $company->id,
         'code' => 'roster_view_only_test_'.$company->id,
         'name' => 'Roster View Only',
         'is_system' => false,

@@ -382,7 +382,8 @@ class Show extends Component
      */
     private function companyTreeIds(): array
     {
-        $rootCompanyId = (int) (Auth::user()?->company_id ?? Company::LICENSEE_ID);
+        $rootCompanyId = Auth::user()?->getCompanyId();
+        abort_if($rootCompanyId === null, 403);
         $ids = [];
         $queue = [$rootCompanyId];
 

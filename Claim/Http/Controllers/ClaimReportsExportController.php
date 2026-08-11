@@ -2,7 +2,6 @@
 
 namespace App\Domains\People\Claim\Http\Controllers;
 
-use App\Core\Company\Models\Company;
 use App\Core\User\Models\User;
 use App\Domains\People\Claim\Models\ClaimRequest;
 use App\Domains\People\Claim\Services\ClaimApprovalAgingBuilder;
@@ -62,7 +61,10 @@ class ClaimReportsExportController
             abort(403);
         }
 
-        return (int) ($user->company_id ?? Company::LICENSEE_ID);
+        $companyId = $user->getCompanyId();
+        abort_if($companyId === null, 403);
+
+        return $companyId;
     }
 
     /** @param  array{filename: string, content: string}  $export */

@@ -31,7 +31,7 @@ class DevAttendanceSeeder extends DevSeeder
 
     protected function seed(): void
     {
-        $company = $this->licenseeCompany();
+        $company = $this->operatorPrimaryCompany();
 
         if (! $company instanceof Company) {
             return;

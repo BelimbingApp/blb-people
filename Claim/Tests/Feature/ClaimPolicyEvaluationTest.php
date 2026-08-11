@@ -1,6 +1,5 @@
 <?php
 
-use App\Core\Company\Models\Company;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Claim\Data\ClaimSubmissionInput;
 use App\Domains\People\Claim\Models\ClaimAssignment;
@@ -17,7 +16,7 @@ use App\Domains\People\Claim\Services\ClaimPolicyEvaluationService;
  */
 function makeClaimFixture(array $policyOverrides = []): array
 {
-    $company = Company::query()->findOrFail(Company::LICENSEE_ID);
+    $company = platformOperatorCompany();
     $employee = Employee::factory()->create(['company_id' => $company->id]);
 
     $type = ClaimType::query()->create([

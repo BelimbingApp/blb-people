@@ -6,7 +6,6 @@ use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Base\Foundation\Livewire\Concerns\ResetsPaginationOnSearch;
-use App\Core\Company\Models\Company;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use App\Domains\People\Settings\Models\EmployeeProfileChangeRequest;
 use App\Domains\People\Settings\Models\PeopleImportJob;
@@ -153,7 +152,10 @@ class Index extends Component
 
     private function companyId(): int
     {
-        return Auth::user()?->company_id ?? Company::LICENSEE_ID;
+        $companyId = Auth::user()?->getCompanyId();
+        abort_if($companyId === null, 403);
+
+        return $companyId;
     }
 
     private function authorizeManage(): void

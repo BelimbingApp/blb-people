@@ -344,7 +344,10 @@ class Index extends Component
 
     private function currentCompanyId(): int
     {
-        return (int) (Auth::user()?->company_id ?? Company::LICENSEE_ID);
+        $companyId = Auth::user()?->getCompanyId();
+        abort_if($companyId === null, 403);
+
+        return $companyId;
     }
 
     /**
