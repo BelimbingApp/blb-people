@@ -421,9 +421,15 @@ class SubmitLeaveRequestService
             ];
         }
 
+        // whereDate per value, not whereIn: SQLite stores date-cast columns as
+        // 'Y-m-d H:i:s', so an IN over bare 'Y-m-d' strings never matches.
         $existingDays = LeaveRequestDay::query()
             ->with('request')
-            ->whereIn('occurs_on', $requestedDates)
+            ->where(function ($query) use ($requestedDates): void {
+                foreach ($requestedDates as $requestedDate) {
+                    $query->orWhereDate('occurs_on', $requestedDate);
+                }
+            })
             ->where('counts_against_balance', true)
             ->whereHas('request', function ($query) use ($employee): void {
                 $query->where('employee_id', $employee->getKey())

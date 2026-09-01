@@ -147,7 +147,8 @@ class AttendanceCalendarResolver
     {
         $exceptions = PeopleCalendarException::query()
             ->whereIn('work_calendar_id', array_keys($calendarIds))
-            ->whereBetween('occurs_on', [$startDate, $endDate])
+            ->whereDate('occurs_on', '>=', $startDate)
+            ->whereDate('occurs_on', '<=', $endDate)
             ->whereIn('kind', self::HOLIDAY_KINDS)
             ->get(['work_calendar_id', 'occurs_on']);
 

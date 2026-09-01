@@ -31,7 +31,7 @@ class ReplacementLeaveExpiryService
             ->whereIn('entry_type', [LeaveBalanceLedgerEntry::ENTRY_ACCRUAL, LeaveBalanceLedgerEntry::ENTRY_CARRIED_FORWARD])
             ->where('source_type', LeaveBalanceLedgerEntry::SOURCE_REPLACEMENT_EARN)
             ->whereNotNull('expires_on')
-            ->where('expires_on', '<', $asOf->format('Y-m-d'))
+            ->whereDate('expires_on', '<', $asOf->format('Y-m-d'))
             ->where('quantity', '>', 0)
             ->get();
 
