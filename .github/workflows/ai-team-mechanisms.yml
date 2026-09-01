@@ -39,3 +39,10 @@ jobs:
 
       - name: Run shellcheck over the mounted mechanisms
         run: shellcheck --severity=error docs/ai-team/scripts/*.sh
+
+      # Adopter-owned addition, deliberately diverging from the template: the
+      # mounted scripts arrive already linted by the package's own CI, whereas
+      # .ai-team/ is the hand-written half nobody else checks. Linting only the
+      # mount left the one file this repository actually authored uncovered.
+      - name: Run shellcheck over the adopter-owned hooks
+        run: shellcheck --severity=error .ai-team/*.sh

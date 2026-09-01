@@ -41,12 +41,16 @@ echo
 echo "== project: is $BASE green right now? =="
 # The single most useful thing this hook can say. `ci / ci` is a required check
 # on the default branch, so while it is red nothing merges here at all — and
-# because CI pins the platform at a moving ref (see the hazard below), this
-# repository can go red with no commit of its own. Checking costs one API call
-# and has already saved one agent from being blamed for a break they inherited.
+# CI runs rarely enough (no schedule) that main can sit red for weeks. Checking
+# costs one API call and has already saved one agent from being blamed for a
+# break they inherited.
+# @tsv with an explicit `// ""` keeps a null conclusion (a run still in
+# progress) from arriving as the four-character string "null", and `empty` on a
+# zero-length result means an unread history is distinguishable from a read one.
 ci_state=$(gh run list --branch "$BASE" --workflow ci.yml --limit 1 \
   --json conclusion,headSha,createdAt \
-  --jq '.[0] | "\(.conclusion)\t\(.headSha[0:8])\t\(.createdAt)"' 2>/dev/null)
+  --jq 'if length == 0 then empty else .[0]
+        | [(.conclusion // ""), .headSha[0:8], .createdAt] | @tsv end' 2>/dev/null)
 if [ -z "$ci_state" ]; then
   echo "  unknown — could not read CI history; check before assuming you can land"
 else
@@ -58,14 +62,25 @@ else
       printf '  *** %s IS RED — ci %s on %s (%s) ***\n' "$BASE" "$conclusion" "$head_sha" "$created_at"
       echo '  ci / ci is a REQUIRED check: no PR can merge until it passes.'
       echo "  Do not assume your branch caused it. Confirm against $BASE first." ;;
+    '')
+      printf '  note    latest ci run on %s is still in progress (%s)\n' "$BASE" "$head_sha" ;;
     *)
-      printf '  note    latest ci run on %s is %s (%s)\n' "$BASE" "${conclusion:-in progress}" "$head_sha" ;;
+      printf '  note    latest ci run on %s is %s (%s)\n' "$BASE" "$conclusion" "$head_sha" ;;
   esac
 fi
 
 echo
 echo "== project: what this domain ships =="
-modules=$(git ls-tree -r --name-only "origin/$BASE" 2>/dev/null | grep -E '^[A-Z][A-Za-z]*/composer\.json$' | cut -d/ -f1 | sort)
+# --full-tree, or ls-tree scopes to the current prefix and a run from a
+# subdirectory silently undercounts everything below.
+#
+# Keyed on ServiceProvider.php, not composer.json: the platform discovers
+# modules by path convention, and Employees/ ships a provider without its own
+# composer.json. Keying on the manifest hid a real module (7 modules, not 6)
+# while the test count below still counted its files — the block contradicted
+# itself.
+tracked=$(git ls-tree -r --full-tree --name-only "origin/$BASE" 2>/dev/null)
+modules=$(printf '%s\n' "$tracked" | grep -E '^[A-Z][A-Za-z]*/ServiceProvider\.php$' | cut -d/ -f1 | sort)
 if [ -n "$modules" ]; then
   # paste -sd', ' would alternate the two delimiter characters, not use both
   # between every pair; join on a comma and space it out afterwards.
@@ -74,7 +89,7 @@ else
   printf '  modules   none resolved from origin/%s\n' "$BASE"
 fi
 printf '  tests     %s test file(s)\n' \
-  "$(git ls-tree -r --name-only "origin/$BASE" 2>/dev/null | grep -c 'Tests/.*Test\.php$')"
+  "$(printf '%s\n' "$tracked" | grep -c 'Tests/.*Test\.php$')"
 
 cat <<'TXT'
 
@@ -88,10 +103,18 @@ cat <<'TXT'
                    GitHub Development-panel link: a lane gated as issue-less can
                    still close an issue through it. Tracked as ai-team#67.
 
-  moving platform  ci.yml pins BelimbingApp/belimbing/.../domain-ci.yml@main and
-                   platform-ref defaults to main. This repository can go from
-                   green to red with no commit of its own, and the next unrelated
-                   PR gets the blame. See #47.
+  rare CI          CI runs only on push, PR, and manual dispatch — there is no
+                   schedule. This repository carried a bug that fails one day a
+                   month and it survived at least two of them undetected, until
+                   an unrelated PR tripped over it and looked responsible. Check
+                   whether main is already red before blaming your branch. See #47.
+
+  bare date compare  Comparing a date column to a 'Y-m-d' string with plain
+                   where() is a known defect class here — three instances found
+                   so far. SQLite stores those columns as 'Y-m-d H:i:s', so the
+                   comparison misses on boundary dates and equality never matches
+                   at all. Use whereDate(). Postgres truncates, so these bugs are
+                   invisible in production and only ever fail in CI. See #46.
 
   pest --parallel  Flaky here; it produces order-dependent failures that are not
                    real. Reproduce serially before treating anything as a
