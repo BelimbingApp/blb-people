@@ -44,13 +44,16 @@ echo "== project: is $BASE green right now? =="
 # CI runs rarely enough (no schedule) that main can sit red for weeks. Checking
 # costs one API call and has already saved one agent from being blamed for a
 # break they inherited.
-# @tsv with an explicit `// ""` keeps a null conclusion (a run still in
-# progress) from arriving as the four-character string "null", and `empty` on a
-# zero-length result means an unread history is distinguishable from a read one.
+# `empty` on a zero-length result keeps an unread history distinguishable from a
+# read one. The conclusion is normalized to the sentinel "pending" rather than
+# left empty, because tab is an IFS *whitespace* character: `IFS=$'\t' read`
+# strips a leading empty field instead of preserving it, so every variable would
+# shift one place left and the in-progress arm could never match.
 ci_state=$(gh run list --branch "$BASE" --workflow ci.yml --limit 1 \
   --json conclusion,headSha,createdAt \
   --jq 'if length == 0 then empty else .[0]
-        | [(.conclusion // ""), .headSha[0:8], .createdAt] | @tsv end' 2>/dev/null)
+        | [((.conclusion // "") | if . == "" then "pending" else . end),
+           .headSha[0:8], .createdAt] | @tsv end' 2>/dev/null)
 if [ -z "$ci_state" ]; then
   echo "  unknown — could not read CI history; check before assuming you can land"
 else
@@ -62,7 +65,7 @@ else
       printf '  *** %s IS RED — ci %s on %s (%s) ***\n' "$BASE" "$conclusion" "$head_sha" "$created_at"
       echo '  ci / ci is a REQUIRED check: no PR can merge until it passes.'
       echo "  Do not assume your branch caused it. Confirm against $BASE first." ;;
-    '')
+    pending)
       printf '  note    latest ci run on %s is still in progress (%s)\n' "$BASE" "$head_sha" ;;
     *)
       printf '  note    latest ci run on %s is %s (%s)\n' "$BASE" "$conclusion" "$head_sha" ;;
