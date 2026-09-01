@@ -124,9 +124,10 @@ cat <<'TXT'
                    fail in CI. Use whereDate(). See #46 (fixed), #51, #52 and
                    #54.
 
-  swallowed actions  RecoverFromActionFailure turns a broken Livewire action
-                   into a polite error toast without a log entry, so a broken
-                   action and a working one can look identical from outside.
+  swallowed actions  RecoverFromActionFailure reports a broken Livewire action
+                   and turns it into a polite error toast, but the report may
+                   not appear in the test log channel. A broken action and a
+                   working one can therefore look identical from outside.
                    When an action appears to do nothing, assert its notify
                    dispatch before assuming it worked. Two shipped actions
                    were found this way in #55. See #56.
