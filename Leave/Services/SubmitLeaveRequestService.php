@@ -19,6 +19,7 @@ use App\Domains\People\Leave\Models\LeaveRequestDay;
 use App\Domains\People\Leave\Models\LeaveRequestPolicy;
 use App\Domains\People\Leave\Models\LeaveType;
 use DateTimeImmutable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class SubmitLeaveRequestService
@@ -421,15 +422,15 @@ class SubmitLeaveRequestService
             ];
         }
 
-        // whereDate per value, not whereIn: SQLite stores date-cast columns as
-        // 'Y-m-d H:i:s', so an IN over bare 'Y-m-d' strings never matches.
+        // Carbon bindings, not bare 'Y-m-d' strings: the date cast stores
+        // midnight timestamps under SQLite, so a string IN never matches —
+        // and unlike whereDate, Carbon keeps the occurs_on index usable.
         $existingDays = LeaveRequestDay::query()
             ->with('request')
-            ->where(function ($query) use ($requestedDates): void {
-                foreach ($requestedDates as $requestedDate) {
-                    $query->orWhereDate('occurs_on', $requestedDate);
-                }
-            })
+            ->whereIn('occurs_on', array_map(
+                static fn (string $date): Carbon => Carbon::parse($date),
+                $requestedDates,
+            ))
             ->where('counts_against_balance', true)
             ->whereHas('request', function ($query) use ($employee): void {
                 $query->where('employee_id', $employee->getKey())

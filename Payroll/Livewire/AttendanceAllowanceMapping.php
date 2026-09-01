@@ -80,10 +80,13 @@ class AttendanceAllowanceMapping extends Component
             'editingEffectiveFrom' => ['required', 'date'],
         ]);
 
+        // Carbon, not the raw 'Y-m-d' string: the date cast stores midnight
+        // timestamps, so a bare-string updateOrCreate lookup key never matches
+        // under SQLite and re-saving 500s on the unique index (#54).
         PayrollAttendanceRulePayItem::query()->updateOrCreate(
             [
                 'attendance_allowance_rule_id' => $rule->id,
-                'effective_from' => $validated['editingEffectiveFrom'],
+                'effective_from' => Carbon::parse($validated['editingEffectiveFrom']),
             ],
             [
                 'company_id' => $companyId,

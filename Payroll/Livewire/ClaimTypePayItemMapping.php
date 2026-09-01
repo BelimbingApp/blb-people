@@ -75,10 +75,13 @@ class ClaimTypePayItemMapping extends Component
             'editingEffectiveFrom' => ['required', 'date'],
         ]);
 
+        // Carbon, not the raw 'Y-m-d' string: the date cast stores midnight
+        // timestamps, so a bare-string updateOrCreate lookup key never matches
+        // under SQLite and re-saving 500s on the unique index (#54).
         PayrollClaimTypePayItem::query()->updateOrCreate(
             [
                 'claim_type_id' => $type->id,
-                'effective_from' => $validated['editingEffectiveFrom'],
+                'effective_from' => Carbon::parse($validated['editingEffectiveFrom']),
             ],
             [
                 'company_id' => $companyId,

@@ -10,6 +10,7 @@ use App\Domains\People\Leave\Models\LeaveEntitlementPolicyBand;
 use App\Domains\People\Leave\Models\LeaveRequestPolicy;
 use App\Domains\People\Leave\Models\LeaveType;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -130,7 +131,7 @@ class SeedSbgLeavePackCommand extends Command
 
             if ($interactsWithPayroll && Schema::hasTable('people_payroll_leave_type_pay_items')) {
                 DB::table('people_payroll_leave_type_pay_items')->updateOrInsert(
-                    ['leave_type_id' => $out[$statutoryCode]->id, 'effective_from' => '2026-01-01'],
+                    ['leave_type_id' => $out[$statutoryCode]->id, 'effective_from' => Carbon::parse('2026-01-01')],
                     [
                         'company_id' => $companyId,
                         'payroll_pay_item_code' => LeaveType::PAYROLL_CODE_UNPAID_LEAVE,
