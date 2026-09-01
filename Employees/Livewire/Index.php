@@ -92,17 +92,19 @@ class Index extends Component
         'company_name' => 'company_name',
         'employee_type_label' => 'employee_type_label',
         'status' => 'employees.status',
-        'organization_unit_name' => 'organization_unit_name',
-        'cost_center_name' => 'cost_center_name',
         'job_title_name' => 'job_title_name',
-        'work_profile_pay_basis' => 'work_profile_pay_basis',
         'portal_access_status' => 'portal_access_status',
+    ];
+
+    private const LEGACY_SORT_COLUMNS = [
+        'organization_unit_name' => 'company_name',
+        'cost_center_name' => 'company_name',
+        'work_profile_pay_basis' => 'job_title_name',
     ];
 
     public function updated(string $property): void
     {
         if (in_array($property, $this->quickFilterProperties(), true)) {
-            $this->selectedSavedViewId = '';
             $this->resetPage();
         }
     }
@@ -132,10 +134,7 @@ class Index extends Component
                 'company_name' => 'asc',
                 'employee_type_label' => 'asc',
                 'status' => 'asc',
-                'organization_unit_name' => 'asc',
-                'cost_center_name' => 'asc',
                 'job_title_name' => 'asc',
-                'work_profile_pay_basis' => 'asc',
                 'portal_access_status' => 'asc',
             ],
         );
@@ -190,7 +189,6 @@ class Index extends Component
         $this->portalAccessStatus = $this->draftPortalAccessStatus;
         $this->readinessBlocker = $this->draftReadinessBlocker;
 
-        $this->selectedSavedViewId = '';
         $this->filterDrawerOpen = false;
         $this->resetPage();
     }
@@ -202,7 +200,6 @@ class Index extends Component
         }
 
         $this->syncDraftAdvancedFiltersFromApplied();
-        $this->selectedSavedViewId = '';
         $this->resetPage();
     }
 
@@ -214,7 +211,6 @@ class Index extends Component
 
         $this->{$property} = '';
         $this->syncDraftAdvancedFiltersFromApplied();
-        $this->selectedSavedViewId = '';
         $this->resetPage();
     }
 
@@ -280,7 +276,7 @@ class Index extends Component
         $view = $this->savedViewsQuery()->where('user_id', Auth::id())->find($viewId);
 
         if ($view === null) {
-            $this->notifyError(__('Only your private saved views can be removed here.'));
+            $this->notifyError(__('Only saved views you own can be removed here.'));
 
             return;
         }
@@ -302,7 +298,15 @@ class Index extends Component
             return;
         }
 
-        $view = $this->savedViewsQuery()->findOrFail($viewId);
+        $view = $this->savedViewsQuery()->find($viewId);
+
+        if ($view === null) {
+            $this->selectedSavedViewId = '';
+            $this->notifyError(__('That saved view is no longer available.'));
+
+            return;
+        }
+
         $filters = is_array($view->filters) ? $view->filters : [];
         $sort = is_array($view->sort) ? $view->sort : [];
 
@@ -317,6 +321,8 @@ class Index extends Component
         $sortBy = (string) ($sort['by'] ?? '');
         if (array_key_exists($sortBy, self::SORTABLE)) {
             $this->sortBy = $sortBy;
+        } elseif (array_key_exists($sortBy, self::LEGACY_SORT_COLUMNS)) {
+            $this->sortBy = self::LEGACY_SORT_COLUMNS[$sortBy];
         }
 
         $sortDir = strtolower((string) ($sort['dir'] ?? 'asc'));
@@ -331,6 +337,51 @@ class Index extends Component
             $this->advancedFilterProperties(),
             fn (string $property): bool => $this->{$property} !== '',
         ));
+    }
+
+    public function hasActiveFilters(): bool
+    {
+        foreach ($this->filterProperties() as $property) {
+            if ($this->{$property} !== '') {
+                return true;
+            }
+        }
+
+        return $this->sortBy !== 'full_name' || $this->sortDir !== 'asc';
+    }
+
+    public function savedViewMatchesSelection(): bool
+    {
+        if ($this->selectedSavedViewId === '' || ! ctype_digit($this->selectedSavedViewId)) {
+            return true;
+        }
+
+        if (! $this->savedEmployeeViewsTableExists()) {
+            return true;
+        }
+
+        $view = $this->savedViewsQuery()->find((int) $this->selectedSavedViewId);
+
+        if ($view === null) {
+            return false;
+        }
+
+        $filters = is_array($view->filters) ? $view->filters : [];
+
+        foreach ($this->filterProperties() as $property) {
+            $filterKey = $this->filterKeyForProperty($property);
+            $expected = is_scalar($filters[$filterKey] ?? '') ? (string) ($filters[$filterKey] ?? '') : '';
+
+            if ($this->{$property} !== $expected) {
+                return false;
+            }
+        }
+
+        $sort = is_array($view->sort) ? $view->sort : [];
+        $expectedSortBy = (string) ($sort['by'] ?? 'full_name');
+        $expectedSortDir = strtolower((string) ($sort['dir'] ?? 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        return $this->sortBy === $expectedSortBy && $this->sortDir === $expectedSortDir;
     }
 
     /**
@@ -419,6 +470,8 @@ class Index extends Component
             ->orderBy('employees.id')
             ->paginate(15);
 
+        // One relation load and one statutory-profile query for the page,
+        // instead of schema probes and lookups per row.
         $readiness->primeFor($employees->getCollection());
 
         $employees->getCollection()->transform(function ($employee) use ($readiness) {
@@ -441,6 +494,9 @@ class Index extends Component
         $workCalendars = $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_WORK_CALENDAR);
         $readinessBlockers = EmployeePayrollReadinessService::blockerLabels();
 
+        $savedViewsAvailable = $this->savedEmployeeViewsTableExists();
+        $savedViews = $savedViewsAvailable ? $this->savedViewsQuery()->get() : collect();
+
         return view('people-employees::livewire.people.employees.index', [
             'employees' => $employees,
             'companies' => $companies,
@@ -451,7 +507,7 @@ class Index extends Component
             'workforceClasses' => $workforceClasses,
             'jobGrades' => $jobGrades,
             'workCalendars' => $workCalendars,
-            'savedViews' => $this->savedEmployeeViewsTableExists() ? $this->savedViewsQuery()->get() : collect(),
+            'savedViews' => $savedViews,
             'readinessBlockers' => $readinessBlockers,
             'exportUrl' => route('people.employees.export.csv', $this->filters()),
             'showCompanyFilter' => $companies->count() > 1,
@@ -466,9 +522,9 @@ class Index extends Component
                 $readinessBlockers,
             ),
             'advancedFilterCount' => $this->advancedFilterCount(),
-            'privateSavedViews' => $this->savedEmployeeViewsTableExists()
-                ? $this->savedViewsQuery()->where('user_id', Auth::id())->get()
-                : collect(),
+            'hasActiveFilters' => $this->hasActiveFilters(),
+            'savedViewModified' => $this->selectedSavedViewId !== '' && ! $this->savedViewMatchesSelection(),
+            'manageableSavedViews' => $savedViews->where('user_id', Auth::id())->values(),
         ]);
     }
 

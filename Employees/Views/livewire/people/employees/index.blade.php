@@ -23,29 +23,32 @@
                 <x-slot name="search">
                     <x-ui.search-input
                         id="employee-workbench-search"
-                        wire:key="employee-workbench-search"
                         wire:model.live.debounce.300ms="search"
                         placeholder="{{ __('Search employees…') }}"
                     />
                 </x-slot>
 
-                <x-ui.select
-                    id="employee-workbench-saved-view"
-                    wire:model.live="selectedSavedViewId"
-                    :block="false"
-                    aria-label="{{ __('Saved view') }}"
-                >
-                    <option value="">{{ __('All employees') }}</option>
-                    @foreach ($savedViews as $view)
-                        <option value="{{ $view->id }}">{{ $view->name }}</option>
-                    @endforeach
-                </x-ui.select>
+                <div class="space-y-1">
+                    <x-ui.select
+                        id="employee-workbench-saved-view"
+                        wire:model.live="selectedSavedViewId"
+                        aria-label="{{ __('Saved view') }}"
+                    >
+                        <option value="">{{ __('All employees') }}</option>
+                        @foreach ($savedViews as $view)
+                            <option value="{{ $view->id }}">{{ $view->name }}</option>
+                        @endforeach
+                    </x-ui.select>
+                    @if ($savedViewModified)
+                        <p class="text-xs text-muted">{{ __('Saved view modified — filters no longer match the saved snapshot.') }}</p>
+                    @endif
+                </div>
 
                 <x-ui.button type="button" variant="ghost" size="sm" wire:click="openSaveViewModal">
                     {{ __('Save current view…') }}
                 </x-ui.button>
 
-                <x-ui.select id="employee-workbench-status" wire:model.live="status" :block="false" aria-label="{{ __('Status') }}">
+                <x-ui.select id="employee-workbench-status" wire:model.live="status" aria-label="{{ __('Status') }}">
                     <option value="">{{ __('All statuses') }}</option>
                     <option value="pending">{{ __('Pending') }}</option>
                     <option value="probation">{{ __('Probation') }}</option>
@@ -54,14 +57,14 @@
                     <option value="terminated">{{ __('Terminated') }}</option>
                 </x-ui.select>
 
-                <x-ui.select id="employee-workbench-readiness" wire:model.live="readinessState" :block="false" aria-label="{{ __('Payroll readiness') }}">
+                <x-ui.select id="employee-workbench-readiness" wire:model.live="readinessState" aria-label="{{ __('Payroll readiness') }}">
                     <option value="">{{ __('All readiness') }}</option>
                     <option value="ready">{{ __('Ready') }}</option>
                     <option value="blocked">{{ __('Blocked') }}</option>
                 </x-ui.select>
 
                 @if ($showCompanyFilter)
-                    <x-ui.select id="employee-workbench-company" wire:model.live="companyId" :block="false" aria-label="{{ __('Company') }}">
+                    <x-ui.select id="employee-workbench-company" wire:model.live="companyId" aria-label="{{ __('Company') }}">
                         <option value="">{{ __('All companies') }}</option>
                         @foreach ($companies as $company)
                             <option value="{{ $company->id }}">{{ $company->name }}</option>
@@ -75,6 +78,12 @@
                         <x-ui.badge variant="info" class="ml-1.5">{{ $advancedFilterCount }}</x-ui.badge>
                     @endif
                 </x-ui.button>
+
+                @if ($hasActiveFilters)
+                    <x-ui.button type="button" variant="ghost" size="sm" wire:click="clearFilters">
+                        {{ __('Clear all filters') }}
+                    </x-ui.button>
+                @endif
             </x-ui.filter-bar>
 
             @if ($activeAdvancedFilterChips !== [])
@@ -124,7 +133,11 @@
                         <td class="px-table-cell-x py-table-cell-y align-top">
                             <div class="text-sm text-default">{{ $employee->company_name ?? $employee->company?->name ?? '-' }}</div>
                             <div class="text-xs text-muted">{{ $employee->organization_unit_name ?? '-' }}</div>
+                            <div class="text-xs text-muted">{{ $employee->employment_group_name ?? '-' }}</div>
                             <div class="text-xs text-muted">{{ $employee->cost_center_name ?? '-' }}</div>
+                            @if ($employee->cost_center_source_code)
+                                <div class="text-xs text-muted">{{ __('Source') }}: {{ $employee->cost_center_source_code }}</div>
+                            @endif
                         </td>
                         <td class="px-table-cell-x py-table-cell-y align-top">
                             <div class="text-sm text-default">{{ $employee->job_title_name ?? '-' }}</div>
@@ -180,18 +193,21 @@
                     </h2>
                     <p class="mt-1 text-sm text-muted">{{ __('Changes apply when you confirm. The table stays visible while you adjust filters.') }}</p>
                 </div>
-                <button
-                    type="button"
-                    wire:click="closeFilterDrawer"
-                    class="rounded-2xl p-2 text-muted hover:bg-surface-subtle hover:text-ink focus:outline-none focus:ring-2 focus:ring-accent"
-                    aria-label="{{ __('Close filters') }}"
-                >
-                    <x-icon name="heroicon-o-x-mark" class="h-5 w-5" />
-                </button>
+                <div class="flex shrink-0 items-center gap-1">
+                    <x-ui.inspector-default-width-button />
+                    <button
+                        type="button"
+                        wire:click="closeFilterDrawer"
+                        class="rounded-2xl p-2 text-muted hover:bg-surface-subtle hover:text-ink focus:outline-none focus:ring-2 focus:ring-accent"
+                        aria-label="{{ __('Close filters') }}"
+                    >
+                        <x-icon name="heroicon-o-x-mark" class="h-5 w-5" />
+                    </button>
+                </div>
             </div>
         </header>
 
-        <div class="space-y-4 p-card-inner">
+        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-card-inner">
             <x-ui.select id="employee-workbench-draft-organization-unit" wire:model="draftOrganizationUnitId" :label="__('Organization unit')">
                 <option value="">{{ __('All') }}</option>
                 @foreach ($organizationUnits as $entry)
@@ -272,7 +288,7 @@
         </footer>
     </x-ui.inspector-drawer>
 
-    <x-ui.modal wire:model="saveViewModalOpen" labelledby="employee-workbench-save-view-title">
+    <x-ui.modal wire:model="saveViewModalOpen" labelledby="employee-workbench-save-view-title" class="max-w-lg">
         <div class="p-card-inner space-y-4">
             <div>
                 <h2 id="employee-workbench-save-view-title" class="text-lg font-medium text-ink">{{ __('Save current view') }}</h2>
@@ -293,11 +309,11 @@
                 </div>
             </form>
 
-            @if ($privateSavedViews->isNotEmpty())
+            @if ($manageableSavedViews->isNotEmpty())
                 <div class="border-t border-border-default pt-4">
                     <h3 class="text-sm font-medium text-ink">{{ __('Your saved views') }}</h3>
                     <ul class="mt-2 space-y-2">
-                        @foreach ($privateSavedViews as $view)
+                        @foreach ($manageableSavedViews as $view)
                             <li class="flex items-center justify-between gap-3 rounded-2xl border border-border-default px-3 py-2 text-sm">
                                 <span class="text-default">{{ $view->name }}</span>
                                 <x-ui.button type="button" variant="ghost" size="sm" wire:click="deleteSavedView({{ $view->id }})">

@@ -210,6 +210,57 @@ test('employee workbench applies advanced filters from the drawer without live t
         ->assertSee('Eva Filtered');
 });
 
+test('employee workbench keeps saved view honest when quick filters diverge', function (): void {
+    $user = createAdminUser();
+    $company = Company::query()->findOrFail($user->company_id);
+
+    $view = PeopleSavedEmployeeView::query()->create([
+        'company_id' => $company->id,
+        'user_id' => $user->id,
+        'name' => 'Terminated only',
+        'visibility' => 'private',
+        'status' => 'active',
+        'filters' => ['status' => 'terminated'],
+        'sort' => ['by' => 'full_name', 'dir' => 'asc'],
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(Index::class)
+        ->call('applySavedView', $view->id)
+        ->assertSet('selectedSavedViewId', (string) $view->id)
+        ->assertSet('status', 'terminated')
+        ->set('search', 'Ada')
+        ->assertSet('selectedSavedViewId', (string) $view->id)
+        ->assertSet('status', 'terminated')
+        ->assertSee('Saved view modified')
+        ->call('clearFilters')
+        ->assertSet('selectedSavedViewId', '')
+        ->assertSet('status', '');
+});
+
+test('employee workbench owner can delete a saved view they own', function (): void {
+    $user = createAdminUser();
+    $company = Company::query()->findOrFail($user->company_id);
+
+    $view = PeopleSavedEmployeeView::query()->create([
+        'company_id' => $company->id,
+        'user_id' => $user->id,
+        'name' => 'Disposable',
+        'visibility' => 'company',
+        'status' => 'active',
+        'filters' => [],
+        'sort' => ['by' => 'full_name', 'dir' => 'asc'],
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(Index::class)
+        ->call('deleteSavedView', $view->id);
+
+    expect(PeopleSavedEmployeeView::query()->find($view->id))->toBeNull();
+});
+
 test('people employee detail updates work profile access and reviews requests', function (): void {
     $user = createAdminUser();
     $company = Company::query()->findOrFail($user->company_id);
