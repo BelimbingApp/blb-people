@@ -117,13 +117,26 @@ That half is true today: every company-carrying column in the connector is `comp
 `company_entity_id`, with no exceptions. Properties, parameters and payload keys are a
 review rule until something can read them, and this document should not pretend otherwise.
 
-**One known violation, in this repository.** `Employees/Livewire/Index.php:258` writes the
-array key `'scope_company_id'` into the persisted `metadata` JSON of a saved employee view,
-fed from `currentCompanyId()`, which resolves `Auth::user()->getCompanyId()` — a platform
-company id under a fourth spelling. It sits on a row that already has a real `company_id`
-column set from the same call, so it is a duplicate as well as a misspelling. Fixing it is
-a code change and does not belong in this document; it is named here so the rule is not
-quietly narrowed to make an existing violation disappear.
+**One known violation, in this repository — across the surfaces counted.** The count covers
+**persisted names**: schema columns, and keys written into stored JSON. It does not cover
+local variables, and the rule's own wording is looser than that count, which is a known gap
+recorded below.
+
+`Employees/Livewire/Index.php:258` writes the array key `'scope_company_id'` into the
+persisted `metadata` JSON of a saved employee view, fed from `currentCompanyId()`, which
+resolves `Auth::user()->getCompanyId()` — a platform company id under a fourth spelling. It
+sits on a row that already has a real `company_id` column set from the same call, so it is a
+duplicate as well as a misspelling. Fixing it is a code change and does not belong in this
+document; it is named here so the rule is not quietly narrowed to make an existing violation
+disappear. It is filed as #64.
+
+**A known gap in the rule itself, for whoever writes the lint.** Rows two and three permit a
+role prefix — `manager_entity_id`, `companyReference` — and row one does not, so
+`$platformCompanyId` and `$actorCompanyId` are literal violations of a rule nobody intends to
+break. Either row one gains the same prefix freedom or the rule scopes itself to persisted
+names, which is what the count above already does. Deciding that belongs with the lint, in
+**#24**, not here — a naming rule and the thing that enforces it should be settled together
+or they drift apart again.
 
 ### Rule 1.2 — connector-owned data is keyed on the workforce company, never the platform company
 
@@ -721,7 +734,7 @@ duration of that request.
 
 | Class | Contents | Rule |
 |---|---|---|
-| **Directory** | Names, employee numbers, work email, active flag, org unit, position, manager | Visible to authenticated users of the attributed platform company |
+| **Directory** | Names, employee numbers, work email, active flag, org unit, position, manager | The broadest audience, and still a granted one: any holder of the directory-read permission, bounded to the workforce companies attributed to their platform company |
 | **Employment** | Employment dates, department head, position history | Employee themselves, their management chain, HR |
 | **Compensation** | Payroll of any kind, bank details, claims amounts | Never projected. Read-through, provider-authorised, payroll role only |
 | **Absence** | Leave and attendance records | Never projected. Read-through, employee, their manager, HR |
@@ -735,6 +748,26 @@ thing somebody adds — which is the fail-open shape this document exists to rem
 default is deliberately the most restrictive class rather than a middle one, so that
 classifying a new kind of data is always a loosening, made on purpose, by a change to this
 table.
+
+**Every row of this table names an audience among permission holders, never a gate of its
+own.** Rule 7.1 supplies the gate for all six: a role reaches any of this data only through a
+permission that names the capability, and decision 2.6 bounds which companies that permission
+can reach. The table says who, within that; it never says instead of it.
+
+The Directory row said something else in the first two versions of this document — "visible
+to authenticated users of the attributed platform company" — which made *being logged in* the
+gate. That contradicted rule 7.1 one section below it and decision 2.6 four sections above,
+and it would have handed a developer, a support role or any platform administrator the whole
+employee directory of every attributed company, which is the exact outcome #20's acceptance
+criteria forbid.
+
+The slip worth naming, because it is the kind that recurs: **breadth of audience got written
+as absence of a gate.** A directory really is the widest of these six classes, and the wide
+end of a scale reads like no restriction at all if you are not careful. It is still HR data
+about identifiable people, and "widest audience among permission holders" and "everyone with
+a session" are not close together — the second includes every role that was never meant to
+hold HR access at all. Where a row is genuinely permissive, say what it is permissive
+*within*.
 
 Competence data is performance data. It is more sensitive than the directory and it is
 owned by us, which means we cannot borrow the provider's access rules for it — we have to
@@ -1018,3 +1051,10 @@ current text less, not more.
 
 The same review is why the carve-out's shape is now recorded as an exclusion test rather than
 certified as sound, and why decision 2.2 now states its dependency on open question 4.
+
+A second round found one more, and it is the most instructive of the set because it survived
+a full review: the **Directory** row of section 7 made being authenticated the gate, which
+contradicted rule 7.1 one section below it and decision 2.6 four sections above it. Found by
+`agent:desktop-terra`. Two contradictions inside one document, one table row apart from the
+Documents contradiction caught in the first round — which is a fair measure of how much easier
+it is to check a rule against code than against its own neighbours.
