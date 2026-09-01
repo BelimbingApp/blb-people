@@ -12,6 +12,7 @@ use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Settings\Models\PeopleSavedEmployeeView;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
@@ -52,6 +53,32 @@ class Index extends Component
 
     public string $readinessBlocker = '';
 
+    public string $draftOrganizationUnitId = '';
+
+    public string $draftCostCenterId = '';
+
+    public string $draftEmploymentGroupId = '';
+
+    public string $draftJobTitleId = '';
+
+    public string $draftWorkforceClassId = '';
+
+    public string $draftJobGradeId = '';
+
+    public string $draftWorkCalendarId = '';
+
+    public string $draftPayRateType = '';
+
+    public string $draftPortalAccessStatus = '';
+
+    public string $draftReadinessBlocker = '';
+
+    public bool $filterDrawerOpen = false;
+
+    public bool $saveViewModalOpen = false;
+
+    public string $selectedSavedViewId = '';
+
     public string $savedViewName = '';
 
     public string $savedViewVisibility = 'private';
@@ -65,18 +92,36 @@ class Index extends Component
         'company_name' => 'company_name',
         'employee_type_label' => 'employee_type_label',
         'status' => 'employees.status',
-        'organization_unit_name' => 'organization_unit_name',
-        'cost_center_name' => 'cost_center_name',
         'job_title_name' => 'job_title_name',
-        'work_profile_pay_basis' => 'work_profile_pay_basis',
         'portal_access_status' => 'portal_access_status',
+    ];
+
+    private const LEGACY_SORT_COLUMNS = [
+        'organization_unit_name' => 'company_name',
+        'cost_center_name' => 'company_name',
+        'work_profile_pay_basis' => 'job_title_name',
     ];
 
     public function updated(string $property): void
     {
-        if (in_array($property, $this->filterProperties(), true)) {
+        if (in_array($property, $this->quickFilterProperties(), true)) {
             $this->resetPage();
         }
+    }
+
+    public function updatedSelectedSavedViewId(string $value): void
+    {
+        if ($value === '') {
+            $this->clearFilters();
+
+            return;
+        }
+
+        if (! ctype_digit($value)) {
+            return;
+        }
+
+        $this->applySavedView((int) $value);
     }
 
     public function sort(string $column): void
@@ -89,10 +134,7 @@ class Index extends Component
                 'company_name' => 'asc',
                 'employee_type_label' => 'asc',
                 'status' => 'asc',
-                'organization_unit_name' => 'asc',
-                'cost_center_name' => 'asc',
                 'job_title_name' => 'asc',
-                'work_profile_pay_basis' => 'asc',
                 'portal_access_status' => 'asc',
             ],
         );
@@ -115,9 +157,73 @@ class Index extends Component
             'portalAccessStatus',
             'readinessState',
             'readinessBlocker',
+            'selectedSavedViewId',
         ]);
 
+        $this->syncDraftAdvancedFiltersFromApplied();
         $this->resetPage();
+    }
+
+    public function openFilterDrawer(): void
+    {
+        $this->syncDraftAdvancedFiltersFromApplied();
+        $this->filterDrawerOpen = true;
+    }
+
+    public function closeFilterDrawer(): void
+    {
+        $this->syncDraftAdvancedFiltersFromApplied();
+        $this->filterDrawerOpen = false;
+    }
+
+    public function applyAdvancedFilters(): void
+    {
+        $this->organizationUnitId = $this->draftOrganizationUnitId;
+        $this->costCenterId = $this->draftCostCenterId;
+        $this->employmentGroupId = $this->draftEmploymentGroupId;
+        $this->jobTitleId = $this->draftJobTitleId;
+        $this->workforceClassId = $this->draftWorkforceClassId;
+        $this->jobGradeId = $this->draftJobGradeId;
+        $this->workCalendarId = $this->draftWorkCalendarId;
+        $this->payRateType = $this->draftPayRateType;
+        $this->portalAccessStatus = $this->draftPortalAccessStatus;
+        $this->readinessBlocker = $this->draftReadinessBlocker;
+
+        $this->filterDrawerOpen = false;
+        $this->resetPage();
+    }
+
+    public function clearAdvancedFilters(): void
+    {
+        foreach ($this->advancedFilterProperties() as $property) {
+            $this->{$property} = '';
+        }
+
+        $this->syncDraftAdvancedFiltersFromApplied();
+        $this->resetPage();
+    }
+
+    public function removeAdvancedFilter(string $property): void
+    {
+        if (! in_array($property, $this->advancedFilterProperties(), true)) {
+            return;
+        }
+
+        $this->{$property} = '';
+        $this->syncDraftAdvancedFiltersFromApplied();
+        $this->resetPage();
+    }
+
+    public function openSaveViewModal(): void
+    {
+        $this->saveViewModalOpen = true;
+    }
+
+    public function closeSaveViewModal(): void
+    {
+        $this->saveViewModalOpen = false;
+        $this->savedViewName = '';
+        $this->savedViewVisibility = 'private';
     }
 
     public function saveCurrentView(): void
@@ -133,7 +239,7 @@ class Index extends Component
             'savedViewVisibility' => ['required', 'in:private,company'],
         ]);
 
-        PeopleSavedEmployeeView::query()->updateOrCreate(
+        $view = PeopleSavedEmployeeView::query()->updateOrCreate(
             [
                 'company_id' => $this->currentCompanyId(),
                 'user_id' => Auth::id(),
@@ -154,8 +260,34 @@ class Index extends Component
             ],
         );
 
-        $this->savedViewName = '';
+        $this->selectedSavedViewId = (string) $view->id;
+        $this->closeSaveViewModal();
         $this->notify(__('Saved employee view updated.'));
+    }
+
+    public function deleteSavedView(int $viewId): void
+    {
+        if (! $this->savedEmployeeViewsTableExists()) {
+            $this->notifyError(__('Saved employee views are unavailable until People settings tables are rebuilt.'));
+
+            return;
+        }
+
+        $view = $this->savedViewsQuery()->where('user_id', Auth::id())->find($viewId);
+
+        if ($view === null) {
+            $this->notifyError(__('Only saved views you own can be removed here.'));
+
+            return;
+        }
+
+        $view->delete();
+
+        if ($this->selectedSavedViewId === (string) $viewId) {
+            $this->selectedSavedViewId = '';
+        }
+
+        $this->notify(__('Saved employee view removed.'));
     }
 
     public function applySavedView(int $viewId): void
@@ -166,7 +298,15 @@ class Index extends Component
             return;
         }
 
-        $view = $this->savedViewsQuery()->findOrFail($viewId);
+        $view = $this->savedViewsQuery()->find($viewId);
+
+        if ($view === null) {
+            $this->selectedSavedViewId = '';
+            $this->notifyError(__('That saved view is no longer available.'));
+
+            return;
+        }
+
         $filters = is_array($view->filters) ? $view->filters : [];
         $sort = is_array($view->sort) ? $view->sort : [];
 
@@ -176,14 +316,117 @@ class Index extends Component
             $this->{$property} = is_scalar($value) ? (string) $value : '';
         }
 
+        $this->syncDraftAdvancedFiltersFromApplied();
+
         $sortBy = (string) ($sort['by'] ?? '');
         if (array_key_exists($sortBy, self::SORTABLE)) {
             $this->sortBy = $sortBy;
+        } elseif (array_key_exists($sortBy, self::LEGACY_SORT_COLUMNS)) {
+            $this->sortBy = self::LEGACY_SORT_COLUMNS[$sortBy];
         }
 
         $sortDir = strtolower((string) ($sort['dir'] ?? 'asc'));
         $this->sortDir = $sortDir === 'desc' ? 'desc' : 'asc';
+        $this->selectedSavedViewId = (string) $viewId;
         $this->resetPage();
+    }
+
+    public function advancedFilterCount(): int
+    {
+        return count(array_filter(
+            $this->advancedFilterProperties(),
+            fn (string $property): bool => $this->{$property} !== '',
+        ));
+    }
+
+    public function hasActiveFilters(): bool
+    {
+        foreach ($this->filterProperties() as $property) {
+            if ($this->{$property} !== '') {
+                return true;
+            }
+        }
+
+        return $this->sortBy !== 'full_name' || $this->sortDir !== 'asc';
+    }
+
+    public function savedViewMatchesSelection(): bool
+    {
+        if ($this->selectedSavedViewId === '' || ! ctype_digit($this->selectedSavedViewId)) {
+            return true;
+        }
+
+        if (! $this->savedEmployeeViewsTableExists()) {
+            return true;
+        }
+
+        $view = $this->savedViewsQuery()->find((int) $this->selectedSavedViewId);
+
+        if ($view === null) {
+            return false;
+        }
+
+        $filters = is_array($view->filters) ? $view->filters : [];
+
+        foreach ($this->filterProperties() as $property) {
+            $filterKey = $this->filterKeyForProperty($property);
+            $expected = is_scalar($filters[$filterKey] ?? '') ? (string) ($filters[$filterKey] ?? '') : '';
+
+            if ($this->{$property} !== $expected) {
+                return false;
+            }
+        }
+
+        $sort = is_array($view->sort) ? $view->sort : [];
+        $expectedSortBy = (string) ($sort['by'] ?? 'full_name');
+        $expectedSortDir = strtolower((string) ($sort['dir'] ?? 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        return $this->sortBy === $expectedSortBy && $this->sortDir === $expectedSortDir;
+    }
+
+    /**
+     * @return list<array{property: string, label: string}>
+     */
+    public function activeAdvancedFilterChips(
+        Collection $organizationUnits,
+        Collection $costCenters,
+        Collection $employmentGroups,
+        Collection $jobTitles,
+        Collection $workforceClasses,
+        Collection $jobGrades,
+        Collection $workCalendars,
+        array $readinessBlockers,
+    ): array {
+        $referenceLabels = [
+            'organizationUnitId' => $organizationUnits,
+            'costCenterId' => $costCenters,
+            'employmentGroupId' => $employmentGroups,
+            'jobTitleId' => $jobTitles,
+            'workforceClassId' => $workforceClasses,
+            'jobGradeId' => $jobGrades,
+            'workCalendarId' => $workCalendars,
+        ];
+
+        $chips = [];
+
+        foreach ($this->advancedFilterProperties() as $property) {
+            $value = $this->{$property};
+
+            if ($value === '') {
+                continue;
+            }
+
+            $label = match ($property) {
+                'payRateType' => __('Pay basis: :value', ['value' => ucfirst(str_replace('_', ' ', $value))]),
+                'portalAccessStatus' => __('Account access: :value', ['value' => ucfirst($value)]),
+                'readinessBlocker' => __('Readiness blocker: :value', ['value' => __($readinessBlockers[$value] ?? $value)]),
+                default => $this->referenceLabel($referenceLabels[$property] ?? collect(), $value, $property),
+            };
+
+            $chips[] = ['property' => $property, 'label' => $label];
+        }
+
+        return $chips;
     }
 
     public function statusVariant(string $status): string
@@ -237,22 +480,51 @@ class Index extends Component
             return $employee;
         });
 
+        $companies = Company::query()
+            ->whereIn('id', $companyIds)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $organizationUnits = $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT);
+        $costCenters = $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_COST_CENTER);
+        $employmentGroups = $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_EMPLOYMENT_GROUP);
+        $jobTitles = $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_JOB_TITLE);
+        $workforceClasses = $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_WORKFORCE_CLASS);
+        $jobGrades = $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_JOB_GRADE);
+        $workCalendars = $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_WORK_CALENDAR);
+        $readinessBlockers = EmployeePayrollReadinessService::blockerLabels();
+
+        $savedViewsAvailable = $this->savedEmployeeViewsTableExists();
+        $savedViews = $savedViewsAvailable ? $this->savedViewsQuery()->get() : collect();
+
         return view('people-employees::livewire.people.employees.index', [
             'employees' => $employees,
-            'companies' => Company::query()
-                ->whereIn('id', $companyIds)
-                ->orderBy('name')
-                ->get(['id', 'name']),
-            'organizationUnits' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT),
-            'costCenters' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_COST_CENTER),
-            'employmentGroups' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_EMPLOYMENT_GROUP),
-            'jobTitles' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_JOB_TITLE),
-            'workforceClasses' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_WORKFORCE_CLASS),
-            'jobGrades' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_JOB_GRADE),
-            'workCalendars' => $workbenchQuery->referenceOptions($companyIds, PeopleReferenceEntry::TYPE_WORK_CALENDAR),
-            'savedViews' => $this->savedEmployeeViewsTableExists() ? $this->savedViewsQuery()->get() : collect(),
-            'readinessBlockers' => EmployeePayrollReadinessService::blockerLabels(),
+            'companies' => $companies,
+            'organizationUnits' => $organizationUnits,
+            'costCenters' => $costCenters,
+            'employmentGroups' => $employmentGroups,
+            'jobTitles' => $jobTitles,
+            'workforceClasses' => $workforceClasses,
+            'jobGrades' => $jobGrades,
+            'workCalendars' => $workCalendars,
+            'savedViews' => $savedViews,
+            'readinessBlockers' => $readinessBlockers,
             'exportUrl' => route('people.employees.export.csv', $this->filters()),
+            'showCompanyFilter' => $companies->count() > 1,
+            'activeAdvancedFilterChips' => $this->activeAdvancedFilterChips(
+                $organizationUnits,
+                $costCenters,
+                $employmentGroups,
+                $jobTitles,
+                $workforceClasses,
+                $jobGrades,
+                $workCalendars,
+                $readinessBlockers,
+            ),
+            'advancedFilterCount' => $this->advancedFilterCount(),
+            'hasActiveFilters' => $this->hasActiveFilters(),
+            'savedViewModified' => $this->selectedSavedViewId !== '' && ! $this->savedViewMatchesSelection(),
+            'manageableSavedViews' => $savedViews->where('user_id', Auth::id())->values(),
         ]);
     }
 
@@ -288,6 +560,25 @@ class Index extends Component
             'search',
             'status',
             'companyId',
+            ...$this->advancedFilterProperties(),
+            'readinessState',
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function quickFilterProperties(): array
+    {
+        return ['search', 'status', 'companyId', 'readinessState'];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function advancedFilterProperties(): array
+    {
+        return [
             'organizationUnitId',
             'costCenterId',
             'employmentGroupId',
@@ -297,9 +588,39 @@ class Index extends Component
             'workCalendarId',
             'payRateType',
             'portalAccessStatus',
-            'readinessState',
             'readinessBlocker',
         ];
+    }
+
+    private function syncDraftAdvancedFiltersFromApplied(): void
+    {
+        $this->draftOrganizationUnitId = $this->organizationUnitId;
+        $this->draftCostCenterId = $this->costCenterId;
+        $this->draftEmploymentGroupId = $this->employmentGroupId;
+        $this->draftJobTitleId = $this->jobTitleId;
+        $this->draftWorkforceClassId = $this->workforceClassId;
+        $this->draftJobGradeId = $this->jobGradeId;
+        $this->draftWorkCalendarId = $this->workCalendarId;
+        $this->draftPayRateType = $this->payRateType;
+        $this->draftPortalAccessStatus = $this->portalAccessStatus;
+        $this->draftReadinessBlocker = $this->readinessBlocker;
+    }
+
+    private function referenceLabel(Collection $options, string $value, string $property): string
+    {
+        $entry = $options->firstWhere('id', (int) $value);
+        $name = $entry?->name ?? $value;
+
+        return match ($property) {
+            'organizationUnitId' => __('Organization unit: :value', ['value' => $name]),
+            'costCenterId' => __('Cost center: :value', ['value' => $name]),
+            'employmentGroupId' => __('Employment group: :value', ['value' => $name]),
+            'jobTitleId' => __('Job title: :value', ['value' => $name]),
+            'workforceClassId' => __('Workforce class: :value', ['value' => $name]),
+            'jobGradeId' => __('Job grade: :value', ['value' => $name]),
+            'workCalendarId' => __('Work calendar: :value', ['value' => $name]),
+            default => $name,
+        };
     }
 
     private function filterKeyForProperty(string $property): string

@@ -113,7 +113,8 @@ test('employee workbench renders readiness and saved view controls', function ()
         ->get(route('people.employees.index'))
         ->assertOk()
         ->assertSee('Employee Workbench')
-        ->assertSee('Saved Employee Views')
+        ->assertSee('All employees')
+        ->assertSee('Filters')
         ->assertSee('Ada Ready')
         ->assertSee('Ben Blocked')
         ->assertSee('Blocked');
@@ -151,6 +152,7 @@ test('employee workbench can save a shared view and export active filters', func
 
     Livewire::test(Index::class)
         ->set('search', 'Cara')
+        ->call('openSaveViewModal')
         ->set('savedViewName', 'Payroll Ready')
         ->set('savedViewVisibility', 'company')
         ->call('saveCurrentView');
@@ -165,6 +167,98 @@ test('employee workbench can save a shared view and export active filters', func
     expect($response->getStatusCode())->toBe(200)
         ->and($content)->toContain('employee_number,employee_name')
         ->and($content)->toContain('E2001,"Cara Export"');
+});
+
+test('employee workbench applies advanced filters from the drawer without live table jumps', function (): void {
+    $user = createAdminUser();
+    $company = Company::query()->findOrFail($user->company_id);
+    $costCenter = createPeopleReference($company, PeopleReferenceEntry::TYPE_COST_CENTER, 'OPS', 'Operations');
+
+    Employee::factory()->create([
+        'company_id' => $company->id,
+        'employee_number' => 'E4001',
+        'full_name' => 'Eva Filtered',
+        'status' => 'active',
+    ]);
+
+    $blocked = Employee::factory()->create([
+        'company_id' => $company->id,
+        'employee_number' => 'E4002',
+        'full_name' => 'Fin Filtered',
+        'status' => 'active',
+    ]);
+
+    EmployeeWorkProfile::query()->create([
+        'employee_id' => $blocked->id,
+        'cost_center_id' => $costCenter->id,
+        'pay_rate_type' => 'monthly',
+        'hired_on' => '2026-01-01',
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(Index::class)
+        ->call('openFilterDrawer')
+        ->set('draftCostCenterId', (string) $costCenter->id)
+        ->assertSet('costCenterId', '')
+        ->call('applyAdvancedFilters')
+        ->assertSet('costCenterId', (string) $costCenter->id)
+        ->assertSet('filterDrawerOpen', false)
+        ->assertSee('Fin Filtered')
+        ->assertDontSee('Eva Filtered')
+        ->call('removeAdvancedFilter', 'costCenterId')
+        ->assertSee('Eva Filtered');
+});
+
+test('employee workbench keeps saved view honest when quick filters diverge', function (): void {
+    $user = createAdminUser();
+    $company = Company::query()->findOrFail($user->company_id);
+
+    $view = PeopleSavedEmployeeView::query()->create([
+        'company_id' => $company->id,
+        'user_id' => $user->id,
+        'name' => 'Terminated only',
+        'visibility' => 'private',
+        'status' => 'active',
+        'filters' => ['status' => 'terminated'],
+        'sort' => ['by' => 'full_name', 'dir' => 'asc'],
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(Index::class)
+        ->call('applySavedView', $view->id)
+        ->assertSet('selectedSavedViewId', (string) $view->id)
+        ->assertSet('status', 'terminated')
+        ->set('search', 'Ada')
+        ->assertSet('selectedSavedViewId', (string) $view->id)
+        ->assertSet('status', 'terminated')
+        ->assertSee('Saved view modified')
+        ->call('clearFilters')
+        ->assertSet('selectedSavedViewId', '')
+        ->assertSet('status', '');
+});
+
+test('employee workbench owner can delete a saved view they own', function (): void {
+    $user = createAdminUser();
+    $company = Company::query()->findOrFail($user->company_id);
+
+    $view = PeopleSavedEmployeeView::query()->create([
+        'company_id' => $company->id,
+        'user_id' => $user->id,
+        'name' => 'Disposable',
+        'visibility' => 'company',
+        'status' => 'active',
+        'filters' => [],
+        'sort' => ['by' => 'full_name', 'dir' => 'asc'],
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(Index::class)
+        ->call('deleteSavedView', $view->id);
+
+    expect(PeopleSavedEmployeeView::query()->find($view->id))->toBeNull();
 });
 
 test('people employee detail updates work profile access and reviews requests', function (): void {
