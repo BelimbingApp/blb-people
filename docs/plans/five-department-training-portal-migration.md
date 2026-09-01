@@ -19,6 +19,26 @@ silently dropped. A row that cannot be mapped is quarantined with its source
 provenance, reason, and named remediation owner. The importer may be rerun with
 the same source package without creating duplicate target records.
 
+## Confirmed facts, assumptions, and decisions still required
+
+The following are confirmed by the issue and current People-domain context: HR
+governs the target system; Production, Engineering, QAC/R&D, Planning, and IT
+are the first wave; the legacy training portal, a workbook, and departmental
+records may contain in-scope data; and the connector/migration topology work in
+[#20](https://github.com/BelimbingApp/blb-people/issues/20) and
+[#31](https://github.com/BelimbingApp/blb-people/issues/31) remains a
+dependency. This plan does not claim that a source export, employee crosswalk,
+retention policy, target importer, or any departmental dataset already exists.
+
+Before Gate 1, HR must record the following decisions rather than allowing an
+operator to infer them: the actual source systems and owners; the approved
+employee identity match key and duplicate authority; each record family's
+retention and legal basis; the permitted extraction/transfer route; the target
+feature/version for every mapped family; exception acceptance authorities; the
+hypercare duration and acceptance thresholds; and the legacy archive versus
+retirement decision. These become controlled inputs to the signed registers,
+not assumptions embedded in a script or import file.
+
 ## Delivery gates
 
 | Gate | Entry criteria | Evidence and decision owner |
@@ -174,6 +194,19 @@ authoritative writer after the cutover time.
 `A` means accountable, `R` responsible, `C` consulted, and `I` informed. The
 same individual may not approve their own unresolved reconciliation exception
 without HR's written conflict-of-interest decision.
+
+## Acceptance evidence matrix
+
+| Issue acceptance criterion | Required evidence artifact | Gate |
+| --- | --- | --- |
+| Signed source inventory and field/code mapping before production import | Inventory register signed by HR/HOD/records owner; versioned mapping workbook and source-of-truth register | 0–1 |
+| Provenance and reconciliation for every migrated record | Immutable manifest, per-record import ledger, quarantine register, and reconciliation report covering evidence/certificates and history | 2, 5 |
+| No two authoritative writers during cutover | Workflow-by-workflow freeze matrix, cutover runbook, and signed system-of-record timestamp | 4 |
+| End-to-end pilot for all five departments | Five HOD acceptance records with requirement-to-score/effectiveness evidence | 3 |
+| HR governance and HOD ownership | RACI plus HR and each HOD signed profile/assessor/gap/action approvals | 1, 3–4 |
+| Dry-runnable, resumable, idempotent migration and honest rejection handling | Versioned manifest, idempotency-key specification, rerun result, validation report, and remediated quarantine samples | 2 |
+| Tested and approved rollback / irreversible boundary | Rollback rehearsal report, restore result, maximum rollback window, and signed irreversible-boundary decision | 2, 4 |
+| Legacy disposition and no longer a system of record | Records-policy decision, read-only/archive/retirement evidence, final reconciliation, and post-cutover monitoring report | 5 |
 
 ## Dependencies, measurable acceptance, and next action
 
