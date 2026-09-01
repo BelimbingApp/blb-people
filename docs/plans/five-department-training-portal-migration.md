@@ -1,8 +1,8 @@
 # Five-department training-portal migration and cutover
 
-**Status:** Proposed — discovery and approvals required before import  
-**Owner:** HR system governor  
-**Scope:** Production, Engineering, QAC/R&D, Planning, and IT  
+**Status:** Proposed — discovery and approvals required before import
+**Owner:** HR system governor
+**Scope:** Production, Engineering, QAC/R&D, Planning, and IT
 **Related:** [#38](https://github.com/BelimbingApp/blb-people/issues/38), provider/migration mechanics [#20](https://github.com/BelimbingApp/blb-people/issues/20) and [#31](https://github.com/BelimbingApp/blb-people/issues/31)
 
 ## Decision and non-negotiables
