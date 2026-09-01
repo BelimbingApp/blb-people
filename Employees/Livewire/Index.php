@@ -255,7 +255,6 @@ class Index extends Component
                 ],
                 'metadata' => [
                     'surface' => 'employee_workbench',
-                    'scope_company_id' => $this->currentCompanyId(),
                 ],
             ],
         );
