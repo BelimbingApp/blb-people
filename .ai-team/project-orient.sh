@@ -110,14 +110,18 @@ cat <<'TXT'
                    schedule. This repository carried a bug that fails one day a
                    month and it survived at least two of them undetected, until
                    an unrelated PR tripped over it and looked responsible. Check
-                   whether main is already red before blaming your branch. See #47.
+                   whether main is already red before blaming your branch. #47
+                   adds a schedule; note its original body blames platform drift,
+                   which was disproven — see the correction comment on it.
 
   bare date compare  Comparing a date column to a 'Y-m-d' string with plain
-                   where() is a known defect class here — three instances found
-                   so far. SQLite stores those columns as 'Y-m-d H:i:s', so the
-                   comparison misses on boundary dates and equality never matches
-                   at all. Use whereDate(). Postgres truncates, so these bugs are
-                   invisible in production and only ever fail in CI. See #46.
+                   where() is the most common defect class here — a sweep found
+                   ~23 predicates across 12 files. SQLite stores those columns as
+                   'Y-m-d H:i:s', so a range compare misses on boundary dates and
+                   an equality NEVER matches, which is worse: it fails silently
+                   every day and its tests pass for the wrong reason. Postgres
+                   truncates, so these are invisible in production and only ever
+                   fail in CI. Use whereDate(). See #46 (fixed), #51 and #52.
 
   pest --parallel  Flaky here; it produces order-dependent failures that are not
                    real. Reproduce serially before treating anything as a
