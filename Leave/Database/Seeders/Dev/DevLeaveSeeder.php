@@ -414,7 +414,7 @@ class DevLeaveSeeder extends DevSeeder
                 ->where('company_id', $company->id)
                 ->where('employee_id', $employee->id)
                 ->where('leave_type_id', $scenario['type']->id)
-                ->where('starts_on', $scenario['starts_on'])
+                ->whereDate('starts_on', $scenario['starts_on'])
                 ->first();
 
             if ($existing !== null) {
