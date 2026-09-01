@@ -60,8 +60,10 @@ a finding that came out of this check rather than out of attacking anything.
 
 ### The decision
 
-There are two identifier spaces in this system, and both of them are spoken of as
-"a company". From here on they have different names, and the names are normative.
+Two of the five identifier spaces in section 8 are spoken of as "a company", and they are
+different things. From here on they have different names, and the names are normative. A
+third space — the provider's own external reference — can also name a company, and rule 1.1
+gives it a spelling of its own so that it is not mistaken for either.
 
 **Platform company.** A row in the framework's `companies` table. This is the legal entity
 a Belimbing user belongs to. It is what `users.company_id` points at, and what
@@ -79,16 +81,19 @@ They are different in kind, not just in value. A platform company is a Belimbing
 workforce company is an observation of somebody else's HR system. Nothing in the schema
 converts one into the other — that missing link is section 2.
 
-### Rule 1.1 — a company is referred to by exactly one of two spellings
+### Rule 1.1 — a company is referred to by exactly one of three spellings
 
-A column, property, parameter or array key that carries a company identifier must be named
-in one of exactly two ways:
+Section 8 names five identifier spaces, and three of them can identify a company: the
+platform company, the workforce entity, and the provider's own external reference. Each has
+exactly one sanctioned spelling.
 
-- `company_id` — always and only a **platform** company id.
-- `company_entity_id`, or `<role>_entity_id` for another workforce role — always and only
-  a **workforce** entity id.
+| Spelling | Means | Example |
+|---|---|---|
+| `company_id` | A **platform** company id | `provider_connections.company_id` |
+| `company_entity_id`, or `<role>_entity_id` | A **workforce** entity id | `workforce_employees.company_entity_id` |
+| `<role>Reference` in PHP, `<role>_reference` as a payload key | A **provider external reference** — an `ExternalReference` value carrying provider id, resource type and external id together, never a bare id | `WorkforceEmployee::$companyReference` |
 
-A third spelling is a contract violation, not an unclassified case. `hr_company_id`,
+A fourth spelling is a contract violation, not an unclassified case. `hr_company_id`,
 `company_ref`, `owning_company`, `company` as a bare integer: all refused at review.
 
 This is the "only Y" form on purpose. The obvious way to write this rule is "anything
@@ -97,6 +102,28 @@ version is what fails: it hands a confident-looking answer to a name nobody has 
 about yet. The version above has no opinion about an unfamiliar name except that it may
 not be used, which is the behaviour we want from a naming rule that a linter will one day
 enforce.
+
+**The third row was missing from the first version of this rule, and its absence made the
+rule condemn correct code.** `ExternalReference $companyReference` is the property every
+adapter DTO carries, in both repositories, and `'company_reference'` is the key every
+projection snapshot writes. Those are the right names for what they hold — a provider
+reference is not a company id and must not be spelled like one — but under a two-row rule
+they were third spellings. A rule that forbids the correct name and offers no replacement
+gets ignored, and an ignored naming rule is worse than none.
+
+**What can actually be checked, and what cannot.** The schema lint proposed in section 12
+reads migrations, so it covers the column half of row one and row two and nothing else.
+That half is true today: every company-carrying column in the connector is `company_id` or
+`company_entity_id`, with no exceptions. Properties, parameters and payload keys are a
+review rule until something can read them, and this document should not pretend otherwise.
+
+**One known violation, in this repository.** `Employees/Livewire/Index.php:258` writes the
+array key `'scope_company_id'` into the persisted `metadata` JSON of a saved employee view,
+fed from `currentCompanyId()`, which resolves `Auth::user()->getCompanyId()` — a platform
+company id under a fourth spelling. It sits on a row that already has a real `company_id`
+column set from the same call, so it is a duplicate as well as a misspelling. Fixing it is
+a code change and does not belong in this document; it is named here so the rule is not
+quietly narrowed to make an existing violation disappear.
 
 ### Rule 1.2 — connector-owned data is keyed on the workforce company, never the platform company
 
@@ -204,6 +231,32 @@ entities. Refuse it.
 That cardinality is also what makes the storage shape a nullable column rather than a
 pivot table, which settles the question `agent:opus-5-contract-a` left open.
 
+**This decision depends on an unverified fact, and the fact is open question 4.**
+
+Two mismatches between a provider's idea of a company and Belimbing's are both ordinary in
+HR integration, and this decision only handles one of them.
+
+- **Provider finer than platform.** HR2000 keeps separate records for payroll entities that
+  Belimbing treats as one legal entity. Many workforce companies, one platform company.
+  Allowed, and the reason the many-to-one direction is open.
+- **Provider coarser than platform.** HR2000 keeps one company record for the whole group,
+  and distinguishes SBG's five legal entities by branch, department or cost centre. One
+  workforce company would have to serve five platform companies — which is exactly the
+  shape this decision refuses.
+
+If discovery finds the second shape, then under decision 2.5 and the eventual deletion of
+the carve-out, nobody can act for anything. That is the same failure mode this document
+criticises the derived chain for, arriving from the other direction.
+
+**Rule:** if #28 finds the provider coarser than the platform, decision 2.2 is revisited,
+not worked around. Specifically, the workaround that must not be reached for is attributing
+one workforce company to several platform companies — that is the shape refused above, and
+it is refused for a safety reason that discovery cannot change. The answer would instead
+have to come from a finer provider axis: the branch or department that distinguishes the
+legal entities is a workforce organization unit, and mapping *that* to platform companies is
+a different decision with a different safety argument. This document does not make it,
+because making it now would mean designing against a provider nobody has looked at.
+
 ### Decision 2.3 — attribution is written by an administrator, never by an adapter
 
 The only write path is a deliberate administrative action inside Belimbing. No adapter,
@@ -234,6 +287,11 @@ Replacing a whole row from a provider payload — building an attribute array fr
 payload and handing it to `updateOrCreate` or `fill` — is refused for any table that holds
 an administered field, because it silently erases every field the author did not think
 about.
+
+`WorkforceProjectionStore::persistCurrent()` already complies: it is handed an explicitly
+named column array and calls `fill()` with that, not with anything derived from the payload.
+So this rule codifies what the code does rather than asking for a change, and the test named
+in section 12 is a regression test against a future author widening it.
 
 A mixed-provenance row is a genuine hazard and I would rather name it than pretend the
 column is free. The alternative shape — a separate one-row-per-company attribution table,
@@ -301,16 +359,32 @@ company, every workforce company in it is attributable, because there is no seco
 to leak to. The count deliberately includes soft-deleted companies, so archiving a second
 company does not reopen it.
 
-I checked this rule the way the method note above says to, and the first result is that it
-is *fine* in the shape that matters. It is an inclusion test: it grants only when it
-positively counts exactly one company. If a second company appears, the count becomes two and everything
-fails closed. An unfamiliar state makes it stricter, not looser. It does not need rewriting
-and it should stay until the stored link makes it dead code.
+**The first version of this document certified the carve-out's shape as sound, one paragraph
+before showing it failing open. That was wrong, and the correction is the most useful thing
+in this section.**
 
-The second result is a real hole, and it comes from the neighbour check rather than from
-the shape. The carve-out counts rows in `companies`, which is Core's table under Core's
-deletion rules — and `Company::forceDelete()` is a public method whose only guard is that
-you may not hard-delete the tenant's *primary* company. So:
+The reading was: it grants only when it positively counts exactly one company, so a second
+company makes the count two and everything fails closed; an unfamiliar state makes it
+stricter. The counting is real, but counting is the surface form, not the decision. What
+the rule actually says is *"grant everything, because I cannot see a second company"* — and
+a decision made on the absence of something is an exclusion test however it is spelled. By
+this document's own rule it fails open on exactly the state it has not thought about, and
+the hole below is that state.
+
+So the shape verdict and the hole are one defect seen twice, not a clean bill of health next
+to an unrelated finding. The principle in the method note caught its own author's example,
+which is the strongest thing that can be said for it.
+
+That does not make the carve-out removable today — decision 2.5 is right that deleting it
+before stored attribution lands would take single-company tenants from working to nothing.
+It makes it a **temporary measure with a known failure mode**, which is a different thing to
+document than a sound rule, and it is why the retirement below is not optional.
+
+The failure mode, reproduced end to end by `agent:opus-5-review-m` and filed as
+`BelimbingApp/belimbing#489`, where it is confirmed rather than as-reported. The carve-out
+counts rows in `companies`, which is Core's table under Core's deletion rules — and
+`Company::forceDelete()` is a public method whose only guard is that you may not hard-delete
+the tenant's *primary* company. So:
 
 1. A tenant has two platform companies and one tenant-scoped HR connection.
 2. Nothing in the connector references the second platform company, because a tenant-scoped
@@ -323,18 +397,31 @@ you may not hard-delete the tenant's *primary* company. So:
    assessments are all still in the connector, because deleting a platform company deletes
    none of them.
 
+A **soft** delete does not do this: the count includes trashed rows, so archiving the second
+company leaves it at two and everything stays closed. That control was run, and it narrows
+the fix — the problem is hard deletion specifically, not company removal in general.
+
 The carve-out inherited Core's soft-delete discipline without inheriting the fact that Core
 also supports hard deletion for any non-primary company. That is the neighbour problem
 exactly: `withTrashed()` is the careful spelling, it looks like the careful spelling, and
 it is defeated by a method in a module this one does not own.
 
-**Rule:** while the carve-out exists, it is documented as depending on platform companies
-never being hard-deleted, and that dependency is stated in `CompanyAttribution` itself.
+**Rule:** while the carve-out exists, `CompanyAttribution` **must state** — in its own
+docblock, next to the carve-out — that the carve-out depends on platform companies never
+being hard-deleted, and must reference `BelimbingApp/belimbing#489`. It does not say that
+today: the class explains the carve-out and points at this issue, and says nothing about
+hard deletion. This document contains no code, so nothing here makes it true. **The docblock
+is #26's**, alongside the attribution column, and it is listed in section 12.
+
+The first version of this rule was written in the present tense, as though the dependency
+were already recorded. It was not. A contract asserting a mitigation that does not exist is
+worse than one that asks for it, because the next reader stops looking.
+
 Once stored attribution lands, the carve-out is deleted rather than kept as a fallback —
 with the link in place, a tenant with one company simply has every workforce company
-attributed to it, and the special case has nothing left to do. Tracked as an open question
-below, because whether Core should refuse to hard-delete a company that has connector data
-is Core's decision, not this contract's.
+attributed to it, and the special case has nothing left to do. Whether Core should
+additionally refuse to hard-delete a company that has connector data is Core's decision, not
+this contract's, and it is open question 3 below.
 
 ---
 
@@ -346,17 +433,28 @@ is Core's decision, not this contract's.
 organization directory, manager hierarchy, user directory, payroll, attendance, leave,
 claims, training, documents, single sign-on.
 
-Eleven of those are things an HR provider owns. One is not. #20's scope amendment says the
-entire training lifecycle is **connector-owned** for SBG — needs, requests, approvals,
-events, attendance, results, certificates, evaluations, effectiveness reviews, passports —
-and that any training data HR2000 holds is an import source with provenance, not a second
-live writer.
+**Ten of those are things an HR provider owns. Two are not.**
 
-So an adapter that truthfully declares `Training: read_write` is telling the truth about
-what it can do, and feature code that reads that declaration as "the provider owns
-training" would be wrong. `Training` sits in a list where every neighbour means "the
-provider owns this", and it inherits that reading for free. Nothing in the type system
+**`Training`.** #20's scope amendment says the entire training lifecycle is
+**connector-owned** for SBG — needs, requests, approvals, events, attendance, results,
+certificates, evaluations, effectiveness reviews, passports — and that any training data
+HR2000 holds is an import source with provenance, not a second live writer.
+
+**`SingleSignOn`.** The register in section 4 gives it to the platform identity layer under
+#25, with nothing stored and no data direction. A provider may well be able to perform it.
+That does not make the provider authoritative for it.
+
+So an adapter that truthfully declares `Training: read_write`, or `SingleSignOn: read`, is
+telling the truth about what it can do, and feature code that reads either declaration as
+"the provider owns this" would be wrong. Both sit in a list where every neighbour means "the
+provider owns this", and they inherit that reading for free. Nothing in the type system
 stops it.
+
+The first version of this section said eleven of twelve and named only `Training`, which
+contradicted this document's own register two sections later. Two cases rather than one
+makes the rule below stronger, not weaker: a single odd member of a list reads as an
+exception, and two read as what they are — the enum is a list of things a provider can do,
+and it was never a list of things a provider owns.
 
 Note that `PeopleCapability` has no `Skills` case, and should not gain one. That is
 correct and it is the model to follow: a connector-owned capability is not something a
@@ -394,8 +492,20 @@ of is treated the same way. Nothing should be added that turns that into an excl
 in particular, no "assume read is available unless the adapter says otherwise" default, and
 no capability list built by subtracting the unsupported ones from the enum.
 
-This matters most for HR2000, where nothing is verified yet. An unverified adapter should
-declare nothing and therefore be able to do nothing, and today it is.
+**What that default does and does not buy, stated exactly.** `None` is returned *to code
+that asks*. Today almost nothing asks. Outside its own file, `CapabilitySet` is reached in
+two places: `ProviderConformance`, which is a test helper, and `Livewire/Connections/Index`,
+which displays declarations on a screen. `ProviderRegistry` does no capability gating, and
+`WorkforceProjectionStore` and `WorkforceIdentityStore` never look at capabilities at all.
+An adapter that declares nothing can still be handed a connection id and write projections
+through it; what stops it doing so across a company boundary is the company scope guard, not
+the capability set.
+
+So the guarantee is: **undeclared means `None` for code that asks, and rule 3.2 is what
+makes code ask.** Rule 3.2 is unenforced today. Section 12 lists the check that would close
+it and names its owner. Anyone relying on capability declarations as a safety property — and
+open question 4 does exactly that — should read that as a rule to be built, not a property
+already held.
 
 ---
 
@@ -416,10 +526,18 @@ row, but only by an explicit recorded decision — the default is what is writte
 | Attendance | Provider | **Nothing** | Read-through only | Live at point of use |
 | Leave | Provider | **Nothing** | Read-through only | Live at point of use |
 | Claims | Provider | **Nothing** | Read-through only | Live at point of use |
-| Documents | Provider | Reference and metadata only, never content | Read-through only | Live at point of use |
+| Documents | Provider | **Nothing** | Read-through only | Live at point of use |
 | Training | **Connector** | Everything; it is the system of record | Provider → connector as import only | n/a |
 | Single sign-on | Platform identity layer, #25 | n/a | n/a | n/a |
 | Skills and assessments (not a provider capability) | **Connector** | Everything; it is the system of record | n/a | n/a |
+
+**Rule 4.1 — a capability with no row in this register is owned by nobody.** It may not be
+stored, and it may not be written, until a row exists. An author who adds a capability,
+finds no row, and falls back to what the adapter declares has done the one thing rule 3.1
+forbids, so the register has to answer them instead of being silent. This is the same
+inclusion form as `CapabilitySet` returning `None`, and without it the register is the
+fail-open shape this document claims to have eliminated — a list that decides only about the
+entries it recognises and says nothing about the rest.
 
 "Nothing" in the third column means exactly that: no table, no cache, no snapshot, no
 denormalised summary field. If a screen needs an employee's leave balance it calls the
@@ -428,6 +546,15 @@ provider when the screen is drawn, and if the provider is down the screen says s
 The reasoning is #20's invariant that sensitive HR content is not copied merely because an
 adapter can reach it, and it is a much easier rule to hold when it is "nothing" than when
 it is "as little as possible". A reviewer can check "nothing".
+
+**Why Documents is "Nothing" rather than "reference and metadata".** The first version of
+this register allowed metadata, and it contradicted rule 6.1, which names no document field
+and therefore forbids storing any. Rather than add fields to 6.1, the register row is the
+one that moves, because document metadata is itself HR content: a stored list of an
+employee's document titles is a stored list of what they have been disciplined for. A
+document is addressed by a provider reference held for the length of one request, and its
+content is fetched under the provider's own authorisation. That puts Documents under rule
+6.3 with the other read-through capabilities, and leaves one answer where there were two.
 
 ---
 
@@ -443,8 +570,10 @@ that decides whether something is genuinely connector-owned or is really a provi
 capability with a connector-side cache.
 
 **5.2 — Connector-owned records reference the provider only through workforce entity ids.**
-Never a provider's own id, never a name, never an email. External ids live in
-`external_identities` and nowhere else, which is what allows a provider swap to be a remap.
+Never a provider's own id, never a name, never an email. A supplemental record that stored an
+external id would be pinned to the provider that issued it, which is exactly what a provider
+swap has to be able to change. Where an external id may legitimately be stored is rule 8.1;
+a connector-owned supplemental table is not on that list.
 
 **5.3 — Every table belonging to a connector-owned capability is company-owned on the
 workforce axis** (rule 1.2), and carries the `CompanyOwned` trait so the connector's company
@@ -512,29 +641,70 @@ as `display_name`.
 Adding a field to this list is a change to this document and needs the reason written next
 to it.
 
-### Rule 6.2 — the allowlist applies to raw snapshots too
+### Rule 6.2 — snapshot payloads have their own allowlist, in their own vocabulary
 
-`workforce_snapshots` stores the raw provider payload as JSON, append-only. It is the one
-place where every rule in this section can be bypassed wholesale, and because the table is
-append-only, a mistake there cannot be fixed by an update — only by deleting history.
+`workforce_snapshots` is the connector's append-only history: every projection upsert,
+identity attach, remap, deactivation and entity merge is recorded there with a JSON payload.
+Because it is append-only, a mistake in what goes into it cannot be fixed by an update, only
+by deleting history. So it needs a rule, and the rule needs to be the right one.
 
-The resource *type* is already constrained, and correctly: `WorkforceResourceType` has five
-cases and there is no payroll or leave among them, so a payroll record cannot become a
-snapshot. That is an inclusion list and it does its job.
+**The first version of this rule said "only fields on the list in 6.1", and that was wrong
+in a way that would have broken working code.** The 6.1 list is a list of *column* names —
+`company_entity_id`, `parent_entity_id`, `display_name`. Snapshot payloads use a different
+vocabulary, because they record provider references rather than resolved entity ids:
+`company_reference`, `parent_reference`, `external_id`. Not one payload key the connector
+writes today appears on the 6.1 list. An implementer building the filter section 12 asks for,
+against the rule as first written, would have rejected every snapshot the connector writes
+and stopped merge and remap history working.
 
-The *fields inside the payload* are not constrained by anything. An adapter that fetches an
-employee record from HR2000 and snapshots the response verbatim would persist the salary
-that arrived in the same JSON object, permanently, in a table nobody thinks of as holding
-compensation data.
+The allowlist below is the payload's own vocabulary, taken from what
+`WorkforceHistoryEvent`'s five factories actually construct.
 
-**Rule:** a snapshot payload contains only fields on the list in 6.1, for the resource type
-being snapshotted. An adapter filters before it hands the payload over; it does not hand
-over a provider response and let something downstream trim it.
+**Projection events** (`projection.upserted`) — `reference`, `active`, `observed_at`,
+`source_version`, and then by resource type: `name` and `code` for a company;
+`company_reference`, `parent_reference`, `name`, `code`, `kind`, `effective_at` for an
+organization unit; `company_reference`, `organization_reference`, `name`, `code`, `tier`,
+`effective_at` for a position; `company_reference`, `user_reference`,
+`organization_reference`, `position_reference`, `manager_reference`,
+`department_head_reference`, `display_name`, `employee_number`, `email`, `effective_at` for
+an employee.
 
-This rule is currently unenforced. Enforcing it — a filter at the snapshot write path
-rather than a convention in each adapter — belongs to #24. The reason it should be a filter
-rather than a convention is the same reason connector PR #10 built a guard instead of
-writing a style guide: three authors already followed the convention.
+**Identity and merge events** — `external_id`, `superseded_external_id`,
+`replacement_external_id`, `replacement_identity_id`, `superseded_entity_id`,
+`surviving_entity_id`, `surviving_external_id`.
+
+**Every `*_reference` value** is a three-key object: `provider_id`, `resource_type`,
+`external_id`. That is a provider external reference under rule 1.1's third spelling, and it
+is deliberate — see rule 8.1.
+
+**Rule:** a snapshot payload contains only keys on the two lists above. The reference and
+event scaffolding is what those lists are made of; the constraint that matters is on the
+fields carried over from a **provider record**, and those are exactly the fields rule 6.1
+permits, expressed here under the payload's own names.
+
+### The hazard this rule prevents is prospective, not present
+
+Worth being exact about, because the first version of this document described it as a live
+hole and it is not one.
+
+**Today a raw provider response cannot reach this table.** `WorkforceHistoryEvent` has a
+`private` constructor and a `private array $payload`. The only ways to build one are its five
+named factories, and each assembles the payload field by field from a typed DTO —
+`WorkforceCompany`, `WorkforceOrganizationUnit`, `WorkforcePosition`, `WorkforceEmployee` —
+whose fields are precisely the permitted ones. `WorkforceHistory::record()` always writes
+`$event->payload()`, and nothing else in the domain writes a `WorkforceSnapshot`. An adapter
+does not hand over a provider response; it hands over a typed record and the connector builds
+the payload. The private constructor is doing real work.
+
+So the salary-arriving-in-the-same-JSON-object scenario is what **would** happen if a future
+factory took a payload array from a caller, or if an adapter were ever allowed to supply one.
+It is not what happens now.
+
+The rule is still worth having, for the same reason connector PR #10 built a guard instead of
+writing a style guide: what holds the line today is one `private` keyword in one class, and
+nothing states that it is load-bearing. Enforcing rule 6.2 — a filter at the snapshot write
+path, plus a test that an unlisted key is rejected rather than silently trimmed — belongs to
+**#24**, and its value is that it survives the day somebody adds a sixth factory.
 
 ### Rule 6.3 — read-through data is not stored anywhere, including in a cache
 
@@ -556,7 +726,15 @@ duration of that request.
 | **Compensation** | Payroll of any kind, bank details, claims amounts | Never projected. Read-through, provider-authorised, payroll role only |
 | **Absence** | Leave and attendance records | Never projected. Read-through, employee, their manager, HR |
 | **Competence** | Skills, assessments, results, certificates, training history — connector-owned | Employee themselves, their management chain, HOD for their department, HR |
-| **Documents** | Provider-held files | Never projected. Reference only; content is fetched from the provider under the provider's own authorisation |
+| **Documents** | Provider-held files | Never projected, metadata included. Addressed by a provider reference held for one request; content is fetched from the provider under the provider's own authorisation |
+
+**Rule 7.0 — data that fits no class in this table is treated as Compensation until it is
+classified.** Never projected, read-through only, narrowest audience. Six classes decide
+about the data they recognise, and without a default they say nothing about the seventh
+thing somebody adds — which is the fail-open shape this document exists to remove. The
+default is deliberately the most restrictive class rather than a middle one, so that
+classifying a new kind of data is always a loosening, made on purpose, by a change to this
+table.
 
 Competence data is performance data. It is more sensitive than the directory and it is
 owned by us, which means we cannot borrow the provider's access rules for it — we have to
@@ -617,10 +795,31 @@ Five identifier spaces, kept separate. Nothing may be silently converted between
 | Workforce entity | `workforce_entities.id` | Connector | Connections, provider replacement |
 | Provider external id | `external_identities.external_id` | Provider | Nothing outside its connection |
 
-**Rule 8.1 — a provider's own id is stored in exactly one table.** `external_identities`,
-keyed by connection, provider, resource type and external id. A provider id appearing on a
-projection row or a connector-owned record is a bug, for the same reason as rule 1.3: it
-would pin data to a provider we intend to be able to replace.
+**Rule 8.1 — a provider's own id may be stored in exactly two columns and in append-only
+history, and nowhere else.**
+
+The permitted places, each for a stated reason:
+
+- `external_identities.external_id` — the mapping itself, keyed by connection, provider,
+  resource type and external id. This is the one that makes a provider replaceable.
+- `reconciliation_issues.external_id` — nullable, deliberate, and necessary: a reconciliation
+  issue has to be able to name a provider record that has **no** workforce entity yet, which
+  is often the whole problem being reported. `ReconciliationIssueStore` passes it explicitly
+  and validates its length.
+- `workforce_snapshots.payload` — every reference in an append-only history event carries
+  `provider_id`, `resource_type` and `external_id` together, by design, because a history
+  event has to remain readable after the identity it refers to has been remapped or merged
+  away. See rule 6.2.
+
+**A provider id on a projection row, or on a connector-owned supplemental record, is a bug**,
+for the same reason as rule 1.3: it would pin live data to a provider we intend to be able to
+replace. History and reconciliation are not live data — one is a record of what was said, the
+other is a record of what could not be resolved.
+
+The first version of this rule said "exactly one table". That was false, and it was false in
+a way that mattered: section 12 proposes a schema lint over the migrations, and an implementer
+extending it to cover 8.1 as first written would have flagged `reconciliation_issues.external_id`
+— a column that is there on purpose — and most likely deleted it.
 
 **Rule 8.2 — never match on a mutable attribute.** No adapter resolves identity by name,
 email, or any other value a person can change. This is #20's invariant and it is restated
@@ -707,18 +906,31 @@ than guessed, and each names who should close it.
    governance surface in **#24.**
 
 3. **Should Core refuse to hard-delete a platform company that has connector data?** The
-   fail-open path in section 2 is closed for attributed companies by the foreign key, but
-   an *unattributed* tenant-scoped deployment has no such restraint. Whether Core grows a
-   general "this company is referenced by domain data" guard is Core's decision and it
-   affects modules beyond this one. **Core, via a new issue** — this contract only records
-   the dependency.
+   defect itself is filed and confirmed as `BelimbingApp/belimbing#489`, reproduced end to
+   end, with a control showing a soft delete does not do it. What is still open is the
+   remedy. Once stored attribution lands, the composite foreign key restrains the delete for
+   *attributed* companies, but an unattributed tenant-scoped deployment has no such restraint.
+   Whether Core grows a general "this company is referenced by domain data" guard is Core's
+   decision and affects modules beyond this one. **Core, on `belimbing#489`.** The
+   connector-side half — the docblock in `CompanyAttribution`, and deleting the carve-out
+   when attribution lands — is **#26** and is listed in section 12.
 
 4. **Everything about HR2000 is unverified.** The product edition, hosting mode, enabled
    modules, vendor support arrangement and integration rights are all still unknown, and
    this document deliberately contains no HR2000 capability matrix, because writing one
-   from marketing material would be inventing evidence. The contract is built so that an
-   unverified provider declares nothing and can therefore do nothing (rule 3.3), which is
-   the correct behaviour to hold until discovery lands. **#28.**
+   from marketing material would be inventing evidence — #20 says in its own words that
+   marketing capability names are not evidence. **#28.**
+
+   Two things this item depends on, both stated rather than assumed. First, the safety
+   argument: an unverified adapter declaring nothing yields `None` **to code that asks**, and
+   today the write paths do not ask — rule 3.2 is what would make them, and rule 3.2 is
+   unenforced. See rule 3.3 and section 12. Second, decision 2.2 assumes the provider is at
+   worst *finer* than the platform; if discovery finds it coarser, that decision is revisited,
+   as section 2 sets out.
+
+   This is in #21's **Scope**, not its Acceptance. It is the one scope bullet this document
+   does not deliver, and because #21 closes with this pull request, it is recorded on #28 so
+   that closing #21 does not lose it.
 
 5. **The rule for a record the adapter cannot give a stable id to.** Fail the sync, or omit
    the record and report it. Already filed as **#44**; rule 8.2 only forbids guessing.
@@ -728,11 +940,23 @@ than guessed, and each names who should close it.
    whose companies each run their own HR install. Carried over from
    `company-ownership.md`'s own open list. **#24.**
 
-7. **Merge and deactivate authority on `workforce_entities`.** Also carried over. It needed
-   the attribution answer first, and now has one — a merge should be performed with the
-   authority of the platform company that both entities attribute to, and refused when they
-   attribute differently — but turning that into an enforced rule is a change to
-   `WorkforceIdentityStore` and belongs with **#26**, not in a document.
+7. **Merge, deactivate, and cross-connection bind authority on `workforce_entities`.**
+   Carried over, and wider than it first looked. The merge half now has an answer — a merge
+   should be performed with the authority of the platform company that both entities
+   attribute to, and refused when they attribute differently.
+
+   The half that was missing: `WorkforceIdentityStore::resolveOrCreateIdentity()` takes a
+   `preferredEntityId`, gated only on reviewed provenance, and `assertReferenceFitsConnection()`
+   checks only the provider id and the length of the external id. So two connections scoped to
+   two different platform companies can be bound to **one** workforce entity without any merge
+   taking place — the exact shape decision 2.2 refuses, reached by a different door. Under
+   today's derived attribution the answer then flips between the two platform companies
+   depending on which connection synced last, which is an independent argument for decision
+   2.1 that this document did not have when it was written.
+
+   It needs a gated write path rather than a plain sync, so it is not urgent. Turning any of
+   this into an enforced rule is a change to `WorkforceIdentityStore` and belongs with
+   **#26**, not in a document.
 
 ---
 
@@ -741,23 +965,56 @@ than guessed, and each names who should close it.
 A contract nobody can test is a preference. What exists today, and what should exist:
 
 **Exists.** The connector's company guard, its discovery contract test and its bypass lint.
-`CapabilitySet` returning `None` for undeclared capabilities. `ProviderConformance`, which
-resolves every declared port and fails an adapter that declares one it cannot supply.
-`CompanyAttribution` failing closed.
+`CapabilitySet` returning `None` for undeclared capabilities — as a default for code that
+asks, which is not the same as a gate; see rule 3.3. `ProviderConformance`, which resolves
+every declared port and fails an adapter that declares one it cannot supply.
+`CompanyAttribution` failing closed on an unattributable workforce company.
+`WorkforceHistoryEvent`'s private constructor, which is what actually keeps raw provider
+payloads out of the snapshot table today. `WorkforceProjectionStore::persistCurrent()`
+already naming the columns it writes.
 
 **Should exist, and where it belongs.**
 
-- A schema lint asserting rules 1.1 and 1.3: only two company-column spellings, and
-  `company_id` on exactly the two tables named. **#24.**
+- **The check rule 3.2 needs.** Nothing consults the ownership register today, and nothing
+  makes a write path consult the capability set either. Until something does, "the provider
+  declared nothing so it can do nothing" is a rule, not a property. This is the one open
+  question 4 leans on, so it is first on the list. **#24.**
+- A schema lint asserting rules 1.1 and 1.3 **at the column level, which is all a schema
+  lint can see**: only `company_id` and `company_entity_id` as company-carrying column names,
+  `company_id` on exactly the two tables named, and `external_id` on exactly the two named in
+  rule 8.1. The property, parameter and payload-key half of rule 1.1 stays a review rule
+  until something can read those. **#24.**
 - A test that the projection write path never writes an administered column, per decision
-  2.4. **#26.**
-- A filter at the snapshot write path enforcing rule 6.2, and a test that a payload
-  carrying an unlisted field is rejected rather than trimmed silently. **#24.**
+  2.4 — a regression test against a future widening, since the current store already
+  complies. **#26.**
+- A filter at the snapshot write path enforcing rule 6.2 **against the payload vocabulary in
+  that rule, not the column list in 6.1**, and a test that an unlisted key is rejected rather
+  than trimmed silently. **#24.**
+- The `CompanyAttribution` docblock recording that the carve-out depends on platform
+  companies never being hard-deleted, referencing `belimbing#489`; and deleting the carve-out
+  when stored attribution lands. **#26.**
 - A test that the in-process and remote adapters refuse the same unauthorised call, per
   rule 7.3. **#30.**
 - A test that a provider omitting a record does not deactivate its projection, per rule
   9.1. **#29.**
 
-The pattern in each case is the connector guard's: the test discovers what it covers rather than being
-copied per slice, so a future capability enrols by declaring itself rather than by somebody
-remembering.
+The pattern in each case is the connector guard's: the test discovers what it covers rather
+than being copied per slice, so a future capability enrols by declaring itself rather than by
+somebody remembering.
+
+---
+
+## Provenance of this document
+
+The first version made five statements about existing code that were wrong or overstated,
+found by `agent:opus-5-review-m` reading it as rules to be checked rather than as prose:
+rule 8.1's "exactly one table", rule 6.2's use of the wrong vocabulary, rule 1.1's scope
+exceeding both its evidence and its lint, the snapshot hazard described as present when a
+private constructor closes it, and "safe by construction" for a capability set that no write
+path consults. Two of those would have sent an implementer to build something that broke
+working code. All five are corrected above, in place, with the correction stated rather than
+quietly applied — a contract that revises itself silently teaches its readers to trust the
+current text less, not more.
+
+The same review is why the carve-out's shape is now recorded as an exclusion test rather than
+certified as sound, and why decision 2.2 now states its dependency on open question 4.
