@@ -1,0 +1,367 @@
+#!/usr/bin/env bash
+# board.sh — structured posting and digest reading for the shared board (#363).
+#
+# The board is the one channel guaranteed to span every harness and machine
+# (#360), but raw threads burn tokens at READ time and prose posting policy is
+# forgotten at the binding moment. This applies the mechanism pattern that
+# fixed holds (labels, not prose) and verdicts (parsed markers, #359) to
+# posting and reading generally:
+#
+#   posts without the machine header are invisible to team tooling.
+#
+#   board.sh post <n> --agent <id> [--steward-for <appointed-id>] --type <status|finding|question|handoff|proposal|vote|decision|acknowledgement|steward-backstop> [body…]
+#       Stamp the header gate.sh parses, enforce a visible-byte budget
+#       (BOARD_POST_BUDGET, default 1400), fold overflow into <details>.
+#       Refuses --type verdict: verdicts must be PR reviews or the gate
+#       cannot see them (#359). proposal/vote/decision are decide.sh's
+#       (#430) — this script only stamps and budgets them, decide.sh owns
+#       their field grammar and tally semantics.
+#   board.sh digest <n>
+#       Title/state/labels, then structured posts only — <details> stripped,
+#       long posts truncated to BOARD_DIGEST_LINES (default 12) — and one
+#       summary line counting unstructured posts instead of rendering them.
+#   board.sh hygiene
+#       Per-thread unstructured-post counts over active lanes only (open PRs
+#       and open agent:* issues), for orient.sh to surface.
+
+# pipefail: a failed gh read must fail the digest loudly, not hand jq empty
+# input and exit 0 (sol's finding on #364).
+set -uo pipefail
+
+# No repository default. A vendored copy that names the origin project posts an
+# adopter's status onto the wrong board, and board.sh never consults gh, so being
+# in the right working directory does not save you (#445). Resolve from the
+# origin remote, which is the repo this checkout actually belongs to.
+BOARD_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
+# shellcheck source=docs/ai-team/scripts/_default_branch.sh
+# shellcheck disable=SC1091
+source "$BOARD_DIR/_default_branch.sh"
+REPO="${BOARD_REPO:-$(ai_team_origin_repo 2>/dev/null || true)}"
+# Fall back to gh's ambient answer rather than failing: a checkout whose origin
+# is not a GitHub URL still has a repository gh can name. Order matters — origin
+# is asked first because it is the repo this checkout belongs to, and gh can be
+# pointed elsewhere by remote.<name>.gh-resolved.
+[ -n "$REPO" ] || REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)
+if [ -z "$REPO" ]; then
+  echo "board.sh: cannot determine the repository. Set BOARD_REPO=<owner>/<repo>," >&2
+  echo "or run inside a checkout whose origin remote points at a GitHub repository." >&2
+  exit 2
+fi
+BUDGET="${BOARD_POST_BUDGET:-1400}"
+DIGEST_LINES="${BOARD_DIGEST_LINES:-12}"
+# Accounts whose posts no agent authored and no digest should render or nag
+# about: CI bots. Human accounts are never listed here — an unheadered post
+# from a human account may be the OWNER, whose rulings outrank every marker
+# (#364 P1), so those render; hygiene still counts them because the same
+# shared account may be a forgetful agent, and both readings want the flag.
+BOTS="${BOARD_BOTS:-sonarqubecloud dependabot github-actions}"
+
+usage() {
+  sed -n '2,3p;12,23p' "$0" | sed 's/^# \{0,1\}//'
+  exit 2
+}
+
+command="${1:-}"
+[ -n "$command" ] || usage
+shift
+
+# When exactly one open ops:steward issue carries one agent:* label, print
+# appointee<TAB>issue-number to stdout; otherwise print nothing (#51).
+steward_appointment() {
+  if [ -n "${BOARD_TEST_STEWARD_APPOINTEE:-}" ]; then
+    if [ "${BOARD_TEST_STEWARD_AMBIGUOUS:-0}" = "1" ]; then
+      return 0
+    fi
+    printf '%s\t%s\n' "$BOARD_TEST_STEWARD_APPOINTEE" "${BOARD_TEST_STEWARD_ISSUE:-0}"
+    return 0
+  fi
+  local row appointee issue_number
+  # One gh round-trip per post when this repository carries an ops:steward lane.
+  row=$(gh issue list --repo "$REPO" --state open --label "ops:steward" \
+    --json number,labels \
+    --jq '[.[]
+          | select((([.labels[]?.name | select(startswith("agent:"))] | length) == 1))
+          | [([.labels[]?.name | select(startswith("agent:"))][0] | sub("^agent:"; "")), (.number | tostring)]
+          | @tsv]
+          | if length == 1 then .[0] else empty end' 2>/dev/null)
+  [ -n "$row" ] || return 0
+  appointee="${row%%$'\t'*}"
+  issue_number="${row#*$'\t'}"
+  [ -n "$appointee" ] && [ -n "$issue_number" ] && printf '%s\t%s\n' "$appointee" "$issue_number"
+}
+
+post() {
+  local number="" agent="${CLAIM_AGENT:-${BOARD_AGENT:-}}" type="" body="" body_file="" steward_for=""
+  local acting="${CLAIM_AGENT:-${BOARD_AGENT:-}}" appointee="" appointee_issue="" appointment
+
+  number="${1:-}"
+  [ -n "$number" ] || { echo "post: issue/PR number required" >&2; exit 2; }
+  shift
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --agent) agent="${2:-}"; shift 2 ;;
+      --steward-for) steward_for="${2:-}"; shift 2 ;;
+      --type) type="${2:-}"; shift 2 ;;
+      --body-file) body_file="${2:-}"; shift 2 ;;
+      *) body="${body:+$body }$1"; shift ;;
+    esac
+  done
+
+  if [ -z "$agent" ]; then
+    echo "post: agent id required (--agent, CLAIM_AGENT, or BOARD_AGENT)" >&2
+    exit 2
+  fi
+
+  if ! [[ "$agent" =~ ^[a-z0-9]+([._-][a-z0-9]+)*$ ]]; then
+    echo "post: --agent must be a lower-case stable agent id (without agent:)" >&2
+    exit 2
+  fi
+
+  if [ -n "$steward_for" ] && ! [[ "$steward_for" =~ ^[a-z0-9]+([._-][a-z0-9]+)*$ ]]; then
+    echo "post: --steward-for must be a lower-case stable agent id (without agent:)" >&2
+    exit 2
+  fi
+
+  appointment=$(steward_appointment || true)
+  if [ -n "$appointment" ]; then
+    appointee="${appointment%%$'\t'*}"
+    appointee_issue="${appointment#*$'\t'}"
+  fi
+
+  if [ -n "$appointee" ] && [ "$agent" = "$appointee" ]; then
+    if [ -z "$acting" ]; then
+      echo "post: refusing — --agent $appointee names the active ops:steward appointee (#$appointee_issue)" >&2
+      echo "      but no acting identity is declared (#59)." >&2
+      echo "      If you ARE the appointee:  export CLAIM_AGENT=$appointee" >&2
+      echo "      If you are covering:       --agent <your-id> --steward-for $appointee --type steward-backstop …" >&2
+      exit 3
+    fi
+    if [ "$acting" != "$appointee" ]; then
+      echo "post: refusing — --agent $appointee matches the active ops:steward appointee but CLAIM_AGENT/BOARD_AGENT is $acting (#51)" >&2
+      echo "      Post as your own id: --agent $acting --steward-for $appointee --type steward-backstop …" >&2
+      exit 3
+    fi
+  fi
+
+  if [ -n "$steward_for" ]; then
+    if [ "$agent" = "$steward_for" ]; then
+      echo "post: refusing — --steward-for and --agent must differ for substitute steward backstop (#51)" >&2
+      exit 3
+    fi
+    if [ -n "$appointee" ] && [ "$steward_for" != "$appointee" ]; then
+      echo "post: refusing — --steward-for $steward_for does not match active appointee $appointee" >&2
+      exit 3
+    fi
+    if [ -z "$appointee" ] && [ "$type" = "steward-backstop" ]; then
+      echo "post: refusing — --steward-for $steward_for does not match active appointee (no unambiguous ops:steward appointment) (#51)" >&2
+      exit 3
+    fi
+  fi
+
+  case "$type" in
+    status|finding|question|handoff|proposal|vote|decision|acknowledgement|steward-backstop) ;;
+    verdict*)
+      echo "post: refusing — a verdict posted as an issue comment is invisible to gate.sh (#359)." >&2
+      echo "      Record it as a PR review instead:" >&2
+      echo "      reviewed_head=\$(gh pr view $number --json headRefOid --jq .headRefOid)" >&2
+      echo "      gh pr review $number --comment --body \"\$(printf '**From:** $agent\\n\\n**HEAD reviewed:** %s\\n\\n**Verdict:** accept\\n' \"\$reviewed_head\")\"" >&2
+      exit 3
+      ;;
+    *)
+      echo "post: --type must be one of status|finding|question|handoff|proposal|vote|decision|acknowledgement|steward-backstop (got '${type:-none}')" >&2
+      exit 2
+      ;;
+  esac
+
+  if [ "$type" = "steward-backstop" ] && [ -z "$steward_for" ]; then
+    echo "post: --type steward-backstop requires --steward-for <appointed-agent-id>" >&2
+    exit 2
+  fi
+
+  if [ -n "$body_file" ]; then
+    body=$(cat "$body_file") || exit 2
+  elif [ -z "$body" ] && [ ! -t 0 ]; then
+    body=$(cat)
+  fi
+  [ -n "$body" ] || { echo "post: empty body" >&2; exit 2; }
+
+  # Split at the last line boundary inside the budget: the visible part stays
+  # scannable, the remainder survives for humans inside a fold that digest
+  # readers never pay for.
+  # Byte-safe split (#364 P3): head -c can cut inside a multibyte character
+  # when the budget window holds no newline, and bash ${#var} counts characters
+  # under a UTF-8 locale while head -c counts bytes — so all arithmetic here is
+  # in bytes (wc -c / tail -c), and a partial trailing sequence is dropped from
+  # the visible part (iconv -c) into the fold, conserving every input byte.
+  local visible="$body" folded="" total_bytes visible_bytes trimmed
+  total_bytes=$(printf '%s' "$body" | wc -c)
+  if [ "$total_bytes" -gt "$BUDGET" ]; then
+    visible=$(printf '%s' "$body" | head -c "$BUDGET")
+    case "$visible" in
+      *$'\n'*) visible="${visible%$'\n'*}" ;;
+      *)
+        # glibc iconv exits 1 on an incomplete trailing sequence even though
+        # -c has already written the correct truncated output (measured), and
+        # EMPTY output is the correct answer for a budget smaller than one
+        # character — so the output is taken unconditionally: reading exit
+        # status or emptiness as a claim about correctness was the same error
+        # at two successive layers (#364, sol's P2).
+        #
+        # Without iconv the trade inverts (#369): dropping the trim would have
+        # made EVERY over-budget single-line post publish an empty visible
+        # section, and one possibly-split trailing character is the lesser
+        # harm than an empty post. Checked explicitly, not inferred from
+        # iconv's output, which is legitimately empty at tiny budgets.
+        if command -v iconv >/dev/null 2>&1; then
+          visible=$(printf '%s' "$visible" | iconv -f UTF-8 -t UTF-8 -c 2>/dev/null || true)
+        fi
+        ;;
+    esac
+    visible_bytes=$(printf '%s' "$visible" | wc -c)
+    folded=$(printf '%s' "$body" | tail -c +"$((visible_bytes + 1))")
+    folded="${folded#$'\n'}"
+  fi
+
+  {
+    if [ -n "$steward_for" ]; then
+      if [ -n "$appointee_issue" ] && [ "$appointee_issue" != "0" ]; then
+        printf '**From:** %s\n\n**Steward-for:** %s (#%s)\n\n**Type:** %s\n\n%s\n' \
+          "$agent" "$steward_for" "$appointee_issue" "$type" "$visible"
+      else
+        printf '**From:** %s\n\n**Steward-for:** %s\n\n**Type:** %s\n\n%s\n' \
+          "$agent" "$steward_for" "$type" "$visible"
+      fi
+    else
+      printf '**From:** %s\n\n**Type:** %s\n\n%s\n' "$agent" "$type" "$visible"
+    fi
+    if [ -n "$folded" ]; then
+      printf '\n<details>\n<summary>full detail (folded by board.sh — over the %s-byte visible budget)</summary>\n\n%s\n\n</details>\n' "$BUDGET" "$folded"
+    fi
+  } | gh issue comment "$number" --repo "$REPO" --body-file -
+}
+
+digest() {
+  local number="${1:-}"
+  [ -n "$number" ] || { echo "digest: issue/PR number required" >&2; exit 2; }
+
+  # gh's built-in --jq lacks --arg and full regex support; gate.sh's idiom —
+  # fetch JSON with gh, transform with the real jq binary — applies here too.
+  #
+  # Verdicts live in the REVIEW stream, not the conversation stream — the same
+  # split behind #359, and post itself points verdict-writers at gh pr review —
+  # so a digest reading only issue comments hides every verdict, including a
+  # blocking one (sol's P1a on #364). Merge pulls/:n/reviews in; a plain issue
+  # 404s there and contributes nothing.
+  local issue_json reviews_json
+  issue_json=$(gh issue view "$number" --repo "$REPO" --json number,title,state,labels,comments 2>/dev/null) \
+    || { echo "digest: could not read #$number from $REPO" >&2; exit 1; }
+  reviews_json=$(gh api "repos/$REPO/pulls/$number/reviews" --paginate 2>/dev/null | jq -s 'add // []' 2>/dev/null) || reviews_json='[]'
+  [ -n "$reviews_json" ] || reviews_json='[]'
+
+  printf '%s' "$issue_json" \
+    | jq -r --argjson lines "$DIGEST_LINES" --arg bots "$BOTS" --argjson reviews "$reviews_json" '
+      def is_bot: (.author.login // "") as $l | ($bots | split(" ")) | any(. == $l);
+      # Match the gate.sh attribution contract exactly: scan every line, accept
+      # one unambiguous stable identity, and reject conflicting identities.
+      def from_agents:
+        [((.body // "") | split("\n")[]
+          | capture("^\\*\\*From:\\*\\*[[:space:]]*(?<agent>[a-z0-9]+(?:[._-][a-z0-9]+)*)(?:[[:space:]]|$)"; "i").agent
+          | ascii_downcase)] | unique;
+      def from_agent:
+        from_agents as $agents
+        | if ($agents | length) == 1 then $agents[0] else "" end;
+      def structured: from_agent != "";
+      def strip_and_trim(skip_header):
+        (.body // "")
+        | split("\n")
+        | map(select((skip_header and test("^\\*\\*From:\\*\\*[[:space:]]*[a-z0-9]+(?:[._-][a-z0-9]+)*(?:[[:space:]]|$)"; "i")) | not))
+        # Drop <details> blocks line-by-line rather than by multiline regex:
+        # portable across jq builds, and the fold marker shows a reader that
+        # evidence exists without charging them for it.
+        | reduce .[] as $l ({inside: false, out: []};
+            if ($l | test("^\\s*<details>")) then .inside = true | .out += ["[folded detail omitted]"]
+            elif ($l | test("^\\s*</details>")) then .inside = false
+            elif .inside then .
+            else .out += [$l]
+            end)
+        | .out
+        | map(select(. != "" and (test("^\\*\\*Type:\\*\\*") | not)))
+        | ( if length > $lines
+            then .[:$lines] + ["(+\(length - $lines) more lines — read the thread only if you need them)"]
+            else .
+            end )
+        | map("   " + .)
+        | join("\n");
+      "== #\(.number) [\(.state)] \(.title)",
+      "   labels: \([.labels[].name] | join(","))",
+      ( ( .comments
+          + ( $reviews
+              | map(select((.body // "") != "")
+                    | { body: .body,
+                        createdAt: (.submitted_at // ""),
+                        author: {login: (.user.login // "?")},
+                        tag: ("[review \(.state // "")\(if .commit_id then " @" + .commit_id[0:7] else "" end)] ") }) ) )
+        | sort_by(.createdAt) ) as $stream
+      | ( ([$stream[] | select(is_bot)] | length) as $bot_count
+        | [$stream[] | select(is_bot | not)] as $human
+        | ( $human[]
+            | (.tag // "") as $tag
+            | if structured
+              then "-- \($tag)\(from_agent) · \(.createdAt)",
+                   strip_and_trim(true)
+              # No header, human account: possibly the owner, whose posts
+              # outrank every marker (#364 P1) — render, never hide.
+              else "-- \($tag)[no header] \(.author.login // "?") · \(.createdAt)",
+                   strip_and_trim(false)
+              end ),
+          ( if $bot_count > 0
+            then "-- \($bot_count) bot post(s) ignored (\($bots))"
+            else empty
+            end ) )
+    '
+}
+
+hygiene() {
+  echo "== board hygiene — unstructured posts are invisible to digests =="
+
+  local items
+  items=$( {
+    gh pr list --repo "$REPO" --state open --limit 20 --json number --jq '.[].number' 2>/dev/null
+    gh issue list --repo "$REPO" --state open --limit 30 --json number,labels \
+      --jq '.[] | select([.labels[].name] | any(startswith("agent:"))) | .number' 2>/dev/null
+  } | sort -un )
+
+  [ -n "$items" ] || { echo "  (no active lanes, or gh unavailable)"; return 0; }
+
+  local n count clean=1
+  for n in $items; do
+    count=$(gh issue view "$n" --repo "$REPO" --json comments 2>/dev/null \
+      | jq -r --arg bots "$BOTS" '
+          def is_bot: (.author.login // "") as $l | ($bots | split(" ")) | any(. == $l);
+          def from_agent:
+            ([((.body // "") | split("\n")[]
+               | capture("^\\*\\*From:\\*\\*[[:space:]]*(?<agent>[a-z0-9]+(?:[._-][a-z0-9]+)*)(?:[[:space:]]|$)"; "i").agent
+               | ascii_downcase)] | unique) as $agents
+            | if ($agents | length) == 1 then $agents[0] else "" end;
+          [.comments[]
+           | select(is_bot | not)
+           | select(from_agent == "")]
+          | length' 2>/dev/null) || continue
+    if [ -n "$count" ] && [ "$count" -gt 0 ]; then
+      echo "  #$n has $count unstructured post(s) — post via board.sh so tooling can see them"
+      clean=0
+    fi
+  done
+  if [ "$clean" -eq 1 ]; then
+    echo "  ok      every post on active lanes carries the machine header"
+  fi
+  return 0
+}
+
+case "$command" in
+  post) post "$@" ;;
+  digest) digest "$@" ;;
+  hygiene) hygiene "$@" ;;
+  *) usage ;;
+esac
