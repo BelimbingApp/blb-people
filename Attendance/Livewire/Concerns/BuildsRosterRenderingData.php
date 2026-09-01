@@ -475,10 +475,10 @@ trait BuildsRosterRenderingData
         return AttendanceRosterAssignment::query()
             ->where('company_id', $this->companyId())
             ->where('employee_id', $employeeId)
-            ->where('effective_from', '<=', $rangeEnd)
+            ->whereDate('effective_from', '<=', $rangeEnd)
             ->where(function ($query) use ($effectiveFrom): void {
                 $query->whereNull('effective_to')
-                    ->orWhere('effective_to', '>=', $effectiveFrom);
+                    ->orWhereDate('effective_to', '>=', $effectiveFrom);
             })
             ->when($excludeAssignmentId !== null, fn ($query) => $query->where('id', '!=', $excludeAssignmentId))
             ->exists();

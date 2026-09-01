@@ -534,10 +534,10 @@ class SubmitClaimRequestService
 
         $row = DB::table('people_payroll_claim_type_pay_items')
             ->where('claim_type_id', $claimType->getKey())
-            ->where('effective_from', '<=', $date)
+            ->whereDate('effective_from', '<=', $date)
             ->where(function ($query) use ($date): void {
                 $query->whereNull('effective_to')
-                    ->orWhere('effective_to', '>', $date);
+                    ->orWhereDate('effective_to', '>', $date);
             })
             ->orderByDesc('effective_from')
             ->first(['payroll_pay_item_code']);

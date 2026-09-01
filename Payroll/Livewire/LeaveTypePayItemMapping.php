@@ -78,7 +78,7 @@ class LeaveTypePayItemMapping extends Component
         PayrollLeaveTypePayItem::query()->updateOrCreate(
             [
                 'leave_type_id' => $type->id,
-                'effective_from' => $validated['editingEffectiveFrom'],
+                'effective_from' => Carbon::parse($validated['editingEffectiveFrom']),
             ],
             [
                 'company_id' => $companyId,

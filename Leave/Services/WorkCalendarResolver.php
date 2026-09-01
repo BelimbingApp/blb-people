@@ -86,7 +86,8 @@ class WorkCalendarResolver
 
         $rows = PeopleCalendarException::query()
             ->where('work_calendar_id', $workCalendarId)
-            ->whereBetween('occurs_on', [$from->format('Y-m-d'), $to->format('Y-m-d')])
+            ->whereDate('occurs_on', '>=', $from->format('Y-m-d'))
+            ->whereDate('occurs_on', '<=', $to->format('Y-m-d'))
             ->get(['occurs_on', 'kind', 'name']);
 
         $byDate = [];

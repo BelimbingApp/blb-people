@@ -8,6 +8,8 @@ use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Payroll\Exceptions\ClosedPayrollRunException;
 use App\Domains\People\Payroll\Exceptions\PayrollCountryPackException;
+use App\Domains\People\Payroll\Models\PayrollEmployeeStatutoryProfile;
+use App\Domains\People\Payroll\Models\PayrollEmployerStatutoryProfile;
 use App\Domains\People\Payroll\Models\PayrollInput;
 use App\Domains\People\Payroll\Models\PayrollPayItem;
 use App\Domains\People\Payroll\Models\PayrollPayItemClassification;
@@ -17,6 +19,7 @@ use App\Domains\People\Payroll\Models\PayrollStatutoryRuleSet;
 use App\Domains\People\Payroll\Services\PayrollRunCalculator;
 use App\Domains\People\Payroll\Services\PayrollRunCountryPackGuard;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -294,7 +297,9 @@ class Index extends Component
             [
                 'company_id' => $this->companyId(),
                 'country_iso' => strtoupper($validated['employerProfileCountryIso']),
-                'effective_from' => $validated['employerProfileEffectiveFrom'],
+                // Carbon, not the raw 'Y-m-d' string: a bare-string lookup key
+                // never matches the date cast's stored value under SQLite (#54).
+                'effective_from' => Carbon::parse($validated['employerProfileEffectiveFrom']),
             ],
             [
                 'source_pack' => $validated['employerProfileSourcePack'],
@@ -326,7 +331,7 @@ class Index extends Component
                 'company_id' => $this->companyId(),
                 'employee_id' => (int) $validated['employeeProfileEmployeeId'],
                 'country_iso' => strtoupper($validated['employeeProfileCountryIso']),
-                'effective_from' => $validated['employeeProfileEffectiveFrom'],
+                'effective_from' => Carbon::parse($validated['employeeProfileEffectiveFrom']),
             ],
             [
                 'source_pack' => $validated['employeeProfileSourcePack'],
@@ -360,7 +365,7 @@ class Index extends Component
                 'rule_key' => $validated['ruleSetRuleKey'],
                 'source_pack' => $validated['ruleSetSourcePack'],
                 'source_version' => $validated['ruleSetSourceVersion'],
-                'effective_from' => $validated['ruleSetEffectiveFrom'],
+                'effective_from' => Carbon::parse($validated['ruleSetEffectiveFrom']),
             ],
             [
                 'name' => $validated['ruleSetName'],

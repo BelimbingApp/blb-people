@@ -263,7 +263,8 @@ class DevAttendanceSeeder extends DevSeeder
                 [
                     'company_id' => $company->id,
                     'employee_id' => $employee->id,
-                    'effective_from' => '2026-05-01',
+                    // Carbon lookup keys: bare strings never match date casts (#54).
+                    'effective_from' => CarbonImmutable::parse('2026-05-01'),
                 ],
                 [
                     'attendance_roster_pattern_id' => $pattern->id,
@@ -433,7 +434,7 @@ class DevAttendanceSeeder extends DevSeeder
             [
                 'attendance_absence_batch_id' => $batch->id,
                 'employee_id' => $employee->id,
-                'absence_date' => '2026-05-13',
+                'absence_date' => CarbonImmutable::parse('2026-05-13'),
             ],
             [
                 'day_type' => 'normal',
