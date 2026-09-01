@@ -279,8 +279,11 @@ class PayrollContributionIntake
         $base = PayrollRun::query()
             ->where('company_id', $payload->companyId)
             ->whereHas('period', function ($query) use ($anchor): void {
-                $query->where('starts_on', '<=', $anchor)
-                    ->where('ends_on', '>=', $anchor);
+                // whereDate, not where: SQLite stores date columns as
+                // 'Y-m-d H:i:s' strings, so a plain string comparison misses
+                // periods whose starts_on equals the anchor date.
+                $query->whereDate('starts_on', '<=', $anchor)
+                    ->whereDate('ends_on', '>=', $anchor);
             })
             ->with('period');
 
