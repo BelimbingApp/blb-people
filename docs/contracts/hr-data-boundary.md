@@ -117,18 +117,21 @@ That half is true today: every company-carrying column in the connector is `comp
 `company_entity_id`, with no exceptions. Properties, parameters and payload keys are a
 review rule until something can read them, and this document should not pretend otherwise.
 
-**One known violation, in this repository — across the surfaces counted.** The count covers
-**persisted names**: schema columns, and keys written into stored JSON. It does not cover
-local variables, and the rule's own wording is looser than that count, which is a known gap
-recorded below.
+**No known violations, as of `e54e2f0`.** The count covers **persisted names**: schema
+columns, and keys written into stored JSON. It does not cover local variables, and the rule's
+own wording is looser than that count, which is the gap recorded below.
 
-`Employees/Livewire/Index.php:258` writes the array key `'scope_company_id'` into the
-persisted `metadata` JSON of a saved employee view, fed from `currentCompanyId()`, which
-resolves `Auth::user()->getCompanyId()` — a platform company id under a fourth spelling. It
-sits on a row that already has a real `company_id` column set from the same call, so it is a
-duplicate as well as a misspelling. Fixing it is a code change and does not belong in this
-document; it is named here so the rule is not quietly narrowed to make an existing violation
-disappear. It is filed as #64.
+There was one when this rule was written. `Employees/Livewire/Index.php` wrote the array key
+`'scope_company_id'` into the persisted `metadata` JSON of a saved employee view, resolved
+from `Auth::user()->getCompanyId()` — a platform company id under a fourth spelling, on a row
+that already carried a real `company_id` column set from the same call, so a duplicate as well
+as a misspelling. It was filed as #64 and removed by #65, together with a sweep confirming no
+other third-spelling company identifier in this repository. So the rule found a real defect
+and the defect was gone before the rule landed, which is the outcome to want.
+
+The connector's `ExternalReference $companyReference` and `'company_reference'` surface is
+**not** a violation. It is row three, which this rule gained precisely because the two-row
+version condemned it.
 
 **A known gap in the rule itself, for whoever writes the lint.** Rows two and three permit a
 role prefix — `manager_entity_id`, `companyReference` — and row one does not, so
