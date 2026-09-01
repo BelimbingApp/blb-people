@@ -113,7 +113,8 @@ test('employee workbench renders readiness and saved view controls', function ()
         ->get(route('people.employees.index'))
         ->assertOk()
         ->assertSee('Employee Workbench')
-        ->assertSee('Saved Employee Views')
+        ->assertSee('All employees')
+        ->assertSee('Filters')
         ->assertSee('Ada Ready')
         ->assertSee('Ben Blocked')
         ->assertSee('Blocked');
@@ -151,6 +152,7 @@ test('employee workbench can save a shared view and export active filters', func
 
     Livewire::test(Index::class)
         ->set('search', 'Cara')
+        ->call('openSaveViewModal')
         ->set('savedViewName', 'Payroll Ready')
         ->set('savedViewVisibility', 'company')
         ->call('saveCurrentView');
@@ -167,7 +169,47 @@ test('employee workbench can save a shared view and export active filters', func
         ->and($content)->toContain('E2001,"Cara Export"');
 });
 
-test('people employee detail updates work profile access and reviews requests', function (): void {
+test('employee workbench applies advanced filters from the drawer without live table jumps', function (): void {
+    $user = createAdminUser();
+    $company = Company::query()->findOrFail($user->company_id);
+    $costCenter = createPeopleReference($company, PeopleReferenceEntry::TYPE_COST_CENTER, 'OPS', 'Operations');
+
+    Employee::factory()->create([
+        'company_id' => $company->id,
+        'employee_number' => 'E4001',
+        'full_name' => 'Eva Filtered',
+        'status' => 'active',
+    ]);
+
+    $blocked = Employee::factory()->create([
+        'company_id' => $company->id,
+        'employee_number' => 'E4002',
+        'full_name' => 'Fin Filtered',
+        'status' => 'active',
+    ]);
+
+    EmployeeWorkProfile::query()->create([
+        'employee_id' => $blocked->id,
+        'cost_center_id' => $costCenter->id,
+        'pay_rate_type' => 'monthly',
+        'hired_on' => '2026-01-01',
+    ]);
+
+    $this->actingAs($user);
+
+    Livewire::test(Index::class)
+        ->call('openFilterDrawer')
+        ->set('draftCostCenterId', (string) $costCenter->id)
+        ->assertSet('costCenterId', '')
+        ->call('applyAdvancedFilters')
+        ->assertSet('costCenterId', (string) $costCenter->id)
+        ->assertSet('filterDrawerOpen', false)
+        ->assertSee('Fin Filtered')
+        ->assertDontSee('Eva Filtered')
+        ->call('removeAdvancedFilter', 'costCenterId')
+        ->assertSee('Eva Filtered');
+});
+
     $user = createAdminUser();
     $company = Company::query()->findOrFail($user->company_id);
     $employee = Employee::factory()->create([
