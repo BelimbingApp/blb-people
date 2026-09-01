@@ -254,6 +254,45 @@ test('payroll index transitionPayrollRun approve refuses a run with no installed
     expect($run->refresh()->status)->toBe(PayrollRun::STATUS_REVIEWED);
 });
 
+test('payroll index transitionPayrollRun close refuses a run with no installed country pack', function (): void {
+    $admin = createAdminUser();
+    $companyId = (int) $admin->company_id;
+    $calendar = PayrollCalendar::query()->create([
+        'company_id' => $companyId,
+        'code' => 'SG-MONTHLY-CLOSE',
+        'name' => 'Singapore monthly close guard',
+        'country_iso' => 'SG',
+        'currency' => 'SGD',
+        'frequency' => 'monthly',
+        'status' => 'active',
+    ]);
+    $period = PayrollPeriod::query()->create([
+        'payroll_calendar_id' => $calendar->id,
+        'code' => '2026-02',
+        'name' => 'February 2026',
+        'starts_on' => '2026-02-01',
+        'ends_on' => '2026-02-28',
+        'pay_date' => '2026-02-28',
+        'status' => 'open',
+    ]);
+    $run = PayrollRun::query()->create([
+        'company_id' => $companyId,
+        'payroll_calendar_id' => $calendar->id,
+        'payroll_period_id' => $period->id,
+        'code' => 'SG-WB-2026-02',
+        'name' => 'Singapore workbench run for close guard',
+        'status' => PayrollRun::STATUS_APPROVED,
+        'currency' => 'SGD',
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test(PayrollIndex::class)
+        ->call('transitionPayrollRun', 'close', $run->id)
+        ->assertHasNoErrors();
+
+    expect($run->refresh()->status)->toBe(PayrollRun::STATUS_APPROVED);
+});
+
 test('attendance allowance mapping cancelEditing clears edit state', function (): void {
     Carbon::setTestNow(PAYROLL_WORKBENCH_CANCEL_EDITING_TODAY);
 
