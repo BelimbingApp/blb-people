@@ -399,8 +399,8 @@ class SubmitLeaveRequestService
 
         $overlappingRequests = LeaveRequest::query()
             ->where('employee_id', $employee->getKey())
-            ->where('starts_on', '<=', $lastRequestedDate)
-            ->where('ends_on', '>=', $firstRequestedDate)
+            ->whereDate('starts_on', '<=', $lastRequestedDate)
+            ->whereDate('ends_on', '>=', $firstRequestedDate)
             ->whereNotIn('status', [
                 LeaveRequest::STATUS_REJECTED,
                 LeaveRequest::STATUS_CANCELLED,
