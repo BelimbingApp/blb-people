@@ -121,7 +121,15 @@ cat <<'TXT'
                    an equality NEVER matches, which is worse: it fails silently
                    every day and its tests pass for the wrong reason. Postgres
                    truncates, so these are invisible in production and only ever
-                   fail in CI. Use whereDate(). See #46 (fixed), #51 and #52.
+                   fail in CI. Use whereDate(). See #46 (fixed), #51, #52 and
+                   #54.
+
+  swallowed actions  RecoverFromActionFailure turns a broken Livewire action
+                   into a polite error toast without a log entry, so a broken
+                   action and a working one can look identical from outside.
+                   When an action appears to do nothing, assert its notify
+                   dispatch before assuming it worked. Two shipped actions
+                   were found this way in #55. See #56.
 
   pest --parallel  Flaky here; it produces order-dependent failures that are not
                    real. Reproduce serially before treating anything as a
