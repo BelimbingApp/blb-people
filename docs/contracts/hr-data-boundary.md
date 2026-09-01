@@ -161,16 +161,33 @@ Three reasons, in order of weight:
 3. **The mechanism is already there.** The connector guard is built on `company_entity_id`. A
    second axis with a second guard is a second thing to forget.
 
-### Rule 1.3 — exactly one connector table may store a platform company id
+### Rule 1.3 — two connector tables may store a platform company id, and no others
 
-That table is `people_connector_connector_provider_connections`, column `company_id`,
-and section 2 adds the second. Everywhere else, a platform company id in the connector is
-a bug.
+The two are:
 
-This is checkable today and true today: `company_id` appears in exactly one connector
-migration table, and every skill table uses `company_entity_id`. Keeping it checkable is
-the point — a schema lint over the connector's migrations can assert it, and that belongs
-with the naming lint under #24.
+- `people_connector_connector_provider_connections.company_id`, which exists today;
+- `people_connector_connector_workforce_companies.company_id`, once decision 2.1's
+  attribution column lands under #26.
+
+Everywhere else, a platform company id in the connector is a bug.
+
+**The lint asserts membership, not a count.** The set of connector columns holding a platform
+company id must be a **subset** of those two. That is the inclusion form again, and it is
+what lets one rule cover both sides of #26 without being rewritten on the day the column
+lands: one table is a subset of two, and so is two. A lint that asserted "exactly one" would
+go red when correct code arrived, and a lint that asserted "exactly two" is red until then —
+both teach the next person to edit the lint rather than the code.
+
+Today the set has one member, and every skill table uses `company_entity_id`. A schema lint
+over the connector's migrations can assert the subset, and that belongs with the naming lint
+under #24.
+
+The first version of this rule stated the same fact three times with three different numbers:
+"exactly one" in the heading, "section 2 adds the second" in the body, and "exactly the two
+tables named" in section 12's lint specification. #24 implements that specification, so an
+implementer would have had to guess which was authoritative. It is the same defect as rule
+8.1's original heading, one round later and one section earlier — a heading that had stopped
+tracking its own body.
 
 `provider_connections.company_id` is not an exception to rule 1.2, because a connection is
 not a supplemental record. It is an installation fact: it says which platform company an
@@ -565,9 +582,11 @@ this register allowed metadata, and it contradicted rule 6.1, which names no doc
 and therefore forbids storing any. Rather than add fields to 6.1, the register row is the
 one that moves, because document metadata is itself HR content: a stored list of an
 employee's document titles is a stored list of what they have been disciplined for. A
-document is addressed by a provider reference held for the length of one request, and its
-content is fetched under the provider's own authorisation. That puts Documents under rule
-6.3 with the other read-through capabilities, and leaves one answer where there were two.
+document is addressed by a provider reference held for the length of one request, and the
+fetch is authorised connector-side before it is made, per rule 7.1 — the provider's own
+authorisation applies to it as well, but as a second gate rather than the first one. That
+puts Documents under rule 6.3 with the other read-through capabilities, and leaves one answer
+where there were two.
 
 ---
 
@@ -730,18 +749,52 @@ duration of that request.
 
 ## 7. Sensitivity, access, and what co-location actually protects
 
+### Rule 7.1 — every row of the table below names an audience, never a gate
+
+The gate is **rule 7.3**, for all six rows: a role reaches any of this data only through a
+permission that names the capability, and decision 2.6 bounds which companies that permission
+can reach. The Rule column says *who, within that*. It never says *instead of that*.
+
+**The test for a cell:** if it names a **condition** rather than an **audience**, it is a gate
+and it is wrong. Three rows failed that test across three review rounds, in two distinct ways,
+and both ways are worth naming because neither is obvious while you are writing the cell.
+
+**Naming a weaker gate.** The Directory row read "visible to authenticated users of the
+attributed platform company", which made *being logged in* the gate. It would have handed a
+developer, a support role or any platform administrator the whole employee directory of every
+attributed company — the exact outcome #20's acceptance criteria forbid. The slip: **breadth
+of audience got written as absence of a gate.** A directory really is the widest of these six
+classes, and the wide end of a scale reads like no restriction if you are not careful. "Widest
+audience among permission holders" and "everyone with a session" are not near each other; the
+second includes every role that was never meant to hold HR access at all.
+
+**Naming somebody else's gate.** The Documents and Compensation rows deferred to "the
+provider's own authorisation". That is a gate, and it is not ours. It also does less than it
+appears to: where the connector fetches under its own service credential — the normal shape
+for a server-to-server adapter — the provider authorises **the connector**, not the person
+looking at the screen. Every request is equally authorised, so "the provider authorises it"
+authorises everything.
+
+**So, for any content fetched from a provider rather than stored: the connector-side
+permission is checked before the fetch is made.** It is the only gate in the path that knows
+who is asking. The provider's authorisation still applies, and it is a second gate, not the
+first one — it constrains what the connector may ever see, never who may see it through the
+connector.
+
+Where a row is genuinely permissive, say what it is permissive *within*.
+
 ### Data classes
 
-| Class | Contents | Rule |
+| Class | Contents | Audience, within rule 7.3's gate |
 |---|---|---|
-| **Directory** | Names, employee numbers, work email, active flag, org unit, position, manager | The broadest audience, and still a granted one: any holder of the directory-read permission, bounded to the workforce companies attributed to their platform company |
-| **Employment** | Employment dates, department head, position history | Employee themselves, their management chain, HR |
-| **Compensation** | Payroll of any kind, bank details, claims amounts | Never projected. Read-through, provider-authorised, payroll role only |
-| **Absence** | Leave and attendance records | Never projected. Read-through, employee, their manager, HR |
-| **Competence** | Skills, assessments, results, certificates, training history — connector-owned | Employee themselves, their management chain, HOD for their department, HR |
-| **Documents** | Provider-held files | Never projected, metadata included. Addressed by a provider reference held for one request; content is fetched from the provider under the provider's own authorisation |
+| **Directory** | Names, employee numbers, work email, active flag, org unit, position, manager, department head | The broadest audience here, and still a granted one: a permission naming the directory capability being read — there are five and they are separate — bounded to the workforce companies attributed to the holder's platform company |
+| **Employment** | Employment dates, position history, termination details | **Never projected**; none of this is on rule 6.1's list. Read-through: the employee themselves, their management chain, HR |
+| **Compensation** | Payroll of any kind, bank details, claims amounts | **Never projected.** Read-through: payroll role only. Authorised connector-side before the fetch, per rule 7.1 |
+| **Absence** | Leave and attendance records | **Never projected.** Read-through: the employee, their manager, HR |
+| **Competence** | Skills, assessments, results, certificates, training history — connector-owned | The employee themselves, their management chain, the HOD for their department, HR |
+| **Documents** | Provider-held files and their metadata | **Never projected**, metadata included. Read-through: the employee themselves, their management chain, HR. Addressed by a provider reference held for one request; authorised connector-side before the fetch, per rule 7.1 |
 
-**Rule 7.0 — data that fits no class in this table is treated as Compensation until it is
+**Rule 7.2 — data that fits no class in this table is treated as Compensation until it is
 classified.** Never projected, read-through only, narrowest audience. Six classes decide
 about the data they recognise, and without a default they say nothing about the seventh
 thing somebody adds — which is the fail-open shape this document exists to remove. The
@@ -749,32 +802,46 @@ default is deliberately the most restrictive class rather than a middle one, so 
 classifying a new kind of data is always a loosening, made on purpose, by a change to this
 table.
 
-**Every row of this table names an audience among permission holders, never a gate of its
-own.** Rule 7.1 supplies the gate for all six: a role reaches any of this data only through a
-permission that names the capability, and decision 2.6 bounds which companies that permission
-can reach. The table says who, within that; it never says instead of it.
+This default is a poor fit for data the connector **originates**, where "never projected" and
+"read-through" have nothing to refer to and only "narrowest audience" carries. That is a real
+gap and it is deferred rather than patched here, as open question 8.
 
-The Directory row said something else in the first two versions of this document — "visible
-to authenticated users of the attributed platform company" — which made *being logged in* the
-gate. That contradicted rule 7.1 one section below it and decision 2.6 four sections above,
-and it would have handed a developer, a support role or any platform administrator the whole
-employee directory of every attributed company, which is the exact outcome #20's acceptance
-criteria forbid.
+### What the sweep of this table found
 
-The slip worth naming, because it is the kind that recurs: **breadth of audience got written
-as absence of a gate.** A directory really is the widest of these six classes, and the wide
-end of a scale reads like no restriction at all if you are not careful. It is still HR data
-about identifiable people, and "widest audience among permission holders" and "everyone with
-a session" are not close together — the second includes every role that was never meant to
-hold HR access at all. Where a row is genuinely permissive, say what it is permissive
-*within*.
+Three review rounds each found one contradiction in the six rows above. That is a pattern,
+not bad luck, so the fourth round swept every cell against every rule governing the same
+subject rather than waiting to be told again. Three more corrections came out of it, and they
+are listed because the misses are more useful than the fixes.
+
+- **The Employment row contradicted rule 6.1.** It named employment dates, department head and
+  position history as though the class were stored data with an audience. Employment dates and
+  position history are on no allowlist in section 6 and therefore cannot be stored at all;
+  only `department_head_entity_id` can, and that is organisation structure, so it has moved to
+  the Directory row where the rest of the structure lives. Employment is now read-through, like
+  Compensation and Absence.
+- **The Compensation row carried the same "provider-authorised" gate as Documents.** The
+  earlier round caught one instance and not its twin, four rows apart, because the word used
+  was different. Both now defer to rule 7.1.
+- **The Directory row named a permission that does not exist.** "The directory-read permission"
+  is one name for five separate capabilities — company, employee, organization, manager
+  hierarchy and user directory are distinct declarations, and rule 7.3 says a permission names
+  *the* capability. #25 implements these, so an invented singular would have been built.
+
+**The mechanical form of the check, for reuse.** Tables are the highest-risk neighbours in a
+specification. A cell is written to be scannable, so it is written in isolation and read as a
+complete statement — prose carries its qualifications inline, and a cell drops them. All the
+defects above were that same compression: Documents dropped rule 6.1's allowlist, Directory
+dropped rule 7.3's gate, Documents again dropped rule 7.1, Employment dropped rule 6.1 a
+second time. So: **for every table, check each cell against every rule governing the same
+subject, and treat a cell naming a condition rather than a value as a gate until proven
+otherwise.**
 
 Competence data is performance data. It is more sensitive than the directory and it is
 owned by us, which means we cannot borrow the provider's access rules for it — we have to
 write our own. That is #25's work; the classes in the table above are what it grants
 against.
 
-### Rule 7.1 — HR access is granted, never inherited
+### Rule 7.3 — HR access is granted, never inherited
 
 A role holds access to a provider or connector-owned HR capability only if it has been
 granted a permission that names that capability. No platform-administration role acquires
@@ -789,14 +856,14 @@ Configuring a provider connection is a genuine administrative task and it does n
 reading a single employee record. Those are two different permissions and they must not be
 bundled.
 
-### Rule 7.2 — break-glass is time-boxed, logged, and never silent
+### Rule 7.4 — break-glass is time-boxed, logged, and never silent
 
 Emergency access to HR data is granted for a stated reason, expires on its own, is written
 to an audit record that the emergency access itself cannot edit, and notifies the HR
 governor. An access path that has none of these is not break-glass, it is a back door with
 a nicer name.
 
-### Rule 7.3 — say plainly what co-location does not protect against
+### Rule 7.5 — say plainly what co-location does not protect against
 
 Running the connector alongside the provider on one host, or in one container, or in
 separate repositories, is not a security boundary against anyone with host access. A host
@@ -935,7 +1002,7 @@ than guessed, and each names who should close it.
 
 2. **Who may confirm an attribution?** Decision 2.3 says an administrator, deliberately.
    #20 names HR as system governor, which suggests HR rather than a platform administrator,
-   but that is a role definition and it interacts with rule 7.1. **#25**, with the
+   but that is a role definition and it interacts with rule 7.3. **#25**, with the
    governance surface in **#24.**
 
 3. **Should Core refuse to hard-delete a platform company that has connector data?** The
@@ -991,6 +1058,25 @@ than guessed, and each names who should close it.
    this into an enforced rule is a change to `WorkforceIdentityStore` and belongs with
    **#26**, not in a document.
 
+8. **Is rule 7.2's default meaningful for data the connector originates?** The default sends
+   an unclassified data class to Compensation — never projected, read-through only, narrowest
+   audience. Two of those three are statements about *provider* data. For data the connector
+   originates there is nothing to read through to, so only "narrowest audience" carries and
+   the rest of the sentence is decoration.
+
+   Deferred rather than patched, and the reason is worth stating because the obvious fix is
+   wrong. Adding a second default for connector-originated data puts a branch in the one rule
+   whose entire value is having no branches — a default that asks a question before it applies
+   is a default an author can argue their way out of. The real question underneath is whether
+   an unclassified connector-owned data class should be able to exist at all, given that rule
+   5.1 says a connector-owned capability is a deliberate decision rather than something that
+   accumulates. That is a governance question, not a wording one. **#24.** Raised by
+   `agent:opus-5-review-m`.
+
+   Recorded here rather than left as a judgement call I made quietly. This document's best
+   feature is that it names what it does not decide, and an unnamed deferral is the one thing
+   that practice forbids.
+
 ---
 
 ## 12. How this contract is checked
@@ -1013,10 +1099,11 @@ already naming the columns it writes.
   declared nothing so it can do nothing" is a rule, not a property. This is the one open
   question 4 leans on, so it is first on the list. **#24.**
 - A schema lint asserting rules 1.1 and 1.3 **at the column level, which is all a schema
-  lint can see**: only `company_id` and `company_entity_id` as company-carrying column names,
-  `company_id` on exactly the two tables named, and `external_id` on exactly the two named in
-  rule 8.1. The property, parameter and payload-key half of rule 1.1 stays a review rule
-  until something can read those. **#24.**
+  lint can see**: only `company_id` and `company_entity_id` as company-carrying column names;
+  `company_id` only on the two tables rule 1.3 names, asserted as a subset so that it holds
+  both before and after #26 lands the attribution column; and `external_id` only on the two
+  columns rule 8.1 names. Subset, not count, in all three cases. The property, parameter and
+  payload-key half of rule 1.1 stays a review rule until something can read those. **#24.**
 - A test that the projection write path never writes an administered column, per decision
   2.4 — a regression test against a future widening, since the current store already
   complies. **#26.**
@@ -1027,7 +1114,7 @@ already naming the columns it writes.
   companies never being hard-deleted, referencing `belimbing#489`; and deleting the carve-out
   when stored attribution lands. **#26.**
 - A test that the in-process and remote adapters refuse the same unauthorised call, per
-  rule 7.3. **#30.**
+  rule 7.5. **#30.**
 - A test that a provider omitting a record does not deactivate its projection, per rule
   9.1. **#29.**
 
@@ -1052,9 +1139,20 @@ current text less, not more.
 The same review is why the carve-out's shape is now recorded as an exclusion test rather than
 certified as sound, and why decision 2.2 now states its dependency on open question 4.
 
-A second round found one more, and it is the most instructive of the set because it survived
-a full review: the **Directory** row of section 7 made being authenticated the gate, which
-contradicted rule 7.1 one section below it and decision 2.6 four sections above it. Found by
-`agent:desktop-terra`. Two contradictions inside one document, one table row apart from the
-Documents contradiction caught in the first round — which is a fair measure of how much easier
-it is to check a rule against code than against its own neighbours.
+Two further rounds found four more, and every one of them was in the same six-row table in
+section 7. Round two: the **Directory** row made being authenticated the gate, contradicting
+rule 7.3 one section below it and decision 2.6 four sections above it — found by
+`agent:desktop-terra`. Round three: **Documents** named the provider's authorisation as its
+own gate, one line beneath the sentence forbidding exactly that; **Employment** named contents
+that rule 6.1 forbids storing; **Compensation** carried the same provider-authorised gate as
+Documents, four rows away, missed in the previous round because the wording differed. Round
+three also found rule 1.3 stating one fact with three different numbers across its heading,
+its body and section 12's lint specification.
+
+Six defects, five of them in one table, none of them a disagreement with the code. That is
+the finding, and it is why section 7 now carries the sweep that produced the last three: **a
+table cell is written to be scannable, so it is written in isolation and read as a complete
+statement, while the rule it must obey is a paragraph away carrying its qualifications
+inline.** Checking a rule against the code turned out to be the easy half. Checking it against
+its own neighbours is where this document kept failing, and tables are where the neighbours
+are hardest to see.
