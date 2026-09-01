@@ -210,6 +210,7 @@ test('employee workbench applies advanced filters from the drawer without live t
         ->assertSee('Eva Filtered');
 });
 
+test('people employee detail updates work profile access and reviews requests', function (): void {
     $user = createAdminUser();
     $company = Company::query()->findOrFail($user->company_id);
     $employee = Employee::factory()->create([
