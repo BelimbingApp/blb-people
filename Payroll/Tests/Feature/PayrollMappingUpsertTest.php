@@ -15,6 +15,8 @@ use App\Domains\People\Payroll\Models\PayrollEmployerStatutoryProfile;
 use App\Domains\People\Payroll\Models\PayrollLeaveTypePayItem;
 use App\Domains\People\Payroll\Models\PayrollPayItem;
 use App\Domains\People\Payroll\Models\PayrollStatutoryRuleSet;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 
 /**
@@ -119,6 +121,19 @@ test('re-saving a leave type mapping updates instead of colliding', function ():
         'status' => LeaveType::STATUS_ACTIVE,
     ]);
 
+    // Raw seeder-style write first: the Livewire saves below must land on this
+    // same row, proving raw and component paths agree on the key format.
+    DB::table('people_payroll_leave_type_pay_items')->updateOrInsert(
+        ['leave_type_id' => $type->id, 'effective_from' => Carbon::parse('2026-06-01')],
+        [
+            'company_id' => $companyId,
+            'payroll_pay_item_code' => 'unpaid_leave',
+            'effective_to' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+    );
+
     foreach (['unpaid_leave', 'leave_encashment'] as $code) {
         Livewire::actingAs($admin)
             ->test(LeaveTypePayItemMapping::class)
@@ -165,7 +180,7 @@ test('re-saving statutory profiles and rule sets updates instead of colliding', 
             ->test(PayrollIndex::class)
             ->set('ruleSetCountryIso', 'MY')
             ->set('ruleSetRuleKey', 'epf')
-            ->set('ruleSetName', 'EPF')
+            ->set('ruleSetName', 'EPF '.$pack)
             ->set('ruleSetSourcePack', 'statutory-pack')
             ->set('ruleSetSourceVersion', '1.0.0')
             ->set('ruleSetEffectiveFrom', '2026-06-01')
@@ -179,5 +194,7 @@ test('re-saving statutory profiles and rule sets updates instead of colliding', 
     expect(PayrollEmployeeStatutoryProfile::query()->where('employee_id', $employee->id)->get())
         ->toHaveCount(1)
         ->sequence(fn ($profile) => $profile->source_pack->toBe('pack-two'));
-    expect(PayrollStatutoryRuleSet::query()->where('rule_key', 'epf')->count())->toBe(1);
+    $ruleSets = PayrollStatutoryRuleSet::query()->where('rule_key', 'epf')->get();
+    expect($ruleSets)->toHaveCount(1)
+        ->and($ruleSets->first()->name)->toBe('EPF pack-two');
 });

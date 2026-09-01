@@ -18,6 +18,7 @@ use App\Domains\People\Leave\Models\LeaveType;
 use App\Domains\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
 use DateTimeImmutable;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -94,7 +95,7 @@ class DevLeaveSeeder extends DevSeeder
 
             if (isset($def['payroll_pay_item_code']) && Schema::hasTable('people_payroll_leave_type_pay_items')) {
                 DB::table('people_payroll_leave_type_pay_items')->updateOrInsert(
-                    ['leave_type_id' => $type->id, 'effective_from' => '2026-01-01'],
+                    ['leave_type_id' => $type->id, 'effective_from' => Carbon::parse('2026-01-01')],
                     [
                         'company_id' => $company->id,
                         'payroll_pay_item_code' => $def['payroll_pay_item_code'],

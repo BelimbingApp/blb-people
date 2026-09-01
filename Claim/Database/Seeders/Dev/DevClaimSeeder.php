@@ -18,6 +18,7 @@ use App\Domains\People\Claim\Models\ClaimRequestAuditEvent;
 use App\Domains\People\Claim\Models\ClaimType;
 use App\Domains\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -141,7 +142,7 @@ class DevClaimSeeder extends DevSeeder
 
             if (Schema::hasTable('people_payroll_claim_type_pay_items')) {
                 DB::table('people_payroll_claim_type_pay_items')->updateOrInsert(
-                    ['claim_type_id' => $out[$def['code']]->id, 'effective_from' => '2026-01-01'],
+                    ['claim_type_id' => $out[$def['code']]->id, 'effective_from' => Carbon::parse('2026-01-01')],
                     [
                         'company_id' => $company->id,
                         'payroll_pay_item_code' => $def['pay_item_code'],
