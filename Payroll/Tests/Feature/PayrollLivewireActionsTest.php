@@ -21,10 +21,22 @@ use App\Domains\People\Payroll\Models\PayrollRun;
 use App\Domains\People\Payroll\Models\PayrollRunParticipant;
 use App\Domains\People\Payroll\Models\PayrollStatutoryRuleRow;
 use App\Domains\People\Payroll\Models\PayrollStatutoryRuleSet;
+use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
 /**
- * @return array{admin: User, run: PayrollRun, employee: Employee}
+ * Branch-level sweep notes (#61): wired `transitionPayrollRun` literals are review,
+ * approve, close, and void — all four are driven below. Defensive early returns
+ * such as `setTab` with an unknown tab are excluded (no collaborator/write).
+ * Mapping components only wire startEditing, saveMapping, cancelEditing, and
+ * deleteMapping; saveMapping and deleteMapping were covered in #60.
+ */
+const PAYROLL_WORKBENCH_MAPPING_EFFECTIVE_FROM = '2026-06-01';
+
+const PAYROLL_WORKBENCH_CANCEL_EDITING_TODAY = '2026-03-15';
+
+/**
+ * @return array{admin: User, run: PayrollRun}
  */
 function payrollWorkbenchRunFixtures(): array
 {
@@ -76,7 +88,7 @@ function payrollWorkbenchRunFixtures(): array
         'currency' => 'MYR',
     ]);
 
-    return ['admin' => $admin, 'run' => $run, 'employee' => $employee];
+    return ['admin' => $admin, 'run' => $run];
 }
 
 function payrollWorkbenchPayItem(int $companyId, string $code): PayrollPayItem
@@ -174,25 +186,77 @@ test('payroll index createRuleRow appends a statutory rule row', function (): vo
         ->and((string) $row->employee_rate)->toBe('0.11000000');
 });
 
-test('payroll index calculateRun and transitionPayrollRun drive run lifecycle', function (): void {
+test('payroll index calculateRun and transitionPayrollRun drive full finalization lifecycle', function (): void {
+    ['admin' => $admin, 'run' => $run] = payrollWorkbenchRunFixtures();
+
+    $component = Livewire::actingAs($admin)->test(PayrollIndex::class);
+
+    $component->call('calculateRun', $run->id)->assertHasNoErrors();
+    expect($run->refresh()->status)->toBe(PayrollRun::STATUS_CALCULATED);
+
+    $component->call('transitionPayrollRun', 'review', $run->id)->assertHasNoErrors();
+    expect($run->refresh()->status)->toBe(PayrollRun::STATUS_REVIEWED);
+
+    $component->call('transitionPayrollRun', 'approve', $run->id)->assertHasNoErrors();
+    expect($run->refresh()->status)->toBe(PayrollRun::STATUS_APPROVED);
+
+    $component->call('transitionPayrollRun', 'close', $run->id)->assertHasNoErrors();
+    expect($run->refresh()->status)->toBe(PayrollRun::STATUS_CLOSED);
+});
+
+test('payroll index transitionPayrollRun void marks a run voided', function (): void {
     ['admin' => $admin, 'run' => $run] = payrollWorkbenchRunFixtures();
 
     Livewire::actingAs($admin)
         ->test(PayrollIndex::class)
-        ->call('calculateRun', $run->id)
+        ->call('transitionPayrollRun', 'void', $run->id)
         ->assertHasNoErrors();
 
-    expect($run->refresh()->status)->toBe(PayrollRun::STATUS_CALCULATED);
+    expect($run->refresh()->status)->toBe(PayrollRun::STATUS_VOIDED);
+});
+
+test('payroll index transitionPayrollRun approve refuses a run with no installed country pack', function (): void {
+    $admin = createAdminUser();
+    $companyId = (int) $admin->company_id;
+    $calendar = PayrollCalendar::query()->create([
+        'company_id' => $companyId,
+        'code' => 'SG-MONTHLY',
+        'name' => 'Singapore monthly',
+        'country_iso' => 'SG',
+        'currency' => 'SGD',
+        'frequency' => 'monthly',
+        'status' => 'active',
+    ]);
+    $period = PayrollPeriod::query()->create([
+        'payroll_calendar_id' => $calendar->id,
+        'code' => '2026-01',
+        'name' => 'January 2026',
+        'starts_on' => '2026-01-01',
+        'ends_on' => '2026-01-31',
+        'pay_date' => '2026-01-31',
+        'status' => 'open',
+    ]);
+    $run = PayrollRun::query()->create([
+        'company_id' => $companyId,
+        'payroll_calendar_id' => $calendar->id,
+        'payroll_period_id' => $period->id,
+        'code' => 'SG-WB-2026-01',
+        'name' => 'Singapore workbench run',
+        'status' => PayrollRun::STATUS_REVIEWED,
+        'currency' => 'SGD',
+    ]);
 
     Livewire::actingAs($admin)
         ->test(PayrollIndex::class)
-        ->call('transitionPayrollRun', 'review', $run->id)
+        ->call('transitionPayrollRun', 'approve', $run->id)
         ->assertHasNoErrors();
 
     expect($run->refresh()->status)->toBe(PayrollRun::STATUS_REVIEWED);
 });
 
 test('attendance allowance mapping cancelEditing clears edit state', function (): void {
+    Carbon::setTestNow(PAYROLL_WORKBENCH_CANCEL_EDITING_TODAY);
+
     $admin = createAdminUser();
     $companyId = (int) $admin->company_id;
     payrollWorkbenchPayItem($companyId, 'meal_allowance');
@@ -206,15 +270,24 @@ test('attendance allowance mapping cancelEditing clears edit state', function ()
         'effective_from' => '2026-01-01',
         'status' => 'active',
     ]);
+    PayrollAttendanceRulePayItem::query()->create([
+        'company_id' => $companyId,
+        'attendance_allowance_rule_id' => $rule->id,
+        'payroll_pay_item_code' => 'meal_allowance',
+        'effective_from' => PAYROLL_WORKBENCH_MAPPING_EFFECTIVE_FROM,
+        'effective_to' => null,
+    ]);
 
     Livewire::actingAs($admin)
         ->test(AttendanceAllowanceMapping::class)
         ->call('startEditing', $rule->id)
         ->assertSet('editingRuleId', $rule->id)
+        ->assertSet('editingEffectiveFrom', PAYROLL_WORKBENCH_MAPPING_EFFECTIVE_FROM)
         ->set('editingPayItemCode', 'meal_allowance')
         ->call('cancelEditing')
         ->assertSet('editingRuleId', 0)
-        ->assertSet('editingPayItemCode', '');
+        ->assertSet('editingPayItemCode', '')
+        ->assertSet('editingEffectiveFrom', PAYROLL_WORKBENCH_CANCEL_EDITING_TODAY);
 });
 
 test('attendance allowance mapping deleteMapping removes the dated row', function (): void {
@@ -249,6 +322,8 @@ test('attendance allowance mapping deleteMapping removes the dated row', functio
 });
 
 test('claim type mapping cancelEditing clears edit state', function (): void {
+    Carbon::setTestNow(PAYROLL_WORKBENCH_CANCEL_EDITING_TODAY);
+
     $admin = createAdminUser();
     $companyId = (int) $admin->company_id;
     payrollWorkbenchPayItem($companyId, 'claim_medical');
@@ -263,15 +338,24 @@ test('claim type mapping cancelEditing clears edit state', function (): void {
         'payroll_eligible' => true,
         'status' => 'active',
     ]);
+    PayrollClaimTypePayItem::query()->create([
+        'company_id' => $companyId,
+        'claim_type_id' => $type->id,
+        'payroll_pay_item_code' => 'claim_medical',
+        'effective_from' => PAYROLL_WORKBENCH_MAPPING_EFFECTIVE_FROM,
+        'effective_to' => null,
+    ]);
 
     Livewire::actingAs($admin)
         ->test(ClaimTypePayItemMapping::class)
         ->call('startEditing', $type->id)
         ->assertSet('editingClaimTypeId', $type->id)
+        ->assertSet('editingEffectiveFrom', PAYROLL_WORKBENCH_MAPPING_EFFECTIVE_FROM)
         ->set('editingPayItemCode', 'claim_medical')
         ->call('cancelEditing')
         ->assertSet('editingClaimTypeId', 0)
-        ->assertSet('editingPayItemCode', '');
+        ->assertSet('editingPayItemCode', '')
+        ->assertSet('editingEffectiveFrom', PAYROLL_WORKBENCH_CANCEL_EDITING_TODAY);
 });
 
 test('claim type mapping deleteMapping removes the dated row', function (): void {
@@ -307,6 +391,8 @@ test('claim type mapping deleteMapping removes the dated row', function (): void
 });
 
 test('leave type mapping cancelEditing clears edit state', function (): void {
+    Carbon::setTestNow(PAYROLL_WORKBENCH_CANCEL_EDITING_TODAY);
+
     $admin = createAdminUser();
     $companyId = (int) $admin->company_id;
     payrollWorkbenchPayItem($companyId, 'unpaid_leave');
@@ -321,15 +407,24 @@ test('leave type mapping cancelEditing clears edit state', function (): void {
         'compulsory_attachment' => false,
         'status' => LeaveType::STATUS_ACTIVE,
     ]);
+    PayrollLeaveTypePayItem::query()->create([
+        'company_id' => $companyId,
+        'leave_type_id' => $type->id,
+        'payroll_pay_item_code' => 'unpaid_leave',
+        'effective_from' => PAYROLL_WORKBENCH_MAPPING_EFFECTIVE_FROM,
+        'effective_to' => null,
+    ]);
 
     Livewire::actingAs($admin)
         ->test(LeaveTypePayItemMapping::class)
         ->call('startEditing', $type->id)
         ->assertSet('editingLeaveTypeId', $type->id)
+        ->assertSet('editingEffectiveFrom', PAYROLL_WORKBENCH_MAPPING_EFFECTIVE_FROM)
         ->set('editingPayItemCode', 'unpaid_leave')
         ->call('cancelEditing')
         ->assertSet('editingLeaveTypeId', 0)
-        ->assertSet('editingPayItemCode', '');
+        ->assertSet('editingPayItemCode', '')
+        ->assertSet('editingEffectiveFrom', PAYROLL_WORKBENCH_CANCEL_EDITING_TODAY);
 });
 
 test('leave type mapping deleteMapping removes the dated row', function (): void {
