@@ -159,6 +159,12 @@ test('employee workbench can save a shared view and export active filters', func
 
     expect(PeopleSavedEmployeeView::query()->where('company_id', $company->id)->where('name', 'Payroll Ready')->exists())->toBeTrue();
 
+    $savedView = PeopleSavedEmployeeView::query()
+        ->where('company_id', $company->id)
+        ->where('name', 'Payroll Ready')
+        ->firstOrFail();
+    expect($savedView->metadata)->toBe(['surface' => 'employee_workbench']);
+
     $response = $this->get(route('people.employees.export.csv', ['search' => 'Cara']));
     ob_start();
     $response->sendContent();
