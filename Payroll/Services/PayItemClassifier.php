@@ -22,10 +22,10 @@ class PayItemClassifier
                     $query->orWhere('country_iso', strtoupper($countryIso));
                 }
             })
-            ->where('effective_from', '<=', $date)
+            ->whereDate('effective_from', '<=', $date)
             ->where(function ($query) use ($date): void {
                 $query->whereNull('effective_to')
-                    ->orWhere('effective_to', '>=', $date);
+                    ->orWhereDate('effective_to', '>=', $date);
             })
             ->orderByRaw('country_iso is null')
             ->orderByDesc('effective_from')

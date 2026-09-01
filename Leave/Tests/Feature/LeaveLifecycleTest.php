@@ -425,6 +425,36 @@ test('submit rejects overlapping active leave when multiple applications per day
     ), ['overlapping_request']);
 });
 
+test('submit rejects a conflicting portion on the same day even when multiple applications are allowed', function (): void {
+    [$company, $employee, $assignment, $type] = createLeaveAssignment([
+        'request_policy' => ['allow_multiple_applications_per_day' => true],
+    ]);
+
+    recordLeaveLedgerEntry(app(LeaveBalanceLedgerService::class), [
+        'companyId' => $company->id, 'employeeId' => $employee->id, 'leaveTypeId' => $type->id, 'leaveYear' => 2026,
+        'entryType' => LeaveBalanceLedgerEntry::ENTRY_OPENING, 'quantity' => 21, 'unit' => 'day',
+        'sourceType' => LeaveBalanceLedgerEntry::SOURCE_MANUAL_ADJUSTMENT,
+    ]);
+
+    app(SubmitLeaveRequestService::class)->submit(
+        employee: $employee,
+        assignment: $assignment,
+        startsOn: new DateTimeImmutable('2026-11-03'),
+        endsOn: new DateTimeImmutable('2026-11-03'),
+        options: ['country_iso' => 'MY'],
+    );
+
+    // The coarse range check is bypassed by the policy, so only the per-day
+    // portion-conflict check stands between this and a double booking.
+    expectLeaveValidation(fn () => app(SubmitLeaveRequestService::class)->submit(
+        employee: $employee,
+        assignment: $assignment,
+        startsOn: new DateTimeImmutable('2026-11-03'),
+        endsOn: new DateTimeImmutable('2026-11-03'),
+        options: ['country_iso' => 'MY'],
+    ), ['overlapping_request']);
+});
+
 test('submit treats pending requests as encumbered balance when policy enables it', function (): void {
     [$company, $employee, $assignment, $type] = createLeaveAssignment();
 

@@ -17,11 +17,11 @@ class StatutoryProfileResolver
         return PayrollEmployerStatutoryProfile::query()
             ->where('company_id', $companyId)
             ->where('country_iso', strtoupper($countryIso))
-            ->where('effective_from', '<=', $this->dateString($onDate))
+            ->whereDate('effective_from', '<=', $this->dateString($onDate))
             ->where(function ($query) use ($onDate): void {
                 $date = $this->dateString($onDate);
                 $query->whereNull('effective_to')
-                    ->orWhere('effective_to', '>=', $date);
+                    ->orWhereDate('effective_to', '>=', $date);
             })
             ->orderByDesc('effective_from')
             ->first();
@@ -34,11 +34,11 @@ class StatutoryProfileResolver
         return PayrollEmployeeStatutoryProfile::query()
             ->where('employee_id', $employeeId)
             ->where('country_iso', strtoupper($countryIso))
-            ->where('effective_from', '<=', $this->dateString($onDate))
+            ->whereDate('effective_from', '<=', $this->dateString($onDate))
             ->where(function ($query) use ($onDate): void {
                 $date = $this->dateString($onDate);
                 $query->whereNull('effective_to')
-                    ->orWhere('effective_to', '>=', $date);
+                    ->orWhereDate('effective_to', '>=', $date);
             })
             ->orderByDesc('effective_from')
             ->first();

@@ -66,10 +66,10 @@ class RecordLeaveContribution
 
         $mapping = PayrollLeaveTypePayItem::query()
             ->where('leave_type_id', $event->leaveTypeId)
-            ->where('effective_from', '<=', $occurredOn)
+            ->whereDate('effective_from', '<=', $occurredOn)
             ->where(function ($query) use ($occurredOn): void {
                 $query->whereNull('effective_to')
-                    ->orWhere('effective_to', '>', $occurredOn);
+                    ->orWhereDate('effective_to', '>', $occurredOn);
             })
             ->orderByDesc('effective_from')
             ->first();
