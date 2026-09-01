@@ -19,6 +19,7 @@ use App\Domains\People\Payroll\Models\PayrollStatutoryRuleRow;
 use App\Domains\People\Payroll\Models\PayrollStatutoryRuleSet;
 use App\Domains\People\Payroll\Services\PayrollRunCalculator;
 use App\Domains\People\Settings\Database\Seeders\Dev\DevPeopleSettingsSeeder;
+use Illuminate\Support\Carbon;
 
 class DevPayrollSeeder extends DevSeeder
 {
@@ -104,7 +105,8 @@ class DevPayrollSeeder extends DevSeeder
             [
                 'company_id' => $company->id,
                 'country_iso' => 'MY',
-                'effective_from' => self::EFFECTIVE_FROM,
+                // Carbon lookup keys: bare strings never match date casts (#54).
+                'effective_from' => Carbon::parse(self::EFFECTIVE_FROM),
             ],
             [
                 'source_pack' => self::PAYROLL_MY_SOURCE_PACK,
@@ -134,7 +136,7 @@ class DevPayrollSeeder extends DevSeeder
                         'company_id' => $company->id,
                         'employee_id' => $employee->id,
                         'country_iso' => 'MY',
-                        'effective_from' => self::EFFECTIVE_FROM,
+                        'effective_from' => Carbon::parse(self::EFFECTIVE_FROM),
                     ],
                     [
                         'source_pack' => self::PAYROLL_MY_SOURCE_PACK,
