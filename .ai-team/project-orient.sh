@@ -153,8 +153,9 @@ cat <<'TXT'
   a control that   Before reporting any control, negative test, or mutation
   cannot fail      run, ask two things: what failure is it supposed to be able
                    to PRODUCE, and is the injected fault actually of that kind
-                   AND run where that kind of fault exists. Six instances in
-                   two days, across four different agents:
+                   AND run where that kind of fault exists -- against the code
+                   you just changed, not a stale copy of it. Seven instances in
+                   two days, across five different agents:
 
                      - a mutation script whose shell escaping never applied the
                        mutation, so the suite passed and reported full coverage
@@ -170,6 +171,14 @@ cat <<'TXT'
                      - a loop control injecting a RuntimeException to prove the
                        loop survives a DATABASE failure. A RuntimeException
                        cannot poison a connection, so it proved nothing
+                     - a trigger control run against the PERSISTENT postgres
+                       test database: editing a migration and re-running pest
+                       reads the triggers already installed, not the ones in
+                       the file. It produced a convincing false positive -- a
+                       driver divergence that did not exist -- and was caught
+                       only because the reviewer distrusted the result. A pg
+                       trigger control must drop and recreate the database
+                       first
 
                    Every one of these REPORTS SUCCESS. That is what makes the
                    class dangerous: a broken control does not error, it agrees
