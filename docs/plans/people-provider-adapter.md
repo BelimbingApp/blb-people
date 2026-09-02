@@ -1,8 +1,8 @@
 # People provider adapter
 
-**Status:** Foundation published; adapter implementation blocked on identity and synchronization prerequisites
+**Status:** Foundation and connector access boundary published; adapter implementation remains blocked on synchronization prerequisites
 **Last Updated:** 2026-09-02
-**Sources:** provider contract [BelimbingApp/blb-people#22](https://github.com/BelimbingApp/blb-people/issues/22), first-party adapter [#27](https://github.com/BelimbingApp/blb-people/issues/27), identity/authentication [#25](https://github.com/BelimbingApp/blb-people/issues/25), synchronization [#26](https://github.com/BelimbingApp/blb-people/issues/26), connector SDK [BelimbingApp/blb-people-connector#1](https://github.com/BelimbingApp/blb-people-connector/pull/1), and native projection seam [BelimbingApp/blb-people#39](https://github.com/BelimbingApp/blb-people/pull/39)
+**Sources:** provider contract [BelimbingApp/blb-people#22](https://github.com/BelimbingApp/blb-people/issues/22), supplemental persistence [#24](https://github.com/BelimbingApp/blb-people/issues/24), first-party adapter [#27](https://github.com/BelimbingApp/blb-people/issues/27), identity/authentication [#25](https://github.com/BelimbingApp/blb-people/issues/25), synchronization [#26](https://github.com/BelimbingApp/blb-people/issues/26), connector SDK [BelimbingApp/blb-people-connector#1](https://github.com/BelimbingApp/blb-people-connector/pull/1), connector persistence foundation [BelimbingApp/blb-people-connector#2](https://github.com/BelimbingApp/blb-people-connector/pull/2), connector access boundary [BelimbingApp/blb-people-connector#21](https://github.com/BelimbingApp/blb-people-connector/pull/21), and native projection seam [BelimbingApp/blb-people#39](https://github.com/BelimbingApp/blb-people/pull/39)
 **Agents:** codex/gpt-5, desktop-sol
 
 ## Problem Essence
@@ -55,6 +55,8 @@ This table is a publication record, not a claim that either real adapter already
 ## Connector repository handoff
 
 `BelimbingApp/blb-people-connector` is now the canonical installable home for the connector foundation. It is an optional nested BLB Domain mounted at `app/Domains/PeopleConnector/`; its [README installation procedure](https://github.com/BelimbingApp/blb-people-connector/blob/main/README.md), [Domain module manifest](https://github.com/BelimbingApp/blb-people-connector/blob/main/Connector/composer.json), and [owner-controlled CI](https://github.com/BelimbingApp/blb-people-connector/blob/main/.github/workflows/ci.yml) make that placement explicit.
+
+The `[1004]` persistence foundation is partially landed in [BelimbingApp/blb-people-connector#2](https://github.com/BelimbingApp/blb-people-connector/pull/2) at merge `c8bff0572ffdc044bea98b300132f111d31b56b9`. It establishes tenant/company ownership, provider-linked stable references, remap/merge provenance, append-only snapshots, checkpoints, and reconciliation state, and is explicitly marked as part of #24 rather than a closure of it. The remaining #24 acceptance is not present in this People repository: connector-owned export/backup/restore, privacy deletion and retention, and the complete Skill/Training aggregates must land in the connector modules and their downstream child lanes before #24 can close.
 
 The current foundation provides the acceptance boundary for #23:
 
