@@ -52,6 +52,35 @@ The current People contract is an internal application seam, not a public remote
 
 This table is a publication record, not a claim that either real adapter already exists. It keeps #22's SDK result separate from #27/#28's provider certification and preserves the dependency spine `#22 → #23/#25/#26 → #27/#28`.
 
+## Connector repository handoff
+
+`BelimbingApp/blb-people-connector` is now the canonical installable home for the connector foundation. It is an optional nested BLB Domain mounted at `app/Domains/PeopleConnector/`; its [README installation procedure](https://github.com/BelimbingApp/blb-people-connector/blob/main/README.md), [Domain module manifest](https://github.com/BelimbingApp/blb-people-connector/blob/main/Connector/composer.json), and [owner-controlled CI](https://github.com/BelimbingApp/blb-people-connector/blob/main/.github/workflows/ci.yml) make that placement explicit.
+
+The current foundation provides the acceptance boundary for #23:
+
+- **Install and disconnected state:** the module can be mounted without a provider; [`active_provider` defaults to `null`](https://github.com/BelimbingApp/blb-people-connector/blob/main/Connector/Config/people-connector.php), and the [Connections feature tests](https://github.com/BelimbingApp/blb-people-connector/blob/main/Connector/Tests/Feature/ConnectionsPageTest.php) cover both unconfigured and missing-adapter states.
+- **Secret-free configuration:** the [foundation migration](https://github.com/BelimbingApp/blb-people-connector/blob/main/Connector/Database/Migrations/0330_01_01_000000_create_people_connector_foundation_tables.php) stores provider identity and allowlisted public metadata, not credentials or tokens. Connection diagnostics and ordinary settings must continue to use the same redacted boundary.
+- **Provider-neutral feature seam:** [port resolution](https://github.com/BelimbingApp/blb-people-connector/blob/main/Connector/Services/ProviderPortResolver.php) rejects undeclared operations before an adapter is called; feature modules resolve ports through the neutral contract rather than importing an adapter.
+- **One authoritative provider:** the [connection model and migration](https://github.com/BelimbingApp/blb-people-connector/blob/main/Connector/Models/ProviderConnection.php) enforce tenant/company scope and one active connection for a scope, while the [registry](https://github.com/BelimbingApp/blb-people-connector/blob/main/Connector/Services/ProviderRegistry.php) keeps installed adapters separate from the selected provider.
+- **Tenant, authorization, audit, and tests:** tenant-owned connector records use the shared tenancy boundary; connector permissions are declared in [`authz.php`](https://github.com/BelimbingApp/blb-people-connector/blob/main/Connector/Config/authz.php); provider identity, configuration, activation, health, projection, and reconciliation mutations must emit tenant-scoped audit evidence without secrets. The persistence and retention implementation is explicitly owned by [#24](https://github.com/BelimbingApp/blb-people/issues/24), so this handoff does not claim that the full audit/export/deletion lifecycle is finished.
+
+The legacy Skill and Training sequence is explicitly retained in the owning People board rather than silently disappearing during the repository split:
+
+| Legacy identity | Current tracked issue | Connector disposition |
+| --- | --- | --- |
+| `[0000]` | [#9](https://github.com/BelimbingApp/blb-people/issues/9) | Connector-owned Skill and Training spine; implementation remains tracked in `blb-people` until its modules land in the connector. |
+| `[0001]` | [#10](https://github.com/BelimbingApp/blb-people/issues/10) | Connector implementation is also tracked by [connector #5](https://github.com/BelimbingApp/blb-people-connector/pull/5); the People issue remains the coordination record. |
+| `[0002]` | [#11](https://github.com/BelimbingApp/blb-people/issues/11) | Connector-owned requirement catalogue; explicitly tracked, not superseded. |
+| `[0003]` | [#12](https://github.com/BelimbingApp/blb-people/issues/12) | Connector-owned assessment and matrix; explicitly tracked, not superseded. |
+| `[0004]` | [#13](https://github.com/BelimbingApp/blb-people/issues/13) | Connector-owned development actions; explicitly tracked, not superseded. |
+| `[0005]` | [#14](https://github.com/BelimbingApp/blb-people/issues/14) | Connector-owned training catalogue and events; explicitly tracked, not superseded. |
+| `[0006]` | [#15](https://github.com/BelimbingApp/blb-people/issues/15) | Connector-owned reassessment and score history; explicitly tracked, not superseded. |
+| `[0007]` | [#16](https://github.com/BelimbingApp/blb-people/issues/16) | Connector-owned dashboards and coverage; explicitly tracked, not superseded. |
+| `[0008]` | [#17](https://github.com/BelimbingApp/blb-people/issues/17) | Connector-owned workbook import and starter profiles; explicitly tracked, not superseded. |
+| `[0009]` | [#18](https://github.com/BelimbingApp/blb-people/issues/18) | Connector-owned automation and cutover governance; explicitly tracked, not superseded. |
+
+Connector repository follow-up issues [#3](https://github.com/BelimbingApp/blb-people-connector/issues/3), [#6](https://github.com/BelimbingApp/blb-people-connector/issues/6), [#8](https://github.com/BelimbingApp/blb-people-connector/issues/8), and [#16](https://github.com/BelimbingApp/blb-people-connector/issues/16) remain linked operational/conformance work. They do not replace the `[0000]`–`[0009]` product sequence above.
+
 ## Phases
 
 ### Provider-neutral SDK publication
