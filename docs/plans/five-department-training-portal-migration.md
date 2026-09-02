@@ -62,9 +62,9 @@ HR owns a single inventory register. It records every source system, workbook,
 departmental spreadsheet, shared drive, and paper/archive batch that might hold
 in-scope records. Each row must contain:
 
-- source name and immutable export identifier (file hash, extract run ID, or
-  database snapshot ID), owner/custodian, department, format, record count and
-  date range;
+- source name, tenant, stable source-installation ID, and immutable export
+  identifier (file hash, extract run ID, or database snapshot ID),
+  owner/custodian, department, format, record count and date range;
 - data classification, legal/retention rule, access group, and whether special
   categories or evidence files are present;
 - data-quality findings (missing identity, duplicate identity, invalid dates,
@@ -115,11 +115,15 @@ purpose, minimum data set, retention, access groups, and transfer route.
 ## Dry run, reconciliation, and restart protocol
 
 Every run receives an immutable manifest ID and mapping version. Target records
-store the manifest ID plus the source system and stable source record ID. The
-idempotency key is `(source system, stable source record ID, record family)`;
+store the manifest ID plus the tenant, source system, stable source-installation
+ID, and stable source record ID. The idempotency key is `(tenant ID, source
+system, source-installation ID, stable source record ID, record family)`;
 re-running a completed package resolves the same target record instead of
-creating another one. The run ledger has `prepared`, `validated`, `importing`,
-`reconciled`, `approved`, `rolled_back`, and `quarantined` states.
+creating another one. A source-installation ID distinguishes independent
+instances of the same vendor/system and is immutable for the life of the
+installation; it is never inferred from a display name or endpoint. The run
+ledger has `prepared`, `validated`, `importing`, `reconciled`, `approved`,
+`rolled_back`, and `quarantined` states.
 
 Validation occurs before writes for required identifiers, tenant/department
 membership, codes, dates, referential integrity, duplicate identity, evidence
