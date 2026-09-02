@@ -1,9 +1,9 @@
 # People provider adapter
 
-**Status:** Foundation published; adapter implementation blocked on identity and synchronization prerequisites
+**Status:** Foundation and connector access boundary published; adapter implementation remains blocked on synchronization prerequisites
 **Last Updated:** 2026-09-02
-**Sources:** provider contract [BelimbingApp/blb-people#22](https://github.com/BelimbingApp/blb-people/issues/22), first-party adapter [#27](https://github.com/BelimbingApp/blb-people/issues/27), identity/authentication [#25](https://github.com/BelimbingApp/blb-people/issues/25), synchronization [#26](https://github.com/BelimbingApp/blb-people/issues/26), connector SDK [BelimbingApp/blb-people-connector#1](https://github.com/BelimbingApp/blb-people-connector/pull/1), and native projection seam [BelimbingApp/blb-people#39](https://github.com/BelimbingApp/blb-people/pull/39)
-**Agents:** codex/gpt-5, desktop-sol
+**Sources:** provider contract [BelimbingApp/blb-people#22](https://github.com/BelimbingApp/blb-people/issues/22), first-party adapter [#27](https://github.com/BelimbingApp/blb-people/issues/27), identity/authentication [#25](https://github.com/BelimbingApp/blb-people/issues/25), synchronization [#26](https://github.com/BelimbingApp/blb-people/issues/26), connector SDK [BelimbingApp/blb-people-connector#1](https://github.com/BelimbingApp/blb-people-connector/pull/1), connector access boundary [BelimbingApp/blb-people-connector#21](https://github.com/BelimbingApp/blb-people-connector/pull/21), and native projection seam [BelimbingApp/blb-people#39](https://github.com/BelimbingApp/blb-people/pull/39)
+**Agents:** codex/gpt-5, desktop-sol, desktop-luna
 
 ## Problem Essence
 
@@ -55,6 +55,8 @@ This table is a publication record, not a claim that either real adapter already
 ## Connector repository handoff
 
 `BelimbingApp/blb-people-connector` is now the canonical installable home for the connector foundation. It is an optional nested BLB Domain mounted at `app/Domains/PeopleConnector/`; its [README installation procedure](https://github.com/BelimbingApp/blb-people-connector/blob/main/README.md), [Domain module manifest](https://github.com/BelimbingApp/blb-people-connector/blob/main/Connector/composer.json), and [owner-controlled CI](https://github.com/BelimbingApp/blb-people-connector/blob/main/.github/workflows/ci.yml) make that placement explicit.
+
+The `[1005]` connector-side identity and access boundary is landed in [BelimbingApp/blb-people-connector#21](https://github.com/BelimbingApp/blb-people-connector/pull/21) at merge `6d257505c432f81a695d1609886b25bab649e095`. It owns the short-lived audience/scope-bound credential records, provider UI hand-off validation, provider-port authorization evidence, revocation-aware connection checks, and time-boxed two-person support records. `blb-people` remains route-closed and does not duplicate credential storage or provider-session emulation; the later adapter/transport lanes consume this connector boundary through their existing People projection seam.
 
 The current foundation provides the acceptance boundary for #23:
 
