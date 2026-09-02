@@ -8,7 +8,11 @@
 ## Decision and non-negotiables
 
 This migration replaces the existing training portal as the system of record for
-the five named departments. It does not start with an import. HR must first
+the initial five-department SBTG cohort. The cohort is an adoption and acceptance
+scope, not a product limit: department, position, profile, and HOD assignments
+must be inventory-driven configuration, so another company may migrate any
+number or shape of departments without a code change. It does not start with an
+import. HR must first
 approve a signed inventory, a mapping workbook, and a dry-run reconciliation.
 Until the cutover decision, the legacy portal remains authoritative for its
 existing workflows. After the agreed freeze, exactly one system may accept
@@ -46,7 +50,7 @@ not assumptions embedded in a script or import file.
 | 0 — discover | HR appoints data owners and approves a read-only extraction window. | Signed source inventory and classification register; HR governor. |
 | 1 — map | Inventory is complete; target features are available or explicitly deferred. | Versioned field/code mapping, source-of-truth register, retention decision; HR plus data owners. |
 | 2 — dry run | Mapping and approved encrypted transfer path exist. | Import manifest, validation/reconciliation report, quarantine register, rollback rehearsal; HR and People technical owner. |
-| 3 — pilot | Dry run has no unresolved critical reconciliation exceptions. | Departmental end-to-end evidence and named HOD sign-off for all five departments. |
+| 3 — pilot | Dry run has no unresolved critical reconciliation exceptions. | Departmental end-to-end evidence and named HOD sign-off for every approved-cohort department (five initially for SBTG). |
 | 4 — cut over | Pilot is accepted and support/training communications are ready. | Freeze record, cutover checklist, go/no-go record; HR governor and every named HOD. |
 | 5 — close | Reconciliation and monitoring pass during the agreed hypercare period. | Final reconciliation, legacy disposition record, acceptance metrics; HR and records/privacy owner. |
 
@@ -153,10 +157,11 @@ The go/no-go record identifies the technical executor, recovery owner, decision
 authority, maximum rollback window, communications channel, and the last safe
 backup/manifest. No cutover begins without a tested restore path.
 
-## Five-department pilot and cutover
+## Cohort pilot and cutover
 
-Configure the workbook's Production, Engineering, QAC/R&D, Planning, and IT
-profiles as drafts first. HR and each HOD validate the name, requirements,
+Configure the approved cohort's profiles as drafts first. For the initial SBTG
+cohort, these are Production, Engineering, QAC/R&D, Planning, and IT. HR and
+each HOD validate the name, requirements,
 assessors, mandatory training, gaps, action ownership, and profile version
 before publication. Each department completes one end-to-end pilot path:
 
@@ -202,7 +207,7 @@ without HR's written conflict-of-interest decision.
 | Signed source inventory and field/code mapping before production import | Inventory register signed by HR/HOD/records owner; versioned mapping workbook and source-of-truth register | 0–1 |
 | Provenance and reconciliation for every migrated record | Immutable manifest, per-record import ledger, quarantine register, and reconciliation report covering evidence/certificates and history | 2, 5 |
 | No two authoritative writers during cutover | Workflow-by-workflow freeze matrix, cutover runbook, and signed system-of-record timestamp | 4 |
-| End-to-end pilot for all five departments | Five HOD acceptance records with requirement-to-score/effectiveness evidence | 3 |
+| End-to-end pilot for the approved cohort | One HOD acceptance record per approved cohort department, with requirement-to-score/effectiveness evidence (five for the initial SBTG cohort) | 3 |
 | HR governance and HOD ownership | RACI plus HR and each HOD signed profile/assessor/gap/action approvals | 1, 3–4 |
 | Dry-runnable, resumable, idempotent migration and honest rejection handling | Versioned manifest, idempotency-key specification, rerun result, validation report, and remediated quarantine samples | 2 |
 | Tested and approved rollback / irreversible boundary | Rollback rehearsal report, restore result, maximum rollback window, and signed irreversible-boundary decision | 2, 4 |
@@ -217,8 +222,9 @@ approved tenant-safe import/provenance seams before a production run. Where a
 target record family is not implemented, it stays in the mapping workbook as a
 gated dependency rather than being imported into an ad hoc substitute.
 
-The first executable action is for HR to appoint the five HOD data owners and
-create the Gate 0 inventory register. The plan is accepted when the signed
+The first executable action is for HR to appoint one HOD data owner for each
+department in the approved cohort and create the Gate 0 inventory register. The
+plan is accepted when the signed
 inventory, approved mapping/source-of-truth register, dry-run and rollback
-evidence, five pilot sign-offs, cutover record, and post-cutover reconciliation
+evidence, one pilot sign-off per cohort department, cutover record, and post-cutover reconciliation
 are attached or linked from the migration decision record.
