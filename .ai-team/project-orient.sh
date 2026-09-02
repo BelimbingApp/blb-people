@@ -150,6 +150,36 @@ cat <<'TXT'
                    real. Reproduce serially before treating anything as a
                    regression.
 
+  a control that   Before reporting any control, negative test, or mutation
+  cannot fail      run, ask what failure it is supposed to be able to PRODUCE,
+                   and check the injected fault is actually of that kind. Six
+                   instances in two days, across four different agents:
+
+                     - a mutation script whose shell escaping never applied the
+                       mutation, so the suite passed and reported full coverage
+                     - `grep -c "$var"` where the variable expanded to nothing,
+                       returning 0 and reading as a real negative
+                     - a scripted edit that aborted before writing, so a later
+                       step reported a change that was never made
+                     - a new test file borrowing helpers from another file, so
+                       BOTH the reproduction and its control failed with
+                       "undefined function" rather than the defect
+                     - a falsifier that passes because it only runs on the
+                       driver where the defect does not exist
+                     - a loop control injecting a RuntimeException to prove the
+                       loop survives a DATABASE failure. A RuntimeException
+                       cannot poison a connection, so it proved nothing
+
+                   Every one of these REPORTS SUCCESS. That is what makes the
+                   class dangerous: a broken control does not error, it agrees
+                   with you, and it looks like the strongest evidence you have.
+
+                   Cheap defences that have each caught a real instance here:
+                   assert the anchor matched exactly once before mutating; use
+                   fixed-string grep and quote nothing into a pattern; assert
+                   the COUNT of things exercised, not just that they passed;
+                   and run the control on the driver the defect lives on.
+
 == project: commands worth knowing ==
   docs/ai-team/scripts/orient.sh                                    read the board
   docs/ai-team/scripts/claim.sh <issue>                             claim a task
