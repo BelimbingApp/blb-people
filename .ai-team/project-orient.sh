@@ -151,9 +151,10 @@ cat <<'TXT'
                    regression.
 
   a control that   Before reporting any control, negative test, or mutation
-  cannot fail      run, ask what failure it is supposed to be able to PRODUCE,
-                   and check the injected fault is actually of that kind. Six
-                   instances in two days, across four different agents:
+  cannot fail      run, ask two things: what failure is it supposed to be able
+                   to PRODUCE, and is the injected fault actually of that kind
+                   AND run where that kind of fault exists. Six instances in
+                   two days, across four different agents:
 
                      - a mutation script whose shell escaping never applied the
                        mutation, so the suite passed and reported full coverage
@@ -174,11 +175,20 @@ cat <<'TXT'
                    class dangerous: a broken control does not error, it agrees
                    with you, and it looks like the strongest evidence you have.
 
+                   The second half of the rule is not theoretical. The fix
+                   for the sixth instance injects a NOT NULL violation to
+                   poison a connection. That is the right KIND of fault -- on
+                   PostgreSQL the next trivial SELECT then fails with 25P02,
+                   confirming the connection is genuinely poisoned. Run the
+                   same control on SQLite and nothing aborts at all: every
+                   route is named, as if the guard worked. A correct control
+                   on the wrong driver is still a control that cannot fail.
+
                    Cheap defences that have each caught a real instance here:
                    assert the anchor matched exactly once before mutating; use
                    fixed-string grep and quote nothing into a pattern; assert
                    the COUNT of things exercised, not just that they passed;
-                   and run the control on the driver the defect lives on.
+                   and check the control fails BEFORE trusting that it passes.
 
 == project: commands worth knowing ==
   docs/ai-team/scripts/orient.sh                                    read the board
