@@ -2,7 +2,7 @@
 
 People (HR) domain for the [Belimbing (BLB)](https://github.com/BelimbingApp/belimbing) framework: Attendance, Leave, Claim, Payroll, Benefits, Performance, Recruitment, Training, the Employees workbench, and People Settings.
 
-The `people/provider` Module publishes a tenant-scoped, transport-neutral workforce bootstrap seam for the first-party People connector adapter. It deliberately has no HTTP route yet: remote access remains closed until the service-authentication and authorization work tracked by `BelimbingApp/blb-people#25` is available. Co-located and future authenticated remote adapters must delegate to the same People-owned service rather than read native tables directly.
+The `people/provider` Module publishes a tenant-scoped, transport-neutral workforce bootstrap seam for the first-party People connector adapter. The canonical provider-neutral SDK and common adapter conformance runner are owned by [`BelimbingApp/blb-people-connector`](https://github.com/BelimbingApp/blb-people-connector/tree/main/Connector); this Domain does not import that optional consumer. It deliberately has no HTTP route yet: remote access remains closed until the service-authentication and authorization work tracked by `BelimbingApp/blb-people#25` is available. Co-located and future authenticated remote adapters must delegate to the same People-owned service rather than read native tables directly.
 
 Ownership between the HR provider and the connector — which system is authoritative for which data, what the connector is allowed to store, and how the two different things called "company" are told apart — is decided in [`docs/contracts/hr-data-boundary.md`](docs/contracts/hr-data-boundary.md).
 
