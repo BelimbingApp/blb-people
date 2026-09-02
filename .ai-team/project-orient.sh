@@ -106,6 +106,20 @@ cat <<'TXT'
                    GitHub Development-panel link: a lane gated as issue-less can
                    still close an issue through it. Tracked as ai-team#67.
 
+                   Body text is safer than the panel but is NOT safe. GitHub
+                   matches a closing keyword next to an issue reference anywhere
+                   in the body and does not parse negation, so the sentence
+                   "this does not close #38" CLOSES #38. That is how #38 was
+                   wrongly closed by #50, a planning PR whose body said in bold
+                   that it closed nothing. The trap fires on careful authors:
+                   stacked PRs and planning deliverables are the two lanes that
+                   most often need to say "this does not close X".
+                   Safe phrasing uses a non-keyword verb -- "does not complete
+                   #38". Before you merge anything, read what will close:
+                     gh api graphql -f query='{repository(owner:"OWNER",name:"REPO")
+                       {pullRequest(number:N){closingIssuesReferences(first:10)
+                       {nodes{number state repository{nameWithOwner}}}}}}'
+
   rare CI          CI runs only on push, PR, and manual dispatch — there is no
                    schedule. This repository carried a bug that fails one day a
                    month and it survived at least two of them undetected, until
