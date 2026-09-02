@@ -150,6 +150,55 @@ cat <<'TXT'
                    real. Reproduce serially before treating anything as a
                    regression.
 
+  a control that   Before reporting any control, negative test, or mutation
+  cannot fail      run, ask two things: what failure is it supposed to be able
+                   to PRODUCE, and is the injected fault actually of that kind
+                   AND run where that kind of fault exists -- against the code
+                   you just changed, not a stale copy of it. Seven instances in
+                   two days, across five different agents:
+
+                     - a mutation script whose shell escaping never applied the
+                       mutation, so the suite passed and reported full coverage
+                     - `grep -c "$var"` where the variable expanded to nothing,
+                       returning 0 and reading as a real negative
+                     - a scripted edit that aborted before writing, so a later
+                       step reported a change that was never made
+                     - a new test file borrowing helpers from another file, so
+                       BOTH the reproduction and its control failed with
+                       "undefined function" rather than the defect
+                     - a falsifier that passes because it only runs on the
+                       driver where the defect does not exist
+                     - a loop control injecting a RuntimeException to prove the
+                       loop survives a DATABASE failure. A RuntimeException
+                       cannot poison a connection, so it proved nothing
+                     - a trigger control run against the PERSISTENT postgres
+                       test database: editing a migration and re-running pest
+                       reads the triggers already installed, not the ones in
+                       the file. It produced a convincing false positive -- a
+                       driver divergence that did not exist -- and was caught
+                       only because the reviewer distrusted the result. A pg
+                       trigger control must drop and recreate the database
+                       first
+
+                   Every one of these REPORTS SUCCESS. That is what makes the
+                   class dangerous: a broken control does not error, it agrees
+                   with you, and it looks like the strongest evidence you have.
+
+                   The second half of the rule is not theoretical. The fix
+                   for the sixth instance injects a NOT NULL violation to
+                   poison a connection. That is the right KIND of fault -- on
+                   PostgreSQL the next trivial SELECT then fails with 25P02,
+                   confirming the connection is genuinely poisoned. Run the
+                   same control on SQLite and nothing aborts at all: every
+                   route is named, as if the guard worked. A correct control
+                   on the wrong driver is still a control that cannot fail.
+
+                   Cheap defences that have each caught a real instance here:
+                   assert the anchor matched exactly once before mutating; use
+                   fixed-string grep and quote nothing into a pattern; assert
+                   the COUNT of things exercised, not just that they passed;
+                   and check the control fails BEFORE trusting that it passes.
+
 == project: commands worth knowing ==
   docs/ai-team/scripts/orient.sh                                    read the board
   docs/ai-team/scripts/claim.sh <issue>                             claim a task
