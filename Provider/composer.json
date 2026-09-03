@@ -16,7 +16,8 @@
             "requires-modules": {
                 "core/company": "*",
                 "core/employee": "*",
-                "core/user": "*"
+                "core/user": "*",
+                "people/settings": "*"
             },
             "optional-modules": {},
             "publishes-events": [],
