@@ -16,6 +16,7 @@ use App\Domains\People\Provider\Data\WorkforceEmployee;
 use App\Domains\People\Provider\Data\WorkforceOrganizationUnit;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Provider\Exceptions\WorkforceProjectionException;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
@@ -62,12 +63,16 @@ final class NativeWorkforceBootstrapReader implements ReadsWorkforceBootstrap
         $hasMore = $rows->count() > $request->limit;
         $pageRows = $rows->take($request->limit)->values();
         $relatedEmployeeCompanies = $this->relatedEmployeeCompanies($tenantId, $pageRows);
+        $confirmedPortalUserIds = $this->confirmedPortalUserIds($pageRows);
+        $revokedPortalAccessEmployeeIds = $this->revokedPortalAccessEmployeeIds($pageRows);
         $employees = $pageRows
             ->map(fn (Employee $employee): WorkforceEmployee => $this->projectEmployee(
                 $employee,
                 $cursor->startedAt,
                 $organizationCompanies,
                 $relatedEmployeeCompanies,
+                $confirmedPortalUserIds,
+                $revokedPortalAccessEmployeeIds,
             ))
             ->all();
 
@@ -211,6 +216,59 @@ final class NativeWorkforceBootstrapReader implements ReadsWorkforceBootstrap
             ->map(static fn (mixed $companyId): int => (int) $companyId);
     }
 
+    /**
+     * The employee-to-platform-user link is an HR identity assertion, not a
+     * platform account setting: see docs/contracts/hr-data-boundary.md rule
+     * 8.3. `users.employee_id` alone is gated only by Core's generic
+     * `admin.user.update`, so it is necessary but not sufficient here. This
+     * additionally requires an active `EmployeePortalAccess` record, which is
+     * written only by a principal holding the HR-specific
+     * `people.employee.manage` permission and carries its own revocation.
+     *
+     * @param  EloquentCollection<int, Employee>  $employees
+     * @return Collection<int, int> employee ID => confirmed user ID
+     */
+    private function confirmedPortalUserIds(EloquentCollection $employees): Collection
+    {
+        $employeeIds = $employees->map(static fn (Employee $employee): int => (int) $employee->getKey());
+
+        if ($employeeIds->isEmpty()) {
+            return collect();
+        }
+
+        return EmployeePortalAccess::query()
+            ->whereIn('employee_id', $employeeIds->all())
+            ->where('status', EmployeePortalAccess::STATUS_ACTIVE)
+            ->whereNotNull('user_id')
+            ->pluck('user_id', 'employee_id')
+            ->map(static fn (mixed $userId): int => (int) $userId);
+    }
+
+    /**
+     * An explicitly revoked EmployeePortalAccess row is a positive statement
+     * that a previously-confirmed user link is gone, distinct from a link
+     * that was simply never confirmed. The connector uses this to clear an
+     * already-projected user_entity_id instead of leaving it stale — see
+     * WorkforceEmployee::$userReferenceRevoked and rule 9.1.
+     *
+     * @param  EloquentCollection<int, Employee>  $employees
+     * @return Collection<int, true> employee ID => true, for O(1) membership checks
+     */
+    private function revokedPortalAccessEmployeeIds(EloquentCollection $employees): Collection
+    {
+        $employeeIds = $employees->map(static fn (Employee $employee): int => (int) $employee->getKey());
+
+        if ($employeeIds->isEmpty()) {
+            return collect();
+        }
+
+        return EmployeePortalAccess::query()
+            ->whereIn('employee_id', $employeeIds->all())
+            ->where('status', EmployeePortalAccess::STATUS_REVOKED)
+            ->pluck('employee_id')
+            ->mapWithKeys(static fn (mixed $employeeId): array => [(int) $employeeId => true]);
+    }
+
     private function employeeWatermark(int $tenantId): int
     {
         return (int) ($this->humanEmployees()
@@ -235,6 +293,8 @@ final class NativeWorkforceBootstrapReader implements ReadsWorkforceBootstrap
         DateTimeImmutable $fallback,
         Collection $organizationCompanies,
         Collection $relatedEmployeeCompanies,
+        Collection $confirmedPortalUserIds,
+        Collection $revokedPortalAccessEmployeeIds,
     ): WorkforceEmployee {
         $employeeId = (int) $employee->getKey();
         $companyId = (int) $employee->company_id;
@@ -259,6 +319,7 @@ final class NativeWorkforceBootstrapReader implements ReadsWorkforceBootstrap
         $userReference = $user !== null
             && (int) $user->employee_id === $employeeId
             && ($user->company_id === null || (int) $user->company_id === $companyId)
+            && $confirmedPortalUserIds->get($employeeId) === (int) $user->getKey()
                 ? $this->reference(WorkforceResourceType::User, (int) $user->getKey())
                 : null;
 
@@ -276,6 +337,7 @@ final class NativeWorkforceBootstrapReader implements ReadsWorkforceBootstrap
             managerReference: $managerReference,
             departmentHeadReference: $departmentHeadReference,
             sourceVersion: $this->sourceVersion($observedAt),
+            userReferenceRevoked: $userReference === null && $revokedPortalAccessEmployeeIds->has($employeeId),
         );
     }
 

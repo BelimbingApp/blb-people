@@ -9,6 +9,7 @@ use App\Core\User\Models\User;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceBootstrap;
 use App\Domains\People\Provider\Data\WorkforceBootstrapRequest;
 use App\Domains\People\Provider\Exceptions\InvalidWorkforceBootstrapCursorException;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
 
 test('workforce bootstrap fails closed without a tenant context', function (): void {
     app(TenantContext::class)->clear();
@@ -60,6 +61,39 @@ test('workforce bootstrap projects only the current tenant and drops unsafe rela
         'company_id' => $company->id,
         'employee_id' => $worker->id,
     ]);
+    EmployeePortalAccess::query()->create([
+        'employee_id' => $worker->id,
+        'user_id' => $workerUser->id,
+        'display_name' => $worker->displayName(),
+        'status' => EmployeePortalAccess::STATUS_ACTIVE,
+    ]);
+    $unconfirmedLinkWorker = Employee::factory()->create([
+        'company_id' => $company->id,
+        'employee_number' => 'P-005',
+        'full_name' => 'Unconfirmed Link Worker',
+        'employee_type' => 'full_time',
+    ]);
+    User::factory()->create([
+        'company_id' => $company->id,
+        'employee_id' => $unconfirmedLinkWorker->id,
+    ]);
+    $revokedLinkWorker = Employee::factory()->create([
+        'company_id' => $company->id,
+        'employee_number' => 'P-006',
+        'full_name' => 'Revoked Link Worker',
+        'employee_type' => 'full_time',
+    ]);
+    $revokedLinkWorkerUser = User::factory()->create([
+        'company_id' => $company->id,
+        'employee_id' => $revokedLinkWorker->id,
+    ]);
+    EmployeePortalAccess::query()->create([
+        'employee_id' => $revokedLinkWorker->id,
+        'user_id' => $revokedLinkWorkerUser->id,
+        'display_name' => $revokedLinkWorker->displayName(),
+        'status' => EmployeePortalAccess::STATUS_REVOKED,
+        'revoked_at' => now(),
+    ]);
     $outsider = Employee::factory()->create([
         'company_id' => $otherCompany->id,
         'employee_number' => 'O-001',
@@ -102,7 +136,7 @@ test('workforce bootstrap projects only the current tenant and drops unsafe rela
         ->and(collect($payload['organization_units'])->pluck('reference.external_id')->all())
         ->toBe([(string) $department->id])
         ->and($employees->keys()->sort()->values()->all())
-        ->toBe(['P-001', 'P-002', 'P-003', 'P-004'])
+        ->toBe(['P-001', 'P-002', 'P-003', 'P-004', 'P-005', 'P-006'])
         ->and($employees->has($outsider->employee_number))->toBeFalse()
         ->and($employees->has($agent->employee_number))->toBeFalse()
         ->and($employees->get('P-002')['reference']['external_id'])->toBe((string) $worker->id)
@@ -110,6 +144,16 @@ test('workforce bootstrap projects only the current tenant and drops unsafe rela
         ->and($employees->get('P-002')['organization_reference']['external_id'])->toBe((string) $department->id)
         ->and($employees->get('P-002')['manager_reference']['external_id'])->toBe((string) $manager->id)
         ->and($employees->get('P-002')['department_head_reference']['external_id'])->toBe((string) $manager->id)
+        // Core's users.employee_id link exists but no active EmployeePortalAccess
+        // confirms it — rule 8.3 requires the HR-governed confirmation, not just
+        // the platform-admin-settable link, before a user_reference is projected.
+        ->and($employees->get('P-005')['user_reference'])->toBeNull()
+        ->and($employees->get('P-005')['user_reference_revoked'])->toBeFalse()
+        // A revoked EmployeePortalAccess is a positive statement the link is
+        // gone (unlike P-005's, which was simply never confirmed), so the
+        // connector must be told to actively clear any existing projection.
+        ->and($employees->get('P-006')['user_reference'])->toBeNull()
+        ->and($employees->get('P-006')['user_reference_revoked'])->toBeTrue()
         ->and($employees->get('P-003')['reference']['external_id'])->toBe((string) $unsafeCrossTenantRelationship->id)
         ->and($employees->get('P-003')['manager_reference'])->toBeNull()
         ->and($employees->get('P-004')['reference']['external_id'])->toBe((string) $unsafeAgentRelationship->id)
