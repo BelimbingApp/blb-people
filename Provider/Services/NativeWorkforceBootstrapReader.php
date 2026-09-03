@@ -6,7 +6,6 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
 use App\Core\Company\Models\Department;
 use App\Core\Employee\Models\Employee;
-use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceBootstrap;
 use App\Domains\People\Provider\Data\ExternalReference;
 use App\Domains\People\Provider\Data\WorkforceBootstrapCursor;
@@ -17,6 +16,7 @@ use App\Domains\People\Provider\Data\WorkforceEmployee;
 use App\Domains\People\Provider\Data\WorkforceOrganizationUnit;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Provider\Exceptions\WorkforceProjectionException;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
@@ -221,7 +221,7 @@ final class NativeWorkforceBootstrapReader implements ReadsWorkforceBootstrap
      * `admin.user.update`, so it is necessary but not sufficient here. This
      * additionally requires an active `EmployeePortalAccess` record, which is
      * written only by a principal holding the HR-specific
-     * `people.settings.manage` permission and carries its own revocation.
+     * `people.employee.manage` permission and carries its own revocation.
      *
      * @param  EloquentCollection<int, Employee>  $employees
      * @return Collection<int, int> employee ID => confirmed user ID

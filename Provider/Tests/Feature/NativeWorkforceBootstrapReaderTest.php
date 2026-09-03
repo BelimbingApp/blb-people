@@ -7,9 +7,9 @@ use App\Core\Company\Models\DepartmentType;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceBootstrap;
-use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use App\Domains\People\Provider\Data\WorkforceBootstrapRequest;
 use App\Domains\People\Provider\Exceptions\InvalidWorkforceBootstrapCursorException;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
 
 test('workforce bootstrap fails closed without a tenant context', function (): void {
     app(TenantContext::class)->clear();
