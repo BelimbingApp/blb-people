@@ -64,6 +64,7 @@ final class NativeWorkforceBootstrapReader implements ReadsWorkforceBootstrap
         $pageRows = $rows->take($request->limit)->values();
         $relatedEmployeeCompanies = $this->relatedEmployeeCompanies($tenantId, $pageRows);
         $confirmedPortalUserIds = $this->confirmedPortalUserIds($pageRows);
+        $revokedPortalAccessEmployeeIds = $this->revokedPortalAccessEmployeeIds($pageRows);
         $employees = $pageRows
             ->map(fn (Employee $employee): WorkforceEmployee => $this->projectEmployee(
                 $employee,
@@ -71,6 +72,7 @@ final class NativeWorkforceBootstrapReader implements ReadsWorkforceBootstrap
                 $organizationCompanies,
                 $relatedEmployeeCompanies,
                 $confirmedPortalUserIds,
+                $revokedPortalAccessEmployeeIds,
             ))
             ->all();
 
@@ -242,6 +244,31 @@ final class NativeWorkforceBootstrapReader implements ReadsWorkforceBootstrap
             ->map(static fn (mixed $userId): int => (int) $userId);
     }
 
+    /**
+     * An explicitly revoked EmployeePortalAccess row is a positive statement
+     * that a previously-confirmed user link is gone, distinct from a link
+     * that was simply never confirmed. The connector uses this to clear an
+     * already-projected user_entity_id instead of leaving it stale — see
+     * WorkforceEmployee::$userReferenceRevoked and rule 9.1.
+     *
+     * @param  EloquentCollection<int, Employee>  $employees
+     * @return Collection<int, true> employee ID => true, for O(1) membership checks
+     */
+    private function revokedPortalAccessEmployeeIds(EloquentCollection $employees): Collection
+    {
+        $employeeIds = $employees->map(static fn (Employee $employee): int => (int) $employee->getKey());
+
+        if ($employeeIds->isEmpty()) {
+            return collect();
+        }
+
+        return EmployeePortalAccess::query()
+            ->whereIn('employee_id', $employeeIds->all())
+            ->where('status', EmployeePortalAccess::STATUS_REVOKED)
+            ->pluck('employee_id')
+            ->mapWithKeys(static fn (mixed $employeeId): array => [(int) $employeeId => true]);
+    }
+
     private function employeeWatermark(int $tenantId): int
     {
         return (int) ($this->humanEmployees()
@@ -267,6 +294,7 @@ final class NativeWorkforceBootstrapReader implements ReadsWorkforceBootstrap
         Collection $organizationCompanies,
         Collection $relatedEmployeeCompanies,
         Collection $confirmedPortalUserIds,
+        Collection $revokedPortalAccessEmployeeIds,
     ): WorkforceEmployee {
         $employeeId = (int) $employee->getKey();
         $companyId = (int) $employee->company_id;
@@ -309,6 +337,7 @@ final class NativeWorkforceBootstrapReader implements ReadsWorkforceBootstrap
             managerReference: $managerReference,
             departmentHeadReference: $departmentHeadReference,
             sourceVersion: $this->sourceVersion($observedAt),
+            userReferenceRevoked: $userReference === null && $revokedPortalAccessEmployeeIds->has($employeeId),
         );
     }
 

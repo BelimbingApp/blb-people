@@ -23,7 +23,21 @@ final readonly class WorkforceEmployee implements JsonSerializable
         public ?ExternalReference $managerReference = null,
         public ?ExternalReference $departmentHeadReference = null,
         public ?string $sourceVersion = null,
+        /**
+         * True only when this pass has a positive statement that a
+         * previously-linked user is no longer linked — e.g. an
+         * EmployeePortalAccess row that is status=revoked, as opposed to no
+         * row existing at all (still unconfirmed, not revoked). The
+         * connector's WorkforceProjectionStore uses this to decide whether a
+         * null $userReference should clear an existing projected link or
+         * leave it untouched. See rule 9.1 and BelimbingApp/blb-people#25.
+         */
+        public bool $userReferenceRevoked = false,
     ) {
+        if ($userReferenceRevoked && $userReference !== null) {
+            throw new \InvalidArgumentException('A workforce employee cannot both carry a user reference and report it revoked.');
+        }
+
         if ($reference->resourceType !== WorkforceResourceType::Employee
             || $companyReference->resourceType !== WorkforceResourceType::Company
             || ($userReference !== null && $userReference->resourceType !== WorkforceResourceType::User)
@@ -56,6 +70,7 @@ final readonly class WorkforceEmployee implements JsonSerializable
             'manager_reference' => $this->managerReference?->jsonSerialize(),
             'department_head_reference' => $this->departmentHeadReference?->jsonSerialize(),
             'source_version' => $this->sourceVersion,
+            'user_reference_revoked' => $this->userReferenceRevoked,
         ];
     }
 }
