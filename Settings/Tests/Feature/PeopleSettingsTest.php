@@ -139,6 +139,31 @@ test('employee portal access provisions accounts and records invitation delivery
         ->and($log->subject)->toBe('Employee access invitation');
 });
 
+test('re-provisioning an already-active or already-revoked employee portal access does not demote it back to pending', function (): void {
+    $company = Company::factory()->create();
+    $service = app(EmployeePortalAccessService::class);
+
+    $activeEmployee = Employee::factory()->create(['company_id' => $company->id, 'employee_number' => 'E0002']);
+    $activeUser = User::factory()->create(['company_id' => $company->id, 'employee_id' => $activeEmployee->id]);
+    $service->provision($activeEmployee, $activeUser)->activate();
+
+    $revokedEmployee = Employee::factory()->create(['company_id' => $company->id, 'employee_number' => 'E0003']);
+    $revokedUser = User::factory()->create(['company_id' => $company->id, 'employee_id' => $revokedEmployee->id]);
+    $service->provision($revokedEmployee, $revokedUser)->revoke();
+
+    // Re-provisioning is also how an admin corrects a login identifier or
+    // email after the fact — it must update those fields without touching
+    // status, since status is now load-bearing for the first-party adapter's
+    // identity projection (BelimbingApp/blb-people#25).
+    $reProvisionedActive = $service->provision($activeEmployee, $activeUser, loginIdentifier: 'updated-active@example.test');
+    $reProvisionedRevoked = $service->provision($revokedEmployee, $revokedUser, loginIdentifier: 'updated-revoked@example.test');
+
+    expect($reProvisionedActive->status)->toBe(EmployeePortalAccess::STATUS_ACTIVE)
+        ->and($reProvisionedActive->login_identifier)->toBe('updated-active@example.test')
+        ->and($reProvisionedRevoked->status)->toBe(EmployeePortalAccess::STATUS_REVOKED)
+        ->and($reProvisionedRevoked->login_identifier)->toBe('updated-revoked@example.test');
+});
+
 test('profile change requests restricted entries and calendar exceptions are first class records', function (): void {
     $company = Company::factory()->create();
     $employee = Employee::factory()->create(['company_id' => $company->id]);
