@@ -2,7 +2,7 @@
 
 **Status:** In progress — configuration contract defined; product workflows and pilot evidence remain open
 **Last Updated:** 2026-09-05
-**Sources:** [#38](https://github.com/BelimbingApp/blb-people/issues/38), [#9](https://github.com/BelimbingApp/blb-people/issues/9), [#17](https://github.com/BelimbingApp/blb-people/issues/17), [#18](https://github.com/BelimbingApp/blb-people/issues/18), `docs/modules/workflow/design.md` in Belimbing, owner-recorded `no-legacy-migration` decision
+**Sources:** [#38](https://github.com/BelimbingApp/blb-people/issues/38), [#9](https://github.com/BelimbingApp/blb-people/issues/9), [#17](https://github.com/BelimbingApp/blb-people/issues/17), [#18](https://github.com/BelimbingApp/blb-people/issues/18), [#76](https://github.com/BelimbingApp/blb-people/issues/76), connector [#99](https://github.com/BelimbingApp/blb-people-connector/issues/99), [#108](https://github.com/BelimbingApp/blb-people-connector/issues/108), and [#109](https://github.com/BelimbingApp/blb-people-connector/issues/109), `docs/modules/workflow/design.md` in Belimbing, owner-recorded `no-legacy-migration` decision
 **Agents:** desktop-terra/unknown-model, desktop-sol-migration/gpt-5
 
 ## Problem Essence
@@ -98,8 +98,8 @@ may be localized.
 
 | Flow | Status graph | Transition responsibility |
 | --- | --- | --- |
-| Requirement profile | `draft -> pending_hod_review -> pending_hr_review -> published -> retired`; either review status may return to `draft` | Author edits drafts; HOD confirms technical requirements and evidence; HR confirms governance; only an authorized publisher activates a version. |
-| Skill assessment | `draft -> submitted -> pending_hod_verification -> finalized`; verification may return to `draft` | Assessor records evidence; HOD verifies or returns; finalization appends history and updates the current-score projection without overwriting an earlier result. |
+| Requirement profile | `draft -> pending_hod_review -> pending_hr_review -> published -> retired`; either review status may return to `draft` | Author edits drafts; HOD confirms technical requirements and evidence; HR confirms governance; only an authorized publisher activates a version. Connector #108 owns the retrofit from the existing `draft/published/retired` lifecycle. |
+| Skill assessment | `draft -> submitted -> pending_hod_verification -> finalized`; verification may return to `draft` | Assessor records evidence; HOD verifies or returns; finalization appends history and updates the current-score projection without overwriting an earlier result. Connector #109 owns reconciliation with the existing status and `hod_verification` fields. |
 | Development action | `planned -> assigned -> in_progress -> pending_reassessment -> completed`; non-terminal work may move to `cancelled` with a reason | HOD owns gap containment and outcome; trainer/coach owns intervention; qualified assessor owns reassessment; completion requires the referenced verified result. |
 | Training request | `draft -> pending_hod -> pending_hr -> pending_approval -> approved`; review steps may return to `draft`; decision may end in `rejected`, and pre-delivery work may end in `cancelled` | Requestor states need; HOD confirms relevance; HR governs completeness; approval authority decides budget; approval alone does not create attendance or competence. |
 | Training participant | `nominated -> confirmed -> attended`; pre-attendance work may end in `absent` or `cancelled`, while `attended` may advance to `evaluation_due -> evaluation_recorded` | Event owner records attendance/results/evidence; participant records evaluation; attendance never changes the competency score. |
@@ -166,10 +166,14 @@ that a live department completed the pilot.
 ## Dependencies
 
 This rollout cannot be honestly executed before its product records exist. The
-dependency spine is #13, #14, #15, #16, #17, #18, and #33–#37; provider-neutral
-production activation additionally depends on the relevant adapter and
-workforce-projection work under #20 and #31. Already completed #10–#12 supply
-the catalog, profiles, and assessment foundation.
+dependency spine is #13, #14, #15, #16, #17, #18, and #33–#37. Connector #108
+owns requirement-profile HOD/HR review, and connector #109 owns verified
+assessment finalization; those changes are not implied by any delivery issue in
+the spine. Scoped pilot actors depend on People #76 and its connector carrier
+#99. Provider-neutral production activation additionally depends on the
+relevant adapter and workforce-projection work under #20 and #31. Already
+completed #10–#12 supply the catalog, profiles, and assessment foundation but
+do not satisfy #108 or #109.
 
 Missing functionality must remain in its owning issue. This plan does not seed
 orphan `base_workflow` rows, introduce People-private training records, or
@@ -193,6 +197,12 @@ Evidence: this plan and the structured #38 scope-reconciliation record.
 
 - [ ] Implement the development-action, training, evaluation, effectiveness,
   reassessment, passport, dashboard, and automation issues in dependency order.
+- [ ] Complete connector #108 so requirement-profile publication records both
+  configured HOD technical review and HR governance review.
+- [ ] Complete connector #109 so HOD verification precedes assessment
+  finalization and authoritative score projection.
+- [ ] Land People #76 / connector #99 and exercise its scoped HR, HOD, assessor,
+  and employee authorization through the real pilot consumers.
 - [ ] Register the stable flow definitions and narrow transition capabilities in
   their owning connector modules; validate every graph through BLB Workflow.
 - [ ] Resolve configured PICs from tenant/company-scoped provider-neutral
