@@ -10,6 +10,7 @@ use App\Core\User\Models\User;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceBootstrap;
 use App\Domains\People\Provider\Data\WorkforceBootstrapRequest;
 use App\Domains\People\Provider\Exceptions\InvalidWorkforceBootstrapCursorException;
+use App\Domains\People\Provider\Exceptions\WorkforceProjectionException;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use Illuminate\Support\Facades\DB;
 
@@ -131,6 +132,7 @@ test('workforce bootstrap projects only the current tenant and drops unsafe rela
 
     expect($payload['provider_id'])->toBe('blb-people')
         ->and($payload['supported_resources'])->toBe(['company', 'organization_unit', 'employee', 'user'])
+        ->and($payload['supported_resources'])->not->toContain('position')
         ->and($payload['positions'])->toBe([])
         ->and($payload['complete'])->toBeTrue()
         ->and(collect($payload['companies'])->pluck('reference.external_id')->all())
@@ -283,6 +285,29 @@ test('later bootstrap pages validate organization references without hydrating d
         ->and(collect($queries)->contains(
             static fn (string $sql): bool => str_contains($sql, 'company_department_types'),
         ))->toBeFalse();
+});
+
+test('workforce bootstrap identifies a malformed record in a declared resource', function (): void {
+    [$tenant, $company] = createTenantWithCompany(['name' => 'Projection Failure Tenant']);
+    $departmentType = DepartmentType::query()->create([
+        'code' => 'nameless-department',
+        'name' => '   ',
+        'category' => 'operational',
+        'is_active' => true,
+    ]);
+    $department = Department::query()->create([
+        'company_id' => $company->id,
+        'department_type_id' => $departmentType->id,
+        'status' => 'active',
+    ]);
+
+    app(TenantContext::class)->set((int) $tenant->id);
+
+    expect(fn () => app(ReadsWorkforceBootstrap::class)->read(new WorkforceBootstrapRequest))
+        ->toThrow(
+            WorkforceProjectionException::class,
+            "Department [{$department->id}] cannot be projected without a department type name.",
+        );
 });
 
 test('workforce bootstrap is not exposed over HTTP before service authentication exists', function (): void {
