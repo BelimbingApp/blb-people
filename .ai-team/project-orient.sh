@@ -97,10 +97,16 @@ printf '  tests     %s test file(s)\n' \
 cat <<'TXT'
 
 == project: hazards worth knowing before you claim ==
-  linear history   main forbids merge commits. land.sh hardcodes merge_method=merge
-                   and fails with a 405 whose text wrongly blames a missing
-                   approval. Squash at the reviewed SHA, then re-run land.sh to
-                   terminalize. Tracked upstream as BelimbingApp/ai-team#66.
+  linear history   main forbids merge commits. land.sh now intersects the
+                   repository settings, classic branch protection, and every
+                   active matching ruleset, then selects squash when merge is
+                   not permitted. Do not merge ad hoc or request a policy-
+                   forbidden override. If GitHub policy is unreadable,
+                   ambiguous, or allows no common method, land.sh refuses
+                   before merging; restore policy visibility or correct the
+                   conflict, then retry at the same reviewed SHA. The original
+                   hardcoded-method defect was fixed by ai-team#66 and the
+                   ruleset-aware resolver by ai-team#95.
 
   closing links    Put closing references in PR body text only. Never set the
                    GitHub Development-panel link: a lane gated as issue-less can
