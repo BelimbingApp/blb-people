@@ -1,234 +1,236 @@
-# Five-department training-portal migration and cutover
+# Five-department skill and training rollout
 
-**Status:** Proposed — discovery and approvals required before import
-**Owner:** HR system governor
-**Scope:** Production, Engineering, QAC/R&D, Planning, and IT
-**Related:** [#38](https://github.com/BelimbingApp/blb-people/issues/38), provider/migration mechanics [#20](https://github.com/BelimbingApp/blb-people/issues/20) and [#31](https://github.com/BelimbingApp/blb-people/issues/31)
+**Status:** In progress — configuration contract defined; product workflows and pilot evidence remain open
+**Last Updated:** 2026-09-05
+**Sources:** [#38](https://github.com/BelimbingApp/blb-people/issues/38), [#9](https://github.com/BelimbingApp/blb-people/issues/9), [#17](https://github.com/BelimbingApp/blb-people/issues/17), [#18](https://github.com/BelimbingApp/blb-people/issues/18), [#76](https://github.com/BelimbingApp/blb-people/issues/76), connector [#99](https://github.com/BelimbingApp/blb-people-connector/issues/99), [#108](https://github.com/BelimbingApp/blb-people-connector/issues/108), and [#109](https://github.com/BelimbingApp/blb-people-connector/issues/109), `docs/modules/workflow/design.md` in Belimbing, owner-recorded `no-legacy-migration` decision
+**Agents:** desktop-terra/unknown-model, desktop-sol-migration/gpt-5
 
-## Decision and non-negotiables
+## Problem Essence
 
-This migration replaces the existing training portal as the system of record for
-the initial five-department SBTG cohort. The cohort is an adoption and acceptance
-scope, not a product limit: department, position, profile, and HOD assignments
-must be inventory-driven configuration, so another company may migrate any
-number or shape of departments without a code change. It does not start with an
-import. HR must first
-approve a signed inventory, a mapping workbook, and a dry-run reconciliation.
-Until the cutover decision, the legacy portal remains authoritative for its
-existing workflows. After the agreed freeze, exactly one system may accept
-writes for each workflow.
+SBTG needs to introduce the connector-owned Skill and Training Management System
+to Production, Engineering, QAC/R&D, Planning, and IT. The earlier plan assumed a
+populated legacy training portal, but the owner confirmed that the portal is
+empty and unusable; treating it as a migration source would manufacture data,
+cutover risk, and approval work that do not exist.
 
-No person, training history, evidence, certificate, assessment, or action is
-silently dropped. A row that cannot be mapped is quarantined with its source
-provenance, reason, and named remediation owner. The importer may be rerun with
-the same source package without creating duplicate target records.
+## Desired Outcome
 
-## Confirmed facts, assumptions, and decisions still required
+The five departments start from reviewed draft profiles and execute the same
+configurable requirement-to-effective-training lifecycle. HR governs the
+configuration and operating queues; department heads remain accountable through
+configured capabilities, persons-in-charge, notifications, and service levels.
+The pilot proves those controls in retained product history rather than through
+external signature documents.
 
-The following are confirmed by the issue and current People-domain context: HR
-governs the target system; Production, Engineering, QAC/R&D, Planning, and IT
-are the first wave; the legacy training portal, a workbook, and departmental
-records may contain in-scope data; and the connector/migration topology work in
-[#20](https://github.com/BelimbingApp/blb-people/issues/20) and
-[#31](https://github.com/BelimbingApp/blb-people/issues/31) remains a
-dependency. This plan does not claim that a source export, employee crosswalk,
-retention policy, target importer, or any departmental dataset already exists.
+This cohort is rollout configuration, not a product limit. Another company may
+choose any departments and positions without changing application code.
 
-Before Gate 1, HR must record the following decisions rather than allowing an
-operator to infer them: the actual source systems and owners; the approved
-employee identity match key and duplicate authority; each record family's
-retention and legal basis; the permitted extraction/transfer route; the target
-feature/version for every mapped family; exception acceptance authorities; the
-hypercare duration and acceptance thresholds; and the legacy archive versus
-retirement decision. These become controlled inputs to the signed registers,
-not assumptions embedded in a script or import file.
+## Top-Level Components
 
-## Delivery gates
+- **Connector-owned product records:** requirement profiles, assessments,
+  development actions, training requests and events, participant records,
+  evaluations, effectiveness reviews, reassessments, and score history remain
+  authoritative in `blb-people-connector`.
+- **Provider-neutral organization context:** company, employee, department,
+  position, tier, manager, and employment facts resolve through the connector
+  contract. Neither `blb-people` nor HR2000 becomes the skill/training system of
+  record.
+- **Base Workflow configuration:** each aggregate owns one truthful lifecycle.
+  Statuses, transitions, capability gates, PICs, notifications, and SLAs use
+  BLB Workflow and AuthZ; domain code owns invariants and transition guards.
+- **Starter-profile pack:** #17 owns the versioned workbook/data dictionary and
+  imports the five departments as drafts. No starter profile is active merely
+  because it was imported.
+- **Pilot evidence:** product audit and workflow history provide the decision
+  trail. Dashboard projections and exported reconciliation views derive from
+  the same authoritative records.
 
-| Gate | Entry criteria | Evidence and decision owner |
+## Design Decisions
+
+### Start clean rather than simulate a legacy migration
+
+The rejected alternative was to preserve the former inventory, provenance,
+rollback, dual-writer freeze, and archive gates even though there are no legacy
+records or writer. That creates ceremony with no protected data. The chosen
+direction starts clean and reopens migration work only if a real production
+source later appears.
+
+The SBTG workbook is still a governed starter-data source under #17. Import
+provenance, dry run, quarantine, atomic apply, and idempotency apply to that
+workbook because rows are actually written; they do not imply a portal cutover.
+
+### Configure accountability in Workflow rather than copy role checklists
+
+External HR/HOD signature packs would duplicate the live authorization and
+decision state. Workflow status PICs make queues visible, transition
+capabilities enforce who may act, notifications prompt the responsible people,
+SLAs drive #18 reminders and escalation, and append-only history records the
+decision. Audit evidence is exportable, but an export is not a second approval
+system.
+
+### Keep independent clocks in independent aggregates
+
+A single mega-status would make approval, attendance, evaluation,
+effectiveness, and reassessment contradict one another. Each aggregate keeps its
+own lifecycle. Durable events or explicit references connect them; completion
+of one lifecycle never silently advances another.
+
+## Public Contract
+
+### Stable cohort configuration
+
+The initial cohort uses stable department selectors for Production,
+Engineering, QAC/R&D, Planning, and IT. Display names may change; imports and
+workflow routing resolve stable provider-neutral organization identifiers.
+Position and tier selectors follow the same rule.
+
+Starter profiles are created in `draft`. Publishing requires all referenced
+skills and selectors to resolve within the same tenant/company, active weights
+to total 100%, every mandatory requirement to name its evidence expectation,
+and the acting user to hold the publish capability. A published version is
+immutable; revision creates a new draft version.
+
+### Workflow definitions
+
+Names below are stable flow contracts. Exact storage keys should use the owning
+module's established prefix when implemented; labels are presentation copy and
+may be localized.
+
+| Flow | Status graph | Transition responsibility |
 | --- | --- | --- |
-| 0 — discover | HR appoints data owners and approves a read-only extraction window. | Signed source inventory and classification register; HR governor. |
-| 1 — map | Inventory is complete; target features are available or explicitly deferred. | Versioned field/code mapping, source-of-truth register, retention decision; HR plus data owners. |
-| 2 — dry run | Mapping and approved encrypted transfer path exist. | Import manifest, validation/reconciliation report, quarantine register, rollback rehearsal; HR and People technical owner. |
-| 3 — pilot | Dry run has no unresolved critical reconciliation exceptions. | Departmental end-to-end evidence and named HOD sign-off for every approved-cohort department (five initially for SBTG). |
-| 4 — cut over | Pilot is accepted and support/training communications are ready. | Freeze record, cutover checklist, go/no-go record; HR governor and every named HOD. |
-| 5 — close | Reconciliation and monitoring pass during the agreed hypercare period. | Final reconciliation, legacy disposition record, acceptance metrics; HR and records/privacy owner. |
+| Requirement profile | `draft -> pending_hod_review -> pending_hr_review -> published -> retired`; either review status may return to `draft` | Author edits drafts; HOD confirms technical requirements and evidence; HR confirms governance; only an authorized publisher activates a version. Connector #108 owns the retrofit from the existing `draft/published/retired` lifecycle. |
+| Skill assessment | `draft -> submitted -> pending_hod_verification -> finalized`; verification may return to `draft` | Assessor records evidence; HOD verifies or returns; finalization appends history and updates the current-score projection without overwriting an earlier result. Connector #109 owns reconciliation with the existing status and `hod_verification` fields. |
+| Development action | `planned -> assigned -> in_progress -> pending_reassessment -> completed`; non-terminal work may move to `cancelled` with a reason | HOD owns gap containment and outcome; trainer/coach owns intervention; qualified assessor owns reassessment; completion requires the referenced verified result. |
+| Training request | `draft -> pending_hod -> pending_hr -> pending_approval -> approved`; review steps may return to `draft`; decision may end in `rejected`, and pre-delivery work may end in `cancelled` | Requestor states need; HOD confirms relevance; HR governs completeness; approval authority decides budget; approval alone does not create attendance or competence. |
+| Training participant | `nominated -> confirmed -> attended`; pre-attendance work may end in `absent` or `cancelled`, while `attended` may advance to `evaluation_due -> evaluation_recorded` | Event owner records attendance/results/evidence; participant records evaluation; attendance never changes the competency score. |
+| Effectiveness review | `scheduled -> due -> recorded -> pending_reassessment -> effective`; review may end in `partially_effective` or `not_effective`, which must reference follow-up work | HOD/reviewer records workplace transfer; qualified assessor owns reassessment; closure requires evidence and an explicit outcome. |
 
-An unmet gate stops progression; it is not waived by importing a subset.
+There are no implicit cross-flow transitions. Approving a training request may
+authorize creation of an event link, but cannot mark a participant attended;
+recording attendance may schedule an evaluation, but cannot finalize an
+assessment.
 
-## Source inventory and custody
+### Capability, PIC, notification, and SLA rules
 
-HR owns a single inventory register. It records every source system, workbook,
-departmental spreadsheet, shared drive, and paper/archive batch that might hold
-in-scope records. Each row must contain:
+Implementations register narrow AuthZ capabilities for each mutating transition
+rather than matching role names in domain code. At minimum, the contract must
+distinguish requestor/self-service, HOD technical review, HR governance,
+approval authority, event record owner, participant, qualified assessor, and
+workflow administrator. A person may hold more than one capability, but the
+audit history records the capability and actor used for each decision.
 
-- source name, tenant, stable source-installation ID, and immutable export
-  identifier (file hash, extract run ID, or database snapshot ID),
-  owner/custodian, department, format, record count and date range;
-- data classification, legal/retention rule, access group, and whether special
-  categories or evidence files are present;
-- data-quality findings (missing identity, duplicate identity, invalid dates,
-  unsupported code, unreadable evidence), remediation owner, and due date; and
-- approved extraction method, encrypted transfer location, checksum, importer
-  run ID, and deletion/retention treatment of the staged copy.
+PIC configuration points to provider-neutral people or scoped organizational
+responsibilities; strings such as `HOD` and `HR` are not executable identities.
+A missing or ambiguous PIC fails closed and appears in the administrative
+health queue.
 
-Only read-only exports produced during the approved extraction window enter the
-import manifest. HR and the relevant HOD sign the inventory for their data;
-the records/privacy owner signs the classification and retention treatment.
+Notifications derive from committed transitions and link to the exact
+authorized record. Delivery is deduplicated and retryable. Workflow queues, not
+email, remain the source of truth.
 
-## Target mapping and authoritative ownership
+Initial service-level defaults are configuration, not hard-coded timers:
 
-The versioned mapping workbook has one row per source field/code. It specifies
-source value, transformation, target module/entity/field, validation rule,
-defaulting rule, source provenance field, rejection reason, and approver.
+| Responsibility | Default | Escalation owner |
+| --- | ---: | --- |
+| HOD verifies a submitted assessment | 5 working days | HR governance queue |
+| HOD assigns an action for a verified critical/major gap | 5 working days | Management and HR |
+| HOD assigns other verified-gap work | 10 working days | HR governance queue |
+| Participant records evaluation after attendance | 3 calendar days | Event owner, then HR |
+| Effectiveness review | Configured 30/60/90-day checkpoint | HOD and HR |
+| Critical coverage recovery plan | 30 calendar days | Management and HR |
 
-| Source record family | Target business record | Authoritative rule at and after cutover |
-| --- | --- | --- |
-| Person and employment identity | People employee identity and organization history | The approved People identity mapping is authoritative; unresolved or ambiguous matches quarantine. No fuzzy merge is accepted automatically. |
-| Department, position tier, skill requirement | Department/profile requirement and effective-dated requirement version | HR governs the catalog; each HOD approves its department profiles, assessors, gaps, and actions. |
-| Course, event, request, approval, nomination, attendance, test | Training catalog/event and the corresponding workflow history | The target workflow is authoritative after its specific freeze; legacy history remains immutable provenance. |
-| Certificate and supporting evidence | Evidence/certificate record linked to the imported history | Preserve source identifier, checksum, original filename/type, capture date, retention class, and access policy. Counts alone never reconcile this family. |
-| Evaluation, effectiveness review, assessment, score, action | Evaluation/effectiveness, assessment, score history, and owned improvement action | Preserve effective date, assessor/reviewer, scale/version, outcome, and source link. Never replace a historical score with a current score. |
+#18 owns calendars, reminder lead times, retries, escalation delivery, and
+health visibility. A tenant may tighten defaults without changing the lifecycle
+or weakening mandatory escalation.
 
-The mapping workbook explicitly resolves overlap before import. Where the portal,
-workbook, and departmental files disagree, the approved source-of-truth register
-names one record or field winner and marks every non-winning value as retained
-source evidence, a correction candidate, or a duplicate. Natural-language names
-and mutable job titles never act as deduplication keys; identity resolution uses
-the approved employee-identity crosswalk and an auditable decision log.
+### Pilot acceptance
 
-## Privacy, security, and transfer controls
+Each of the five departments supplies one complete, authorized product trace:
 
-HR may authorize extraction only after the privacy/records owner approves the
-purpose, minimum data set, retention, access groups, and transfer route.
+1. a draft starter profile is reviewed and published;
+2. an employee resolves to that profile through stable organization context;
+3. an evidence-backed assessment is finalized and exposes a gap;
+4. the gap creates an owned development action;
+5. a request is reviewed and approved, then linked to a training event;
+6. the participant's attendance, result, certificate/evidence, and evaluation
+   are recorded independently;
+7. an effectiveness review and verified reassessment produce an explicit
+   outcome and updated current-score projection; and
+8. dashboard, passport, coverage, overdue, and export views reconcile to the
+   same retained records.
 
-- Exports are read-only, encrypted in transit and at rest, checksum-verified,
-  access-logged, and limited to the appointed migration team.
-- Evidence and certificates retain their original integrity hash; malware scan
-  and content-type validation occur before a file is available to users.
-- Staging data is separated from production tenant data, is not copied into
-  tickets or chat, and is destroyed or retained only under the approved record.
-- The import audit trail records source manifest ID, mapping version, operator,
-  timestamps, target IDs, and result for every record. It does not log the
-  source payload unnecessarily.
+Pilot acceptance is a recorded Workflow/Audit decision by configured HR and HOD
+actors. Tests may prove mechanics with fixtures, but fixtures are not evidence
+that a live department completed the pilot.
 
-## Dry run, reconciliation, and restart protocol
+## Dependencies
 
-Every run receives an immutable manifest ID and mapping version. Target records
-store the manifest ID plus the tenant, source system, stable source-installation
-ID, and stable source record ID. The idempotency key is `(tenant ID, source
-system, source-installation ID, stable source record ID, record family)`;
-re-running a completed package resolves the same target record instead of
-creating another one. A source-installation ID distinguishes independent
-instances of the same vendor/system and is immutable for the life of the
-installation; it is never inferred from a display name or endpoint. The run
-ledger has `prepared`, `validated`, `importing`, `reconciled`, `approved`,
-`rolled_back`, and `quarantined` states.
+This rollout cannot be honestly executed before its product records exist. The
+dependency spine is #13, #14, #15, #16, #17, #18, and #33–#37. Connector #108
+owns requirement-profile HOD/HR review, and connector #109 owns verified
+assessment finalization; those changes are not implied by any delivery issue in
+the spine. Scoped pilot actors depend on People #76 and its connector carrier
+#99. Provider-neutral production activation additionally depends on the
+relevant adapter and workforce-projection work under #20 and #31. Already
+completed #10–#12 supply the catalog, profiles, and assessment foundation but
+do not satisfy #108 or #109.
 
-Validation occurs before writes for required identifiers, tenant/department
-membership, codes, dates, referential integrity, duplicate identity, evidence
-integrity, and workflow chronology. Rejects are written to a quarantine register
-with no partial target workflow state. A remediation owner corrects the source
-or approved mapping, then submits a new manifest; imported historical source
-data is never edited in place to conceal a discrepancy.
+Missing functionality must remain in its owning issue. This plan does not seed
+orphan `base_workflow` rows, introduce People-private training records, or
+replace absent aggregates with JSON configuration.
 
-The reconciliation report compares, by department and record family:
+## Phases
 
-- input, accepted, updated, duplicate-resolved, rejected, and quarantined
-  counts, with every count linkable to source IDs;
-- identity crosswalk completeness and duplicate decisions;
-- event/attendance/test chronology, certificate/evidence checksums and links,
-  historical assessment/score coverage, and open improvement-action ownership;
-- target records missing provenance, source records missing a terminal result,
-  and records that differ from their approved source-of-truth value.
+### Phase 1 — Correct the rollout contract
 
-The dry run passes only when all critical exceptions are resolved or explicitly
-accepted by HR, the relevant HOD, and the privacy/records owner where relevant.
-The approval records the accepted exception, business impact, owner, expiry,
-and follow-up; it never converts a rejected record into a silent omission.
+- [x] Record that the legacy portal is empty and remove migration, rollback,
+  dual-writer cutover, archive, and signature assumptions. {desktop-sol-migration/gpt-5}
+- [x] Define the Workflow ownership model, independent lifecycle graphs,
+  accountability controls, service-level defaults, and pilot evidence contract.
+  {desktop-sol-migration/gpt-5}
+- [x] Preserve workbook import safeguards only for the real starter-data import
+  owned by #17. {desktop-sol-migration/gpt-5}
 
-## Rollback boundary
+Evidence: this plan and the structured #38 scope-reconciliation record.
 
-Before the irreversible boundary, every imported record is attributable to the
-manifest and can be removed or restored without touching post-import user work.
-The rollback rehearsal proves this using a production-like tenant and records
-the resulting reconciliation report. The irreversible boundary is the approved
-moment when pilot/cutover users may create new authoritative target workflow
-records. After that point, rollback means a controlled recovery plan that
-preserves target writes and reconciles them; it is not a destructive re-import.
+### Phase 2 — Build connector-owned workflow consumers
 
-The go/no-go record identifies the technical executor, recovery owner, decision
-authority, maximum rollback window, communications channel, and the last safe
-backup/manifest. No cutover begins without a tested restore path.
+- [ ] Implement the development-action, training, evaluation, effectiveness,
+  reassessment, passport, dashboard, and automation issues in dependency order.
+- [ ] Complete connector #108 so requirement-profile publication records both
+  configured HOD technical review and HR governance review.
+- [ ] Complete connector #109 so HOD verification precedes assessment
+  finalization and authoritative score projection.
+- [ ] Land People #76 / connector #99 and exercise its scoped HR, HOD, assessor,
+  and employee authorization through the real pilot consumers.
+- [ ] Register the stable flow definitions and narrow transition capabilities in
+  their owning connector modules; validate every graph through BLB Workflow.
+- [ ] Resolve configured PICs from tenant/company-scoped provider-neutral
+  organization context and fail closed on missing or ambiguous assignments.
+- [ ] Prove committed, deduplicated notifications and configurable SLA
+  escalation without wall-clock sleeps.
 
-## Cohort pilot and cutover
+Validation: focused connector tests, composed SQLite/PostgreSQL suites, Workflow
+graph validation, AuthZ negative tests, and tenant/company isolation tests.
 
-Configure the approved cohort's profiles as drafts first. For the initial SBTG
-cohort, these are Production, Engineering, QAC/R&D, Planning, and IT. HR and
-each HOD validate the name, requirements,
-assessors, mandatory training, gaps, action ownership, and profile version
-before publication. Each department completes one end-to-end pilot path:
+### Phase 3 — Import drafts and execute the five-department pilot
 
-1. approve a department requirement and assign it to an identified employee;
-2. request/approve or nominate training, record attendance, test result, and
-   certificate/evidence;
-3. collect an evaluation and effectiveness review;
-4. update the assessment/score and create or close the accountable action; and
-5. reconcile the complete path against its legacy source IDs and evidence.
+- [ ] Import the versioned workbook starter pack for the five departments as
+  drafts using #17's dry-run, atomic, idempotent, and quarantined path.
+- [ ] Configure real HOD, HR, assessor, approval, participant, and event-owner
+  assignments for each department through supported product surfaces.
+- [ ] Execute and retain one complete pilot trace per department.
+- [ ] Reconcile dashboards, passports, coverage, overdue queues, audit history,
+  and exports to the same product records.
+- [ ] Record the configured HR and HOD pilot-acceptance decisions and open
+  follow-up work for every partial or failed outcome.
 
-Cutover uses a published runbook with a freeze notice, final delta-export time,
-user and support communications, service-owner coverage, final import and
-reconciliation, HR/HOD go-no-go signatures, and a clearly communicated new
-system-of-record time. Each workflow's legacy writer is disabled at its freeze;
-the legacy portal becomes read-only only after final reconciliation is signed.
+Validation: five retained end-to-end traces, authorization evidence, export
+reconciliation, and operational health showing no unresolved failed delivery.
 
-During hypercare, HR reviews daily exception volume, overdue remediation,
-support incidents, failed imports, provenance completeness, pilot workflow
-completion, and user-access errors. The legacy portal is retained read-only or
-retired only under the approved legal/records policy. It cannot remain an
-authoritative writer after the cutover time.
+## Revisit Conditions
 
-## RACI and required approvals
-
-| Activity | HR governor | HOD (each department) | People technical owner | Privacy/records owner | Migration operator | Service desk |
-| --- | --- | --- | --- | --- | --- | --- |
-| Data inventory, classification, retention | A | C | C | A | R | I |
-| Identity and source-of-truth mapping | A | C | R | C | R | I |
-| Department profile, assessor, gap, action validation | A | A/R | C | I | C | I |
-| Dry run, reconciliation, remediation | A | C | A | C | R | I |
-| Pilot acceptance and cutover go/no-go | A | A | R | C | R | C |
-| Training, communications, and hypercare | A | C | C | I | C | R |
-| Legacy archive/retirement | A | I | C | A/R | C | I |
-
-`A` means accountable, `R` responsible, `C` consulted, and `I` informed. The
-same individual may not approve their own unresolved reconciliation exception
-without HR's written conflict-of-interest decision.
-
-## Acceptance evidence matrix
-
-| Issue acceptance criterion | Required evidence artifact | Gate |
-| --- | --- | --- |
-| Signed source inventory and field/code mapping before production import | Inventory register signed by HR/HOD/records owner; versioned mapping workbook and source-of-truth register | 0–1 |
-| Provenance and reconciliation for every migrated record | Immutable manifest, per-record import ledger, quarantine register, and reconciliation report covering evidence/certificates and history | 2, 5 |
-| No two authoritative writers during cutover | Workflow-by-workflow freeze matrix, cutover runbook, and signed system-of-record timestamp | 4 |
-| End-to-end pilot for the approved cohort | One HOD acceptance record per approved cohort department, with requirement-to-score/effectiveness evidence (five for the initial SBTG cohort) | 3 |
-| HR governance and HOD ownership | RACI plus HR and each HOD signed profile/assessor/gap/action approvals | 1, 3–4 |
-| Dry-runnable, resumable, idempotent migration and honest rejection handling | Versioned manifest, idempotency-key specification, rerun result, validation report, and remediated quarantine samples | 2 |
-| Tested and approved rollback / irreversible boundary | Rollback rehearsal report, restore result, maximum rollback window, and signed irreversible-boundary decision | 2, 4 |
-| Legacy disposition and no longer a system of record | Records-policy decision, read-only/archive/retirement evidence, final reconciliation, and post-cutover monitoring report | 5 |
-
-## Dependencies, measurable acceptance, and next action
-
-This plan deliberately does not invent connector mechanics. The provider and
-identity/migration capabilities in [#20](https://github.com/BelimbingApp/blb-people/issues/20)
-and [#31](https://github.com/BelimbingApp/blb-people/issues/31) must supply the
-approved tenant-safe import/provenance seams before a production run. Where a
-target record family is not implemented, it stays in the mapping workbook as a
-gated dependency rather than being imported into an ad hoc substitute.
-
-The first executable action is for HR to appoint one HOD data owner for each
-department in the approved cohort and create the Gate 0 inventory register. The
-plan is accepted when the signed
-inventory, approved mapping/source-of-truth register, dry-run and rollback
-evidence, one pilot sign-off per cohort department, cutover record, and post-cutover reconciliation
-are attached or linked from the migration decision record.
+Reopen migration-specific design only if a production legacy source appears.
+At that point its inventory, provenance, legal retention, dry-run, rollback, and
+cutover requirements need a separate scoped issue based on observed source data;
+they must not be silently restored as assumptions in this rollout.
