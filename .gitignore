@@ -1,9 +1,0 @@
-# The mechanism suite this repository advertises writes bytecode caches beside
-# the mounted scripts. Without this, `python3 -m unittest discover -s
-# docs/ai-team/scripts` leaves the worktree dirty, and claim.sh then refuses
-# every claim with "refusing to claim with a dirty worktree" — which does not
-# say why. Found in review of #42 by agent:opus-5-review-a.
-__pycache__/
-*.py[cod]
-
-.DS_Store
