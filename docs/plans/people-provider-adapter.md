@@ -1,9 +1,9 @@
 # People provider adapter
 
-**Status:** Foundation and connector access boundary published; adapter implementation remains blocked on synchronization prerequisites
-**Last Updated:** 2026-09-02
+**Status:** Supplemental foundation published; completion remains blocked on the connector-owned Skill and Training sequence
+**Last Updated:** 2026-09-04
 **Sources:** provider contract [BelimbingApp/blb-people#22](https://github.com/BelimbingApp/blb-people/issues/22), supplemental persistence [#24](https://github.com/BelimbingApp/blb-people/issues/24), first-party adapter [#27](https://github.com/BelimbingApp/blb-people/issues/27), identity/authentication [#25](https://github.com/BelimbingApp/blb-people/issues/25), synchronization [#26](https://github.com/BelimbingApp/blb-people/issues/26), connector SDK [BelimbingApp/blb-people-connector#1](https://github.com/BelimbingApp/blb-people-connector/pull/1), connector persistence foundation [BelimbingApp/blb-people-connector#2](https://github.com/BelimbingApp/blb-people-connector/pull/2), connector access boundary [BelimbingApp/blb-people-connector#21](https://github.com/BelimbingApp/blb-people-connector/pull/21), and native projection seam [BelimbingApp/blb-people#39](https://github.com/BelimbingApp/blb-people/pull/39)
-**Agents:** codex/gpt-5, desktop-sol
+**Agents:** codex/gpt-5, desktop-sol/gpt-5.6-sol
 
 ## Problem Essence
 
@@ -56,13 +56,14 @@ This table is a publication record, not a claim that either real adapter already
 
 `BelimbingApp/blb-people-connector` is now the canonical installable home for the connector foundation. It is an optional nested BLB Domain mounted at `app/Domains/PeopleConnector/`; its [README installation procedure](https://github.com/BelimbingApp/blb-people-connector/blob/main/README.md), [Domain module manifest](https://github.com/BelimbingApp/blb-people-connector/blob/main/Connector/composer.json), and [owner-controlled CI](https://github.com/BelimbingApp/blb-people-connector/blob/main/.github/workflows/ci.yml) make that placement explicit.
 
-The `[1004]` persistence foundation is partially landed in [BelimbingApp/blb-people-connector#2](https://github.com/BelimbingApp/blb-people-connector/pull/2) at merge `c8bff0572ffdc044bea98b300132f111d31b56b9`. It establishes tenant/company ownership, provider-linked stable references, remap/merge provenance, append-only snapshots, checkpoints, and reconciliation state, and is explicitly marked as part of #24 rather than a closure of it. Progress since that handoff (still connector-owned; this People repository does not duplicate the tables):
+The `[1004]` persistence foundation began in [BelimbingApp/blb-people-connector#2](https://github.com/BelimbingApp/blb-people-connector/pull/2) at merge `c8bff0572ffdc044bea98b300132f111d31b56b9`. It establishes tenant/company ownership, provider-linked stable references, remap/merge provenance, append-only snapshots, checkpoints, and reconciliation state, and is explicitly part of #24 rather than a closure of it. Progress since that handoff remains connector-owned; this People repository does not duplicate the tables:
 
-- **Export / backup / restore** — landed on connector `main` via the DataShare vehicle ([connector #53](https://github.com/BelimbingApp/blb-people-connector/pull/53) and the company-ownership export section), with follow-up export-governance wording in [connector #530](https://github.com/BelimbingApp/blb-people-connector/commit/36e131d).
-- **Privacy deletion / retention** — first workforce-projection slice is in review as [connector #60](https://github.com/BelimbingApp/blb-people-connector/pull/60) (closes connector #54); AI Team gate passes, merge waiting on a native GitHub approving review from a distinct write-access identity.
-- **Skill / Training aggregates** — still open on the child lanes under [#9](https://github.com/BelimbingApp/blb-people/issues/9) / `[0000]`–`[0009]`; not claimed by the privacy slice.
+- **Export / backup / restore** — landed on connector `main` via the DataShare vehicle ([connector #53](https://github.com/BelimbingApp/blb-people-connector/pull/53) and the company-ownership export section), with follow-up export-governance wording in [connector commit `36e131d`](https://github.com/BelimbingApp/blb-people-connector/commit/36e131d).
+- **Privacy deletion / retention** — landed on connector `main` through [connector #60](https://github.com/BelimbingApp/blb-people-connector/pull/60), preserving identity and append-only provenance while redacting or tombstoning company-scoped personal projections.
+- **Synchronization recovery and freshness** — the connector-side runner, durable checkpoint, deactivation/reactivation behavior, and freshness policy landed with the `[1006]` spine; the native incremental feed landed through [People #77](https://github.com/BelimbingApp/blb-people/pull/77).
+- **Skill / Training aggregates** — catalogues and requirement profiles are on connector `main`; assessments and the batch matrix remain active under [#12](https://github.com/BelimbingApp/blb-people/issues/12), training catalogue/events remain active under [#14](https://github.com/BelimbingApp/blb-people/issues/14), and the later lifecycle remains on the remaining children of [#9](https://github.com/BelimbingApp/blb-people/issues/9).
 
-#24 cannot close until those connector landings (and the Skill/Training child sequence) are done.
+#24 therefore has no unowned implementation slice to invent in this repository. It cannot close until the active connector landings and the Skill/Training child sequence prove the final acceptance criterion. While those dependencies remain open, #24 belongs in `task:blocked` without an agent claim; keeping an empty draft writer lane would misstate both ownership and progress.
 
 The current foundation provides the acceptance boundary for #23:
 
