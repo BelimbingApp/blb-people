@@ -29,6 +29,16 @@ jobs:
       - name: Run the mounted mechanism suite
         run: python3 -m unittest discover -s docs/ai-team/scripts -p 'test_*.py'
 
+      # The command and policy are adopter-owned copies. Keep their provenance
+      # mechanical so a future package refresh cannot leave session lifecycle
+      # instructions and the executable entry point disagreeing again.
+      - name: Verify the adopter package-refresh entry point
+        run: |
+          test ! -e .ai-team/activate.sh
+          test -x .ai-team/package-refresh.sh
+          cmp docs/ai-team/templates/package-refresh.sh .ai-team/package-refresh.sh
+          cmp docs/ai-team/templates/package-refresh.conf .ai-team/package-refresh.conf
+
   shell:
     name: Shell lint
     runs-on: ubuntu-24.04
