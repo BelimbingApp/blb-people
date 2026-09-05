@@ -1,7 +1,7 @@
 # 0001-people-architecture-and-provider-boundaries.md
 
 **Status:** Proposed; implementation remains halted pending explicit owner approval.
-**Last Updated:** 2026-09-05 (Asia/Kuala_Lumpur).
+**Last Updated:** 2026-09-06 (Asia/Kuala_Lumpur).
 **Agents:** codex/astra-medium.
 **Sources:** [Overall epic roadmap](0000-people-epic-roadmap.md); prior architecture discussion; existing data-boundary/provider/service-principal references in the evidence plan.
 
@@ -88,6 +88,14 @@ HR2000 discovery must establish edition/version, licensed modules, hosting, vend
 
 Where only files are supported, document an approved import/export protocol with provenance, approvals and reconciliation. Do not automate direct writes to a vendor database or portray an exported request as accepted by HR.
 
+## Job Description and Performance Contract Amendment
+
+The owner requested first-class JD/performance records; [0009](0009-people-job-descriptions-and-performance.md) owns their business lifecycle. This workstream owns stable position identity plus immutable position versions, effective-dated employment assignments and unambiguous links to published JD versions. Position changes must explicitly retain or replace compatible JD/competency associations. Titles, provider IDs and today's reporting tree cannot substitute for versioned identity. Vacancies and acting/concurrent appointments retain their own meaning.
+
+Declare the authoritative writer and hosting boundary for JD and performance capabilities separately from workforce projections. Reuse verified sources; do not assume HR2000 supplies these records or permit two writers. Published JD/definition visibility, personal targets/results, evidence, confidential notes, approval, historical review and export are separate permissions, governed by current actor scope even for old periods. A business-authority statement in a JD is not an application grant. 0009's audience matrix is the business starting point; use existing platform authorization, not chart-specific policies.
+
+Publish versioned references for position/JD associations, competency profiles, KPI definitions, assignments/periods, observations and released reviews. Queries expose effective date and recorded/cutoff provenance where historical reconstruction needs both. Source correction and target amendment cannot silently replace finalized reviews or downstream eligibility evidence. Direct APIs, remote adapters, explorer reads and exports enforce the same scope/evidence rules; aggregate permissions do not imply personal-review access.
+
 ## Phases
 
 ### Validate and agree the boundary
@@ -97,6 +105,7 @@ Where only files are supported, document an approved import/export protocol with
 
 ### Implement after explicit owner resumption
 
+- [ ] Agree position-version/JD association and JD/performance authority/query contracts with 0009, including historical assignment resolution, evidence authorization and no permission grants derived from JD text.
 - [ ] Agree authoritative organisation/position/assignment sources and effective/recorded-time history; prove vacancy, acting assignment, transfer and multiple-reporting semantics.
 - [ ] Publish explorer query/indicator/action contracts and a business-approved resource/action/scope authorization matrix, including aggregate-only, historical and audit access, delegation expiry and exports.
 - [ ] Prove installability and dependency direction for co-located, native remote and third-party configurations without activating duplicate HR authority.

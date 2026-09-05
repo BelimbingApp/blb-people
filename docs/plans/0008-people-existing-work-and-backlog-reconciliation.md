@@ -1,7 +1,7 @@
 # 0008-people-existing-work-and-backlog-reconciliation.md
 
 **Status:** Proposed; implementation remains halted pending explicit owner approval.
-**Last Updated:** 2026-09-05 (Asia/Kuala_Lumpur).
+**Last Updated:** 2026-09-06 (Asia/Kuala_Lumpur).
 **Agents:** codex/astra-medium.
 **Sources:** [Overall epic roadmap](0000-people-epic-roadmap.md); 2026-09-05 repository/API snapshot and prior local inspection.
 
@@ -103,10 +103,30 @@ Newly explicit work needing scoped issues after approval: employee portal contra
 Existing request/approval/budget work (#33 and its carriers) must be audited against [0003](0003-people-training-planning-and-delivery.md). An approved individual request or event register does not satisfy a versioned organizational/departmental training plan. Preserve existing work while adding plan consolidation, approval/amendment, plan-to-event execution and optional financial controls. Add ISO/control/evidence traceability without claiming an ISO-mandated annual template or approval hierarchy.
 
 
+## Draft Issue Gaps: Job Descriptions and Performance
+
+The owner requested corresponding issue gaps while preserving the halt. These are issue-ready planning entries, not newly filed GitHub issues, implementation claims or a fresh assertion that existing code has no coverage. Recheck current issues/PRs and implementation before creating or amending issues; retain useful work. IDs JP-G01–JP-G08 are local traceability IDs, not allocated GitHub numbers or replacements for old numbered issues. [0009](0009-people-job-descriptions-and-performance.md) is the canonical new business workstream; JP-A scenarios live in [0007](0007-people-verification-security-and-rollout.md).
+
+| Gap ID and proposed issue title | Canonical owner / dependencies | Bounded scope and acceptance |
+|---|---|---|
+| JP-G01 — Versioned position-linked job descriptions | 0009; 0001 position versions, 0002 competency references | Structured purpose/responsibilities/duties/authority/qualifications/competencies, publication and exact effective associations; JP-A01–A03. |
+| JP-G02 — KPI definitions, periods and governed target assignments | 0009; 0001 employment/scope | Measures/units/rubrics, owners, subject assignments, periods, approved targets and amendments; JP-A04–A06. |
+| JP-G03 — Performance evidence, reviews and correction history | 0009; JP-G02 | Attributable observations/evidence, employee response, final review and supersession without rewriting prior results; JP-A07 and A11. |
+| JP-G04 — Scoped JD/performance reads and explorer drill-through | 0005 presentation, 0001 authorization; 0009 record contracts | Employee/HOD/HR/auditor resource/action/scope matrix, historical/aggregate/export denial and authorized position/employee views; JP-A03, A10–A11. Do not implement a second policy engine. |
+| JP-G05 — Keep performance separate from competency and training | 0002/0003 consumer boundaries; 0009 evidence contract | Versioned competency links and permission-safe performance evidence, with independent assessment/learning lifecycles; JP-A08 and A13. |
+| JP-G06 — Govern performance-based progression evidence | 0004; finalized 0009 reviews | Optional explicit policy, period/version applicability, missing/disputed evidence and correction handling without automatic promotion or pay; JP-A08–A09. |
+| JP-G07 — Migrate JD/KPI assignments and historical evidence | 0006; agreed 0001/0009 schemas/contracts | Authorized source inventory, version/unit/period mapping, quarantine, idempotency and no invented approvals; JP-A01–A02, A11–A12. |
+| JP-G08 — Verify integrated JD/performance audit and denial paths | 0007; preceding delivered boundaries | Independent evidence for JP-A01–JP-A13 across local/remote, direct/explorer/export and historical access; no certification from isolated mocked tests. |
+
+JP-G01 and JD policy discovery can progress independently of detailed KPI source integration once position/competency contracts are agreed. JP-G02 precedes JP-G03; finalized review semantics precede JP-G06. JP-G04 consumes agreed reads, not guessed schema; JP-G07 inventory and JP-G08 test design may run early, while final migration and verification depend on the delivered contracts. During the halt, only planning/read-only discovery is authorized. Preserve one accountable owner per eventual issue and obtain explicit resumption before claims, implementation or merges.
+
+Reconcile historical People #9/#20 roadmap and #21/#22/#24/#26 ownership/identity work with JD/performance authority rather than placing these business records in the connector. #11 requirements informs competency links but is not a full JD; #16 dashboards and #37 passport are not complete KPI reviews; #17/#38 migration must cover these additional sources without asserting the workbook already contains them. Historical issue states above remain snapshots, not refreshed verification. Publication/approval policy and HR2000 capability evidence remain open business/provider decisions.
+
 ## Phases
 
 ### Validate and agree the boundary
 
+- [ ] Reconcile JP-G01–JP-G08 with current implementation/issues, record reuse and remaining gaps, and carry canonical acceptance links without lifting the halt.
 - [ ] Refresh relevant existing implementation and record reusable behavior, gaps and affected contracts.
 - [ ] Resolve this workstream's open policy/interface decisions with the epic coordinator before dependent implementation.
 

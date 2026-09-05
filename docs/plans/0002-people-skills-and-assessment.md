@@ -1,7 +1,7 @@
 # 0002-people-skills-and-assessment.md
 
 **Status:** Proposed; implementation remains halted pending explicit owner approval.
-**Last Updated:** 2026-09-05 (Asia/Kuala_Lumpur).
+**Last Updated:** 2026-09-06 (Asia/Kuala_Lumpur).
 **Agents:** codex/astra-medium.
 **Sources:** [Overall epic roadmap](0000-people-epic-roadmap.md); workbook sheets 00–05, 08–09 and 14; historical 0000 issues mapped in 0008.
 
@@ -40,6 +40,12 @@ Not every training need originates from a gap: regulatory requirements, new equi
 - Coverage uses valid verified competence and defined organisation/shift scope. Named backups and high aggregate scores alone do not satisfy coverage.
 
 
+## Job Description and KPI Boundary Amendment
+
+[0009](0009-people-job-descriptions-and-performance.md) references published competency profiles and requirements from this workstream in job descriptions. Preserve exact versions and effective applicability; do not create a parallel competency catalogue in JD prose or change historic requirements when a description changes. Qualifications required for a position are distinct from verified employee qualification evidence.
+
+Performance measures outcomes during a defined period; competence measures verified ability. A KPI result may supply permission-safe supporting evidence to an assessment but cannot set a proficiency level, satisfy a critical gate or revoke competence automatically. Likewise, poor performance may prompt an authorized development/training recommendation without proving a skill gap. Corrections to linked KPI evidence retain provenance and prompt governed reassessment when appropriate, never an in-place rewrite of finalized scores.
+
 ## Phases
 
 ### Validate and agree the boundary
@@ -49,6 +55,7 @@ Not every training need originates from a gap: regulatory requirements, new equi
 
 ### Implement after explicit owner resumption
 
+- [ ] Publish versioned competency references for JDs and prove that KPI observations/reviews cannot bypass assessment verification or silently change historical skill requirements.
 - [ ] Publish governed catalogue/profile versions with evidence expectations, critical gates and valid weights.
 - [ ] Implement/audit individual and batch assessment verification, supersession, validity and deterministic as-of selection.
 - [ ] Deliver linked gap actions, independent reassessment and critical coverage with named backups verified against actual competence.
