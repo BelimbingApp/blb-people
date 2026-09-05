@@ -20,6 +20,10 @@ class KpiRecord extends TenantOwnedModel
     protected function casts(): array
     {
         return [
+            'kpi_definition_version' => 'integer',
+            'target_version' => 'integer',
+            'attributed_employee_subject_ids' => 'array',
+            'effective_from' => 'date',
             'period_start' => 'date',
             'period_end' => 'date',
             'evidence_references' => 'array',
