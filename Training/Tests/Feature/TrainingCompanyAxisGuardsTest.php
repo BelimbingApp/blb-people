@@ -140,6 +140,26 @@ function axisDraft(array $company, array $overrides = []): TrainingEventDraft
     ], $overrides));
 }
 
+function trainingGuardMethodSource(string $class, string $method): string
+{
+    $reflection = new ReflectionMethod($class, $method);
+    $lines = file($reflection->getFileName(), FILE_IGNORE_NEW_LINES);
+
+    return implode("\n", array_slice(
+        $lines,
+        $reflection->getStartLine() - 1,
+        $reflection->getEndLine() - $reflection->getStartLine() + 1,
+    ));
+}
+
+test('mapped skills keeps the course tenant and company scope explicit', function (): void {
+    $source = trainingGuardMethodSource(TrainingCourse::class, 'mappedSkills');
+
+    expect($source)->toContain(
+        '->forCompany((int) $this->tenant_id, (int) $this->company_entity_id)',
+    );
+});
+
 test('a course code is unique per company, so sibling companies may share one', function (): void {
     ['tenant' => $tenantId, 'a' => $a, 'b' => $b] = axisFixture();
 
