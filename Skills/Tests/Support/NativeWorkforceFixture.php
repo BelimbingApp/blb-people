@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 final class NativeWorkforceFixture
 {
-    public static function create(int $tenantId, WorkforceResourceType|string $type): Model
+    public static function create(int $tenantId, WorkforceResourceType|string $type, ?int $companyId = null): Model
     {
         $type = $type instanceof WorkforceResourceType ? $type : WorkforceResourceType::from($type);
 
@@ -21,7 +21,10 @@ final class NativeWorkforceFixture
             return Company::factory()->create(['tenant_id' => $tenantId, 'status' => 'active']);
         }
 
-        $company = Company::query()->forTenant($tenantId)->firstOrFail();
+        $companies = Company::query()->forTenant($tenantId);
+        $company = $companyId === null
+            ? $companies->firstOrFail()
+            : $companies->findOrFail($companyId);
 
         return match ($type) {
             WorkforceResourceType::Employee => Employee::factory()->create([
