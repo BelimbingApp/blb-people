@@ -141,8 +141,8 @@ test('native identities never invent a company remap without an auditable provid
 
     expect(app(ReadsWorkforceDirectory::class)->remap(
         WorkforceResourceType::Company,
-        (string) $company->id,
         'legacy-company-id',
+        (string) $company->id,
     ))->toBeNull();
 });
 

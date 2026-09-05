@@ -68,8 +68,8 @@ final class NativeWorkforceDirectory implements ReadsWorkforceDirectory
 
     public function remap(
         WorkforceResourceType $type,
-        string $toStableId,
         string $fromStableId,
+        string $toStableId,
     ): ?WorkforceRemapFact {
         // Native IDs are immutable. A provider adapter must publish its own
         // audited remap; absence deliberately forbids carrying a merge over.

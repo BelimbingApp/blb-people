@@ -24,7 +24,7 @@ interface ReadsWorkforceDirectory
 
     public function remap(
         WorkforceResourceType $type,
-        string $toStableId,
         string $fromStableId,
+        string $toStableId,
     ): ?WorkforceRemapFact;
 }
