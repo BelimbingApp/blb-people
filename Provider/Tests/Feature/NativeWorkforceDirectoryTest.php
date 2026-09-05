@@ -227,3 +227,24 @@ function directoryReference(Company $company, string $type, string $code, string
         'status' => PeopleReferenceEntry::STATUS_ACTIVE,
     ]);
 }
+
+test('a tenant-scoped portal user still binds to the employee that holds it', function (): void {
+    [$tenant, $company] = createTenantWithCompany();
+    $employee = Employee::factory()->create(['company_id' => $company->id, 'status' => 'active']);
+    // A user with no company belongs to the tenant rather than to one company.
+    // Both company checks in this service admit that case on purpose; without
+    // the null arm such a user silently loses its identity binding.
+    $user = User::factory()->create(['company_id' => null, 'employee_id' => $employee->id]);
+    EmployeePortalAccess::query()->create([
+        'employee_id' => $employee->id,
+        'user_id' => $user->id,
+        'display_name' => $employee->displayName(),
+        'status' => EmployeePortalAccess::STATUS_ACTIVE,
+    ]);
+    app(TenantContext::class)->set($tenant->id);
+    $directory = app(ReadsWorkforceDirectory::class);
+
+    expect($directory->employees((string) $company->id)[0]->userReference?->externalId)->toBe((string) $user->id)
+        ->and($directory->employeeForUser((string) $company->id, $user->id)?->reference->externalId)
+        ->toBe((string) $employee->id);
+});
