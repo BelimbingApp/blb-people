@@ -6,6 +6,7 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Provider\Contracts\ResolvesWorkforceSubjects;
+use App\Domains\People\Provider\Data\ExternalReference;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Data\WorkforceSubjectResolution;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
@@ -26,6 +27,8 @@ final class NativeWorkforceSubjectResolver implements ResolvesWorkforceSubjects
             || $subject->tenantId === null
             || $subject->companyId === null
             || $subject->tenantId !== $currentTenantId
+            || ($subject->externalReference !== null
+                && $subject->externalReference->providerId !== ExternalReference::PROVIDER_ID)
             || ! ctype_digit($subject->stableId)) {
             return WorkforceSubjectResolution::refused(WorkforceSubjectRefusal::Unknown);
         }
@@ -39,10 +42,6 @@ final class NativeWorkforceSubjectResolver implements ResolvesWorkforceSubjects
         $companyId = $subject->type === WorkforceResourceType::Company
             ? $record->getKey()
             : $record->getAttribute('company_id');
-
-        if (! is_numeric($companyId)) {
-            return WorkforceSubjectResolution::refused(WorkforceSubjectRefusal::Unknown);
-        }
 
         if ((int) $companyId !== $subject->companyId) {
             return WorkforceSubjectResolution::refused(WorkforceSubjectRefusal::WrongCompany);
