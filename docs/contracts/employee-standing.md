@@ -11,6 +11,37 @@ business confirmation; the permission boundaries confirmed in plan 0001 apply.
 It does not certify a delivered portal, historical reconstruction or provider
 capability.
 
+## Current implementation boundary
+
+[People #179](https://github.com/BelimbingApp/blb-people/pull/179) supplies a current,
+self-only service through Employees/Services/EmployeeStandingReader and the
+Skills-owned ReadsOwnSkillStanding contract. It requires both the existing
+assessment-view grant and employee audience, the selected workforce directory's
+active employee/user relationship, and a confirmed, unrevoked Skills actor binding.
+HR authority alone does not grant this self-view or access to another subject.
+
+Skills supplies explicit public outcome DTOs and the source assessments named by
+its canonical current-score projection. Both list and direct-ID reads exclude
+unpublished assessments; future finalization timestamps are not published at the
+current cutoff. Requirement version, assessed level/gap and validity dates remain
+source facts. No private notes, HOD decisions, assessor identities or evidence
+links cross this read contract. Evidence retrieval needs a separate authorized
+document interface; free-form stored evidence is not such an interface.
+
+The result retains the requested subject, generation/cutoff time and workforce
+observation time. Reads are not cached. An explicit historical/as-of request is
+refused as unsupported until authoritative employment/permission history is
+available; today's binding is never used to fabricate a historical grant.
+Typed refusals distinguish missing scope, unauthorized access, subject mismatch,
+unavailable binding/source, unpublished data and unsupported periods; their
+messages contain no resource identifiers or provider error contents.
+
+Training has no employee participation/certificate history store yet (People #34).
+Those portions return an explicit unsupported state with null payloads, distinct
+from an authorized empty Skills result. Event completion is not used to invent
+participation or certificates. This lane adds no UI, data writes, evidence export,
+policy publication or progression eligibility explanation.
+
 ## Employee read scope
 
 An employee may receive the following only with explicit self-record permission

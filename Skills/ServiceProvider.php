@@ -8,8 +8,10 @@ use App\Base\Database\Services\DataShare\DataShareValueNormalizer;
 use App\Base\Menu\Services\MenuConditionRegistry;
 use App\Base\Workflow\Events\TransitionCompleted;
 use App\Core\User\Models\User;
+use App\Domains\People\Skills\Contracts\ReadsOwnSkillStanding;
 use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
 use App\Domains\People\Skills\Listeners\SendRequirementProfileTransitionNotification;
+use App\Domains\People\Skills\Services\OwnSkillStandingReader;
 use App\Domains\People\Skills\Services\RequirementProfileDataShareDestinationMapper;
 use App\Domains\People\Skills\Services\RequirementResolver;
 use App\Domains\People\Skills\Services\SkillAudience;
@@ -23,6 +25,7 @@ class ServiceProvider extends BaseServiceProvider
     public function register(): void
     {
         $this->app->bind(ResolvesSkillRequirements::class, RequirementResolver::class);
+        $this->app->bind(ReadsOwnSkillStanding::class, OwnSkillStandingReader::class);
         $this->app->singleton(RequirementProfileTransitionAuthority::class);
         $this->app->extend(
             DataShareDestinationMapper::class,
