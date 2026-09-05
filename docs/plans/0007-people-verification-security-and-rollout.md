@@ -1,7 +1,7 @@
 # 0007-people-verification-security-and-rollout.md
 
 **Status:** Proposed; implementation remains halted pending explicit owner approval.
-**Last Updated:** 2026-09-05 (Asia/Kuala_Lumpur).
+**Last Updated:** 2026-09-06 (Asia/Kuala_Lumpur).
 **Agents:** codex/astra-medium.
 **Sources:** [Overall epic roadmap](0000-people-epic-roadmap.md); epic invariants; all workstream public contracts.
 
@@ -73,6 +73,26 @@ The owner-approved explorer direction adds the following cross-workstream proof;
 - An authorized auditor can trace a gap through approved plan and execution to evidence as of the defined cutoff; absent historical data is explicitly incomplete, not reconstructed from today's state and presented as fact.
 - HOD action from a historical chart requires explicit current-context validation and cannot silently create a request for an obsolete assignment.
 
+## Job Description and Performance Acceptance Scenarios
+
+Canonical business requirements are in [0009](0009-people-job-descriptions-and-performance.md). The following identifiers trace to draft issue gaps in 0008; they are scenario IDs, not test results or GitHub numbers.
+
+| ID | Scenario | Required observable result |
+|---|---|---|
+| JP-A01 | Position/JD is revised or future-dated | Existing assignment/history resolves its exact applicable version; future content does not replace today's JD; all required structured JD fields and competency links survive. |
+| JP-A02 | Transfer, vacant position, acting or concurrent assignment | Stable position identities and effective intervals yield unambiguous applicable descriptions; no shared JD is silently edited for one employee. |
+| JP-A03 | JD authority says “approve expenditure” | No application, financial or payroll permission is granted by that text or by chart position. |
+| JP-A04 | KPI target changes during a period | Original target and approval remain; approved change has explicit effective treatment and reason; historic performance is not recalculated against a silently replaced target. |
+| JP-A05 | Missing/zero/zero-denominator and lower-is-better/range measures | Distinct states and declared calculation/rubric semantics; no fabricated score, incompatible percentage average or arbitrary executable formula. |
+| JP-A06 | Team KPI reused or employee moves mid-period | Personal attribution and any prorating/splitting follow approved policy; no duplicate headcount or automatic team-to-person score copy. |
+| JP-A07 | Evidence corrected after final review or employee disputes result | Original evidence/review and released rationale remain traceable; a versioned correction/response preserves who changed what and why. |
+| JP-A08 | High KPI, low competence; or low KPI, valid certification | Records remain independent; no automatic skill certification/revocation, promotion, salary adjustment or payroll write. |
+| JP-A09 | Approved progression policy includes performance | Only policy-eligible versioned review evidence is consumed; missing/disputed periods use the published rule; corrections flag governed reevaluation without rewriting awards. |
+| JP-A10 | Employee/HOD/HR/auditor access via chart, API, link or export | Own/released and scoped records match the approved audience matrix; confidential notes/evidence and other employees stay denied; aggregate access does not confer personal access. |
+| JP-A11 | Historical report after transfer/revocation or late correction | Current authorization governs historical scope; report identifies effective date, cutoff and JD/target/review versions, with old and corrected views distinguishable. |
+| JP-A12 | Legacy JD/KPI data imported twice with missing approvals | Idempotent provenance and reconciled relationships; missing history remains explicit; no fabricated approvals, zero values or downstream pay/skill changes. |
+| JP-A13 | KPI linked to training effectiveness | Baseline/window/source and permissions are preserved; a business outcome is not automatically proof that training caused improvement or that competence changed. |
+
 ## Phases
 
 ### Validate and agree the boundary
@@ -82,6 +102,7 @@ The owner-approved explorer direction adds the following cross-workstream proof;
 
 ### Implement after explicit owner resumption
 
+- [ ] Execute JP-A01–JP-A13 with 0009 and affected owners, covering version/history, measurement semantics, visibility, evidence, migration and separation from competence/progression/pay.
 - [ ] Agree measurable integrated acceptance scenarios with HR/HOD and standards/control traceability with the QMS owner.
 - [ ] Verify organisation drill-down, purpose-specific resource/action/scope permissions, historical reconstruction, delegation revocation and export/aggregate non-disclosure across local and remote boundaries.
 - [ ] Verify a real workforce-to-training-to-reassessment-to-progression slice, including failures and authorization denials.

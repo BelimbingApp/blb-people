@@ -1,7 +1,7 @@
 # 0003-people-training-planning-and-delivery.md
 
 **Status:** Proposed; implementation remains halted pending explicit owner approval.
-**Last Updated:** 2026-09-05 (Asia/Kuala_Lumpur).
+**Last Updated:** 2026-09-06 (Asia/Kuala_Lumpur).
 **Agents:** codex/astra-medium.
 **Sources:** [Overall epic roadmap](0000-people-epic-roadmap.md); owner's ISO/training-plan clarification; revised workbook mapping in [0006](0006-people-data-migration-and-workbook-parity.md); official ISO references below.
 
@@ -141,6 +141,8 @@ Plan review shows planned versus delivered activities and people, unmet needs, c
 - [ ] Update this plan with evidence and limitations; do not claim ISO conformity solely from software feature coverage.
 
 ## Handoff and Out of Scope
+
+Job descriptions and performance in [0009](0009-people-job-descriptions-and-performance.md) may inform an authorized training need or provide KPI evidence for effectiveness. Preserve the exact measure/period/source and permitted baseline when linking outcomes. A poor KPI is not automatically a competence gap; improved performance does not by itself prove training caused the change. Training keeps its own approval/evaluation lifecycle and cannot change KPI targets, finalize performance reviews or award pay. Verify this boundary through JP-A08/JP-A13 in 0007.
 
 Supply authorized plan/delivery/follow-up indicators and canonical drill-through references to the organisation explorer in 0005, under 0001's scope/history contracts. HOD planning initiated from a department uses the same plan workflow and separate approval permissions; audit views retrieve approved versions and execution evidence rather than a chart-specific record copy.
 
