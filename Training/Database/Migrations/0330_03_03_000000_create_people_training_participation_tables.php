@@ -102,7 +102,8 @@ return new class extends Migration
 
     private function guards(): void
     {
-        if (DB::connection()->getDriverName() === 'pgsql') {
+        $driver = DB::connection()->getDriverName();
+        if ($driver === 'pgsql') {
             DB::unprepared(<<<'SQL'
                 CREATE FUNCTION pt_participation_immutable() RETURNS trigger AS $$
                 BEGIN
@@ -116,17 +117,30 @@ return new class extends Migration
                     RETURN NEW;
                 END;
                 $$ LANGUAGE plpgsql;
+                CREATE TRIGGER pt_immutable BEFORE UPDATE OR DELETE ON people_training_sessions
+                    FOR EACH ROW EXECUTE FUNCTION pt_participation_immutable();
+                CREATE TRIGGER pt_immutable BEFORE UPDATE OR DELETE ON people_training_participants
+                    FOR EACH ROW EXECUTE FUNCTION pt_participation_immutable();
+                CREATE TRIGGER pt_immutable BEFORE UPDATE OR DELETE ON people_training_participation_facts
+                    FOR EACH ROW EXECUTE FUNCTION pt_participation_immutable();
                 SQL);
-            foreach ($this->tables as $table) {
-                DB::unprepared("CREATE TRIGGER pt_immutable BEFORE UPDATE OR DELETE ON {$table} FOR EACH ROW EXECUTE FUNCTION pt_participation_immutable()");
-            }
-        } elseif (DB::connection()->getDriverName() === 'sqlite') {
-            foreach ($this->tables as $table) {
-                $when = $table === 'people_training_participation_facts' ? 'WHEN OLD.confirmed_at IS NOT NULL' : '';
-                foreach (['UPDATE', 'DELETE'] as $action) {
-                    DB::unprepared("CREATE TRIGGER {$table}_{$action}_guard BEFORE {$action} ON {$table} {$when} BEGIN SELECT RAISE(ABORT, 'participation identity, sessions and confirmed facts are immutable'); END;");
-                }
-            }
+        } elseif ($driver === 'sqlite') {
+            DB::unprepared(<<<'SQL'
+                CREATE TRIGGER people_training_sessions_UPDATE_guard BEFORE UPDATE ON people_training_sessions
+                BEGIN SELECT RAISE(ABORT, 'participation identity and sessions are immutable'); END;
+                CREATE TRIGGER people_training_sessions_DELETE_guard BEFORE DELETE ON people_training_sessions
+                BEGIN SELECT RAISE(ABORT, 'participation identity and sessions are immutable'); END;
+                CREATE TRIGGER people_training_participants_UPDATE_guard BEFORE UPDATE ON people_training_participants
+                BEGIN SELECT RAISE(ABORT, 'participation identity and sessions are immutable'); END;
+                CREATE TRIGGER people_training_participants_DELETE_guard BEFORE DELETE ON people_training_participants
+                BEGIN SELECT RAISE(ABORT, 'participation identity and sessions are immutable'); END;
+                CREATE TRIGGER people_training_participation_facts_UPDATE_guard BEFORE UPDATE ON people_training_participation_facts
+                WHEN OLD.confirmed_at IS NOT NULL
+                BEGIN SELECT RAISE(ABORT, 'confirmed participation facts are immutable'); END;
+                CREATE TRIGGER people_training_participation_facts_DELETE_guard BEFORE DELETE ON people_training_participation_facts
+                WHEN OLD.confirmed_at IS NOT NULL
+                BEGIN SELECT RAISE(ABORT, 'confirmed participation facts are immutable'); END;
+                SQL);
         }
     }
 };
