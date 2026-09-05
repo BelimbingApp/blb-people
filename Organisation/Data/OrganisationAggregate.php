@@ -11,8 +11,9 @@ final readonly class OrganisationAggregate
     public function __construct(
         public WorkforceSubject $scope,
         public OrganisationIndicator $indicator,
-        public int $value,
+        public ?int $value,
         public DateTimeImmutable $asOf,
         public bool $incomplete = false,
+        public bool $suppressed = false,
     ) {}
 }

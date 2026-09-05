@@ -6,10 +6,12 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
+use App\Domains\People\Provider\Contracts\ReadsWorkforcePositions;
 use App\Domains\People\Provider\Data\ExternalReference;
 use App\Domains\People\Provider\Data\WorkforceCompany;
 use App\Domains\People\Provider\Data\WorkforceEmployee;
 use App\Domains\People\Provider\Data\WorkforceOrganizationUnit;
+use App\Domains\People\Provider\Data\WorkforcePosition;
 use App\Domains\People\Provider\Data\WorkforceRemapFact;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
@@ -20,7 +22,7 @@ use DateTimeZone;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
-final class NativeWorkforceDirectory implements ReadsWorkforceDirectory
+final class NativeWorkforceDirectory implements ReadsWorkforceDirectory, ReadsWorkforcePositions
 {
     public function __construct(private readonly TenantContext $tenantContext) {}
 
@@ -69,6 +71,38 @@ final class NativeWorkforceDirectory implements ReadsWorkforceDirectory
                 effectiveAt: $this->time($entry->effective_from ?? $entry->created_at),
                 observedAt: $this->time($entry->updated_at ?? $entry->created_at),
                 code: $entry->code,
+            ))
+            ->all();
+    }
+
+    public function positions(string $companyStableId): array
+    {
+        $company = $this->findCompany($companyStableId);
+
+        if ($company === null) {
+            return [];
+        }
+
+        $companyReference = $this->reference(WorkforceResourceType::Company, (int) $company->getKey());
+
+        return PeopleReferenceEntry::query()
+            ->where('company_id', $company->getKey())
+            ->where('type', PeopleReferenceEntry::TYPE_JOB_TITLE)
+            ->where('status', PeopleReferenceEntry::STATUS_ACTIVE)
+            ->with('parent')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (PeopleReferenceEntry $entry): WorkforcePosition => new WorkforcePosition(
+                reference: $this->reference(WorkforceResourceType::Position, (int) $entry->getKey()),
+                companyReference: $companyReference,
+                name: (string) $entry->name,
+                active: true,
+                observedAt: $this->time($entry->updated_at ?? $entry->created_at),
+                organizationReference: $entry->parent?->type === PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT
+                    && (int) $entry->parent->company_id === (int) $company->getKey()
+                    && $entry->parent->status === PeopleReferenceEntry::STATUS_ACTIVE
+                    ? $this->reference(WorkforceResourceType::OrganizationUnit, (int) $entry->parent->getKey())
+                    : null,
             ))
             ->all();
     }

@@ -8,17 +8,21 @@ use App\Base\Authz\Enums\AuthorizationReasonCode;
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Organisation\Contracts\ReadsOrganisationExplorer;
+use App\Domains\People\Organisation\Contracts\SummarizesOrganisationSkillCoverage;
 use App\Domains\People\Organisation\Data\OrganisationAggregate;
+use App\Domains\People\Organisation\Data\OrganisationIndicatorValue;
 use App\Domains\People\Organisation\Data\OrganisationNode;
 use App\Domains\People\Organisation\Enums\OrganisationIndicator;
 use App\Domains\People\Organisation\Enums\OrganisationPurpose;
 use App\Domains\People\Organisation\Enums\OrganisationReadRefusal;
 use App\Domains\People\Organisation\Services\NativeOrganisationExplorer;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
+use App\Domains\People\Provider\Contracts\ReadsWorkforcePositions;
 use App\Domains\People\Provider\Data\ExternalReference;
 use App\Domains\People\Provider\Data\WorkforceCompany;
 use App\Domains\People\Provider\Data\WorkforceEmployee;
 use App\Domains\People\Provider\Data\WorkforceOrganizationUnit;
+use App\Domains\People\Provider\Data\WorkforcePosition;
 use App\Domains\People\Provider\Data\WorkforceRemapFact;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
@@ -47,6 +51,7 @@ function organisationExplorer(array $capabilities): NativeOrganisationExplorer
         $tenant,
         new OrganisationTestAuthorization($capabilities),
         new OrganisationTestDirectory,
+        new OrganisationTestSkillCoverage,
     );
 }
 
@@ -160,6 +165,50 @@ test('aggregate permission is independent from structure and record access', fun
             ),
             OrganisationPurpose::IndividualDetail,
         ))->toBe(OrganisationReadRefusal::MissingCapability);
+
+    $recordReader = organisationExplorer([
+        'people.organisation.structure.view',
+        'people.organisation.detail.view',
+        'people.organisation.audience.hr',
+    ]);
+
+    expect($recordReader->aggregateIndicator(
+        organisationActor(106),
+        $company,
+        OrganisationIndicator::Headcount,
+        new DateTimeImmutable('now'),
+    ))->toBe(OrganisationReadRefusal::MissingCapability);
+});
+
+test('aggregate indicators report vacancies and skill coverage without exposing small cohorts', function (): void {
+    config()->set('people-organisation.aggregate_suppression_threshold', 4);
+    $reader = organisationExplorer([
+        'people.organisation.aggregate.view',
+        'people.organisation.audience.hr',
+    ]);
+    $unit = organisationSubject(WorkforceResourceType::OrganizationUnit, 'unit-a');
+
+    expect($reader->aggregateIndicator(
+        organisationActor(106),
+        $unit,
+        OrganisationIndicator::Vacancies,
+        new DateTimeImmutable('now'),
+    ))->toMatchArray(['value' => null, 'suppressed' => true])
+        ->and($reader->aggregateIndicator(
+            organisationActor(106),
+            organisationSubject(WorkforceResourceType::Company, 'company-a'),
+            OrganisationIndicator::SkillCoverage,
+            new DateTimeImmutable('now'),
+        ))->toMatchArray(['value' => 75, 'suppressed' => false]);
+
+    config()->set('people-organisation.aggregate_suppression_threshold', 1);
+
+    expect($reader->aggregateIndicator(
+        organisationActor(106),
+        $unit,
+        OrganisationIndicator::Vacancies,
+        new DateTimeImmutable('now'),
+    ))->toMatchArray(['value' => 1, 'suppressed' => false]);
 });
 
 test('current-only directory refuses historical reads rather than inventing history', function (): void {
@@ -234,7 +283,7 @@ final class OrganisationTestAuthorization implements AuthorizationService
     }
 }
 
-final class OrganisationTestDirectory implements ReadsWorkforceDirectory
+final class OrganisationTestDirectory implements ReadsWorkforceDirectory, ReadsWorkforcePositions
 {
     private DateTimeImmutable $now;
 
@@ -319,6 +368,24 @@ final class OrganisationTestDirectory implements ReadsWorkforceDirectory
         ];
     }
 
+    public function positions(string $companyStableId): array
+    {
+        if ($companyStableId !== 'company-a') {
+            return [];
+        }
+
+        $company = new ExternalReference(WorkforceResourceType::Company, 'company-a');
+        $unitA = new ExternalReference(WorkforceResourceType::OrganizationUnit, 'unit-a');
+        $unitB = new ExternalReference(WorkforceResourceType::OrganizationUnit, 'unit-b');
+
+        return [
+            new WorkforcePosition(new ExternalReference(WorkforceResourceType::Position, 'position-a1'), $company, 'A1', true, $this->now, $unitA),
+            new WorkforcePosition(new ExternalReference(WorkforceResourceType::Position, 'position-a2'), $company, 'A2', true, $this->now, $unitA),
+            new WorkforcePosition(new ExternalReference(WorkforceResourceType::Position, 'position-a3'), $company, 'A3', true, $this->now, $unitA),
+            new WorkforcePosition(new ExternalReference(WorkforceResourceType::Position, 'position-b1'), $company, 'B1', true, $this->now, $unitB),
+        ];
+    }
+
     public function employeeForUser(string $companyStableId, int $platformUserId): ?WorkforceEmployee
     {
         foreach ($this->employees($companyStableId) as $employee) {
@@ -346,6 +413,13 @@ final class OrganisationTestDirectory implements ReadsWorkforceDirectory
         int $userId,
         ExternalReference $head,
     ): WorkforceEmployee {
+        $position = match ($id) {
+            'hod-a' => 'position-a1',
+            'employee-a' => 'position-a2',
+            'hod-b' => 'position-b1',
+            default => null,
+        };
+
         return new WorkforceEmployee(
             reference: new ExternalReference(WorkforceResourceType::Employee, $id),
             companyReference: $company,
@@ -355,7 +429,18 @@ final class OrganisationTestDirectory implements ReadsWorkforceDirectory
             observedAt: $this->now,
             userReference: new ExternalReference(WorkforceResourceType::User, (string) $userId),
             organizationReference: $unit,
+            positionReference: $position === null
+                ? null
+                : new ExternalReference(WorkforceResourceType::Position, $position),
             departmentHeadReference: $head,
         );
+    }
+}
+
+final class OrganisationTestSkillCoverage implements SummarizesOrganisationSkillCoverage
+{
+    public function summarize(string $companyStableId, array $employees, DateTimeInterface $asOf): OrganisationIndicatorValue
+    {
+        return new OrganisationIndicatorValue(75, count($employees));
     }
 }
