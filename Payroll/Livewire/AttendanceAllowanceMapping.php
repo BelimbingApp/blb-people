@@ -105,6 +105,7 @@ class AttendanceAllowanceMapping extends Component
         $this->authorizeManage();
 
         PayrollAttendanceRulePayItem::query()
+            ->where('company_id', $this->companyId())
             ->where('attendance_allowance_rule_id', $ruleId)
             ->whereDate('effective_from', Carbon::parse($effectiveFrom))
             ->delete();

@@ -99,6 +99,7 @@ class ClaimTypePayItemMapping extends Component
         $this->authorizeManage();
 
         PayrollClaimTypePayItem::query()
+            ->where('company_id', $this->companyId())
             ->where('claim_type_id', $claimTypeId)
             ->whereDate('effective_from', Carbon::parse($effectiveFrom))
             ->delete();
