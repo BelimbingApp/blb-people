@@ -10,11 +10,12 @@ use App\Core\Company\Models\Department;
 use App\Core\Company\Models\DepartmentType;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
-use App\Domains\People\Skills\Models\SkillActorBinding;
+use App\Domains\People\Skills\Services\SkillAudienceAssignmentStore;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
 use App\Domains\People\Training\Data\TrainingCourseDraft;
@@ -154,9 +155,26 @@ function trainingEventDraft(array $fixture, array $overrides = []): TrainingEven
         'startsAt' => new DateTimeImmutable('2026-10-01T09:00:00+00:00'),
         'endsAt' => new DateTimeImmutable('2026-10-01T17:00:00+00:00'),
         'capacity' => 20,
-        'organizerEmployeeEntityId' => (int) $fixture['operations']->workforce_entity_id,
+        'organizerEmployeeEntityId' => (int) $fixture['operations']->id,
         'targetDepartmentEntityId' => $fixture['departments'][0],
     ], $overrides));
+}
+
+/**
+ * A HOD is a platform user bound to a native employee: the portal-access row
+ * is what the seam's employeeForUser() reads back, and the confirmed actor
+ * binding is what SkillAudience's HOD scope requires. Same recipe as R2's
+ * development-action tests.
+ */
+function trainingEventBindHod(User $hr, User $hod, array $fixture, string $reviewReference): void
+{
+    $head = $fixture['head'];
+    $hod->update(['employee_id' => $head->id]);
+    EmployeePortalAccess::query()->updateOrCreate(
+        ['employee_id' => $head->id],
+        ['user_id' => $hod->id, 'display_name' => $head->displayName(), 'status' => EmployeePortalAccess::STATUS_ACTIVE],
+    );
+    app(SkillAudienceAssignmentStore::class)->confirmActor($hr, $hod, (int) $fixture['company']->id, (int) $head->id, $reviewReference);
 }
 
 function trainingEventRole(User $user, string $code): void
@@ -176,13 +194,13 @@ test('training events preserve schedule snapshots and terminal audit history', f
     $fixture = trainingEventFixture();
     $store = app(TrainingEventStore::class);
     $event = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture), actorUserId: 41,
-        actorEmployeeEntityId: (int) $fixture['operations']->workforce_entity_id);
+        actorEmployeeEntityId: (int) $fixture['operations']->id);
 
     expect($event->course_code_snapshot)->toBe('forklift.induction')
         ->and($event->course_title_snapshot)->toBe('Forklift induction')
         ->and($event->delivery_mode_snapshot)->toBe(DeliveryMode::InternalClassroom)
         ->and($event->status)->toBe(TrainingEventStatus::Scheduled)
-        ->and($event->internal_trainer_employee_entity_id)->toBe((int) $fixture['trainer']->workforce_entity_id);
+        ->and($event->internal_trainer_employee_entity_id)->toBe((int) $fixture['trainer']->id);
 
     $revised = $store->revise((int) $fixture['company']->id, (int) $event->id,
         trainingEventDraft($fixture, ['capacity' => 25, 'venue' => 'Training room']), 41);
@@ -218,7 +236,7 @@ test('HR can maintain the company-scoped course catalog without exposing a cours
         ->set('courseForm.title', 'Confined space entry')
         ->set('courseForm.delivery_mode', DeliveryMode::InternalOjt->value)
         ->set('courseForm.skill_ids', [(int) $fixture['course']->skillIds()[0]])
-        ->set('courseForm.internal_trainer_employee_entity_id', (int) $fixture['trainer']->workforce_entity_id)
+        ->set('courseForm.internal_trainer_employee_entity_id', (int) $fixture['trainer']->id)
         ->call('saveCourse')
         ->assertHasNoErrors()
         ->assertSee('Confined space entry');
@@ -235,12 +253,15 @@ test('HR can maintain the company-scoped course catalog without exposing a cours
 test('catalog rejects a sibling-company trainer at the store boundary', function (): void {
     $fixture = trainingEventFixture();
     $sibling = trainingEventCompany($fixture['tenantId']);
-    $siblingTrainer = trainingEventEmployee($fixture['tenantId'], (int) $sibling->id, $fixture['connection'], 'Sibling trainer');
+    $siblingTrainer = trainingEventEmployee((int) $sibling->id, 'Sibling trainer');
 
     expect(fn () => app(TrainingCatalogStore::class)->defineCourse((int) $fixture['company']->id, new TrainingCourseDraft(
         code: 'cross-company-trainer', title: 'Cross company trainer', deliveryMode: DeliveryMode::Coaching,
-        skillIds: [(int) $fixture['course']->skillIds()[0]], internalTrainerEmployeeEntityId: (int) $siblingTrainer->workforce_entity_id,
-    )))->toThrow(InvalidTrainingCatalogException::class, 'Choose an active internal trainer from this company.');
+        skillIds: [(int) $fixture['course']->skillIds()[0]], internalTrainerEmployeeEntityId: (int) $siblingTrainer->id,
+        // As in TrainingCatalogStoreTest: the seam resolves employees per company,
+        // so a sibling company's trainer is unknown here and the existence check
+        // refuses it first.
+    )))->toThrow(InvalidTrainingCatalogException::class, 'employee workforce entity');
 });
 
 test('a HOD cannot reveal catalog management state or invoke catalog mutations', function (): void {
@@ -249,16 +270,7 @@ test('a HOD cannot reveal catalog management state or invoke catalog mutations',
     $hod = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
     trainingEventRole($hr, 'people_hr');
     trainingEventRole($hod, 'people_hod');
-    SkillActorBinding::query()->create([
-        'tenant_id' => $fixture['tenantId'],
-        'company_entity_id' => $fixture['company']->id,
-        'platform_user_id' => $hod->id,
-        'employee_entity_id' => $fixture['head']->workforce_entity_id,
-        'user_entity_id' => $fixture['head']->user_entity_id,
-        'confirmed_by_user_id' => $hr->id,
-        'review_reference' => 'review:training-catalog-hod',
-        'confirmed_at' => now(),
-    ]);
+    trainingEventBindHod($hr, $hod, $fixture, 'review:training-catalog-hod');
 
     Livewire::actingAs($hod)->test(CatalogIndex::class)
         ->set('courseForm', ['code' => 'forced.course'])
@@ -331,7 +343,7 @@ test('livewire reports future transition attempts without falsifying event histo
 
     Livewire::actingAs($hr)->test(Index::class)
         ->set('courseId', (int) $fixture['course']->id)
-        ->set('organizerEmployeeEntityId', (int) $fixture['operations']->workforce_entity_id)
+        ->set('organizerEmployeeEntityId', (int) $fixture['operations']->id)
         ->set('startsAt', '2026-09-29T09:00')
         ->set('endsAt', '2026-09-29T17:00')
         ->call('save')
@@ -380,7 +392,7 @@ test('event invariants and sibling company or tenant access fail closed', functi
         'course_code_snapshot' => $fixture['course']->code,
         'course_title_snapshot' => $fixture['course']->title,
         'delivery_mode_snapshot' => DeliveryMode::InternalClassroom->value,
-        'organizer_employee_entity_id' => $fixture['operations']->workforce_entity_id,
+        'organizer_employee_entity_id' => $fixture['operations']->id,
         'starts_at' => now()->addDay(),
         'ends_at' => now()->addDay()->addHour(),
         'capacity' => 1,
@@ -405,7 +417,7 @@ test('the actual register gives HR company scope, HOD department scope, and reje
     $operationsEvent = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture));
     $financeEvent = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture, [
         'targetDepartmentEntityId' => $fixture['departments'][1],
-        'organizerEmployeeEntityId' => (int) $fixture['finance']->workforce_entity_id,
+        'organizerEmployeeEntityId' => (int) $fixture['finance']->id,
         'venue' => 'Finance room',
     ]));
     $companyWideEvent = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture, [
@@ -419,16 +431,7 @@ test('the actual register gives HR company scope, HOD department scope, and reje
     trainingEventRole($hr, 'people_hr');
     trainingEventRole($hod, 'people_hod');
     trainingEventRole($platformAdmin, 'core_admin');
-    SkillActorBinding::query()->create([
-        'tenant_id' => $fixture['tenantId'],
-        'company_entity_id' => $fixture['company']->id,
-        'platform_user_id' => $hod->id,
-        'employee_entity_id' => $fixture['head']->workforce_entity_id,
-        'user_entity_id' => $fixture['head']->user_entity_id,
-        'confirmed_by_user_id' => $hr->id,
-        'review_reference' => 'review:training-hod',
-        'confirmed_at' => now(),
-    ]);
+    trainingEventBindHod($hr, $hod, $fixture, 'review:training-hod');
 
     $this->actingAs($platformAdmin)
         ->get(route('people.training.events.index'))
@@ -466,15 +469,24 @@ test('catalog selectCompany switches to an attributable company and refuses an u
     $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
     trainingEventRole($hr, 'people_hr');
 
-    $secondCompany = trainingEventCompany($fixture['tenantId'], 'Second Training Company');
+    // Native attribution: a user may act for exactly one company, the platform
+    // company they belong to (CompanyAttribution::allowedCompanyEntities). A
+    // sibling company in the same tenant is therefore not selectable, which the
+    // connector's projection-based attribution allowed; the discard-on-select
+    // behaviour is proven on the one attributable company instead.
+    $siblingCompany = trainingEventCompany($fixture['tenantId'], 'Second Training Company');
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)
         ->set('editingCourseId', (int) $fixture['course']->id)
         ->set('courseForm', ['title' => 'Discard me'])
-        ->call('selectCompany', (int) $secondCompany->id)
-        ->assertSet('companyEntityId', (int) $secondCompany->id)
+        ->call('selectCompany', (int) $fixture['company']->id)
+        ->assertSet('companyEntityId', (int) $fixture['company']->id)
         ->assertSet('editingCourseId', null)
         ->assertSet('courseForm', []);
+
+    Livewire::actingAs($hr)->test(CatalogIndex::class)
+        ->call('selectCompany', (int) $siblingCompany->id)
+        ->assertStatus(404);
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)
         ->call('selectCompany', PHP_INT_MAX)
@@ -519,15 +531,20 @@ test('event selectCompany switches to an attributable company and refuses an unk
     $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
     trainingEventRole($hr, 'people_hr');
 
-    $secondCompany = trainingEventCompany($fixture['tenantId'], 'Second Event Company');
+    // Same native-attribution rule as the catalog test above.
+    $siblingCompany = trainingEventCompany($fixture['tenantId'], 'Second Event Company');
 
     Livewire::actingAs($hr)->test(Index::class)
         ->set('editingEventId', 99)
         ->set('venue', 'Discard me')
-        ->call('selectCompany', (int) $secondCompany->id)
-        ->assertSet('companyEntityId', (int) $secondCompany->id)
+        ->call('selectCompany', (int) $fixture['company']->id)
+        ->assertSet('companyEntityId', (int) $fixture['company']->id)
         ->assertSet('editingEventId', null)
         ->assertSet('venue', '');
+
+    Livewire::actingAs($hr)->test(Index::class)
+        ->call('selectCompany', (int) $siblingCompany->id)
+        ->assertStatus(404);
 
     Livewire::actingAs($hr)->test(Index::class)
         ->call('selectCompany', PHP_INT_MAX)

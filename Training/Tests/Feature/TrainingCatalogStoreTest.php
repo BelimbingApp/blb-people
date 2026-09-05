@@ -270,15 +270,26 @@ test('an internal trainer must be an active employee projection in the selected 
         'internalTrainerEmployeeEntityId' => 999_999,
     ])))->toThrow(InvalidTrainingCatalogException::class, 'employee workforce entity');
 
+    // The seam resolves employees per company, so a sibling company's employee
+    // is unknown here rather than "known but inactive": the existence check
+    // refuses it before the activity check can. The connector's projection
+    // lookup was tenant-wide and reached the second message.
     $trainer = trainingCatalogEmployee($tenantId);
     expect(fn () => app(TrainingCatalogStore::class)->defineCourse($companyEntityId, trainingCourseDraft($skillId, [
         'internalTrainerEmployeeEntityId' => $trainer,
-    ])))->toThrow(InvalidTrainingCatalogException::class, 'active internal trainer');
+    ])))->toThrow(InvalidTrainingCatalogException::class, 'employee workforce entity');
 });
 
 test('entity references are checked by workforce type, not merely by existing in the tenant', function (): void {
     [$tenantId, $companyEntityId, $skillId] = trainingCatalogFixture();
-    $employeeEntity = trainingCatalogEmployee($tenantId);
+    // Native ids are per table, so an employee key can coincide with a company
+    // key; pin the employee to a key no company holds so the refusal below is
+    // the type check, not a lucky collision.
+    $employeeEntity = (int) Employee::factory()->create([
+        'id' => 900_001,
+        'company_id' => trainingCatalogCompany($tenantId),
+        'status' => 'active',
+    ])->id;
 
     // A real employee entity used as the company argument must be refused —
     // an id existing somewhere in the tenant is not the same as it being the
