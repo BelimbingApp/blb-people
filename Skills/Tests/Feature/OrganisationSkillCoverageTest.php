@@ -52,7 +52,17 @@ test('organisation coverage counts only scores pinned to the published requireme
     ]);
     $requirements = Mockery::mock(ResolvesSkillRequirements::class);
     $requirements->shouldReceive('requirementsFor')->twice()->andReturn([
-        new ResolvedSkillRequirement('published.profile', 2, (int) $skill->id, 3, RequirementCriticality::Critical),
+        new ResolvedSkillRequirement(
+            requirementReference: 'published.profile',
+            requirementVersion: 2,
+            // Coverage reads requirements through the seam and never checks
+            // the pin, so any id serves; named arguments keep this call honest
+            // if the DTO grows again.
+            requirementProfileId: 4001,
+            skillId: (int) $skill->id,
+            requiredLevel: 3,
+            criticality: RequirementCriticality::Critical,
+        ),
     ]);
     $coverage = new OrganisationSkillCoverage(app(TenantContext::class), $requirements);
     $companyReference = new ExternalReference(WorkforceResourceType::Company, (string) $company->id);

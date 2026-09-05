@@ -9,6 +9,7 @@ use App\Base\Menu\Services\MenuConditionRegistry;
 use App\Base\Workflow\Events\TransitionCompleted;
 use App\Core\User\Models\User;
 use App\Domains\People\Organisation\Contracts\SummarizesOrganisationSkillCoverage;
+use App\Domains\People\Skills\Contracts\ConfirmsAssessableRequirementVersion;
 use App\Domains\People\Skills\Contracts\ReadsOwnSkillStanding;
 use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
 use App\Domains\People\Skills\Listeners\SendRequirementProfileTransitionNotification;
@@ -16,6 +17,7 @@ use App\Domains\People\Skills\Services\OrganisationSkillCoverage;
 use App\Domains\People\Skills\Services\OwnSkillStandingReader;
 use App\Domains\People\Skills\Services\RequirementProfileDataShareDestinationMapper;
 use App\Domains\People\Skills\Services\RequirementResolver;
+use App\Domains\People\Skills\Services\RequirementVersionGuard;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Workflow\RequirementProfileTransitionAuthority;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -27,6 +29,7 @@ class ServiceProvider extends BaseServiceProvider
     public function register(): void
     {
         $this->app->bind(ResolvesSkillRequirements::class, RequirementResolver::class);
+        $this->app->bind(ConfirmsAssessableRequirementVersion::class, RequirementVersionGuard::class);
         $this->app->bind(ReadsOwnSkillStanding::class, OwnSkillStandingReader::class);
         $this->app->bind(SummarizesOrganisationSkillCoverage::class, OrganisationSkillCoverage::class);
         $this->app->singleton(RequirementProfileTransitionAuthority::class);

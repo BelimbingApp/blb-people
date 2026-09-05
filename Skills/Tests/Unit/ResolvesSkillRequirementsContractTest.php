@@ -30,6 +30,7 @@ test('assessment gap math runs against fixture requirements with no profile impl
         new ResolvedSkillRequirement(
             requirementReference: 'fixture.ops',
             requirementVersion: 3,
+            requirementProfileId: 3001,
             skillId: 101,
             requiredLevel: 4,
             criticality: RequirementCriticality::Critical,
@@ -38,6 +39,7 @@ test('assessment gap math runs against fixture requirements with no profile impl
         new ResolvedSkillRequirement(
             requirementReference: 'fixture.ops',
             requirementVersion: 3,
+            requirementProfileId: 3001,
             skillId: 202,
             requiredLevel: 2,
             criticality: RequirementCriticality::Development,

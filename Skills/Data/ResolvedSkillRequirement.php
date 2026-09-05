@@ -15,6 +15,16 @@ final readonly class ResolvedSkillRequirement
     public function __construct(
         public string $requirementReference,
         public int $requirementVersion,
+        /**
+         * The requirement profile version this requirement came from.
+         *
+         * Not a breach of the "omits how the requirement was chosen" rule
+         * above: selectors, profile type and tier are still absent. This is
+         * *what* applied, not how it was picked, and the versioning contract
+         * requires an assessment to retain the particular version rather than a
+         * code and a number that nothing guarantees still resolve.
+         */
+        public int $requirementProfileId,
         public int $skillId,
         public int $requiredLevel,
         public RequirementCriticality $criticality,

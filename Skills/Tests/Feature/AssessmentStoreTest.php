@@ -94,10 +94,28 @@ function assessmentFixture(): array
 
     app(SkillCatalogDefaults::class)->install((int) $company->id);
 
+    // A real published profile: an assessment now has to name a version that
+    // exists, is published, and belongs to this company.
+    $profileStore = app(RequirementProfileStore::class);
+    $profile = $profileStore->draft((int) $company->id, new RequirementProfileDraft(
+        code: 'fixture.ops',
+        name: 'Fixture Operations',
+        selectors: [new RequirementSelectorDraft(SelectorType::Company)],
+        items: [new RequirementItemDraft(
+            skillId: (int) $skill->id,
+            sequence: 1,
+            requiredLevel: 4,
+            criticality: RequirementCriticality::Critical,
+            weightPercent: 100.0,
+        )],
+    ));
+    $profile = $profileStore->publish((int) $company->id, (int) $profile->id);
+
     app()->instance(ResolvesSkillRequirements::class, new AssessmentFixtureRequirements([
         new ResolvedSkillRequirement(
             requirementReference: 'fixture.ops',
             requirementVersion: 2,
+            requirementProfileId: (int) $profile->id,
             skillId: (int) $skill->id,
             requiredLevel: 4,
             criticality: RequirementCriticality::Critical,

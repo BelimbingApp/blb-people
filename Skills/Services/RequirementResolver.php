@@ -128,10 +128,12 @@ class RequirementResolver implements ResolvesSkillRequirements
 
         $reference = (string) $profile->code;
         $version = (int) $profile->version;
+        $profileId = (int) $profile->getKey();
 
         return $items->map(fn (RequirementItem $item): ResolvedSkillRequirement => new ResolvedSkillRequirement(
             requirementReference: $reference,
             requirementVersion: $version,
+            requirementProfileId: $profileId,
             skillId: (int) $item->skill_id,
             requiredLevel: (int) $item->required_level,
             criticality: $item->criticality,
