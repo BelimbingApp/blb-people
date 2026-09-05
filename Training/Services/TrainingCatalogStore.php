@@ -195,11 +195,10 @@ class TrainingCatalogStore
         }
 
         if ($draft->internalTrainerEmployeeEntityId !== null) {
+            // The seam resolves an employee only among the company's active
+            // employees, so this one check is also the "active, in this
+            // company" check the connector needed a second lookup for.
             $this->assertEntity($tenantId, $companyEntityId, $draft->internalTrainerEmployeeEntityId, WorkforceResourceType::Employee, 'internal_trainer_employee_entity_id');
-
-            if (! $this->isActiveEmployeeOfCompany($companyEntityId, $draft->internalTrainerEmployeeEntityId)) {
-                throw new InvalidTrainingCatalogException('Choose an active internal trainer from this company.');
-            }
         }
     }
 
@@ -225,16 +224,5 @@ class TrainingCatalogStore
                 "[$field] must reference an existing {$type->value} workforce entity in this tenant.",
             );
         }
-    }
-
-    private function isActiveEmployeeOfCompany(int $companyEntityId, int $employeeEntityId): bool
-    {
-        foreach ($this->workforce->employees($companyEntityId) as $employee) {
-            if ($employee->reference->externalId === (string) $employeeEntityId) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }
