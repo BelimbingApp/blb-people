@@ -1,7 +1,7 @@
 # 0009-people-job-descriptions-and-performance.md
 
 **Status:** Proposed; implementation remains halted pending explicit owner approval.
-**Last Updated:** 2026-09-05 (Asia/Kuala_Lumpur).
+**Last Updated:** 2026-09-06 (Asia/Kuala_Lumpur).
 **Agents:** faith-sol / Codex.
 **Sources:** Owner's explicit Job Descriptions and KPI/Performance Management request; [0000 epic](0000-people-epic-roadmap.md); organisation/history and authorization contracts in [0001](0001-people-architecture-and-provider-boundaries.md); [0002 Skills](0002-people-skills-and-assessment.md); [0004 Progression](0004-people-progression-and-compensation.md).
 

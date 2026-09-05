@@ -1,7 +1,7 @@
 # 0006-people-data-migration-and-workbook-parity.md
 
 **Status:** Proposed; implementation remains halted pending explicit owner approval.
-**Last Updated:** 2026-09-05 (Asia/Kuala_Lumpur).
+**Last Updated:** 2026-09-06 (Asia/Kuala_Lumpur).
 **Agents:** codex/astra-medium.
 **Sources:** [Overall epic roadmap](0000-people-epic-roadmap.md); authorized revised workbook; existing five-department migration plan.
 
@@ -17,7 +17,7 @@ All source feature families and valid records are accounted for, history survive
 
 ## Ownership and Dependencies
 
-Own the canonical workbook parity map, source provenance, data inventories, migration sequencing and reconciliation. This is the single coordinator for cross-workstream identity/schema relocation; feature owners supply mappings and tests. Source analysis/dry-run design may proceed early. Final transformations depend on approved 0001–0004 contracts.
+Own the canonical workbook parity map, source provenance, data inventories, migration sequencing and reconciliation. This is the single coordinator for cross-workstream identity/schema relocation; feature owners supply mappings and tests. Source analysis/dry-run design may proceed early. Final transformations depend on approved 0001–0004 and 0009 contracts.
 
 ## Design Decisions
 
@@ -78,6 +78,16 @@ At cutover, declare the source-of-truth switch and stop old-system writes for th
 
 Supporting reference: [five-department-training-portal-migration.md](five-department-training-portal-migration.md). Its controls remain useful, but its connector-ownership assumptions must be reconciled before implementation.
 
+## Job Description and Performance Migration Amendment
+
+The owner's new scope in [0009](0009-people-job-descriptions-and-performance.md) extends beyond the 18-sheet workbook. Its expected KPI result fields in training requests/effectiveness reviews do not establish a complete KPI catalogue, approved target assignments or performance reviews. Do not fabricate those records from free text or training ratings.
+
+Inventory authorized JD documents and publication/revision history, position versions/assignments, KPI definitions and units/calculations, targets/periods, owners/reviewers, observations, evidence, approvals, disputes and corrections from actual sources. Record source-installation identity and source record/version IDs; deduplicate by provenance, not matching titles or employee names. Confirm whether external systems retain historical versions before promising reconstruction.
+
+Map dates and timezones, assignment scope, units/denominators, direction/rubrics, target changes, period overlap, statuses and retention classification explicitly. Reconcile effective and recorded dates, position/JD/profile relationships and review-to-evidence links. Unknown target, approval or history stays unknown/quarantined; an attachment is evidence, not proof of an approved version. Do not treat missing numbers as zero, auto-score textual reviews or import a team measure as each person's result. Repeat import must be idempotent and preserve corrections without duplicate reviews.
+
+Dry-run with HR/HOD source sign-off and demonstrate historical reconstruction plus declared incompleteness. Preserve sensitive evidence access while moving data. Imported performance cannot trigger skill updates, promotion or payroll; downstream use waits for explicit policy and controlled reconciliation. Existing workbook parity remains required and independently verified.
+
 ## Phases
 
 ### Validate and agree the boundary
@@ -87,6 +97,7 @@ Supporting reference: [five-department-training-portal-migration.md](five-depart
 
 ### Implement after explicit owner resumption
 
+- [ ] Inventory/map and reconcile JD/KPI versions, periods, assignments, evidence and review/correction history with 0009; prove idempotency, explicit missing history and no automatic downstream decisions.
 - [ ] Confirm live versus template data and actual deployments; preserve all immutable identities, histories and evidence references.
 - [ ] Produce source-to-target mappings, source defect register, quarantine/replay rules and feature-level acceptance for all 18 sheets plus newly clarified training planning.
 - [ ] Rehearse application/data ownership movement and source imports with relationship, status, cost and evidence reconciliation.

@@ -1,9 +1,9 @@
 # 0005-people-employee-and-management-experience.md
 
 **Status:** Proposed; implementation remains halted pending explicit owner approval.
-**Last Updated:** 2026-09-05 (Asia/Kuala_Lumpur).
+**Last Updated:** 2026-09-06 (Asia/Kuala_Lumpur).
 **Agents:** codex/astra-medium.
-**Sources:** [Overall epic roadmap](0000-people-epic-roadmap.md); owner's employee portal/workbench feedback; interfaces from 0001–0004.
+**Sources:** [Overall epic roadmap](0000-people-epic-roadmap.md); owner's employee portal/workbench feedback; interfaces from 0001–0004 and 0009.
 
 Read the epic's business context, shared decisions and halt instruction before this workstream. This numbered plan is a proposed assignment boundary, not authorization to start implementation. No agent is assigned by this document. Plan numbers are not the existing GitHub issue sequence.
 
@@ -55,6 +55,16 @@ A small module contribution contract supplies authorized indicators and drill-th
 
 Open implementation decisions: actual company scale/depth, graph relationship types from the authoritative source, HR-approved audience/aggregate disclosure policy and historical data availability. Validate these before selecting chart technology; do not invent size limits or promise historical reconstruction absent source evidence. The design skill informed the progressive, accessible record-first brief; no visual implementation or new design-system artifact is authorized in this revision.
 
+## Authorized Job Description and KPI Drill-Through
+
+The owner requested JD and KPI information in organisation-explorer position and employee detail. [0009](0009-people-job-descriptions-and-performance.md) owns record meanings and audience defaults; 0001 owns scope/history enforcement. This amendment adds record requirements to the existing explorer brief, not a new dashboard or chart-owned data store.
+
+Position detail shows the permitted published JD/version, purpose, responsibilities, duties, authority, qualifications, competency links and approved KPI templates. An employee detail resolves the applicable employment/position/JD version and period-specific personal targets, observations, released review status/results and permitted evidence. Position visibility does not expose an occupant's personal performance. Separate performance and competence indicators; show period/version and missing, pending, disputed or final state without a universal employee score.
+
+Employees see their communicated expectations, own released results and sufficient rationale to respond; HODs plan/review only within assigned grants; HR accesses its governance scope; auditors receive read-only engagement-scoped historical records. Evidence, confidential notes, target approval, review finalization and exports remain separately authorized. Aggregate access never automatically enables personal drill-through. Actions open the canonical publication/target/review/response workflow and recheck permissions; JD authority text is not permission.
+
+Historical position/employee views and exports resolve the same JD, target and review versions/cutoff as direct records. A transfer, period switch or revoked delegation must not leak the previously visible review through cached detail. Keep skill, performance, promotion eligibility and salary information distinct even when a user is authorized to view several together.
+
 ## Phases
 
 ### Validate and agree the boundary
@@ -64,6 +74,7 @@ Open implementation decisions: actual company scale/depth, graph relationship ty
 
 ### Implement after explicit owner resumption
 
+- [ ] Integrate authorized position-JD and employee-period KPI drill-through, responses and canonical actions with 0009; prove distinct performance/competence status and current/historical access parity.
 - [ ] Validate role journeys and information visibility with employee, HOD and HR examples, including progression and approved training plans.
 - [ ] Deliver company-to-employee organisation drill-down and equivalent accessible list/tree navigation with Skills/Training as the first complete purpose-specific view.
 - [ ] Connect authorized HOD planning actions and historical read-only audit/evidence views; prove permission-sensitive indicators, exports and truthful unavailable/incomplete states.
