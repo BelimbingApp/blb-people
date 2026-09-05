@@ -9,6 +9,7 @@ use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
 use App\Domains\People\Provider\Data\ExternalReference;
 use App\Domains\People\Provider\Data\WorkforceCompany;
 use App\Domains\People\Provider\Data\WorkforceEmployee;
+use App\Domains\People\Provider\Data\WorkforceOrganizationUnit;
 use App\Domains\People\Provider\Data\WorkforceRemapFact;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
@@ -42,6 +43,34 @@ final class NativeWorkforceDirectory implements ReadsWorkforceDirectory
         }
 
         return $this->projectEmployees($this->employeeQuery((int) $company->getKey())->get());
+    }
+
+    public function organizationUnits(string $companyStableId): array
+    {
+        $company = $this->findCompany($companyStableId);
+
+        if ($company === null) {
+            return [];
+        }
+
+        $companyReference = $this->reference(WorkforceResourceType::Company, (int) $company->getKey());
+
+        return PeopleReferenceEntry::query()
+            ->where('company_id', $company->getKey())
+            ->where('type', PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT)
+            ->where('status', PeopleReferenceEntry::STATUS_ACTIVE)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (PeopleReferenceEntry $entry): WorkforceOrganizationUnit => new WorkforceOrganizationUnit(
+                reference: $this->reference(WorkforceResourceType::OrganizationUnit, (int) $entry->getKey()),
+                companyReference: $companyReference,
+                name: (string) $entry->name,
+                active: true,
+                effectiveAt: $this->time($entry->effective_from ?? $entry->created_at),
+                observedAt: $this->time($entry->updated_at ?? $entry->created_at),
+                code: $entry->code,
+            ))
+            ->all();
     }
 
     public function employeeForUser(string $companyStableId, int $platformUserId): ?WorkforceEmployee

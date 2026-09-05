@@ -1,0 +1,29 @@
+{
+    "name": "blb/people-training",
+    "type": "blb-module",
+    "description": "People-owned training course catalog, mapped to the Skills catalog.",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "App\\Domains\\People\\Training\\": ""
+        }
+    },
+    "extra": {
+        "blb": {
+            "module": "people/training",
+            "version": "0.1.0",
+            "description": "Training course catalog and event delivery for the Skill and Training Management System.",
+            "requires-modules": {
+                "people/provider": "*",
+                "people/skills": "*"
+            },
+            "optional-modules": {},
+            "publishes-events": [
+                "App\\Domains\\People\\Training\\Events\\TrainingCourseDefined",
+                "App\\Domains\\People\\Training\\Events\\TrainingCourseDeactivated",
+                "App\\Domains\\People\\Training\\Events\\TrainingCourseReactivated"
+            ],
+            "consumes-events": []
+        }
+    }
+}

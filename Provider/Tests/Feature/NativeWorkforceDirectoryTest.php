@@ -217,14 +217,19 @@ test('a relationship entry of the wrong reference type is not published', functi
         ->and($record?->positionReference?->externalId)->toBe((string) $position->id);
 });
 
-function directoryReference(Company $company, string $type, string $code, string $name): PeopleReferenceEntry
-{
+function directoryReference(
+    Company $company,
+    string $type,
+    string $code,
+    string $name,
+    string $status = PeopleReferenceEntry::STATUS_ACTIVE,
+): PeopleReferenceEntry {
     return PeopleReferenceEntry::query()->create([
         'company_id' => $company->id,
         'type' => $type,
         'code' => $code,
         'name' => $name,
-        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+        'status' => $status,
     ]);
 }
 
@@ -247,4 +252,41 @@ test('a tenant-scoped portal user still binds to the employee that holds it', fu
     expect($directory->employees((string) $company->id)[0]->userReference?->externalId)->toBe((string) $user->id)
         ->and($directory->employeeForUser((string) $company->id, $user->id)?->reference->externalId)
         ->toBe((string) $employee->id);
+});
+
+test('organization units are listed for a company with the names a caller can render', function (): void {
+    [$tenant, $company] = createTenantWithCompany();
+    $otherCompany = Company::factory()->create(['tenant_id' => $tenant->id]);
+    $ops = directoryReference($company, PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT, 'OPS', 'Operations');
+    $retired = directoryReference($company, PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT, 'OLD', 'Retired Wing', 'inactive');
+    $jobTitle = directoryReference($company, PeopleReferenceEntry::TYPE_JOB_TITLE, 'ENG', 'Engineer');
+    $foreign = directoryReference($otherCompany, PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT, 'FAR', 'Far Operations');
+    app(TenantContext::class)->set($tenant->id);
+
+    $units = app(ReadsWorkforceDirectory::class)->organizationUnits((string) $company->id);
+    $ids = array_map(static fn ($unit): string => $unit->reference->externalId, $units);
+
+    // A department with no employees in it is still a department: this is the
+    // case the employee-derived route cannot see, and the one a training event
+    // is most often scheduled for.
+    expect($ids)->toBe([(string) $ops->getKey()])
+        ->and($units[0]->name)->toBe('Operations')
+        ->and($units[0]->code)->toBe('OPS')
+        ->and($units[0]->reference->resourceType)->toBe(WorkforceResourceType::OrganizationUnit)
+        ->and($units[0]->companyReference->externalId)->toBe((string) $company->id)
+        ->and($ids)->not->toContain((string) $retired->getKey())
+        ->and($ids)->not->toContain((string) $jobTitle->getKey())
+        ->and($ids)->not->toContain((string) $foreign->getKey());
+});
+
+test('organization units fail closed outside the tenant and for an unknown company', function (): void {
+    [$tenant, $company] = createTenantWithCompany();
+    directoryReference($company, PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT, 'OPS', 'Operations');
+    $directory = app(ReadsWorkforceDirectory::class);
+    app(TenantContext::class)->set($tenant->id);
+
+    expect($directory->organizationUnits($company->id.'-not-ours'))->toBe([]);
+
+    app(TenantContext::class)->clear();
+    expect($directory->organizationUnits((string) $company->id))->toBe([]);
 });
