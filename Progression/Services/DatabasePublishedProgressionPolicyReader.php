@@ -6,17 +6,23 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Progression\Contracts\ReadsPublishedProgressionPolicy;
 use App\Domains\People\Progression\Data\PublishedProgressionPolicy;
 use App\Domains\People\Progression\Enums\ProgressionPolicyRefusal;
+use App\Domains\People\Progression\Enums\ProgressionPolicyStatus;
+use App\Domains\People\Progression\Models\ProgressionPolicy;
 use App\Domains\People\Provider\Contracts\ResolvesWorkforceSubjects;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceSubjectRefusal;
-use Illuminate\Contracts\Config\Repository;
 
-final readonly class ConfigPublishedProgressionPolicyReader implements ReadsPublishedProgressionPolicy
+/**
+ * Resolves the one published policy version that applies to a subject's
+ * company today: the latest effective-dated published row. The subject
+ * checks are unchanged from the config-backed reader this replaces; only the
+ * source of the policy moved from configuration to the publication record.
+ */
+final readonly class DatabasePublishedProgressionPolicyReader implements ReadsPublishedProgressionPolicy
 {
     public function __construct(
         private TenantContext $tenantContext,
         private ResolvesWorkforceSubjects $subjects,
-        private Repository $config,
     ) {}
 
     public function read(WorkforceSubject $subject): PublishedProgressionPolicy|ProgressionPolicyRefusal
@@ -44,17 +50,24 @@ final readonly class ConfigPublishedProgressionPolicyReader implements ReadsPubl
             };
         }
 
-        $policy = $this->config->get("people.progression.published_policies.{$tenantId}.{$subject->companyId}");
+        // whereDate: SQLite stores date columns with a time part, so a bare
+        // string compare on effective_from silently misses boundary days.
+        $policy = ProgressionPolicy::query()
+            ->forCompany($tenantId, $subject->companyId)
+            ->where('status', ProgressionPolicyStatus::Published->value)
+            ->whereDate('effective_from', '<=', today()->toDateString())
+            ->orderByDesc('effective_from')
+            ->orderByDesc('published_at')
+            ->first();
+
         if ($policy === null) {
             return ProgressionPolicyRefusal::NoPolicyPublished;
         }
 
-        if (! is_array($policy)
-            || ! is_string($policy['policy_id'] ?? null) || trim($policy['policy_id']) === ''
-            || ! is_string($policy['version'] ?? null) || trim($policy['version']) === '') {
+        if (trim((string) $policy->policy_id) === '' || trim((string) $policy->version) === '') {
             return ProgressionPolicyRefusal::InvalidPolicy;
         }
 
-        return new PublishedProgressionPolicy($tenantId, $subject->companyId, $policy['policy_id'], $policy['version']);
+        return new PublishedProgressionPolicy($tenantId, $subject->companyId, (string) $policy->policy_id, (string) $policy->version);
     }
 }
