@@ -145,6 +145,25 @@ class CleanupWorktreeTest(unittest.TestCase):
         self.assertIn("open-PR state is unavailable", result.stdout)
         self.assertTrue(uncertain.is_dir(), "uncertainty must preserve state")
 
+    def test_yes_preserves_worktree_when_registry_has_duplicate_branch_matches(self):
+        ambiguous = Path(self.dir.name) / "wt-ambiguous"
+        branch = "agent/a-issue-44"
+        self.git("worktree", "add", "-q", "-b", branch, str(ambiguous), "origin/main")
+        self.git("commit", "-q", "--allow-empty", "-m", "ambiguous lane", cwd=ambiguous)
+        self.git("push", "-q", "-u", "origin", branch, cwd=ambiguous)
+
+        result = self.run_cleanup(
+            "--yes",
+            open_prs=(
+                '[{"number":100,"headRefName":"agent/a-issue-44"},'
+                '{"number":101,"headRefName":"agent/a-issue-44"}]'
+            ),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("open PR #100, #101", result.stdout)
+        self.assertTrue(ambiguous.is_dir(), "ambiguous registry state must be preserved")
+
 
 if __name__ == "__main__":
     unittest.main()

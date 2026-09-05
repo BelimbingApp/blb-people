@@ -108,7 +108,7 @@ while IFS= read -r w; do
   fi
   if [ "$wbranch" != "detached" ]; then
     open_pr=$(jq -r --arg branch "$wbranch" \
-      '[.[] | select(.headRefName == $branch) | .number] | if length == 1 then .[0] else empty end' \
+      '[.[] | select(.headRefName == $branch) | .number | tostring] | join(", #")' \
       <<<"$open_prs")
     if [ -n "$open_pr" ]; then
       echo "  kept $w [$wbranch] — open PR #$open_pr"
