@@ -7,6 +7,7 @@ use App\Core\User\Models\User;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
 use App\Domains\People\Skills\Data\AssessmentDraft;
+use App\Domains\People\Skills\Data\PerformanceEvidenceReference;
 use App\Domains\People\Skills\Data\ResolvedSkillRequirement;
 use App\Domains\People\Skills\Enums\AssessmentResultBand;
 use App\Domains\People\Skills\Enums\AssessmentStatus;
@@ -387,7 +388,11 @@ final class AssessmentStore
         $this->assertEntity($tenantId, $companyEntityId, $companyEntityId, WorkforceResourceType::Company);
         $this->assertEntity($tenantId, $companyEntityId, $draft->employeeEntityId, WorkforceResourceType::Employee);
 
-        if (trim($draft->evidence) === '') {
+        $evidence = $draft->evidence instanceof PerformanceEvidenceReference
+            ? $draft->evidence->reference
+            : trim($draft->evidence);
+
+        if ($evidence === '') {
             throw new InvalidAssessmentException('Evidence is mandatory; score-by-impression is invalid.');
         }
 
@@ -465,7 +470,7 @@ final class AssessmentStore
             'method' => $draft->method,
             'cycle' => $draft->cycle,
             'status' => $status,
-            'evidence' => $draft->evidence,
+            'evidence' => $evidence,
             'notes' => $draft->notes,
             'assessor_user_id' => $assessorUserId,
             'assessor_employee_entity_id' => $draft->assessorEmployeeEntityId,
