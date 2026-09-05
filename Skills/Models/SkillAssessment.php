@@ -87,6 +87,7 @@ class SkillAssessment extends TenantOwnedModel implements ReferencesWorkforceEnt
     {
         return [
             'requirement_version' => 'integer',
+            'requirement_profile_id' => 'integer',
             'required_level' => 'integer',
             'criticality' => RequirementCriticality::class,
             'weight_percent' => 'decimal:2',

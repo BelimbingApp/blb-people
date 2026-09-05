@@ -5,6 +5,7 @@ namespace App\Domains\People\Skills\Services;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
+use App\Domains\People\Skills\Contracts\ConfirmsAssessableRequirementVersion;
 use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
 use App\Domains\People\Skills\Data\AssessmentDraft;
 use App\Domains\People\Skills\Data\PerformanceEvidenceReference;
@@ -39,6 +40,7 @@ final class AssessmentStore
     public function __construct(
         private readonly TenantContext $tenantContext,
         private readonly ResolvesSkillRequirements $requirements,
+        private readonly ConfirmsAssessableRequirementVersion $requirementVersions,
         private readonly ProficiencyScaleStore $scales,
         private readonly SkillAudience $audience,
         private readonly WorkforceSubjects $workforce,
@@ -416,6 +418,7 @@ final class AssessmentStore
             $employeeData,
         );
         $requirement = $this->requirementForSkill($employeeData, (int) $skill->getKey(), $draft->assessedAt);
+        $this->requirementVersions->assertAssessable($companyEntityId, $requirement->requirementProfileId);
         $scale = $this->resolveScaleSnapshot($companyEntityId, $draft);
 
         $gap = $requirement->gap($draft->assessedLevel);
@@ -456,6 +459,7 @@ final class AssessmentStore
             'skill_id' => $draft->skillId,
             'requirement_reference' => $requirement->requirementReference,
             'requirement_version' => $requirement->requirementVersion,
+            'requirement_profile_id' => $requirement->requirementProfileId,
             'required_level' => $requirement->requiredLevel,
             'criticality' => $requirement->criticality,
             'weight_percent' => $weight,

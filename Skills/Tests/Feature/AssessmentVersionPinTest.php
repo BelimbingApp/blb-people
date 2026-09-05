@@ -21,11 +21,13 @@ use App\Domains\People\Skills\Exceptions\InvalidAssessmentException;
 use App\Domains\People\Skills\Models\RequirementProfile;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\AssessmentStore;
+use App\Domains\People\Skills\Services\AssessmentVersionBackfill;
 use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillCatalogDefaults;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
 use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
+use Illuminate\Support\Facades\DB;
 
 /*
  * Self-contained: every helper is prefixed pin and lives here, so the file
@@ -187,7 +189,7 @@ test('assessing against a draft version is refused', function (): void {
         pinDraft($f['employeeEntityId'], $f['skillId']),
     ))->toThrow(InvalidAssessmentException::class);
 
-    expect(SkillAssessment::query()->forTenant($f['tenantId'])->count())->toBe(0);
+    expect(SkillAssessment::query()->forCompany($f['tenantId'], $f['companyEntityId'])->count())->toBe(0);
 });
 
 test('assessing against a retired version is refused', function (): void {
@@ -201,13 +203,28 @@ test('assessing against a retired version is refused', function (): void {
         pinDraft($f['employeeEntityId'], $f['skillId']),
     ))->toThrow(InvalidAssessmentException::class);
 
-    expect(SkillAssessment::query()->forTenant($f['tenantId'])->count())->toBe(0);
+    expect(SkillAssessment::query()->forCompany($f['tenantId'], $f['companyEntityId'])->count())->toBe(0);
 });
 
 test('assessing against another company version is refused', function (): void {
     $f = pinFixture('Pin Cross Company Tenant');
     $sibling = NativeWorkforceFixture::create($f['tenantId'], WorkforceResourceType::Company);
-    $foreign = pinProfile((int) $sibling->id, $f['skillId'], RequirementProfileStatus::Published);
+    // The sibling's profile is built on the sibling's own skill: the profile
+    // store refuses a skill from another company, which is the boundary already
+    // working one level down. What this test attacks is the pin itself.
+    $siblingCategory = app(SkillCatalogStore::class)->defineCategory((int) $sibling->id, 'ops', 'Operations');
+    $siblingSkill = app(SkillCatalogStore::class)->defineSkill((int) $sibling->id, new SkillDraft(
+        code: 'forklift.operation',
+        name: 'Forklift Operation',
+        definition: 'Operates a counterbalance forklift.',
+        categoryId: (int) $siblingCategory->id,
+        scope: SkillScope::Shared,
+        criticalClassification: CriticalClassification::Safety,
+        evidenceGuide: 'Observed lift cycle.',
+        defaultAssessmentMethod: AssessmentMethod::DirectObservation,
+        defaultReassessmentMonths: 12,
+    ));
+    $foreign = pinProfile((int) $sibling->id, (int) $siblingSkill->id, RequirementProfileStatus::Published);
     pinRequirements($f['skillId'], (int) $foreign->id);
 
     // Same tenant, different company. A published version is still not this
@@ -219,7 +236,7 @@ test('assessing against another company version is refused', function (): void {
         pinDraft($f['employeeEntityId'], $f['skillId']),
     ))->toThrow(InvalidAssessmentException::class);
 
-    expect(SkillAssessment::query()->forTenant($f['tenantId'])->count())->toBe(0);
+    expect(SkillAssessment::query()->forCompany($f['tenantId'], $f['companyEntityId'])->count())->toBe(0);
 });
 
 test('a version retired after an assessment stays readable through it', function (): void {
@@ -239,11 +256,72 @@ test('a version retired after an assessment stays readable through it', function
     app(RequirementProfileStore::class)->retire($f['companyEntityId'], (int) $profile->id);
 
     $pinned = RequirementProfile::query()
-        ->forTenant($f['tenantId'])
+        ->forCompany($f['tenantId'], $f['companyEntityId'])
         ->whereKey($assessment->refresh()->requirement_profile_id)
         ->first();
 
     expect($pinned)->not->toBeNull()
         ->and((int) $pinned->id)->toBe((int) $profile->id)
         ->and($pinned->version)->toBe(1);
+});
+
+test('the backfill pins unpinned rows to the currently published version', function (): void {
+    $f = pinFixture('Pin Backfill Tenant');
+    $v1 = pinProfile($f['companyEntityId'], $f['skillId'], RequirementProfileStatus::Published);
+    $store = app(RequirementProfileStore::class);
+    $v2 = $store->publish($f['companyEntityId'], (int) $store->newDraftFrom($f['companyEntityId'], (int) $v1->id)->id);
+    pinRequirements($f['skillId'], (int) $v2->id, 2);
+    $assessment = app(AssessmentStore::class)->submit(
+        User::factory()->make(['id' => 9]),
+        $f['companyEntityId'],
+        pinDraft($f['employeeEntityId'], $f['skillId']),
+    );
+
+    // Simulate the pre-migration state on a draft row, which is the only kind
+    // the backfill may touch.
+    $draftRow = app(AssessmentStore::class)->draft($f['companyEntityId'], pinDraft($f['employeeEntityId'], $f['skillId']));
+    DB::table('people_connector_skill_assessments')
+        ->where('id', $draftRow->id)
+        ->update(['requirement_profile_id' => null]);
+
+    $pinned = AssessmentVersionBackfill::run();
+
+    // Two versions exist and publishing v2 retired v1, so the current published
+    // version is the only defensible answer for a row whose real version can no
+    // longer be recovered.
+    expect($pinned)->toBe(1)
+        ->and((int) $draftRow->refresh()->requirement_profile_id)->toBe((int) $v2->id)
+        ->and((int) $v2->version)->toBe(2)
+        ->and((int) $assessment->refresh()->requirement_profile_id)->toBe((int) $v2->id);
+});
+
+test('the backfill leaves a row alone when the company has no published version', function (): void {
+    $f = pinFixture('Pin Backfill Nothing Tenant');
+    $profile = pinProfile($f['companyEntityId'], $f['skillId'], RequirementProfileStatus::Published);
+    pinRequirements($f['skillId'], (int) $profile->id);
+    $draftRow = app(AssessmentStore::class)->draft($f['companyEntityId'], pinDraft($f['employeeEntityId'], $f['skillId']));
+    DB::table('people_connector_skill_assessments')->where('id', $draftRow->id)->update(['requirement_profile_id' => null]);
+    app(RequirementProfileStore::class)->retire($f['companyEntityId'], (int) $profile->id);
+
+    // Nothing is published any more. Guessing would put a wrong version on the
+    // record; null says "not known", which is the truth.
+    expect(AssessmentVersionBackfill::run())->toBe(0)
+        ->and($draftRow->refresh()->requirement_profile_id)->toBeNull();
+});
+
+test('the backfill leaves a finalized assessment alone rather than rewriting history', function (): void {
+    $f = pinFixture('Pin Backfill Immutable Tenant');
+    $profile = pinProfile($f['companyEntityId'], $f['skillId'], RequirementProfileStatus::Published);
+    pinRequirements($f['skillId'], (int) $profile->id);
+    $submitted = app(AssessmentStore::class)->submit(
+        User::factory()->make(['id' => 9]),
+        $f['companyEntityId'],
+        pinDraft($f['employeeEntityId'], $f['skillId']),
+    );
+
+    // A non-draft assessment cannot be updated outside the workflow, and that
+    // guard is not the backfill's to weaken. Running it must be a no-op here
+    // rather than an error or a rewrite.
+    expect(AssessmentVersionBackfill::run())->toBe(0)
+        ->and((int) $submitted->refresh()->requirement_profile_id)->toBe((int) $profile->id);
 });

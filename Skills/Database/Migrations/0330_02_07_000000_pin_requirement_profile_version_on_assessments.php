@@ -1,9 +1,8 @@
 <?php
 
-use App\Domains\People\Skills\Enums\RequirementProfileStatus;
+use App\Domains\People\Skills\Services\AssessmentVersionBackfill;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -28,27 +27,7 @@ return new class extends Migration
             $table->index(['tenant_id', 'requirement_profile_id'], 'pcs_assessment_req_profile_idx');
         });
 
-        // Existing rows are pinned to the company's currently published version
-        // for their reference. It is the best available answer and it is stated
-        // as an assumption rather than a fact: rows taken against a version that
-        // has since been retired cannot be recovered from a reference and a
-        // number, which is the whole reason this column exists.
-        DB::table('people_connector_skill_assessments')->orderBy('id')->chunkById(500, function ($rows): void {
-            foreach ($rows as $row) {
-                $profileId = DB::table('people_connector_skill_requirement_profiles')
-                    ->where('tenant_id', $row->tenant_id)
-                    ->where('company_entity_id', $row->company_entity_id)
-                    ->where('status', RequirementProfileStatus::Published->value)
-                    ->orderByDesc('version')
-                    ->value('id');
-
-                if ($profileId !== null) {
-                    DB::table('people_connector_skill_assessments')
-                        ->where('id', $row->id)
-                        ->update(['requirement_profile_id' => $profileId]);
-                }
-            }
-        });
+        AssessmentVersionBackfill::run();
     }
 
     public function down(): void
