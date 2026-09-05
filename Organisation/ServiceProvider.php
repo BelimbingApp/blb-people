@@ -10,6 +10,7 @@ final class ServiceProvider extends BaseServiceProvider
 {
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__.'/Config/organisation.php', 'people-organisation');
         $this->app->bind(ReadsOrganisationExplorer::class, NativeOrganisationExplorer::class);
     }
 }

@@ -8,6 +8,12 @@ return [
     'capabilities' => [
         'people.training.event.view',
         'people.training.event.manage',
+        'people.training.plan.submit',
+        'people.training.plan.approve',
+        'people.training.request.submit',
+        'people.training.request.hod-approve',
+        'people.training.request.review',
+        'people.training.request.approve',
         'people.training.participation.manage',
         'people.training.participation.verify',
         'people.training.participation.evidence.assign',
@@ -18,6 +24,9 @@ return [
             'capabilities' => [
                 'people.training.event.view',
                 'people.training.event.manage',
+                'people.training.plan.approve',
+                'people.training.request.submit',
+                'people.training.request.review',
                 'people.training.participation.manage',
                 'people.training.participation.verify',
                 'people.training.participation.evidence.assign',
@@ -31,7 +40,14 @@ return [
         'people_hod' => [
             'capabilities' => [
                 'people.training.event.view',
+                'people.training.plan.submit',
+                'people.training.request.hod-approve',
             ],
+        ],
+        'people_training_approver' => [
+            'name' => 'People Training Approver',
+            'description' => 'Makes the final decision on fully reviewed training requests.',
+            'capabilities' => ['people.training.request.approve'],
         ],
     ],
 ];

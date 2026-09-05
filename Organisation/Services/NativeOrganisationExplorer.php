@@ -8,13 +8,16 @@ use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Organisation\Contracts\ReadsOrganisationExplorer;
+use App\Domains\People\Organisation\Contracts\SummarizesOrganisationSkillCoverage;
 use App\Domains\People\Organisation\Data\OrganisationAggregate;
 use App\Domains\People\Organisation\Data\OrganisationDrillThrough;
+use App\Domains\People\Organisation\Data\OrganisationIndicatorValue;
 use App\Domains\People\Organisation\Data\OrganisationNode;
 use App\Domains\People\Organisation\Enums\OrganisationIndicator;
 use App\Domains\People\Organisation\Enums\OrganisationPurpose;
 use App\Domains\People\Organisation\Enums\OrganisationReadRefusal;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
+use App\Domains\People\Provider\Contracts\ReadsWorkforcePositions;
 use App\Domains\People\Provider\Data\WorkforceCompany;
 use App\Domains\People\Provider\Data\WorkforceEmployee;
 use App\Domains\People\Provider\Data\WorkforceOrganizationUnit;
@@ -32,6 +35,7 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
         private readonly TenantContext $tenantContext,
         private readonly AuthorizationService $authorization,
         private readonly ReadsWorkforceDirectory $workforce,
+        private readonly ?SummarizesOrganisationSkillCoverage $skillCoverage = null,
     ) {}
 
     public function structureNode(
@@ -78,11 +82,56 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
             return $node;
         }
 
+        $summary = match ($indicator) {
+            OrganisationIndicator::Headcount => new OrganisationIndicatorValue(count($visible), count($visible)),
+            OrganisationIndicator::Vacancies => $this->vacancies($scope, $guard, $visible),
+            OrganisationIndicator::SkillCoverage => $this->skillCoverage?->summarize(
+                $guard->reference->externalId,
+                $visible,
+                $asOf,
+            ) ?? new OrganisationIndicatorValue(null, count($visible), true),
+        };
+        $suppressed = $summary->cohortSize < max(1, (int) config('people-organisation.aggregate_suppression_threshold', 4));
+
         return new OrganisationAggregate(
             scope: $scope,
             indicator: $indicator,
-            value: count($visible),
+            value: $suppressed ? null : $summary->value,
             asOf: $this->immutable($asOf),
+            incomplete: $summary->incomplete,
+            suppressed: $suppressed,
+        );
+    }
+
+    /** @param list<WorkforceEmployee> $employees */
+    private function vacancies(
+        WorkforceSubject $scope,
+        WorkforceCompany $company,
+        array $employees,
+    ): OrganisationIndicatorValue {
+        if (! $this->workforce instanceof ReadsWorkforcePositions) {
+            return new OrganisationIndicatorValue(null, count($employees), true);
+        }
+
+        $positions = array_values(array_filter(
+            $this->workforce->positions($company->reference->externalId),
+            fn ($position): bool => $scope->type === WorkforceResourceType::Company
+                || ($scope->type === WorkforceResourceType::OrganizationUnit
+                    && $position->organizationReference?->externalId === $scope->stableId)
+                || ($scope->type === WorkforceResourceType::Employee
+                    && $position->reference->externalId === $employees[0]->positionReference?->externalId),
+        ));
+        $occupied = array_unique(array_filter(array_map(
+            fn (WorkforceEmployee $employee): ?string => $employee->positionReference?->externalId,
+            $employees,
+        )));
+
+        return new OrganisationIndicatorValue(
+            value: count(array_filter(
+                $positions,
+                fn ($position): bool => ! in_array($position->reference->externalId, $occupied, true),
+            )),
+            cohortSize: count($positions),
         );
     }
 
