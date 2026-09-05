@@ -76,7 +76,7 @@ final class AssessmentWorkflowContext
             $callerFile = str_replace('\\', '/', (string) ($caller['file'] ?? ''));
 
             if (($caller['class'] ?? null) === AssessmentStore::class
-                || str_contains($callerFile, '/Skill/Tests/')) {
+                || str_contains($callerFile, '/Skills/Tests/')) {
                 return;
             }
         }

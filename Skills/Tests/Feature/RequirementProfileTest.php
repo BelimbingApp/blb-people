@@ -10,22 +10,13 @@ use App\Base\Workflow\Models\StatusHistory;
 use App\Base\Workflow\Models\Workflow;
 use App\Base\Workflow\Notifications\TransitionNotification;
 use App\Core\Company\Models\Company;
+use App\Core\Company\Models\Department;
+use App\Core\Company\Models\DepartmentType;
+use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
-use App\Domains\People\Connector\Data\ExternalReference;
-use App\Domains\People\Connector\Data\WorkforceCompany;
-use App\Domains\People\Connector\Data\WorkforcePosition;
-use App\Domains\People\Connector\Data\WorkforceProvenance;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
-use App\Domains\People\Connector\Models\DomainModels;
-use App\Domains\People\Connector\Models\ExternalIdentity;
-use App\Domains\People\Connector\Models\ProviderConnection;
-use App\Domains\People\Connector\Models\WorkforceCompanyProjection;
-use App\Domains\People\Connector\Models\WorkforceEmployeeProjection;
-use App\Domains\People\Connector\Models\WorkforceEntity;
-use App\Domains\People\Connector\Models\WorkforceOrganizationUnitProjection;
-use App\Domains\People\Connector\Models\WorkforcePositionProjection;
-use App\Domains\People\Connector\Services\WorkforceIdentityStore;
-use App\Domains\People\Connector\Services\WorkforceProjectionStore;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Skills\Data\RequirementItemDraft;
 use App\Domains\People\Skills\Data\RequirementProfileDraft;
 use App\Domains\People\Skills\Data\RequirementSelectorDraft;
@@ -51,8 +42,10 @@ use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\RequirementResolver;
 use App\Domains\People\Skills\Services\SkillAudienceAssignmentStore;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
+use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use App\Domains\People\Skills\Workflow\RequirementProfileTransitionAuthority;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -64,70 +57,13 @@ afterEach(function (): void {
     app(TenantContext::class)->clear();
 });
 
-function requirementEntity(int $tenantId, string $type, ?int $companyEntityId = null): WorkforceEntity
+beforeEach(function (): void {
+    $this->withoutVite();
+});
+
+function requirementEntity(int $tenantId, string $type, ?int $companyEntityId = null): Model
 {
-    $entity = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => $type,
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
-
-    if (($type === 'organization_unit' || $type === 'position') && $companyEntityId !== null) {
-        $connection = ProviderConnection::query()->firstOrCreate(
-            [
-                'tenant_id' => $tenantId,
-                'scope_key' => 'tenant',
-                'provider_id' => 'test-provider',
-            ],
-            [
-                'label' => 'Test Connection',
-                'status' => ProviderConnection::STATUS_ACTIVE,
-            ]
-        );
-
-        $externalId = 'test-id-'.$entity->id;
-        $identity = ExternalIdentity::query()->create([
-            'tenant_id' => $tenantId,
-            'connection_id' => $connection->id,
-            'workforce_entity_id' => $entity->id,
-            'provider_id' => 'test-provider',
-            'resource_type' => $type,
-            'external_id' => $externalId,
-            'external_id_hash' => hash('sha256', $externalId),
-            'state' => ExternalIdentity::STATE_ACTIVE,
-            'effective_from' => now(),
-            'last_observed_at' => now(),
-        ]);
-
-        if ($type === 'organization_unit') {
-            WorkforceOrganizationUnitProjection::create([
-                'tenant_id' => $tenantId,
-                'workforce_entity_id' => $entity->id,
-                'source_identity_id' => $identity->id,
-                'company_entity_id' => $companyEntityId,
-                'name' => 'Test Department',
-                'active' => true,
-                'effective_at' => now(),
-                'observed_at' => now(),
-            ]);
-        }
-
-        if ($type === 'position') {
-            WorkforcePositionProjection::create([
-                'tenant_id' => $tenantId,
-                'workforce_entity_id' => $entity->id,
-                'source_identity_id' => $identity->id,
-                'company_entity_id' => $companyEntityId,
-                'name' => 'Test Position',
-                'active' => true,
-                'effective_at' => now(),
-                'observed_at' => now(),
-            ]);
-        }
-    }
-
-    return $entity;
+    return NativeWorkforceFixture::create($tenantId, WorkforceResourceType::from($type));
 }
 
 /**
@@ -483,16 +419,12 @@ test('company isolation: department selector cannot reference sibling company or
     $companyB = requirementEntity($tenantId, 'company');
 
     $deptEntity = requirementEntity($tenantId, 'organization_unit', $companyAId);
-    $deptA = WorkforceOrganizationUnitProjection::query()
-        ->forCompany($tenantId, $companyAId)
-        ->where('workforce_entity_id', $deptEntity->id)
-        ->first();
 
     $crossCompanyProfile = new RequirementProfileDraft(
         code: 'cross.company',
         name: 'Cross Company Profile',
         selectors: [
-            new RequirementSelectorDraft(SelectorType::Department, null, (int) $deptA->workforce_entity_id),
+            new RequirementSelectorDraft(SelectorType::Department, null, (int) $deptEntity->id),
         ],
         items: [
             new RequirementItemDraft(
@@ -718,84 +650,6 @@ test('as-of dating uses published_at/retired_at interval, not null effective_dat
         ->and($historicalResult['profile']->version)->toBe(1);
 });
 
-test('merging a position rewrites requirement profile selectors that target it', function (): void {
-    [$tenantId] = requirementFixture();
-    $store = app(RequirementProfileStore::class);
-    $projections = app(WorkforceProjectionStore::class);
-    $identities = app(WorkforceIdentityStore::class);
-
-    $connection = ProviderConnection::query()->firstOrCreate(
-        [
-            'tenant_id' => $tenantId,
-            'scope_key' => 'tenant',
-            'provider_id' => 'test.people',
-        ],
-        [
-            'label' => 'Merge Connection',
-            'status' => ProviderConnection::STATUS_ACTIVE,
-        ],
-    );
-    $at = new DateTimeImmutable('2026-09-03T00:00:00+00:00');
-    $companyRef = new ExternalReference('test.people', WorkforceResourceType::Company, 'REQ-MERGE-CO');
-    $projections->upsert((int) $connection->id, new WorkforceCompany($companyRef, 'Merge Co', true, $at));
-    $mergeCompanyId = (int) $identities->resolve((int) $connection->id, $companyRef)->id;
-
-    $catalog = app(SkillCatalogStore::class);
-    $category = $catalog->defineCategory($mergeCompanyId, 'merge', 'Merge');
-    $skill = $catalog->defineSkill($mergeCompanyId, new SkillDraft(
-        code: 'merge.skill',
-        name: 'Merge Skill',
-        definition: 'Merge.',
-        categoryId: (int) $category->id,
-        scope: SkillScope::Shared,
-        defaultAssessmentMethod: AssessmentMethod::DirectObservation,
-    ));
-
-    $pos = fn (string $id): ExternalReference => new ExternalReference('test.people', WorkforceResourceType::Position, $id);
-    foreach (['POS-OLD', 'POS-NEW'] as $id) {
-        $projections->upsert((int) $connection->id, new WorkforcePosition($pos($id), $companyRef, $id, true, $at, $at));
-    }
-    $oldPositionId = (int) $identities->resolve((int) $connection->id, $pos('POS-OLD'))->id;
-
-    $profile = $store->draft($mergeCompanyId, new RequirementProfileDraft(
-        code: 'pos.merge',
-        name: 'Position Merge Profile',
-        selectors: [new RequirementSelectorDraft(SelectorType::Position, null, $oldPositionId)],
-        items: [
-            new RequirementItemDraft(
-                skillId: (int) $skill->id,
-                sequence: 1,
-                requiredLevel: 2,
-                criticality: RequirementCriticality::Essential,
-                weightPercent: 100.0,
-            ),
-        ],
-    ));
-    $store->publish($mergeCompanyId, (int) $profile->id);
-
-    expect(array_map(
-        fn (array $pair): string => $pair[0].'.'.$pair[1]->column,
-        DomainModels::referencing(WorkforceResourceType::Position),
-    ))->toContain(RequirementProfileSelector::class.'.selector_entity_id');
-
-    $identities->merge(
-        (int) $connection->id,
-        $pos('POS-OLD'),
-        $pos('POS-NEW'),
-        $at->modify('+1 hour'),
-        new WorkforceProvenance('identity_merge', 'selector-merge-review'),
-    );
-    $newPositionId = (int) $identities->resolve((int) $connection->id, $pos('POS-NEW'))->id;
-
-    $selector = RequirementProfileSelector::query()
-        ->forCompany($tenantId, $mergeCompanyId)
-        ->where('profile_id', $profile->id)
-        ->firstOrFail();
-
-    expect($newPositionId)->not->toBe($oldPositionId)
-        ->and((int) $selector->selector_entity_id)->toBe($newPositionId);
-});
-
 test('criticality enum provides workbook priority multipliers', function (): void {
     expect(RequirementCriticality::Critical->multiplier())->toBe(3)
         ->and(RequirementCriticality::Essential->multiplier())->toBe(2)
@@ -814,78 +668,38 @@ function requirementGovernanceRole(User $user, string $code): void
     ]);
 }
 
-/** @return array{int, ProviderConnection} */
+/** @return array{int, null} */
 function requirementGovernanceCompany(int $tenantId, Company $platformCompany): array
 {
-    $company = requirementEntity($tenantId, 'company');
-    $connection = ProviderConnection::query()->create([
-        'tenant_id' => $tenantId,
-        'company_id' => $platformCompany->id,
-        'scope_key' => 'company:'.$platformCompany->id,
-        'active_scope_key' => 'company:'.$platformCompany->id,
-        'provider_id' => 'governance.test',
-        'status' => ProviderConnection::STATUS_ACTIVE,
-    ]);
-    $identity = ExternalIdentity::query()->create([
-        'tenant_id' => $tenantId,
-        'connection_id' => $connection->id,
-        'workforce_entity_id' => $company->id,
-        'provider_id' => 'governance.test',
-        'resource_type' => 'company',
-        'external_id' => 'company-'.$company->id,
-        'external_id_hash' => hash('sha256', 'company-'.$company->id),
-        'state' => ExternalIdentity::STATE_ACTIVE,
-        'effective_from' => now(),
-        'last_observed_at' => now(),
-    ]);
-    WorkforceCompanyProjection::query()->create([
-        'tenant_id' => $tenantId,
-        'workforce_entity_id' => $company->id,
-        'source_identity_id' => $identity->id,
-        'name' => $platformCompany->name,
-        'active' => true,
-        'effective_at' => now(),
-        'observed_at' => now(),
-    ]);
-
-    return [(int) $company->id, $connection];
+    return [(int) $platformCompany->id, null];
 }
 
 function requirementGovernanceEmployee(
     int $tenantId,
     int $companyEntityId,
-    ProviderConnection $connection,
+    mixed $connection,
     int $departmentEntityId,
-): WorkforceEmployeeProjection {
-    $employee = requirementEntity($tenantId, 'employee');
-    $userEntity = requirementEntity($tenantId, 'user');
-    $externalId = 'employee-'.$employee->id;
-    $identity = ExternalIdentity::query()->create([
-        'tenant_id' => $tenantId,
-        'connection_id' => $connection->id,
-        'workforce_entity_id' => $employee->id,
-        'provider_id' => 'governance.test',
-        'resource_type' => 'employee',
-        'external_id' => $externalId,
-        'external_id_hash' => hash('sha256', $externalId),
-        'state' => ExternalIdentity::STATE_ACTIVE,
-        'effective_from' => now(),
-        'last_observed_at' => now(),
+): Employee {
+    $employee = Employee::factory()->create(['company_id' => $companyEntityId, 'status' => 'active']);
+    $type = DepartmentType::query()->create([
+        'code' => 'governance-'.$employee->id,
+        'name' => 'Governance Department',
+        'category' => 'operational',
+        'is_active' => true,
     ]);
+    $department = Department::query()->create([
+        'company_id' => $companyEntityId,
+        'department_type_id' => $type->id,
+        'head_id' => $employee->id,
+        'status' => 'active',
+    ]);
+    $employee->update(['department_id' => $department->id]);
+    EmployeeWorkProfile::query()->updateOrCreate(
+        ['employee_id' => $employee->id],
+        ['organization_unit_id' => $departmentEntityId],
+    );
 
-    return WorkforceEmployeeProjection::query()->create([
-        'tenant_id' => $tenantId,
-        'workforce_entity_id' => $employee->id,
-        'source_identity_id' => $identity->id,
-        'company_entity_id' => $companyEntityId,
-        'user_entity_id' => $userEntity->id,
-        'organization_entity_id' => $departmentEntityId,
-        'department_head_entity_id' => $employee->id,
-        'display_name' => 'Department Head',
-        'active' => true,
-        'effective_at' => now(),
-        'observed_at' => now(),
-    ]);
+    return $employee;
 }
 
 test('governed profiles require in-scope HOD review and HR approval before publication', function (): void {
@@ -901,8 +715,17 @@ test('governed profiles require in-scope HOD review and HR approval before publi
     $hodEmployee = requirementGovernanceEmployee($tenantId, $companyEntityId, $connection, (int) $department->id);
 
     $hr = User::factory()->create(['company_id' => $platformCompany->id]);
-    $hod = User::factory()->create(['company_id' => $platformCompany->id]);
+    $hod = User::factory()->create([
+        'company_id' => $platformCompany->id,
+        'employee_id' => $hodEmployee->id,
+    ]);
     $outsider = User::factory()->create(['company_id' => $platformCompany->id]);
+    EmployeePortalAccess::query()->create([
+        'employee_id' => $hodEmployee->id,
+        'user_id' => $hod->id,
+        'display_name' => $hodEmployee->displayName(),
+        'status' => EmployeePortalAccess::STATUS_ACTIVE,
+    ]);
     requirementGovernanceRole($hr, 'people_hr');
     requirementGovernanceRole($hod, 'people_hod');
     requirementGovernanceRole($outsider, 'people_hod');
@@ -910,7 +733,7 @@ test('governed profiles require in-scope HOD review and HR approval before publi
         $hr,
         $hod,
         $companyEntityId,
-        (int) $hodEmployee->workforce_entity_id,
+        (int) $hodEmployee->id,
         'review:hod-governance-binding',
     );
     (new RequirementProfileWorkflowSeeder)->run();

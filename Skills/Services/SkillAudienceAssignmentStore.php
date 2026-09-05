@@ -3,7 +3,6 @@
 namespace App\Domains\People\Skills\Services;
 
 use App\Base\Tenancy\Contracts\TenantContext;
-use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Exceptions\InvalidSkillAudienceAssignmentException;
 use App\Domains\People\Skills\Models\SkillActorBinding;
@@ -17,6 +16,7 @@ final class SkillAudienceAssignmentStore
         private readonly TenantContext $tenantContext,
         private readonly CompanyAttribution $companies,
         private readonly SkillAudience $audience,
+        private readonly WorkforceSubjects $workforce,
     ) {}
 
     public function confirmActor(
@@ -37,16 +37,14 @@ final class SkillAudienceAssignmentStore
         }
 
         $tenantId = $this->tenantContext->requireTenantId();
-        $employee = Employee::query()
-            ->where('company_id', $companyEntityId)
-            ->whereKey($employeeEntityId)
-            ->where('status', 'active')
-            ->first();
+        $employee = $this->workforce->employeeForUser(
+            $companyEntityId,
+            (int) $platformUser->getAuthIdentifier(),
+        );
 
         if ($employee === null
-            || (int) $platformUser->employee_id !== (int) $employee->id
-            || (int) $platformUser->getCompanyId() !== $companyEntityId) {
-            throw new InvalidSkillAudienceAssignmentException('Actor bindings require an active native employee and user relationship.');
+            || $employee->reference->externalId !== (string) $employeeEntityId) {
+            throw new InvalidSkillAudienceAssignmentException('Actor bindings require an active reviewed employee and user relationship.');
         }
 
         return DB::transaction(function () use ($tenantId, $companyEntityId, $platformUser, $employee, $confirmedBy, $reviewReference): SkillActorBinding {
@@ -55,7 +53,7 @@ final class SkillAudienceAssignmentStore
                 'company_entity_id' => $companyEntityId,
                 'platform_user_id' => $platformUser->getAuthIdentifier(),
             ], [
-                'employee_entity_id' => $employee->id,
+                'employee_entity_id' => (int) $employee->reference->externalId,
                 'user_entity_id' => $platformUser->getAuthIdentifier(),
                 'confirmed_by_user_id' => $confirmedBy->getAuthIdentifier(),
                 'review_reference' => $reviewReference,
@@ -114,11 +112,9 @@ final class SkillAudienceAssignmentStore
         }
 
         $tenantId = $this->tenantContext->requireTenantId();
-        if (! Employee::query()
-            ->where('company_id', $companyEntityId)
-            ->whereKey($employeeEntityId)
-            ->where('status', 'active')
-            ->exists()) {
+        if (! collect($this->workforce->employees($companyEntityId))->contains(
+            fn ($employee): bool => $employee->reference->externalId === (string) $employeeEntityId,
+        )) {
             throw new InvalidSkillAudienceAssignmentException('The assessed employee is outside the workforce company boundary.');
         }
 

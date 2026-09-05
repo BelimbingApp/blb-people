@@ -84,29 +84,6 @@ return new class extends Migration
                     AND NEW.published_at IS NOT DISTINCT FROM OLD.published_at THEN
                     RETURN NEW;
                 END IF;
-                IF NEW.company_entity_id IS DISTINCT FROM OLD.company_entity_id
-                    AND NEW.id = OLD.id
-                    AND NEW.tenant_id = OLD.tenant_id
-                    AND NEW.code = OLD.code
-                    AND NEW.name = OLD.name
-                    AND NEW.version = OLD.version
-                    AND NEW.status = OLD.status
-                    AND NEW.effective_date IS NOT DISTINCT FROM OLD.effective_date
-                    AND NEW.published_at IS NOT DISTINCT FROM OLD.published_at
-                    AND NEW.retired_at IS NOT DISTINCT FROM OLD.retired_at
-                    AND NEW.owner_employee_entity_id IS NOT DISTINCT FROM OLD.owner_employee_entity_id
-                    AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at THEN
-                    SELECT EXISTS(
-                        SELECT 1 FROM people_connector_connector_workforce_entities
-                        WHERE tenant_id = OLD.tenant_id
-                        AND id = OLD.company_entity_id
-                        AND state = 'merged'
-                        AND merged_into_entity_id = NEW.company_entity_id
-                    ) INTO is_company_merge;
-                    IF is_company_merge THEN
-                        RETURN NEW;
-                    END IF;
-                END IF;
                 RAISE EXCEPTION 'requirement profile % is % and immutable; draft a new version instead', OLD.id, OLD.status;
             END;
             $$ LANGUAGE plpgsql;
@@ -121,32 +98,6 @@ return new class extends Migration
                 bad_profile bigint;
                 is_company_merge boolean;
             BEGIN
-                IF TG_OP = 'UPDATE'
-                    AND NEW.company_entity_id IS DISTINCT FROM OLD.company_entity_id
-                    AND NEW.id = OLD.id
-                    AND NEW.tenant_id = OLD.tenant_id
-                    AND NEW.profile_id = OLD.profile_id
-                    AND NEW.skill_id = OLD.skill_id
-                    AND NEW.sequence = OLD.sequence
-                    AND NEW.required_level = OLD.required_level
-                    AND NEW.criticality = OLD.criticality
-                    AND NEW.weight_percent IS NOT DISTINCT FROM OLD.weight_percent
-                    AND NEW.mandatory_gate IS NOT DISTINCT FROM OLD.mandatory_gate
-                    AND NEW.reassessment_months IS NOT DISTINCT FROM OLD.reassessment_months
-                    AND NEW.active IS NOT DISTINCT FROM OLD.active
-                    AND NEW.evidence_standard IS NOT DISTINCT FROM OLD.evidence_standard
-                    AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at THEN
-                    SELECT EXISTS(
-                        SELECT 1 FROM people_connector_connector_workforce_entities
-                        WHERE tenant_id = OLD.tenant_id
-                        AND id = OLD.company_entity_id
-                        AND state = 'merged'
-                        AND merged_into_entity_id = NEW.company_entity_id
-                    ) INTO is_company_merge;
-                    IF is_company_merge THEN
-                        RETURN NEW;
-                    END IF;
-                END IF;
                 IF TG_OP = 'INSERT' THEN
                     profile_ids := ARRAY[NEW.profile_id];
                 ELSIF TG_OP = 'DELETE' THEN
@@ -185,46 +136,6 @@ return new class extends Migration
                 -- session flag — so the same rewrite remains permitted after
                 -- the merge transaction ends (idempotent move to the survivor).
                 -- Every other column on the row must stay unchanged.
-                IF TG_OP = 'UPDATE' THEN
-                    IF NEW.company_entity_id IS DISTINCT FROM OLD.company_entity_id
-                        AND NEW.id = OLD.id
-                        AND NEW.tenant_id = OLD.tenant_id
-                        AND NEW.profile_id = OLD.profile_id
-                        AND NEW.selector_type = OLD.selector_type
-                        AND NEW.selector_value IS NOT DISTINCT FROM OLD.selector_value
-                        AND NEW.selector_entity_id IS NOT DISTINCT FROM OLD.selector_entity_id
-                        AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at THEN
-                        SELECT EXISTS(
-                            SELECT 1 FROM people_connector_connector_workforce_entities
-                            WHERE tenant_id = OLD.tenant_id
-                            AND id = OLD.company_entity_id
-                            AND state = 'merged'
-                            AND merged_into_entity_id = NEW.company_entity_id
-                        ) INTO is_merge_carry;
-                        IF is_merge_carry THEN
-                            RETURN NEW;
-                        END IF;
-                    END IF;
-                    IF NEW.selector_entity_id IS DISTINCT FROM OLD.selector_entity_id
-                        AND NEW.id = OLD.id
-                        AND NEW.tenant_id = OLD.tenant_id
-                        AND NEW.company_entity_id = OLD.company_entity_id
-                        AND NEW.profile_id = OLD.profile_id
-                        AND NEW.selector_type = OLD.selector_type
-                        AND NEW.selector_value IS NOT DISTINCT FROM OLD.selector_value
-                        AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at THEN
-                        SELECT EXISTS(
-                            SELECT 1 FROM people_connector_connector_workforce_entities
-                            WHERE tenant_id = OLD.tenant_id
-                            AND id = OLD.selector_entity_id
-                            AND state = 'merged'
-                            AND merged_into_entity_id = NEW.selector_entity_id
-                        ) INTO is_merge_carry;
-                        IF is_merge_carry THEN
-                            RETURN NEW;
-                        END IF;
-                    END IF;
-                END IF;
                 IF TG_OP = 'INSERT' THEN
                     profile_ids := ARRAY[NEW.profile_id];
                 ELSIF TG_OP = 'DELETE' THEN
@@ -260,15 +171,7 @@ return new class extends Migration
             .' AND NEW.tenant_id = OLD.tenant_id AND NEW.company_entity_id = OLD.company_entity_id'
             .' AND NEW.code = OLD.code AND NEW.name = OLD.name AND NEW.version = OLD.version'
             .' AND NEW.published_at IS OLD.published_at)'
-            .' OR (NEW.company_entity_id != OLD.company_entity_id'
-            .' AND NEW.id = OLD.id AND NEW.tenant_id = OLD.tenant_id AND NEW.code = OLD.code AND NEW.name = OLD.name'
-            .' AND NEW.version = OLD.version AND NEW.status = OLD.status'
-            .' AND NEW.effective_date IS OLD.effective_date AND NEW.published_at IS OLD.published_at'
-            .' AND NEW.retired_at IS OLD.retired_at AND NEW.owner_employee_entity_id IS OLD.owner_employee_entity_id'
-            .' AND NEW.created_at IS OLD.created_at'
-            .' AND EXISTS(SELECT 1 FROM people_connector_connector_workforce_entities'
-            ." WHERE tenant_id = OLD.tenant_id AND id = OLD.company_entity_id AND state = 'merged'"
-            .' AND merged_into_entity_id = NEW.company_entity_id)))'
+            .')'
             ." BEGIN SELECT RAISE(ABORT, 'requirement profile is published and immutable; draft a new version instead'); END",
         );
         DB::statement(
@@ -289,16 +192,6 @@ return new class extends Migration
             .' WHEN NOT ('
             ." ((SELECT status FROM people_connector_skill_requirement_profiles WHERE id = NEW.profile_id) = 'draft'"
             ." AND (SELECT status FROM people_connector_skill_requirement_profiles WHERE id = OLD.profile_id) = 'draft')"
-            .' OR (NEW.company_entity_id != OLD.company_entity_id'
-            .' AND NEW.id = OLD.id AND NEW.tenant_id = OLD.tenant_id AND NEW.profile_id = OLD.profile_id'
-            .' AND NEW.skill_id = OLD.skill_id AND NEW.sequence = OLD.sequence'
-            .' AND NEW.required_level = OLD.required_level AND NEW.criticality = OLD.criticality'
-            .' AND NEW.weight_percent IS OLD.weight_percent AND NEW.mandatory_gate IS OLD.mandatory_gate'
-            .' AND NEW.reassessment_months IS OLD.reassessment_months AND NEW.active IS OLD.active'
-            .' AND NEW.evidence_standard IS OLD.evidence_standard AND NEW.created_at IS OLD.created_at'
-            .' AND EXISTS(SELECT 1 FROM people_connector_connector_workforce_entities'
-            ." WHERE tenant_id = OLD.tenant_id AND id = OLD.company_entity_id AND state = 'merged'"
-            .' AND merged_into_entity_id = NEW.company_entity_id))'
             .')'
             ." BEGIN SELECT RAISE(ABORT, 'requirement profile is not draft; its items are immutable'); END",
         );
@@ -324,22 +217,6 @@ return new class extends Migration
             .' WHEN NOT ('
             ." ((SELECT status FROM people_connector_skill_requirement_profiles WHERE id = NEW.profile_id) = 'draft'"
             ." AND (SELECT status FROM people_connector_skill_requirement_profiles WHERE id = OLD.profile_id) = 'draft')"
-            .' OR (NEW.company_entity_id != OLD.company_entity_id'
-            .' AND NEW.id = OLD.id AND NEW.tenant_id = OLD.tenant_id AND NEW.profile_id = OLD.profile_id'
-            .' AND NEW.selector_type = OLD.selector_type'
-            .' AND NEW.selector_value IS OLD.selector_value'
-            .' AND NEW.selector_entity_id IS OLD.selector_entity_id'
-            .' AND NEW.created_at IS OLD.created_at'
-            .' AND EXISTS(SELECT 1 FROM people_connector_connector_workforce_entities'
-            ." WHERE tenant_id = OLD.tenant_id AND id = OLD.company_entity_id AND state = 'merged'"
-            .' AND merged_into_entity_id = NEW.company_entity_id))'
-            .' OR (NEW.selector_entity_id IS NOT OLD.selector_entity_id'
-            .' AND NEW.id = OLD.id AND NEW.tenant_id = OLD.tenant_id AND NEW.company_entity_id = OLD.company_entity_id'
-            .' AND NEW.profile_id = OLD.profile_id AND NEW.selector_type = OLD.selector_type'
-            .' AND NEW.selector_value IS OLD.selector_value AND NEW.created_at IS OLD.created_at'
-            .' AND EXISTS(SELECT 1 FROM people_connector_connector_workforce_entities'
-            ." WHERE tenant_id = OLD.tenant_id AND id = OLD.selector_entity_id AND state = 'merged'"
-            .' AND merged_into_entity_id = NEW.selector_entity_id))'
             .')'
             ." BEGIN SELECT RAISE(ABORT, 'requirement profile is not draft; its selectors are immutable'); END",
         );

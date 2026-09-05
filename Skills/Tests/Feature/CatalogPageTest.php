@@ -21,6 +21,10 @@ afterEach(function (): void {
     app(TenantContext::class)->clear();
 });
 
+beforeEach(function (): void {
+    $this->withoutVite();
+});
+
 function catalogPageCompanyEntity(int $tenantId, string $name = 'SBG Manufacturing', ?int $platformCompanyId = null): int
 {
     $company = $platformCompanyId === null
@@ -85,13 +89,14 @@ function catalogPageProbeDraft(int $companyEntityId): ProficiencyScale
     ]);
 }
 
-test('the catalog page states honestly that no company is synchronized yet', function (): void {
+test('the catalog page uses the actor platform company through the native workforce directory', function (): void {
     $admin = createAdminUser();
     catalogPageGrantHr($admin);
+    $company = Company::query()->findOrFail($admin->company_id);
 
     Livewire::actingAs($admin)
         ->test(Index::class)
-        ->assertSee('No company workforce data is synchronized yet');
+        ->assertViewHas('companies', [(int) $company->id => (string) $company->name]);
 });
 
 test('HR can install the starter pack and administer the catalog end to end', function (): void {
@@ -270,7 +275,7 @@ test('an actor in one company cannot reach a sibling company catalog in the same
         ->toBe('Beta Secret Process');
 });
 
-test('a single-company tenant with a tenant-scoped provider stays visible, then fails closed when a second company appears', function (): void {
+test('native company attribution stays pinned to the actor company when a second company appears', function (): void {
     setupAuthzRoles();
     [$tenant, $company] = createTenantWithCompany(['name' => 'Carve-out Tenant'], ['name' => 'Solo Co']);
     app(TenantContext::class)->set((int) $tenant->id);
@@ -286,19 +291,17 @@ test('a single-company tenant with a tenant-scoped provider stays visible, then 
         ]);
     }
 
-    $entity = catalogPageCompanyEntity((int) $tenant->id, 'Solo Workforce');
+    $entity = catalogPageCompanyEntity((int) $tenant->id, 'Solo Workforce', (int) $company->id);
 
     Livewire::actingAs($user)
         ->test(Index::class)
         ->assertViewHas('companies', [$entity => 'Solo Workforce']);
 
-    // A second platform company removes the carve-out: unattributable
-    // workforce companies fail closed until #21 lands a real mapping.
     Company::factory()->create(['tenant_id' => $tenant->id, 'name' => 'Second Co']);
 
     Livewire::actingAs($user)
         ->test(Index::class)
-        ->assertViewHas('companies', []);
+        ->assertViewHas('companies', [$entity => 'Solo Workforce']);
 });
 
 test('every mutating catalog action refuses a company the actor may not act for', function (): void {

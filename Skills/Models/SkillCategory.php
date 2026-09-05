@@ -3,7 +3,6 @@
 namespace App\Domains\People\Skills\Models;
 
 use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
-use App\Domains\People\Skills\Models\TenantOwnedModel;
 use Illuminate\Database\Eloquent\Builder;
 
 /**

@@ -1,7 +1,6 @@
 <?php
 
 use App\Base\Tenancy\Contracts\TenantContext;
-use App\Domains\People\Skills\Exceptions\CompanyMoveRefusedException;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
@@ -10,6 +9,7 @@ use App\Domains\People\Skills\Enums\SkillScope;
 use App\Domains\People\Skills\Events\SkillDeactivated;
 use App\Domains\People\Skills\Events\SkillDefined;
 use App\Domains\People\Skills\Events\SkillReactivated;
+use App\Domains\People\Skills\Exceptions\CompanyMoveRefusedException;
 use App\Domains\People\Skills\Exceptions\InvalidSkillCatalogException;
 use App\Domains\People\Skills\Exceptions\SkillCatalogRecordNotFoundException;
 use App\Domains\People\Skills\Models\Skill;

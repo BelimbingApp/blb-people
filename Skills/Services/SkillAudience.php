@@ -10,9 +10,7 @@ use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Tenancy\Contracts\TenantContext;
-use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
-use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Enums\SelectorType;
 use App\Domains\People\Skills\Models\RequirementProfile;
@@ -51,6 +49,7 @@ class SkillAudience
         private readonly AuthorizationService $authorization,
         private readonly TenantContext $tenantContext,
         private readonly CompanyAttribution $companies,
+        private readonly WorkforceSubjects $workforce,
     ) {}
 
     /** @return array<int, string> */
@@ -161,13 +160,12 @@ class SkillAudience
         }
 
         $tenantId = $this->tenantContext->requireTenantId();
-        $employees = Employee::query()
-            ->where('company_id', $companyEntityId)
-            ->whereHas('company', fn ($query) => $query->forTenant($tenantId))
-            ->where('status', 'active');
+        $employees = collect($this->workforce->employees($companyEntityId));
 
         if (in_array(self::HR, $audiences, true)) {
-            return $employees->pluck('id')->map(intval(...))->all();
+            return $employees
+                ->map(fn ($employee): int => (int) $employee->reference->externalId)
+                ->all();
         }
 
         $allowed = [];
@@ -175,12 +173,12 @@ class SkillAudience
 
         if (in_array(self::HOD, $audiences, true) && $binding !== null) {
             $managerId = (int) $binding->employee_entity_id;
-            $managed = (clone $employees)
-                ->where('supervisor_id', $managerId)
-                ->pluck('id')->map(intval(...))->all();
-            $headed = (clone $employees)
-                ->whereHas('department', fn ($query) => $query->where('head_id', $managerId))
-                ->pluck('id')->map(intval(...))->all();
+            $managed = $employees
+                ->filter(fn ($employee): bool => $employee->managerReference?->externalId === (string) $managerId)
+                ->map(fn ($employee): int => (int) $employee->reference->externalId)->all();
+            $headed = $employees
+                ->filter(fn ($employee): bool => $employee->departmentHeadReference?->externalId === (string) $managerId)
+                ->map(fn ($employee): int => (int) $employee->reference->externalId)->all();
             $allowed = [...$allowed, ...$managed, ...$headed];
         }
 
@@ -193,9 +191,9 @@ class SkillAudience
                 ->whereRaw('(effective_to is null or effective_to > ?)', [$now])
                 ->pluck('employee_entity_id')->map(intval(...))->all();
 
-            $allowed = [...$allowed, ...((clone $employees)
-                ->whereIn('id', $assigned)
-                ->pluck('id')->map(intval(...))->all())];
+            $allowed = [...$allowed, ...$employees
+                ->filter(fn ($employee): bool => in_array((int) $employee->reference->externalId, $assigned, true))
+                ->map(fn ($employee): int => (int) $employee->reference->externalId)->all()];
         }
 
         if ($includeSelf && in_array(self::EMPLOYEE, $audiences, true) && $binding !== null) {
@@ -221,31 +219,27 @@ class SkillAudience
             return [];
         }
 
-        $tenantId = $this->tenantContext->requireTenantId();
-        $units = PeopleReferenceEntry::query()
-            ->where('company_id', $companyEntityId)
-            ->ofType(PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT)
-            ->active();
+        $this->tenantContext->requireTenantId();
+        $employees = collect($this->workforce->employees($companyEntityId));
 
         if (in_array(self::HR, $audiences, true)) {
-            return $units->pluck('id')->map(intval(...))->all();
+            return $employees
+                ->map(fn ($employee): ?int => $employee->organizationReference === null
+                    ? null
+                    : (int) $employee->organizationReference->externalId)
+                ->filter()->unique()->values()->all();
         }
 
         if (! in_array(self::HOD, $audiences, true) || ($binding = $this->activeBinding($user, $companyEntityId)) === null) {
             return [];
         }
 
-        $departmentNames = Employee::query()
-            ->where('company_id', $companyEntityId)
-            ->where('status', 'active')
-            ->whereHas('department', fn ($query) => $query->where('head_id', $binding->employee_entity_id))
-            ->with('department.type')
-            ->get()
-            ->pluck('department.type.name')
-            ->filter();
-
-        return $units->whereIn('name', $departmentNames)
-            ->pluck('id')->map(intval(...))->all();
+        return $employees
+            ->filter(fn ($employee): bool => $employee->departmentHeadReference?->externalId === (string) $binding->employee_entity_id)
+            ->map(fn ($employee): ?int => $employee->organizationReference === null
+                ? null
+                : (int) $employee->organizationReference->externalId)
+            ->filter()->unique()->values()->all();
     }
 
     /** @return list<string> */
@@ -343,11 +337,14 @@ class SkillAudience
                 return null;
             }
 
-            return PeopleReferenceEntry::query()
-                ->where('company_id', $profile->company_entity_id)
-                ->whereKey($selector->selector_entity_id)
-                ->where('type', PeopleReferenceEntry::TYPE_JOB_TITLE)
-                ->value('parent_id');
+            $units = collect($this->workforce->employees((int) $profile->company_entity_id))
+                ->filter(fn ($employee): bool => $employee->positionReference?->externalId === (string) $selector->selector_entity_id)
+                ->map(fn ($employee): ?int => $employee->organizationReference === null
+                    ? null
+                    : (int) $employee->organizationReference->externalId)
+                ->filter()->unique();
+
+            return $units->count() === 1 ? (int) $units->first() : null;
         });
 
         return ! $targetUnits->contains(null)
@@ -476,20 +473,17 @@ class SkillAudience
     private function activeBinding(User $user, int $companyEntityId): ?SkillActorBinding
     {
         $tenantId = $this->tenantContext->requireTenantId();
+        $employee = $this->workforce->employeeForUser($companyEntityId, (int) $user->getAuthIdentifier());
+
+        if ($employee === null || ! ctype_digit($employee->reference->externalId)) {
+            return null;
+        }
 
         return SkillActorBinding::query()
             ->forCompany($tenantId, $companyEntityId)
             ->where('platform_user_id', $user->getAuthIdentifier())
+            ->where('employee_entity_id', (int) $employee->reference->externalId)
             ->whereNull('revoked_at')
-            ->whereExists(function ($query): void {
-                $query->selectRaw('1')
-                    ->from('employees')
-                    ->join('users', 'users.employee_id', '=', 'employees.id')
-                    ->whereColumn('employees.id', 'people_connector_skill_actor_bindings.employee_entity_id')
-                    ->whereColumn('users.id', 'people_connector_skill_actor_bindings.platform_user_id')
-                    ->whereColumn('employees.company_id', 'people_connector_skill_actor_bindings.company_entity_id')
-                    ->where('employees.status', 'active');
-            })
             ->first();
     }
 

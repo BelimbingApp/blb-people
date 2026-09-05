@@ -2,13 +2,13 @@
 
 namespace App\Domains\People\Skills\Models;
 
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Contracts\ReferencesWorkforceEntities;
 use App\Domains\People\Skills\Data\WorkforceReference;
-use App\Domains\People\Provider\Enums\WorkforceResourceType;
-use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
-use App\Domains\People\Skills\Models\TenantOwnedModel;
 use App\Domains\People\Skills\Enums\SelectorType;
 use App\Domains\People\Skills\Exceptions\PublishedRequirementImmutableException;
+use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 
 /**
  * One target selector for a requirement profile. Selectors determine which
@@ -80,7 +80,11 @@ class RequirementProfileSelector extends TenantOwnedModel implements ReferencesW
             return false;
         }
 
-        return false;
+        return app(WorkforceSubjects::class)->remap(
+            WorkforceResourceType::Company,
+            (int) $originalId,
+            (int) $this->company_entity_id,
+        ) !== null;
     }
 
     /**
@@ -101,7 +105,15 @@ class RequirementProfileSelector extends TenantOwnedModel implements ReferencesW
             return false;
         }
 
-        return false;
+        $type = $this->selector_type === SelectorType::Department
+            ? WorkforceResourceType::OrganizationUnit
+            : WorkforceResourceType::Position;
+
+        return app(WorkforceSubjects::class)->remap(
+            $type,
+            (int) $originalId,
+            (int) $this->selector_entity_id,
+        ) !== null;
     }
 
     /**

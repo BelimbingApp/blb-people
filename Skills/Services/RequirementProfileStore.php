@@ -54,7 +54,7 @@ class RequirementProfileStore
         $this->assertItems($tenantId, $companyEntityId, $draft->items);
 
         if ($draft->ownerEmployeeEntityId !== null) {
-            $this->assertEmployeeEntity($tenantId, $draft->ownerEmployeeEntityId);
+            $this->assertEmployeeEntity($tenantId, $companyEntityId, $draft->ownerEmployeeEntityId);
         }
 
         return DB::transaction(function () use ($tenantId, $companyEntityId, $draft): RequirementProfile {
@@ -702,13 +702,11 @@ class RequirementProfileStore
         }
     }
 
-    private function assertEmployeeEntity(int $tenantId, int $employeeEntityId): void
+    private function assertEmployeeEntity(int $tenantId, int $companyEntityId, int $employeeEntityId): void
     {
-        $companyId = (int) \App\Core\Employee\Models\Employee::query()->whereKey($employeeEntityId)->value('company_id');
-
         if (app(WorkforceSubjects::class)->resolve(
             $tenantId,
-            $companyId,
+            $companyEntityId,
             WorkforceResourceType::Employee,
             $employeeEntityId,
         ) === null) {

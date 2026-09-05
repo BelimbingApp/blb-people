@@ -1,11 +1,11 @@
 <?php
 
 use App\Base\Tenancy\Contracts\TenantContext;
-use App\Domains\People\Skills\Exceptions\CompanyMoveRefusedException;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Data\ProficiencyLevelDraft;
 use App\Domains\People\Skills\Enums\ProficiencyScaleStatus;
 use App\Domains\People\Skills\Events\ProficiencyScalePublished;
+use App\Domains\People\Skills\Exceptions\CompanyMoveRefusedException;
 use App\Domains\People\Skills\Exceptions\InvalidSkillCatalogException;
 use App\Domains\People\Skills\Exceptions\ProficiencyScaleStateException;
 use App\Domains\People\Skills\Exceptions\PublishedScaleImmutableException;

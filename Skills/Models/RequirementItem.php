@@ -2,10 +2,11 @@
 
 namespace App\Domains\People\Skills\Models;
 
-use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
-use App\Domains\People\Skills\Models\TenantOwnedModel;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
 use App\Domains\People\Skills\Exceptions\PublishedRequirementImmutableException;
+use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
@@ -77,7 +78,11 @@ class RequirementItem extends TenantOwnedModel
             return false;
         }
 
-        return false;
+        return app(WorkforceSubjects::class)->remap(
+            WorkforceResourceType::Company,
+            (int) $originalId,
+            (int) $this->company_entity_id,
+        ) !== null;
     }
 
     /**

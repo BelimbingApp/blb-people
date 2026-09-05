@@ -2,9 +2,8 @@
 
 namespace App\Domains\People\Skills\Models;
 
-use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
-use App\Domains\People\Skills\Models\TenantOwnedModel;
 use App\Domains\People\Skills\Exceptions\PublishedScaleImmutableException;
+use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
 
 /**
  * One behavioural anchor on a proficiency scale. `anchor` describes the

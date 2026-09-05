@@ -2,15 +2,14 @@
 
 namespace App\Domains\People\Skills\Models;
 
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Contracts\ReferencesWorkforceEntities;
 use App\Domains\People\Skills\Data\WorkforceReference;
-use App\Domains\People\Provider\Enums\WorkforceResourceType;
-use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
-use App\Domains\People\Skills\Models\TenantOwnedModel;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
 use App\Domains\People\Skills\Enums\CriticalClassification;
 use App\Domains\People\Skills\Enums\SkillScope;
 use App\Domains\People\Skills\Exceptions\InvalidSkillCatalogException;
+use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**

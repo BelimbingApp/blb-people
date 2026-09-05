@@ -5,14 +5,13 @@ use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
+use App\Core\Company\Models\Department;
+use App\Core\Company\Models\DepartmentType;
+use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
-use App\Domains\People\Connector\Models\ExternalIdentity;
-use App\Domains\People\Connector\Models\ProviderConnection;
-use App\Domains\People\Connector\Models\WorkforceCompanyProjection;
-use App\Domains\People\Connector\Models\WorkforceEmployeeProjection;
-use App\Domains\People\Connector\Models\WorkforceEntity;
-use App\Domains\People\Connector\Models\WorkforceOrganizationUnitProjection;
-use App\Domains\People\Connector\Models\WorkforcePositionProjection;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Data\DevelopmentActionDraft;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\AssessmentCycle;
@@ -40,7 +39,12 @@ use App\Domains\People\Skills\Services\SkillCatalogStore;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
+
+beforeEach(function (): void {
+    $this->withoutVite();
+});
 
 afterEach(function (): void {
     app(TenantContext::class)->clear();
@@ -58,7 +62,7 @@ function developmentActionRole(User $user, string $code): void
     ]);
 }
 
-/** @return array{tenant: int, platform_company: int, company: int, connection: int, organization: int, employees: list<int>, skill: int} */
+/** @return array{tenant: int, platform_company: int, company: int, organization: int, position: int, employees: list<int>, skill: int} */
 function developmentActionFixture(int $employeeCount = 4, bool $tenantScoped = false): array
 {
     [$tenant, $platformCompany] = createTenantWithCompany(
@@ -67,76 +71,57 @@ function developmentActionFixture(int $employeeCount = 4, bool $tenantScoped = f
     );
     app(TenantContext::class)->set((int) $tenant->id);
     $tenantId = (int) $tenant->id;
-    $company = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId, 'resource_type' => 'company', 'state' => 'active', 'first_seen_at' => now(),
+    $platformCompany->update([
+        'name' => 'Development Workforce Company',
+        'status' => 'active',
     ]);
-    $connection = ProviderConnection::query()->create([
-        'tenant_id' => $tenantId, 'company_id' => $tenantScoped ? null : $platformCompany->id,
-        'scope_key' => $tenantScoped ? 'tenant' : 'company:'.$platformCompany->id,
-        'provider_id' => 'test.people', 'status' => 'active',
+    $companyId = (int) $platformCompany->id;
+    $organization = PeopleReferenceEntry::query()->create([
+        'company_id' => $companyId,
+        'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+        'code' => 'operations-'.Str::lower(Str::random(8)),
+        'name' => 'Operations',
+        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
     ]);
-    $companyIdentity = ExternalIdentity::query()->create([
-        'tenant_id' => $tenantId, 'connection_id' => $connection->id, 'workforce_entity_id' => $company->id,
-        'provider_id' => 'test.people', 'resource_type' => 'company', 'external_id' => 'company-'.$company->id,
-        'external_id_hash' => hash('sha256', 'company-'.$company->id), 'state' => 'active',
-        'effective_from' => now(), 'last_observed_at' => now(),
+    $position = PeopleReferenceEntry::query()->create([
+        'company_id' => $companyId,
+        'type' => PeopleReferenceEntry::TYPE_JOB_TITLE,
+        'code' => 'permit-technician-'.Str::lower(Str::random(8)),
+        'name' => 'Permit Technician',
+        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
     ]);
-    WorkforceCompanyProjection::query()->create([
-        'tenant_id' => $tenantId, 'workforce_entity_id' => $company->id,
-        'source_identity_id' => $companyIdentity->id, 'name' => 'Development Workforce Company',
-        'active' => true, 'effective_at' => now(), 'observed_at' => now(),
+    $departmentType = DepartmentType::query()->create([
+        'code' => 'development-actions-'.Str::lower(Str::random(8)),
+        'name' => 'Development Actions',
+        'category' => 'operational',
+        'is_active' => true,
     ]);
-    $organization = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId, 'resource_type' => 'organization_unit', 'state' => 'active', 'first_seen_at' => now(),
-    ]);
-    $organizationIdentity = ExternalIdentity::query()->create([
-        'tenant_id' => $tenantId, 'connection_id' => $connection->id, 'workforce_entity_id' => $organization->id,
-        'provider_id' => 'test.people', 'resource_type' => 'organization_unit', 'external_id' => 'organization-'.$organization->id,
-        'external_id_hash' => hash('sha256', 'organization-'.$organization->id), 'state' => 'active',
-        'effective_from' => now(), 'last_observed_at' => now(),
-    ]);
-    WorkforceOrganizationUnitProjection::query()->create([
-        'tenant_id' => $tenantId, 'company_entity_id' => $company->id,
-        'workforce_entity_id' => $organization->id, 'source_identity_id' => $organizationIdentity->id,
-        'name' => 'Operations', 'active' => true, 'effective_at' => now(), 'observed_at' => now(),
-    ]);
-    $position = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId, 'resource_type' => 'position', 'state' => 'active', 'first_seen_at' => now(),
-    ]);
-    $positionIdentity = ExternalIdentity::query()->create([
-        'tenant_id' => $tenantId, 'connection_id' => $connection->id, 'workforce_entity_id' => $position->id,
-        'provider_id' => 'test.people', 'resource_type' => 'position', 'external_id' => 'position-'.$position->id,
-        'external_id_hash' => hash('sha256', 'position-'.$position->id), 'state' => 'active',
-        'effective_from' => now(), 'last_observed_at' => now(),
-    ]);
-    WorkforcePositionProjection::query()->create([
-        'tenant_id' => $tenantId, 'company_entity_id' => $company->id,
-        'workforce_entity_id' => $position->id, 'source_identity_id' => $positionIdentity->id,
-        'organization_entity_id' => $organization->id, 'name' => 'Permit Technician',
-        'active' => true, 'effective_at' => now(), 'observed_at' => now(),
+    $department = Department::query()->create([
+        'company_id' => $companyId,
+        'department_type_id' => $departmentType->id,
+        'status' => 'active',
     ]);
     $employees = [];
     foreach (range(1, $employeeCount) as $index) {
-        $entity = WorkforceEntity::query()->create([
-            'tenant_id' => $tenantId, 'resource_type' => 'employee', 'state' => 'active', 'first_seen_at' => now(),
+        $employee = Employee::factory()->create([
+            'company_id' => $companyId,
+            'department_id' => $department->id,
+            'full_name' => "Person {$index}",
+            'short_name' => null,
+            'designation' => 'Permit Technician',
+            'employee_type' => 'full_time',
+            'status' => 'active',
         ]);
-        $identity = ExternalIdentity::query()->create([
-            'tenant_id' => $tenantId, 'connection_id' => $connection->id, 'workforce_entity_id' => $entity->id,
-            'provider_id' => 'test.people', 'resource_type' => 'employee', 'external_id' => 'employee-'.$entity->id,
-            'external_id_hash' => hash('sha256', 'employee-'.$entity->id), 'state' => 'active',
-            'effective_from' => now(), 'last_observed_at' => now(),
+        EmployeeWorkProfile::query()->create([
+            'employee_id' => $employee->id,
+            'organization_unit_id' => $organization->id,
+            'job_title_id' => $position->id,
         ]);
-        WorkforceEmployeeProjection::query()->create([
-            'tenant_id' => $tenantId, 'company_entity_id' => $company->id, 'workforce_entity_id' => $entity->id,
-            'source_identity_id' => $identity->id, 'display_name' => "Person {$index}", 'employee_number' => "P{$index}",
-            'organization_entity_id' => $organization->id, 'position_entity_id' => $position->id,
-            'active' => true, 'effective_at' => now(), 'observed_at' => now(),
-        ]);
-        $employees[] = (int) $entity->id;
+        $employees[] = (int) $employee->id;
     }
 
-    $category = app(SkillCatalogStore::class)->defineCategory((int) $company->id, 'safety', 'Safety');
-    $skill = app(SkillCatalogStore::class)->defineSkill((int) $company->id, new SkillDraft(
+    $category = app(SkillCatalogStore::class)->defineCategory($companyId, 'safety', 'Safety');
+    $skill = app(SkillCatalogStore::class)->defineSkill($companyId, new SkillDraft(
         code: 'safety.permit', name: 'Safety Permit', definition: 'Works safely under permit.',
         categoryId: (int) $category->id, scope: SkillScope::Shared,
         criticalClassification: CriticalClassification::Safety,
@@ -145,8 +130,22 @@ function developmentActionFixture(int $employeeCount = 4, bool $tenantScoped = f
     ));
 
     return ['tenant' => $tenantId, 'platform_company' => (int) $platformCompany->id,
-        'company' => (int) $company->id, 'connection' => (int) $connection->id,
-        'organization' => (int) $organization->id, 'employees' => $employees, 'skill' => (int) $skill->id];
+        'company' => $companyId, 'organization' => (int) $organization->id,
+        'position' => (int) $position->id, 'employees' => $employees, 'skill' => (int) $skill->id];
+}
+
+function developmentActionBindUser(User $user, int $employeeId): void
+{
+    $employee = Employee::query()->findOrFail($employeeId);
+    $user->update(['employee_id' => $employeeId]);
+    EmployeePortalAccess::query()->updateOrCreate(
+        ['employee_id' => $employeeId],
+        [
+            'user_id' => $user->id,
+            'display_name' => $employee->displayName(),
+            'status' => EmployeePortalAccess::STATUS_ACTIVE,
+        ],
+    );
 }
 
 function developmentAssessment(array $fixture, int $employeeId, int $level = 1, ?int $gap = null, ?DateTimeInterface $assessedAt = null, AssessmentCycle $cycle = AssessmentCycle::Annual): SkillAssessment
@@ -235,8 +234,8 @@ test('bulk proposals are atomic, named, due, deduplicated, and fully audited', f
     expect($actions)->toHaveCount(2)
         ->and($actions[0]->owner_employee_entity_id)->toBe($fixture['employees'][1])
         ->and($actions[0]->hr_coordinator_employee_entity_id)->toBe($fixture['employees'][2])
-        ->and($actions[0]->department_snapshot)->toBe('Operations')
-        ->and($actions[0]->position_snapshot)->toBe('Permit Technician')
+        ->and($actions[0]->department_snapshot)->toBe((string) $fixture['organization'])
+        ->and($actions[0]->position_snapshot)->toBe((string) $fixture['position'])
         ->and($actions[0]->due_date)->not->toBeNull()
         ->and($actions[0]->priority_score)->toBe(9)
         ->and($actions[0]->mandatory_gate)->toBeTrue()
@@ -265,9 +264,7 @@ test('ownership dates and trainers fail closed including sibling-company people'
         developmentDraft($fixture, $fixture['employees'][0], ['trainerEmployeeEntityId' => null])))
         ->toThrow(InvalidDevelopmentActionException::class, 'requires a trainer');
 
-    $sibling = WorkforceEntity::query()->create([
-        'tenant_id' => $fixture['tenant'], 'resource_type' => 'company', 'state' => 'active', 'first_seen_at' => now(),
-    ]);
+    $sibling = Company::factory()->create(['tenant_id' => $fixture['tenant'], 'status' => 'active']);
     expect(fn () => $store->proposeFromAssessments((int) $sibling->id, [$assessment->id],
         developmentDraft($fixture, $fixture['employees'][0])))
         ->toThrow(InvalidDevelopmentActionException::class, 'Every selected assessment');
@@ -337,27 +334,26 @@ test('completion waits for a later independent reassessment before competence cl
         ->and(DevelopmentActionAuditEvent::query()->forCompany($fixture['tenant'], $fixture['company'])->where('development_action_id', $action->id)->count())->toBe(6);
 });
 
-test('owned actions remain operable during a provider outage and preserve an unsuccessful reassessment outcome', function (): void {
+test('owned actions remain operable after the workforce subject becomes inactive and preserve an unsuccessful reassessment outcome', function (): void {
     $fixture = developmentActionFixture();
     $source = developmentAssessment($fixture, $fixture['employees'][0]);
     $store = app(DevelopmentActionStore::class);
     $action = $store->proposeFromAssessments($fixture['company'], [$source->id],
         developmentDraft($fixture, $fixture['employees'][0]), 10)[0];
 
-    $connection = ProviderConnection::query()->where('tenant_id', $fixture['tenant'])->sole();
-    $connection->update(['status' => ProviderConnection::STATUS_INACTIVE, 'deactivated_at' => now()]);
+    Employee::query()->findOrFail($fixture['employees'][0])->update(['status' => 'inactive']);
 
     $action = $store->approve($fixture['company'], (int) $action->id, 11);
     $action = $store->start($fixture['company'], (int) $action->id, 11);
     $action = $store->completeIntervention($fixture['company'], (int) $action->id,
-        'Intervention evidence captured while the upstream provider was unavailable.', now()->addMonth(), 11);
+        'Intervention evidence captured after the workforce subject became inactive.', now()->addMonth(), 11);
     $post = developmentAssessment($fixture, $fixture['employees'][0], 2, 2, now()->addMinute(), AssessmentCycle::PostTraining);
     $closed = $store->linkReassessment($fixture['company'], (int) $action->id, (int) $post->id, 12);
 
     expect($closed->status)->toBe(DevelopmentActionStatus::Completed)
         ->and($closed->closure_status)->toBe(DevelopmentActionClosure::FurtherActionRequired)
         ->and($closed->improvement)->toBe(1)
-        ->and($closed->completion_evidence)->toContain('upstream provider was unavailable');
+        ->and($closed->completion_evidence)->toContain('workforce subject became inactive');
 });
 
 test('cancellation closes with a reason and completed or cancelled work is never overdue', function (): void {
@@ -435,26 +431,29 @@ test('an authorized HOD or HR user can bulk-create selected gap proposals from t
 
 test('a HOD sees and mutates only the confirmed reporting audience while HR retains company scope', function (): void {
     $fixture = developmentActionFixture(5);
-    $siblingOrganization = WorkforceEntity::query()->create([
-        'tenant_id' => $fixture['tenant'], 'resource_type' => 'organization_unit',
-        'state' => WorkforceEntity::STATE_ACTIVE, 'first_seen_at' => now(),
+    $siblingOrganization = PeopleReferenceEntry::query()->create([
+        'company_id' => $fixture['company'],
+        'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+        'code' => 'finance-'.Str::lower(Str::random(8)),
+        'name' => 'Finance',
+        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
     ]);
-    $siblingOrganizationIdentity = ExternalIdentity::query()->create([
-        'tenant_id' => $fixture['tenant'], 'connection_id' => $fixture['connection'],
-        'workforce_entity_id' => $siblingOrganization->id, 'provider_id' => 'test.people',
-        'resource_type' => 'organization_unit', 'external_id' => 'organization-'.$siblingOrganization->id,
-        'external_id_hash' => hash('sha256', 'organization-'.$siblingOrganization->id),
-        'state' => ExternalIdentity::STATE_ACTIVE, 'effective_from' => now(), 'last_observed_at' => now(),
+    EmployeeWorkProfile::query()->where('employee_id', $fixture['employees'][4])
+        ->update(['organization_unit_id' => $siblingOrganization->id]);
+    $siblingDepartmentType = DepartmentType::query()->create([
+        'code' => 'finance-'.Str::lower(Str::random(8)),
+        'name' => 'Finance',
+        'category' => 'operational',
+        'is_active' => true,
     ]);
-    WorkforceOrganizationUnitProjection::query()->create([
-        'tenant_id' => $fixture['tenant'], 'company_entity_id' => $fixture['company'],
-        'workforce_entity_id' => $siblingOrganization->id, 'source_identity_id' => $siblingOrganizationIdentity->id,
-        'name' => 'Finance', 'active' => true, 'effective_at' => now(), 'observed_at' => now(),
+    $siblingDepartment = Department::query()->create([
+        'company_id' => $fixture['company'],
+        'department_type_id' => $siblingDepartmentType->id,
+        'status' => 'active',
     ]);
-    WorkforceEmployeeProjection::query()
-        ->forCompany($fixture['tenant'], $fixture['company'])
-        ->where('workforce_entity_id', $fixture['employees'][4])
-        ->update(['organization_entity_id' => $siblingOrganization->id]);
+    Employee::query()->findOrFail($fixture['employees'][4])->update([
+        'department_id' => $siblingDepartment->id,
+    ]);
     $managedAssessment = developmentAssessment($fixture, $fixture['employees'][0]);
     $outsideAssessment = developmentAssessment($fixture, $fixture['employees'][4]);
     $store = app(DevelopmentActionStore::class);
@@ -468,21 +467,14 @@ test('a HOD sees and mutates only the confirmed reporting audience while HR reta
     developmentActionRole($hr, 'people_hr');
     developmentActionRole($hod, 'people_hod');
 
-    $hodUserEntity = WorkforceEntity::query()->create([
-        'tenant_id' => $fixture['tenant'], 'resource_type' => 'user',
-        'state' => WorkforceEntity::STATE_ACTIVE, 'first_seen_at' => now(),
+    developmentActionBindUser($hod, $fixture['employees'][1]);
+    Employee::query()->findOrFail($fixture['employees'][0])->update([
+        'supervisor_id' => $fixture['employees'][1],
     ]);
-    WorkforceEmployeeProjection::query()
-        ->forCompany($fixture['tenant'], $fixture['company'])
-        ->where('workforce_entity_id', $fixture['employees'][1])
-        ->update(['user_entity_id' => $hodUserEntity->id]);
-    WorkforceEmployeeProjection::query()
-        ->forCompany($fixture['tenant'], $fixture['company'])
-        ->where('workforce_entity_id', $fixture['employees'][0])
-        ->update([
-            'manager_entity_id' => $fixture['employees'][1],
-            'department_head_entity_id' => $fixture['employees'][1],
-        ]);
+    $managedDepartmentId = Employee::query()->findOrFail($fixture['employees'][0])->department_id;
+    Department::query()->findOrFail($managedDepartmentId)->update([
+        'head_id' => $fixture['employees'][1],
+    ]);
     app(SkillAudienceAssignmentStore::class)->confirmActor(
         $hr, $hod, $fixture['company'], $fixture['employees'][1], 'review:development-action-hod',
     );
@@ -522,7 +514,7 @@ test('development action audience denies sibling companies and wrong tenants', f
     Livewire::actingAs($hr)->test(DevelopmentActionIndex::class)->assertDontSee('Person 1');
 });
 
-test('tenant-scoped development actions use only the single-company carve-out', function (): void {
+test('native company attribution remains explicit when a tenant gains another company', function (): void {
     $fixture = developmentActionFixture(4, tenantScoped: true);
     developmentAssessment($fixture, $fixture['employees'][0]);
     $hr = User::factory()->create(['company_id' => $fixture['platform_company']]);
@@ -532,6 +524,5 @@ test('tenant-scoped development actions use only the single-company carve-out', 
 
     Company::factory()->create(['tenant_id' => $fixture['tenant']]);
     Livewire::actingAs($hr)->test(DevelopmentActionIndex::class)
-        ->assertDontSee('Person 1')
-        ->assertSee('No company workforce data is synchronized yet.');
+        ->assertSee('Person 1');
 });

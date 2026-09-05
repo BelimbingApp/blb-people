@@ -4,7 +4,6 @@ use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
 use App\Domains\People\Skills\Data\ResolvedSkillRequirement;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
 use App\Domains\People\Skills\Services\RequirementResolver;
-use DateTimeInterface;
 
 /**
  * Fixture-only resolver — unit-tests assessment gap math against the contract
@@ -82,24 +81,31 @@ test('assessment gap math runs against fixture requirements with no profile impl
  * - Livewire\Assessment (HOD matrix)
  * - SkillAssessment / EmployeeSkillScore models
  */
-$profileInternals = [
-    'App\Domains\People\Skills\Models\RequirementProfile',
-    'App\Domains\People\Skills\Models\RequirementProfileSelector',
-    'App\Domains\People\Skills\Models\RequirementItem',
-    'App\Domains\People\Skills\Services\RequirementProfileStore',
-    'App\Domains\People\Skills\Services\RequirementResolver',
-];
+test('assessment surface must not import requirement-profile internals', function (): void {
+    $skillRoot = dirname(__DIR__, 2);
+    $surfacePaths = [
+        'Services/AssessmentStore.php',
+        'Livewire/Assessment/Matrix.php',
+        'Models/SkillAssessment.php',
+        'Models/EmployeeSkillScore.php',
+    ];
+    $profileInternals = [
+        'App\\Domains\\People\\Skills\\Models\\RequirementProfile',
+        'App\\Domains\\People\\Skills\\Models\\RequirementProfileSelector',
+        'App\\Domains\\People\\Skills\\Models\\RequirementItem',
+        'App\\Domains\\People\\Skills\\Services\\RequirementProfileStore',
+        'App\\Domains\\People\\Skills\\Services\\RequirementResolver',
+    ];
 
-$assessmentSurface = [
-    'App\Domains\People\Skills\Services\AssessmentStore',
-    'App\Domains\People\Skills\Livewire\Assessment',
-    'App\Domains\People\Skills\Models\SkillAssessment',
-    'App\Domains\People\Skills\Models\EmployeeSkillScore',
-];
+    foreach ($surfacePaths as $relativePath) {
+        $contents = file_get_contents($skillRoot.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relativePath));
+        expect($contents)->not->toBeFalse();
 
-arch('assessment surface must not import requirement-profile internals')
-    ->expect($profileInternals)
-    ->not->toBeUsedIn($assessmentSurface);
+        foreach ($profileInternals as $profileInternal) {
+            expect($contents)->not->toContain($profileInternal);
+        }
+    }
+});
 
 // Avoid toOnlyBeUsedIn: full-app dependency scans OOM composed platform CI (512MB).
 // Targeted not->toBeUsedIn against the assessment surface above is the load-bearing guard.

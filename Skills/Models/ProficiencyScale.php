@@ -2,10 +2,11 @@
 
 namespace App\Domains\People\Skills\Models;
 
-use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
-use App\Domains\People\Skills\Models\TenantOwnedModel;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Enums\ProficiencyScaleStatus;
 use App\Domains\People\Skills\Exceptions\PublishedScaleImmutableException;
+use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -117,6 +118,10 @@ class ProficiencyScale extends TenantOwnedModel
             return false;
         }
 
-        return false;
+        return app(WorkforceSubjects::class)->remap(
+            WorkforceResourceType::Company,
+            (int) $this->getOriginal('company_entity_id'),
+            (int) $this->company_entity_id,
+        ) !== null;
     }
 }

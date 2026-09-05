@@ -13,6 +13,10 @@ afterEach(function (): void {
     app(TenantContext::class)->clear();
 });
 
+beforeEach(function (): void {
+    $this->withoutVite();
+});
+
 function developmentPageGrant(User $user, string ...$capabilities): void
 {
     foreach ($capabilities as $capability) {

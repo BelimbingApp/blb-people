@@ -2,11 +2,9 @@
 
 namespace App\Domains\People\Skills\Models;
 
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Contracts\ReferencesWorkforceEntities;
 use App\Domains\People\Skills\Data\WorkforceReference;
-use App\Domains\People\Provider\Enums\WorkforceResourceType;
-use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
-use App\Domains\People\Skills\Models\TenantOwnedModel;
 use App\Domains\People\Skills\Enums\AssessmentCycle;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
 use App\Domains\People\Skills\Enums\AssessmentResultBand;
@@ -15,6 +13,7 @@ use App\Domains\People\Skills\Enums\HodVerification;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
 use App\Domains\People\Skills\Exceptions\FinalizedAssessmentImmutableException;
 use App\Domains\People\Skills\Exceptions\InvalidAssessmentException;
+use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
 use App\Domains\People\Skills\Services\AssessmentWorkflowContext;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 

@@ -5,13 +5,13 @@ namespace App\Domains\People\Skills\Models;
 use App\Base\Workflow\Concerns\HasWorkflowStatus;
 use App\Base\Workflow\Contracts\PresentsWorkflowNotifications;
 use App\Base\Workflow\DTO\TransitionContext;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Contracts\ReferencesWorkforceEntities;
 use App\Domains\People\Skills\Data\WorkforceReference;
-use App\Domains\People\Provider\Enums\WorkforceResourceType;
-use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
-use App\Domains\People\Skills\Models\TenantOwnedModel;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Exceptions\PublishedRequirementImmutableException;
+use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Skills\Workflow\RequirementProfileTransitionAuthority;
 use Illuminate\Database\Eloquent\Builder;
 use Throwable;
@@ -314,6 +314,10 @@ class RequirementProfile extends TenantOwnedModel implements PresentsWorkflowNot
             return false;
         }
 
-        return false;
+        return app(WorkforceSubjects::class)->remap(
+            WorkforceResourceType::Company,
+            (int) $this->getOriginal('company_entity_id'),
+            (int) $this->company_entity_id,
+        ) !== null;
     }
 }

@@ -8,18 +8,24 @@ use App\Base\Menu\Contracts\MenuAccessChecker;
 use App\Base\Menu\MenuItem;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
+use App\Core\Company\Models\Department;
+use App\Core\Company\Models\DepartmentType;
+use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
-use App\Domains\People\Connector\Models\ExternalIdentity;
-use App\Domains\People\Connector\Models\ProviderConnection;
-use App\Domains\People\Connector\Models\WorkforceCompanyProjection;
-use App\Domains\People\Connector\Models\WorkforceEmployeeProjection;
-use App\Domains\People\Connector\Models\WorkforceEntity;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Skills\Exceptions\InvalidSkillAudienceAssignmentException;
 use App\Domains\People\Skills\Livewire\Assessment\Matrix;
 use App\Domains\People\Skills\Models\SkillActorBinding;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillAudienceAssignmentStore;
+use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use Livewire\Livewire;
+
+beforeEach(function (): void {
+    $this->withoutVite();
+});
 
 afterEach(function (): void {
     app(TenantContext::class)->clear();
@@ -38,97 +44,73 @@ function skillAudienceRole(User $user, string $code): void
     ]);
 }
 
-/** @return array{int, ProviderConnection} */
+/** @return array{int, null} */
 function skillAudienceCompany(int $tenantId, Company $platformCompany, string $name): array
 {
-    $companyEntity = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => 'company',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
-    $connection = ProviderConnection::query()->create([
-        'tenant_id' => $tenantId,
-        'company_id' => $platformCompany->id,
-        'scope_key' => 'company:'.$platformCompany->id,
-        'active_scope_key' => 'company:'.$platformCompany->id,
-        'provider_id' => 'test.people',
-        'status' => ProviderConnection::STATUS_ACTIVE,
-    ]);
-    $identity = ExternalIdentity::query()->create([
-        'tenant_id' => $tenantId,
-        'connection_id' => $connection->id,
-        'workforce_entity_id' => $companyEntity->id,
-        'provider_id' => 'test.people',
-        'resource_type' => 'company',
-        'external_id' => 'company-'.$companyEntity->id,
-        'external_id_hash' => hash('sha256', 'company-'.$companyEntity->id),
-        'state' => ExternalIdentity::STATE_ACTIVE,
-        'effective_from' => now(),
-        'last_observed_at' => now(),
-    ]);
-    WorkforceCompanyProjection::query()->create([
-        'tenant_id' => $tenantId,
-        'workforce_entity_id' => $companyEntity->id,
-        'source_identity_id' => $identity->id,
-        'name' => $name,
-        'active' => true,
-        'effective_at' => now(),
-        'observed_at' => now(),
-    ]);
+    $platformCompany->update(['name' => $name]);
 
-    return [(int) $companyEntity->id, $connection];
+    return [(int) $platformCompany->id, null];
 }
 
 function skillAudienceEntity(int $tenantId, string $type): int
 {
-    return (int) WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => $type,
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ])->id;
+    return (int) NativeWorkforceFixture::create($tenantId, WorkforceResourceType::from($type))->id;
 }
 
 function skillAudienceEmployee(
     int $tenantId,
     int $companyEntityId,
-    ProviderConnection $connection,
+    mixed $connection,
     string $name,
     ?int $organizationEntityId = null,
     ?int $managerEntityId = null,
     ?int $departmentHeadEntityId = null,
-): WorkforceEmployeeProjection {
-    $employeeEntityId = skillAudienceEntity($tenantId, 'employee');
-    $userEntityId = skillAudienceEntity($tenantId, 'user');
-    $externalId = 'employee-'.$employeeEntityId;
-    $identity = ExternalIdentity::query()->create([
-        'tenant_id' => $tenantId,
-        'connection_id' => $connection->id,
-        'workforce_entity_id' => $employeeEntityId,
-        'provider_id' => 'test.people',
-        'resource_type' => 'employee',
-        'external_id' => $externalId,
-        'external_id_hash' => hash('sha256', $externalId),
-        'state' => ExternalIdentity::STATE_ACTIVE,
-        'effective_from' => now(),
-        'last_observed_at' => now(),
+): Employee {
+    $employee = Employee::factory()->create([
+        'company_id' => $companyEntityId,
+        'full_name' => $name,
+        'short_name' => null,
+        'supervisor_id' => $managerEntityId,
+        'status' => 'active',
     ]);
 
-    return WorkforceEmployeeProjection::query()->create([
-        'tenant_id' => $tenantId,
-        'workforce_entity_id' => $employeeEntityId,
-        'source_identity_id' => $identity->id,
-        'company_entity_id' => $companyEntityId,
-        'user_entity_id' => $userEntityId,
-        'organization_entity_id' => $organizationEntityId,
-        'manager_entity_id' => $managerEntityId,
-        'department_head_entity_id' => $departmentHeadEntityId,
-        'display_name' => $name,
-        'active' => true,
-        'effective_at' => now(),
-        'observed_at' => now(),
-    ]);
+    if ($organizationEntityId !== null) {
+        EmployeeWorkProfile::query()->updateOrCreate(
+            ['employee_id' => $employee->id],
+            ['organization_unit_id' => $organizationEntityId],
+        );
+    }
+
+    if ($departmentHeadEntityId !== null) {
+        $type = DepartmentType::query()->create([
+            'code' => 'audience-'.$employee->id,
+            'name' => 'Audience '.$employee->id,
+            'category' => 'operational',
+            'is_active' => true,
+        ]);
+        $department = Department::query()->create([
+            'company_id' => $companyEntityId,
+            'department_type_id' => $type->id,
+            'head_id' => $departmentHeadEntityId,
+            'status' => 'active',
+        ]);
+        $employee->update(['department_id' => $department->id]);
+    }
+
+    return $employee;
+}
+
+function skillAudienceBindUser(User $user, Employee $employee): void
+{
+    $user->update(['employee_id' => $employee->id]);
+    EmployeePortalAccess::query()->updateOrCreate(
+        ['employee_id' => $employee->id],
+        [
+            'user_id' => $user->id,
+            'display_name' => $employee->displayName(),
+            'status' => EmployeePortalAccess::STATUS_ACTIVE,
+        ],
+    );
 }
 
 test('platform administration does not implicitly become connector HR', function (): void {
@@ -145,9 +127,9 @@ test('platform administration does not implicitly become connector HR', function
     skillAudienceRole($platformAdmin, 'core_admin');
 
     expect(app(SkillAudience::class)->visibleEmployeeEntityIds($hr, $companyEntityId, manage: true))
-        ->toEqualCanonicalizing([(int) $first->workforce_entity_id, (int) $second->workforce_entity_id])
+        ->toEqualCanonicalizing([(int) $first->id, (int) $second->id])
         ->and(app(SkillAudience::class)->visibleDevelopmentActionEmployeeEntityIds($hr, $companyEntityId, manage: true))
-        ->toEqualCanonicalizing([(int) $first->workforce_entity_id, (int) $second->workforce_entity_id])
+        ->toEqualCanonicalizing([(int) $first->id, (int) $second->id])
         ->and(fn () => app(SkillAudience::class)->authorizeAudience(
             $platformAdmin,
             'people.skill.development-action.view',
@@ -158,7 +140,7 @@ test('platform administration does not implicitly become connector HR', function
         ->assertForbidden();
 });
 
-test('connector menus are visible only to their deep People audiences', function (): void {
+test('Skills menus are visible only to their deep People audiences', function (): void {
     [$tenant, $company] = createTenantWithCompany(
         ['name' => 'Menu Audience Tenant'],
         ['name' => 'Menu Audience Company'],
@@ -180,25 +162,18 @@ test('connector menus are visible only to their deep People audiences', function
 
     $skillItems = collect((require __DIR__.'/../../Config/menu.php')['items'])
         ->mapWithKeys(fn (array $item): array => [$item['id'] => MenuItem::fromArray($item)]);
-    $trainingItems = collect((require __DIR__.'/../../../Training/Config/menu.php')['items'])
-        ->mapWithKeys(fn (array $item): array => [$item['id'] => MenuItem::fromArray($item)]);
     $checker = app(MenuAccessChecker::class);
 
     expect($checker->canView($skillItems->get('people.skills'), $users->get('platform')))->toBeFalse()
         ->and($checker->canView($skillItems->get('people.skill-assessments'), $users->get('platform')))->toBeFalse()
-        ->and($checker->canView($trainingItems->get('people.training-events'), $users->get('platform')))->toBeFalse()
         ->and($checker->canView($skillItems->get('people.skills'), $users->get('hr')))->toBeTrue()
         ->and($checker->canView($skillItems->get('people.skill-assessments'), $users->get('hr')))->toBeTrue()
-        ->and($checker->canView($trainingItems->get('people.training-events'), $users->get('hr')))->toBeTrue()
         ->and($checker->canView($skillItems->get('people.skills'), $users->get('hod')))->toBeTrue()
         ->and($checker->canView($skillItems->get('people.skill-assessments'), $users->get('hod')))->toBeTrue()
-        ->and($checker->canView($trainingItems->get('people.training-events'), $users->get('hod')))->toBeTrue()
         ->and($checker->canView($skillItems->get('people.skills'), $users->get('assessor')))->toBeTrue()
         ->and($checker->canView($skillItems->get('people.skill-assessments'), $users->get('assessor')))->toBeTrue()
-        ->and($checker->canView($trainingItems->get('people.training-events'), $users->get('assessor')))->toBeFalse()
         ->and($checker->canView($skillItems->get('people.skills'), $users->get('employee')))->toBeTrue()
-        ->and($checker->canView($skillItems->get('people.skill-assessments'), $users->get('employee')))->toBeTrue()
-        ->and($checker->canView($trainingItems->get('people.training-events'), $users->get('employee')))->toBeFalse();
+        ->and($checker->canView($skillItems->get('people.skill-assessments'), $users->get('employee')))->toBeTrue();
 });
 
 test('HOD assessor and employee audiences resolve department assignment and self without sibling leakage', function (): void {
@@ -217,8 +192,8 @@ test('HOD assessor and employee audiences resolve department assignment and self
         $connectionA,
         'Team Worker',
         $departmentA,
-        (int) $head->workforce_entity_id,
-        (int) $head->workforce_entity_id,
+        (int) $head->id,
+        (int) $head->id,
     );
     $otherDepartment = skillAudienceEmployee(
         (int) $tenant->id,
@@ -237,34 +212,36 @@ test('HOD assessor and employee audiences resolve department assignment and self
     skillAudienceRole($hod, 'people_hod');
     skillAudienceRole($assessor, 'people_assessor');
     skillAudienceRole($employee, 'people_employee');
+    skillAudienceBindUser($hod, $head);
+    skillAudienceBindUser($employee, $teamWorker);
 
     $assignments = app(SkillAudienceAssignmentStore::class);
-    $assignments->confirmActor($hr, $hod, $companyAEntityId, (int) $head->workforce_entity_id, 'review:hod-link');
-    $assignments->confirmActor($hr, $employee, $companyAEntityId, (int) $teamWorker->workforce_entity_id, 'review:self-link');
+    $assignments->confirmActor($hr, $hod, $companyAEntityId, (int) $head->id, 'review:hod-link');
+    $assignments->confirmActor($hr, $employee, $companyAEntityId, (int) $teamWorker->id, 'review:self-link');
     $assignments->assignAssessor(
         $hr,
         $assessor,
         $companyAEntityId,
-        (int) $teamWorker->workforce_entity_id,
+        (int) $teamWorker->id,
         'review:assessor-assignment',
     );
     expect(fn () => $assignments->assignAssessor(
         $hr,
         $assessor,
         $companyAEntityId,
-        (int) $siblingCompany->workforce_entity_id,
+        (int) $siblingCompany->id,
         'review:invalid-sibling-assignment',
     ))->toThrow(InvalidSkillAudienceAssignmentException::class);
 
     $audience = app(SkillAudience::class);
     expect($audience->visibleEmployeeEntityIds($hod, $companyAEntityId, manage: true))
-        ->toBe([(int) $teamWorker->workforce_entity_id])
+        ->toBe([(int) $teamWorker->id])
         ->and($audience->visibleDevelopmentActionEmployeeEntityIds($hod, $companyAEntityId, manage: true))
-        ->toBe([(int) $teamWorker->workforce_entity_id])
+        ->toBe([(int) $teamWorker->id])
         ->and($audience->visibleEmployeeEntityIds($assessor, $companyAEntityId, manage: true))
-        ->toBe([(int) $teamWorker->workforce_entity_id])
+        ->toBe([(int) $teamWorker->id])
         ->and($audience->visibleEmployeeEntityIds($employee, $companyAEntityId, manage: false))
-        ->toBe([(int) $teamWorker->workforce_entity_id])
+        ->toBe([(int) $teamWorker->id])
         ->and($audience->visibleEmployeeEntityIds($hod, $companyBEntityId, manage: true))
         ->toBe([])
         ->and($audience->visibleDevelopmentActionEmployeeEntityIds($hod, $companyBEntityId, manage: true))
@@ -272,27 +249,27 @@ test('HOD assessor and employee audiences resolve department assignment and self
         ->and($audience->allowedCompanies($hr, 'people.skill.assessment.view'))
         ->toBe([$companyAEntityId => 'Workforce A']);
 
-    $audience->authorizeAssessmentSubmission($assessor, $companyAEntityId, (int) $teamWorker->workforce_entity_id);
-    $audience->authorizeHodVerification($hod, $companyAEntityId, (int) $teamWorker->workforce_entity_id);
-    $audience->authorizeAssessmentFinalization($hod, $companyAEntityId, (int) $teamWorker->workforce_entity_id);
+    $audience->authorizeAssessmentSubmission($assessor, $companyAEntityId, (int) $teamWorker->id);
+    $audience->authorizeHodVerification($hod, $companyAEntityId, (int) $teamWorker->id);
+    $audience->authorizeAssessmentFinalization($hod, $companyAEntityId, (int) $teamWorker->id);
 
     expect(fn () => $audience->authorizeHodVerification(
         $assessor,
         $companyAEntityId,
-        (int) $teamWorker->workforce_entity_id,
+        (int) $teamWorker->id,
     ))->toThrow(AuthorizationDeniedException::class);
 
     expect(fn () => $audience->authorizeHodVerification(
         $hod,
         $companyAEntityId,
-        (int) $otherDepartment->workforce_entity_id,
+        (int) $otherDepartment->id,
     ))->toThrow(AuthorizationDeniedException::class);
 
     expect(fn () => $audience->visibleEmployeeEntityIds($employee, $companyAEntityId, manage: true))
         ->toThrow(AuthorizationDeniedException::class);
 
-    expect($otherDepartment->workforce_entity_id)->not->toBe($teamWorker->workforce_entity_id)
-        ->and($siblingCompany->workforce_entity_id)->not->toBe($teamWorker->workforce_entity_id);
+    expect($otherDepartment->id)->not->toBe($teamWorker->id)
+        ->and($siblingCompany->id)->not->toBe($teamWorker->id);
 
     Livewire::actingAs($hod)
         ->test(Matrix::class)
@@ -316,11 +293,12 @@ test('revocation and tenant changes invalidate a previously confirmed self bindi
     $employee = User::factory()->create(['company_id' => $companyA->id]);
     skillAudienceRole($hr, 'people_hr');
     skillAudienceRole($employee, 'people_employee');
+    skillAudienceBindUser($employee, $worker);
 
     $store = app(SkillAudienceAssignmentStore::class);
-    $store->confirmActor($hr, $employee, $companyEntityId, (int) $worker->workforce_entity_id, 'review:binding');
+    $store->confirmActor($hr, $employee, $companyEntityId, (int) $worker->id, 'review:binding');
     expect(app(SkillAudience::class)->visibleEmployeeEntityIds($employee, $companyEntityId, manage: false))
-        ->toBe([(int) $worker->workforce_entity_id]);
+        ->toBe([(int) $worker->id]);
 
     $store->revokeActor($hr, $companyEntityId, (int) $employee->id, 'review:revocation');
     $revoked = SkillActorBinding::query()
@@ -331,10 +309,11 @@ test('revocation and tenant changes invalidate a previously confirmed self bindi
         ->and($revoked->revocation_reference)->toBe('review:revocation')
         ->and(app(SkillAudience::class)->visibleEmployeeEntityIds($employee, $companyEntityId, manage: false))->toBe([]);
 
-    $store->confirmActor($hr, $employee, $companyEntityId, (int) $worker->workforce_entity_id, 'review:reconfirmed');
+    $store->confirmActor($hr, $employee, $companyEntityId, (int) $worker->id, 'review:reconfirmed');
 
-    $worker->user_entity_id = null;
-    $worker->save();
+    EmployeePortalAccess::query()
+        ->where('employee_id', $worker->id)
+        ->update(['status' => EmployeePortalAccess::STATUS_REVOKED]);
     expect(app(SkillAudience::class)->visibleEmployeeEntityIds($employee, $companyEntityId, manage: false))->toBe([]);
 
     $tenantB = createTenant(['name' => 'Binding Tenant B']);

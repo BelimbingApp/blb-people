@@ -5,7 +5,6 @@ namespace App\Domains\People\Skills\Livewire\DevelopmentAction;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
-use App\Core\Employee\Models\Employee;
 use App\Domains\People\Skills\Data\DevelopmentActionDraft;
 use App\Domains\People\Skills\Enums\AssessmentCycle;
 use App\Domains\People\Skills\Enums\AssessmentStatus;
@@ -19,6 +18,7 @@ use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\DevelopmentActionStore;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -255,12 +255,14 @@ final class Index extends Component
         $eligibleReassessments = collect();
         if ($companyId !== null && array_key_exists($companyId, $companies)) {
             $visibleEmployeeIds = $this->visibleEmployeeIds(manage: false);
-            $employees = Employee::query()
-                ->where('company_id', $companyId)
-                ->whereIn('id', $visibleEmployeeIds)
-                ->where('status', 'active')
-                ->selectRaw('employees.*, id as workforce_entity_id, full_name as display_name')
-                ->orderBy('full_name')->get();
+            $employees = collect(app(WorkforceSubjects::class)->employees($companyId))
+                ->filter(fn ($employee): bool => in_array((int) $employee->reference->externalId, $visibleEmployeeIds, true))
+                ->map(fn ($employee): object => (object) [
+                    'workforce_entity_id' => (int) $employee->reference->externalId,
+                    'display_name' => $employee->displayName,
+                ])
+                ->sortBy('display_name')
+                ->values();
             $gapSourceIds = EmployeeSkillScore::query()
                 ->forCompany(app(TenantContext::class)->requireTenantId(), $companyId)
                 ->whereIn('employee_entity_id', $visibleEmployeeIds)

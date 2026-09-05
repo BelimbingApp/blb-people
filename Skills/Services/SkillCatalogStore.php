@@ -48,7 +48,7 @@ class SkillCatalogStore
         $tenantId = $this->tenantContext->requireTenantId();
 
         $this->assertCode($code, 'category');
-        $this->assertEntity($tenantId, $companyEntityId, WorkforceResourceType::Company, 'company_entity_id');
+        $this->assertEntity($tenantId, $companyEntityId, $companyEntityId, WorkforceResourceType::Company, 'company_entity_id');
 
         if (SkillCategory::query()->forCompany($tenantId, $companyEntityId)->where('code', $code)->exists()) {
             throw new InvalidSkillCatalogException("Skill category code [$code] already exists for this company.");
@@ -82,7 +82,7 @@ class SkillCatalogStore
         $tenantId = $this->tenantContext->requireTenantId();
 
         $this->assertCode($draft->code, 'skill');
-        $this->assertEntity($tenantId, $companyEntityId, WorkforceResourceType::Company, 'company_entity_id');
+        $this->assertEntity($tenantId, $companyEntityId, $companyEntityId, WorkforceResourceType::Company, 'company_entity_id');
         $this->assertDraft($tenantId, $companyEntityId, $draft);
 
         if (Skill::query()->forCompany($tenantId, $companyEntityId)->where('code', $draft->code)->exists()) {
@@ -262,11 +262,11 @@ class SkillCatalogStore
         }
 
         if ($draft->departmentEntityId !== null) {
-            $this->assertEntity($tenantId, $draft->departmentEntityId, WorkforceResourceType::OrganizationUnit, 'department_entity_id');
+            $this->assertEntity($tenantId, $companyEntityId, $draft->departmentEntityId, WorkforceResourceType::OrganizationUnit, 'department_entity_id');
         }
 
         if ($draft->ownerEmployeeEntityId !== null) {
-            $this->assertEntity($tenantId, $draft->ownerEmployeeEntityId, WorkforceResourceType::Employee, 'owner_employee_entity_id');
+            $this->assertEntity($tenantId, $companyEntityId, $draft->ownerEmployeeEntityId, WorkforceResourceType::Employee, 'owner_employee_entity_id');
         }
     }
 
@@ -279,27 +279,17 @@ class SkillCatalogStore
         }
     }
 
-    private function assertEntity(int $tenantId, int $entityId, WorkforceResourceType $type, string $field): void
-    {
-        if ($this->workforce->resolve($tenantId, $type === WorkforceResourceType::Company ? $entityId : $this->companyIdFor($tenantId, $entityId, $type), $type, $entityId) === null) {
+    private function assertEntity(
+        int $tenantId,
+        int $companyEntityId,
+        int $entityId,
+        WorkforceResourceType $type,
+        string $field,
+    ): void {
+        if ($this->workforce->resolve($tenantId, $companyEntityId, $type, $entityId) === null) {
             throw new InvalidSkillCatalogException(
                 "[$field] must reference an existing {$type->value} workforce entity in this tenant.",
             );
         }
-    }
-
-    private function companyIdFor(int $tenantId, int $entityId, WorkforceResourceType $type): int
-    {
-        if ($type === WorkforceResourceType::Employee) {
-            return (int) \App\Core\Employee\Models\Employee::query()
-                ->whereKey($entityId)
-                ->whereHas('company', fn ($query) => $query->forTenant($tenantId))
-                ->value('company_id');
-        }
-
-        return (int) \App\Domains\People\Settings\Models\PeopleReferenceEntry::query()
-            ->whereKey($entityId)
-            ->whereHas('company', fn ($query) => $query->forTenant($tenantId))
-            ->value('company_id');
     }
 }

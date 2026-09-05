@@ -3,7 +3,8 @@
 namespace App\Domains\People\Skills\Services;
 
 use App\Base\Tenancy\Contracts\TenantContext;
-use App\Core\Employee\Models\Employee;
+use App\Domains\People\Provider\Data\WorkforceEmployee;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Data\DevelopmentActionDraft;
 use App\Domains\People\Skills\Enums\AssessmentCycle;
 use App\Domains\People\Skills\Enums\AssessmentStatus;
@@ -23,12 +24,13 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-/** Connector-owned source of truth for assessment-gap development actions. */
+/** People-owned source of truth for assessment-gap development actions. */
 final class DevelopmentActionStore
 {
     public function __construct(
         private readonly TenantContext $tenantContext,
         private readonly DevelopmentActionPriority $priority,
+        private readonly WorkforceSubjects $workforce,
     ) {}
 
     /**
@@ -304,8 +306,8 @@ final class DevelopmentActionStore
         }
 
         $employee = $this->employee($companyEntityId, $draft->employeeEntityId);
-        $departmentName = $employee->department?->name;
-        $positionName = $employee->designation;
+        $departmentReference = $employee->organizationReference?->externalId;
+        $positionReference = $employee->positionReference?->externalId;
         $action = DevelopmentAction::query()->create([
             'tenant_id' => $tenantId,
             'company_entity_id' => $companyEntityId,
@@ -314,9 +316,9 @@ final class DevelopmentActionStore
             'skill_id' => $draft->skillId,
             'source_assessment_id' => $assessmentId,
             'training_course_code' => $draft->trainingCourseCode,
-            'employee_name_snapshot' => $employee->displayName(),
-            'department_snapshot' => $departmentName,
-            'position_snapshot' => $positionName,
+            'employee_name_snapshot' => $employee->displayName,
+            'department_snapshot' => $departmentReference,
+            'position_snapshot' => $positionReference,
             'starting_level' => $draft->startingLevel,
             'target_level' => $draft->targetLevel,
             'gap_at_start' => $gap,
@@ -396,16 +398,16 @@ final class DevelopmentActionStore
         }
     }
 
-    private function employee(int $companyEntityId, int $employeeEntityId): Employee
+    private function employee(int $companyEntityId, int $employeeEntityId): WorkforceEmployee
     {
         $tenantId = $this->tenantContext->requireTenantId();
 
-        return Employee::query()
-            ->where('company_id', $companyEntityId)
-            ->whereHas('company', fn ($query) => $query->forTenant($tenantId))
-            ->whereKey($employeeEntityId)
-            ->where('status', 'active')
-            ->first()
+        return $this->workforce->resolve(
+            $tenantId,
+            $companyEntityId,
+            WorkforceResourceType::Employee,
+            $employeeEntityId,
+        )
             ?? throw new InvalidDevelopmentActionException("Employee [$employeeEntityId] is not active in this company workforce.");
     }
 

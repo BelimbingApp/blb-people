@@ -1,13 +1,11 @@
 <?php
 
 use App\Base\Tenancy\Contracts\TenantContext;
-use App\Domains\People\Skills\Exceptions\MissingCompanyScopeException;
-use App\Domains\People\Skills\Tests\Support\CompanyIsolationFixture;
-use App\Domains\People\Skills\Tests\Support\TwoCompanyTenant;
 use App\Domains\People\Skills\Data\ProficiencyLevelDraft;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
 use App\Domains\People\Skills\Enums\SkillScope;
+use App\Domains\People\Skills\Exceptions\MissingCompanyScopeException;
 use App\Domains\People\Skills\Exceptions\PublishedScaleImmutableException;
 use App\Domains\People\Skills\Models\ProficiencyScale;
 use App\Domains\People\Skills\Models\ProficiencyScaleLevel;
@@ -15,6 +13,8 @@ use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillCategory;
 use App\Domains\People\Skills\Services\ProficiencyScaleStore;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
+use App\Domains\People\Skills\Tests\Support\CompanyIsolationFixture;
+use App\Domains\People\Skills\Tests\Support\TwoCompanyTenant;
 use Illuminate\Support\Facades\DB;
 
 /**

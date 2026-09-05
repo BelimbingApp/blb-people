@@ -4,7 +4,6 @@ namespace App\Domains\People\Skills\Livewire\Assessment;
 
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Tenancy\Contracts\TenantContext;
-use App\Core\Employee\Models\Employee;
 use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
 use App\Domains\People\Skills\Data\AssessmentDraft;
 use App\Domains\People\Skills\Enums\AssessmentCycle;
@@ -14,6 +13,7 @@ use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\AssessmentStore;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -195,14 +195,19 @@ class Matrix extends Component
             manage: $this->canAssess(),
         );
 
-        return Employee::query()
-            ->where('company_id', $companyEntityId)
-            ->whereIn('id', $employeeEntityIds)
-            ->where('status', 'active')
-            ->selectRaw('employees.*, id as workforce_entity_id, full_name as display_name')
-            ->orderBy('full_name')
-            ->limit(50)
-            ->get();
+        return collect(app(WorkforceSubjects::class)->employees($companyEntityId))
+            ->filter(fn ($employee): bool => in_array((int) $employee->reference->externalId, $employeeEntityIds, true))
+            ->map(fn ($employee): object => (object) [
+                'workforce_entity_id' => (int) $employee->reference->externalId,
+                'display_name' => $employee->displayName,
+                'organization_entity_id' => $employee->organizationReference === null
+                    ? null : (int) $employee->organizationReference->externalId,
+                'position_entity_id' => $employee->positionReference === null
+                    ? null : (int) $employee->positionReference->externalId,
+            ])
+            ->sortBy('display_name')
+            ->take(50)
+            ->values();
     }
 
     /**

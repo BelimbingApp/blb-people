@@ -3,7 +3,6 @@
 namespace App\Domains\People\Skills\Services;
 
 use App\Base\Tenancy\Contracts\TenantContext;
-use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
@@ -385,8 +384,8 @@ final class AssessmentStore
         bool $allowReturnedSupersession = false,
     ): SkillAssessment {
         $tenantId = $this->tenantContext->requireTenantId();
-        $this->assertEntity($tenantId, $companyEntityId, WorkforceResourceType::Company);
-        $this->assertEntity($tenantId, $draft->employeeEntityId, WorkforceResourceType::Employee);
+        $this->assertEntity($tenantId, $companyEntityId, $companyEntityId, WorkforceResourceType::Company);
+        $this->assertEntity($tenantId, $companyEntityId, $draft->employeeEntityId, WorkforceResourceType::Employee);
 
         if (trim($draft->evidence) === '') {
             throw new InvalidAssessmentException('Evidence is mandatory; score-by-impression is invalid.');
@@ -500,31 +499,21 @@ final class AssessmentStore
         ], $overrides);
         $context['company_entity_id'] = $companyEntityId;
 
-        $projection = Employee::query()
-            ->where('company_id', $companyEntityId)
-            ->whereHas('company', fn ($query) => $query->forTenant($tenantId))
-            ->whereKey($employeeEntityId)
-            ->first();
+        $projection = collect($this->workforce->employees($companyEntityId))
+            ->first(fn ($employee): bool => $employee->reference->externalId === (string) $employeeEntityId);
 
         if ($projection === null) {
             return $context;
         }
 
         if (! array_key_exists('department_entity_id', $overrides)
-            && $projection->department_id !== null) {
-            $context['department_entity_id'] = (int) $projection->department_id;
+            && $projection->organizationReference !== null) {
+            $context['department_entity_id'] = (int) $projection->organizationReference->externalId;
         }
 
         if (! array_key_exists('position_entity_id', $overrides)
-            && $projection->designation !== null) {
-            $positionId = \App\Domains\People\Settings\Models\PeopleReferenceEntry::query()
-                ->where('company_id', $companyEntityId)
-                ->where('type', \App\Domains\People\Settings\Models\PeopleReferenceEntry::TYPE_JOB_TITLE)
-                ->where('name', $projection->designation)
-                ->value('id');
-            if ($positionId !== null) {
-                $context['position_entity_id'] = (int) $positionId;
-            }
+            && $projection->positionReference !== null) {
+            $context['position_entity_id'] = (int) $projection->positionReference->externalId;
         }
 
         return $context;
@@ -716,13 +705,13 @@ final class AssessmentStore
         });
     }
 
-    private function assertEntity(int $tenantId, int $entityId, WorkforceResourceType $type): void
-    {
-        $companyId = $type === WorkforceResourceType::Company
-            ? $entityId
-            : (int) Employee::query()->whereKey($entityId)->value('company_id');
-
-        if ($this->workforce->resolve($tenantId, $companyId, $type, $entityId) === null) {
+    private function assertEntity(
+        int $tenantId,
+        int $companyEntityId,
+        int $entityId,
+        WorkforceResourceType $type,
+    ): void {
+        if ($this->workforce->resolve($tenantId, $companyEntityId, $type, $entityId) === null) {
             throw new InvalidAssessmentException(
                 "Workforce {$type->value} entity [$entityId] was not found in the current tenant.",
             );

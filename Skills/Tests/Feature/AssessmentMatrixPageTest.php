@@ -12,6 +12,10 @@ afterEach(function (): void {
     app(TenantContext::class)->clear();
 });
 
+beforeEach(function (): void {
+    $this->withoutVite();
+});
+
 function assessmentPageCompanyEntity(int $tenantId, string $name, ?int $platformCompanyId = null): int
 {
     $company = $platformCompanyId === null
