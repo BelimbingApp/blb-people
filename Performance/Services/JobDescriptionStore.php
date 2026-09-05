@@ -16,6 +16,7 @@ use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Models\RequirementProfile;
 use App\Domains\People\Skills\Services\CompanyAttribution;
+use DateTimeInterface;
 use Illuminate\Support\Facades\DB;
 
 final readonly class JobDescriptionStore
@@ -33,20 +34,25 @@ final readonly class JobDescriptionStore
     {
         $tenantId = $this->tenantId();
         $this->assertPosition($tenantId, $companyId, $draft->positionStableId);
-        $this->assertPublishedProfile($tenantId, $companyId, $draft->requirementProfileId, $draft->requirementProfileVersion);
+        $this->assertComplete($draft);
+        $this->assertPublishedProfiles($tenantId, $companyId, $draft->competencyLinks);
 
         return JobDescription::query()->create([
             'tenant_id' => $tenantId,
             'company_entity_id' => $companyId,
             'reference' => $draft->reference,
             'position_stable_id' => $draft->positionStableId,
+            'position_version' => $draft->positionVersion,
             'version' => $draft->version,
             'status' => JobDescriptionStatus::Draft,
             'effective_from' => $draft->effectiveFrom,
             'effective_to' => $draft->effectiveTo,
+            'purpose' => $draft->purpose,
             'responsibilities' => $draft->responsibilities,
-            'requirement_profile_id' => $draft->requirementProfileId,
-            'requirement_profile_version' => $draft->requirementProfileVersion,
+            'duties' => $draft->duties,
+            'authority' => $draft->authority,
+            'qualifications' => $draft->qualifications,
+            'competency_links' => $draft->competencyLinks,
         ]);
     }
 
@@ -57,7 +63,7 @@ final readonly class JobDescriptionStore
         return DB::transaction(function () use ($tenantId, $companyId, $descriptionId, $actor): JobDescription {
             $draft = $this->locked($tenantId, $companyId, $descriptionId);
             $this->assertDraft($draft);
-            $this->assertPublishedProfile($tenantId, $companyId, (int) $draft->requirement_profile_id, (int) $draft->requirement_profile_version);
+            $this->assertPublishedProfiles($tenantId, $companyId, $draft->competency_links);
 
             if (JobDescription::query()->forCompany($tenantId, $companyId)
                 ->where('reference', $draft->reference)->where('status', JobDescriptionStatus::Published)->exists()) {
@@ -81,11 +87,31 @@ final readonly class JobDescriptionStore
                 || (int) $replacement->version <= (int) $current->version) {
                 throw new JobDescriptionException('Supersession requires a newer draft of the same published job description.');
             }
-            $this->assertPublishedProfile($tenantId, $companyId, (int) $replacement->requirement_profile_id, (int) $replacement->requirement_profile_version);
+            $this->assertPublishedProfiles($tenantId, $companyId, $replacement->competency_links);
             $current->forceFill(['status' => JobDescriptionStatus::Superseded, 'superseded_at' => now()])->save();
 
             return $this->markPublished($replacement, $actor);
         });
+    }
+
+    public function applicable(
+        int $companyId,
+        string $positionStableId,
+        int $positionVersion,
+        DateTimeInterface $asOf,
+    ): ?JobDescription {
+        $tenantId = $this->tenantId();
+        $date = $asOf->format('Y-m-d');
+
+        return JobDescription::query()->forCompany($tenantId, $companyId)
+            ->where('position_stable_id', $positionStableId)
+            ->where('position_version', $positionVersion)
+            ->whereIn('status', [JobDescriptionStatus::Published, JobDescriptionStatus::Superseded])
+            ->whereDate('effective_from', '<=', $date)
+            ->whereRaw('(effective_to is null or effective_to >= ?)', [$date])
+            ->orderByDesc('effective_from')
+            ->orderByDesc('version')
+            ->first();
     }
 
     /** @return array{int} */
@@ -114,12 +140,28 @@ final readonly class JobDescriptionStore
         }
     }
 
-    private function assertPublishedProfile(int $tenantId, int $companyId, int $profileId, int $version): void
+    /** @param list<array{requirement_profile_id: int, requirement_profile_version: int}> $links */
+    private function assertPublishedProfiles(int $tenantId, int $companyId, array $links): void
     {
-        if (! RequirementProfile::query()->forCompany($tenantId, $companyId)
-            ->whereKey($profileId)->where('version', $version)
-            ->where('status', RequirementProfileStatus::Published)->exists()) {
-            throw new JobDescriptionException('The exact published requirement-profile version is required.');
+        foreach ($links as $link) {
+            if (! RequirementProfile::query()->forCompany($tenantId, $companyId)
+                ->whereKey($link['requirement_profile_id'] ?? null)
+                ->where('version', $link['requirement_profile_version'] ?? null)
+                ->where('status', RequirementProfileStatus::Published)->exists()) {
+                throw new JobDescriptionException('Every competency link requires an exact published requirement-profile version.');
+            }
+        }
+    }
+
+    private function assertComplete(JobDescriptionDraft $draft): void
+    {
+        $requiredText = [$draft->reference, $draft->positionStableId, $draft->purpose, $draft->authority];
+        $requiredLists = [$draft->responsibilities, $draft->duties, $draft->qualifications, $draft->competencyLinks];
+
+        if ($draft->positionVersion < 1 || $draft->version < 1
+            || array_any($requiredText, fn (string $value): bool => trim($value) === '')
+            || array_any($requiredLists, fn (array $value): bool => $value === [])) {
+            throw new JobDescriptionException('A job-description version requires complete structured content and version links.');
         }
     }
 
