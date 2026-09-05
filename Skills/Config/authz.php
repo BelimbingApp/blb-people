@@ -2,7 +2,7 @@
 
 return [
     'domains' => [
-        'people' => 'Connector-owned skill catalog, assessments, development actions, and proficiency scales.',
+        'people' => 'People-owned skill catalog, assessments, development actions, and proficiency scales.',
     ],
 
     'capabilities' => [
@@ -26,14 +26,14 @@ return [
         'people.skill.employee.view',
     ],
 
-    // Audience capabilities identify why a principal may see connector-owned
+    // Audience capabilities identify why a principal may see People-owned
     // competence data. SkillAudience still resolves the employee boundary;
     // these grants alone never authorize a row. In particular, grant_all
     // platform roles are rejected unless one of these roles is also assigned.
     'roles' => [
         'people_hr' => [
             'name' => 'People HR',
-            'description' => 'Governs connector-owned skill catalogues and assessments for an attributed company.',
+            'description' => 'Governs People-owned skill catalogues and assessments for an attributed company.',
             'capabilities' => [
                 'people.skill.catalog.view',
                 'people.skill.catalog.manage',
@@ -78,7 +78,7 @@ return [
         ],
         'people_employee' => [
             'name' => 'People Employee',
-            'description' => 'Views the skill catalogue and only the holder’s own connector-owned assessment record.',
+            'description' => 'Views the skill catalogue and only the holder’s own People-owned assessment record.',
             'capabilities' => [
                 'people.skill.catalog.view',
                 'people.skill.assessment.view',
