@@ -21,13 +21,17 @@ return new class extends Migration
             $table->unsignedBigInteger('company_entity_id');
             $table->string('reference', 80);
             $table->string('position_stable_id');
+            $table->unsignedInteger('position_version');
             $table->unsignedInteger('version');
             $table->string('status', 16);
             $table->date('effective_from');
             $table->date('effective_to')->nullable();
+            $table->text('purpose');
             $table->json('responsibilities');
-            $table->unsignedBigInteger('requirement_profile_id');
-            $table->unsignedInteger('requirement_profile_version');
+            $table->json('duties');
+            $table->text('authority');
+            $table->json('qualifications');
+            $table->json('competency_links');
             $table->timestamp('published_at')->nullable();
             $table->unsignedBigInteger('published_by_user_id')->nullable();
             $table->timestamp('superseded_at')->nullable();
@@ -36,12 +40,10 @@ return new class extends Migration
             $table->index('tenant_id', 'pjd_tenant_idx');
             $table->unique(['id', 'tenant_id'], 'pjd_id_tenant_uq');
             $table->unique(['tenant_id', 'company_entity_id', 'reference', 'version'], 'pjd_reference_version_uq');
-            $table->index(['tenant_id', 'company_entity_id', 'position_stable_id', 'status'], 'pjd_position_status_idx');
+            $table->index(['tenant_id', 'company_entity_id', 'position_stable_id', 'position_version'], 'pjd_position_version_idx');
             $table->foreign('tenant_id', 'pjd_tenant_fk')->references('id')->on('tenants')->restrictOnDelete();
             $table->foreign(['company_entity_id', 'tenant_id'], 'pjd_company_tenant_fk')
                 ->references(['id', 'tenant_id'])->on('companies')->restrictOnDelete();
-            $table->foreign(['requirement_profile_id', 'tenant_id'], 'pjd_profile_tenant_fk')
-                ->references(['id', 'tenant_id'])->on('people_connector_skill_requirement_profiles')->restrictOnDelete();
         });
 
         $this->registerTable(self::TABLE);
