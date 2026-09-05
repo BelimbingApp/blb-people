@@ -290,3 +290,18 @@ test('organization units fail closed outside the tenant and for an unknown compa
     app(TenantContext::class)->clear();
     expect($directory->organizationUnits((string) $company->id))->toBe([]);
 });
+
+test('positions preserve empty stable slots and their organisation scope', function (): void {
+    [$tenant, $company] = createTenantWithCompany();
+    $unit = directoryReference($company, PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT, 'OPS', 'Operations');
+    $position = directoryReference($company, PeopleReferenceEntry::TYPE_JOB_TITLE, 'ENG-1', 'Engineer I');
+    $position->update(['parent_id' => $unit->id]);
+    directoryReference($company, PeopleReferenceEntry::TYPE_JOB_TITLE, 'OLD', 'Retired', 'inactive');
+    app(TenantContext::class)->set($tenant->id);
+
+    $positions = app(ReadsWorkforceDirectory::class)->positions((string) $company->id);
+
+    expect($positions)->toHaveCount(1)
+        ->and($positions[0]->reference->externalId)->toBe((string) $position->id)
+        ->and($positions[0]->organizationReference?->externalId)->toBe((string) $unit->id);
+});

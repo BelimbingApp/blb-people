@@ -16,7 +16,9 @@
             "requires-modules": {
                 "people/provider": "*"
             },
-            "optional-modules": {},
+            "optional-modules": {
+                "people/organisation": "*"
+            },
             "publishes-events": [
                 "App\\Domains\\People\\Skills\\Events\\SkillDefined",
                 "App\\Domains\\People\\Skills\\Events\\SkillDeactivated",
