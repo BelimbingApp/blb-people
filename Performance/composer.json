@@ -1,0 +1,15 @@
+{
+    "name": "blb/people-performance",
+    "type": "blb-module",
+    "description": "Company-scoped KPI assignment and employee publication records.",
+    "license": "MIT",
+    "autoload": {"psr-4": {"App\\Domains\\People\\Performance\\": ""}},
+    "extra": {"blb": {
+        "module": "people/performance",
+        "version": "0.1.0",
+        "requires-modules": {"people/provider": "*", "people/skills": "*"},
+        "optional-modules": {},
+        "publishes-events": [],
+        "consumes-events": []
+    }}
+}
