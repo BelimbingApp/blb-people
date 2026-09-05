@@ -96,6 +96,7 @@ class LeaveTypePayItemMapping extends Component
         $this->authorizeManage();
 
         PayrollLeaveTypePayItem::query()
+            ->where('company_id', $this->companyId())
             ->where('leave_type_id', $leaveTypeId)
             ->whereDate('effective_from', Carbon::parse($effectiveFrom))
             ->delete();
