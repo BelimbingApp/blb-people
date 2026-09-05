@@ -10,10 +10,9 @@ and [0008 participant-record reconciliation](../plans/0008-people-existing-work-
 **Last updated:** 2026-09-05
 
 This contract defines the canonical per-employee facts produced by training
-delivery. It does not claim that the current event register already stores
-participant detail: the existing register schedules delivery events and can
-consume aggregate enrolled, attended, completed, and passed counts, while the
-participant record remains planned work.
+delivery. The event register schedules delivery and consumes aggregate counts.
+The first participation write slice is recorded below; the full lifecycle and
+read/export contract remain broader than that implementation.
 
 ## Ownership and identity
 
@@ -153,3 +152,41 @@ marks, certificate formats, retention periods, or effectiveness cadence. Those
 choices belong to approved company/QMS policy and implementation work and must
 preserve the identities, immutability, authority, evidence, and independent
 lifecycle boundaries above.
+
+
+## First participation write slice (issue #184 / PR #188)
+
+Training now owns three scoped records: TrainingParticipant identifies the
+event and the provider-qualified employee subject; TrainingSession preserves a
+stable session reference and its scheduled window; TrainingParticipationFact
+records one participant's actual session minutes, attendance, declared-scale
+pre/post learning results, certificate validity, opaque evidence references and
+source/actor/capability/time provenance. A participant identity is shared across
+sessions. Composite foreign keys bind facts to the same tenant, company and
+event as both parents. Session and participant identities are immutable.
+
+TrainingParticipationStore defines sessions, records attendance, revises
+unconfirmed facts and confirms facts. The selected workforce directory must
+resolve the explicit employee subject. The current company and actor are
+rechecked; the writer needs the participation manage capability and either
+explicit HR audience or a live user binding to the event's trainer/organizer.
+HR confirmation additionally requires participation verify. Evidence assignment
+requires its own capability, including removal or confirmation of existing
+references. Authorization grants use the platform's request-scoped snapshot;
+directory bindings and stored actor company are rechecked at the write boundary.
+
+Confirmation stores its own actor, capability and timestamp; it does not accept
+a nomination or change event, evaluation or competence state. Both database
+drivers prevent updates/deletes of confirmed facts. Duplicate source identities
+and a second fact for the same participant/session are refused. Unknown learning
+results remain null, not-applicable is explicit, and zero is a real score against
+the supplied maximum/pass mark. Actual minutes never default to scheduled hours.
+
+This slice does not implement nomination lifecycle, confirmed-fact corrections,
+request/plan allocations, self-report, evaluation, participant read/export or
+passport integration. A confirmed correction is refused until an append-only
+correction operation is provided. Evidence fields hold opaque references only;
+document resolution, upload, download and export remain separate governed
+operations, not functionality supplied by this store. The existing aggregate
+and self-standing readers are not replaced or marked complete by this write
+slice.
