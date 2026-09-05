@@ -19,7 +19,7 @@ final readonly class AssessmentDraft
         public AssessmentMethod $method,
         public AssessmentCycle $cycle,
         public DateTimeInterface $assessedAt,
-        public string $evidence,
+        public string|PerformanceEvidenceReference $evidence,
         public ?string $notes = null,
         public ?int $assessorUserId = null,
         public ?int $assessorEmployeeEntityId = null,

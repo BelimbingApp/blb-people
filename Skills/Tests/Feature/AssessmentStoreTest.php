@@ -5,6 +5,7 @@ use App\Core\User\Models\User;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
 use App\Domains\People\Skills\Data\AssessmentDraft;
+use App\Domains\People\Skills\Data\PerformanceEvidenceReference;
 use App\Domains\People\Skills\Data\RequirementItemDraft;
 use App\Domains\People\Skills\Data\RequirementProfileDraft;
 use App\Domains\People\Skills\Data\RequirementSelectorDraft;
@@ -195,6 +196,22 @@ test('finalize snapshots requirement and projects gap from the published contrac
         ->and($score->source_assessment_id)->toBe($assessment->id);
 
     Event::assertDispatched(SkillAssessmentFinalized::class);
+});
+
+test('a KPI reference is retained as assessment evidence without projecting competence', function (): void {
+    [$tenantId, $companyEntityId, $employeeEntityId, $skillId] = assessmentFixture();
+    $assessment = app(AssessmentStore::class)->draft(
+        $companyEntityId,
+        assessmentDraft($employeeEntityId, $skillId, [
+            'assessedLevel' => 1,
+            'evidence' => new PerformanceEvidenceReference('performance:kpi-result-42'),
+        ]),
+    );
+
+    expect($assessment->evidence)->toBe('performance:kpi-result-42')
+        ->and($assessment->assessed_level)->toBe(1)
+        ->and($assessment->status)->toBe(AssessmentStatus::Draft)
+        ->and(EmployeeSkillScore::query()->forCompany($tenantId, $companyEntityId)->count())->toBe(0);
 });
 
 test('score projection waits for an independent HOD decision', function (): void {
