@@ -6,9 +6,17 @@ test('every denial parity evidence path exists in the People domain', function (
 
     expect($matrix)->not->toBeFalse();
 
-    $rows = collect(preg_split('/\R/', $matrix))
+    $lines = collect(preg_split('/\R/', $matrix))
         ->filter(fn (string $line): bool => str_starts_with($line, '|'))
-        ->map(fn (string $line): array => array_map('trim', explode('|', trim($line, '|'))))
+        ->map(fn (string $line): array => array_map('trim', explode('|', trim($line, '|'))));
+
+    // The header is the row shape every consumer parses (the connector's
+    // matrix-driven suite included), so it is asserted by name, not by count.
+    expect($lines->first())->toBe([
+        'Module', 'Business operation', 'Wrong tenant', 'Wrong company', 'Missing capability', 'Unauthorized actor', 'Test file(s)', 'Projection path',
+    ]);
+
+    $rows = $lines
         ->filter(fn (array $cells): bool => count($cells) === 8)
         ->reject(fn (array $cells): bool => $cells[0] === 'Module' || $cells[0] === '---')
         ->values();

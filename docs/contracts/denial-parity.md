@@ -36,7 +36,7 @@ Paths in **Test file(s)** are relative to the People domain root. The contract
 test requires every named path to exist, preventing evidence references from
 drifting as tests move or disappear.
 
-| Module | Business operation | Wrong tenant | Wrong company | Missing capability | Unauthorized actor | Test file(s)  Projection path |
+| Module | Business operation | Wrong tenant | Wrong company | Missing capability | Unauthorized actor | Test file(s) | Projection path |
 |---|---|---|---|---|---|---|---|
 | Skills | View skill catalogue | covered | covered | covered | covered | `Skills/Tests/Feature/CatalogPageTest.php` | missing |
 | Skills | Install starter catalogue | covered | covered | covered | covered | `Skills/Tests/Feature/CatalogPageTest.php` | missing |
