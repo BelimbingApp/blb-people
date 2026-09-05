@@ -2,11 +2,7 @@
 
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
-use App\Domains\People\Connector\Models\ExternalIdentity;
-use App\Domains\People\Connector\Models\ProviderConnection;
-use App\Domains\People\Connector\Models\WorkforceEmployeeProjection;
-use App\Domains\People\Connector\Models\WorkforceEntity;
-use App\Domains\People\Connector\Models\WorkforceOrganizationUnitProjection;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
 use App\Domains\People\Skills\Data\AssessmentDraft;
 use App\Domains\People\Skills\Data\RequirementItemDraft;
@@ -36,6 +32,7 @@ use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillCatalogDefaults;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
+use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -78,18 +75,8 @@ function assessmentFixture(): array
     app(TenantContext::class)->set((int) $tenant->id);
     $tenantId = (int) $tenant->id;
 
-    $company = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => 'company',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
-    $employee = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => 'employee',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
+    $company = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Company);
+    $employee = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee);
 
     $category = app(SkillCatalogStore::class)->defineCategory((int) $company->id, 'ops', 'Operations');
     $skill = app(SkillCatalogStore::class)->defineSkill((int) $company->id, new SkillDraft(
@@ -151,11 +138,13 @@ function finalizeVerifiedAssessment(
     AssessmentDraft $draft,
     ?int $supersedesAssessmentId = null,
     int $hodVerifierUserId = 10,
+    array $employeeData = [],
 ): SkillAssessment {
     $submitted = $store->submit(
         assessmentActor(9),
         $companyEntityId,
         $draft,
+        $employeeData,
         supersedesAssessmentId: $supersedesAssessmentId,
     );
     $pending = $store->requestHodVerification(assessmentActor(9), $companyEntityId, (int) $submitted->id);
@@ -486,12 +475,7 @@ test('finalized assessments are immutable; supersession keeps history and refres
 
 test('a sibling company cannot finalize against this catalog or employee spine', function (): void {
     [$tenantId, $companyEntityId, $employeeEntityId, $skillId] = assessmentFixture();
-    $sibling = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => 'company',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
+    $sibling = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Company);
 
     expect(fn () => finalizeVerifiedAssessment(
         app(AssessmentStore::class),
@@ -557,77 +541,9 @@ test('finalize matches department-scoped requirements from the employee projecti
     app(TenantContext::class)->set((int) $tenant->id);
     $tenantId = (int) $tenant->id;
 
-    $company = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => 'company',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
-    $dept = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => 'organization_unit',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
-    $employee = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => 'employee',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
-
-    $connection = ProviderConnection::query()->create([
-        'tenant_id' => $tenantId,
-        'scope_key' => 'tenant',
-        'provider_id' => 'test.people',
-        'status' => 'active',
-    ]);
-    $deptIdentity = ExternalIdentity::query()->create([
-        'tenant_id' => $tenantId,
-        'connection_id' => $connection->id,
-        'workforce_entity_id' => $dept->id,
-        'provider_id' => 'test.people',
-        'resource_type' => 'organization_unit',
-        'external_id' => 'dept-'.$dept->id,
-        'external_id_hash' => hash('sha256', 'dept-'.$dept->id),
-        'state' => 'active',
-        'effective_from' => now(),
-        'last_observed_at' => now(),
-    ]);
-    WorkforceOrganizationUnitProjection::query()->create([
-        'tenant_id' => $tenantId,
-        'workforce_entity_id' => $dept->id,
-        'source_identity_id' => $deptIdentity->id,
-        'company_entity_id' => $company->id,
-        'name' => 'Ops Dept',
-        'active' => true,
-        'effective_at' => now(),
-        'observed_at' => now(),
-    ]);
-    $identity = ExternalIdentity::query()->create([
-        'tenant_id' => $tenantId,
-        'connection_id' => $connection->id,
-        'workforce_entity_id' => $employee->id,
-        'provider_id' => 'test.people',
-        'resource_type' => 'employee',
-        'external_id' => 'emp-'.$employee->id,
-        'external_id_hash' => hash('sha256', 'emp-'.$employee->id),
-        'state' => 'active',
-        'effective_from' => now(),
-        'last_observed_at' => now(),
-    ]);
-
-    WorkforceEmployeeProjection::query()->create([
-        'tenant_id' => $tenantId,
-        'company_entity_id' => $company->id,
-        'workforce_entity_id' => $employee->id,
-        'source_identity_id' => $identity->id,
-        'display_name' => 'Scoped Worker',
-        'organization_entity_id' => $dept->id,
-        'active' => true,
-        'effective_at' => now(),
-        'observed_at' => now(),
-    ]);
+    $company = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Company);
+    $dept = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::OrganizationUnit);
+    $employee = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee);
 
     $category = app(SkillCatalogStore::class)->defineCategory((int) $company->id, 'ops', 'Operations');
     $skill = app(SkillCatalogStore::class)->defineSkill((int) $company->id, new SkillDraft(
@@ -663,11 +579,13 @@ test('finalize matches department-scoped requirements from the employee projecti
     $profile = $profiles->draft((int) $company->id, $draft);
     $profiles->publish((int) $company->id, (int) $profile->id);
 
-    // Real resolver — no fixture bind — must see department from the projection.
+    // The R1 seam resolves subjects but does not enumerate employee relationships,
+    // so the caller supplies the already-resolved department context.
     $assessment = finalizeVerifiedAssessment(
         app(AssessmentStore::class),
         (int) $company->id,
         assessmentDraft((int) $employee->id, (int) $skill->id, ['assessedLevel' => 2]),
+        employeeData: ['department_entity_id' => (int) $dept->id],
     );
 
     expect($assessment->requirement_reference)->toBe('dept.scoped')
