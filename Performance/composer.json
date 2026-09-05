@@ -1,0 +1,25 @@
+{
+    "name": "blb/people-performance",
+    "type": "blb-module",
+    "description": "Versioned People job descriptions and company-scoped KPI performance records.",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "App\\Domains\\People\\Performance\\": ""
+        }
+    },
+    "extra": {
+        "blb": {
+            "module": "people/performance",
+            "version": "0.1.0",
+            "description": "Company-owned job-description versions and KPI performance records.",
+            "requires-modules": {
+                "people/provider": "*",
+                "people/skills": "*"
+            },
+            "optional-modules": {},
+            "publishes-events": [],
+            "consumes-events": []
+        }
+    }
+}

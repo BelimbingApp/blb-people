@@ -1,7 +1,7 @@
 # 0004-people-progression-and-compensation.md
 
 **Status:** Proposed; implementation remains halted pending explicit owner approval.
-**Last Updated:** 2026-09-05 (Asia/Kuala_Lumpur).
+**Last Updated:** 2026-09-06 (Asia/Kuala_Lumpur).
 **Agents:** codex/astra-medium.
 **Sources:** [Overall epic roadmap](0000-people-epic-roadmap.md); owner's salary-linked progression clarification; Skills contract 0002.
 
@@ -37,6 +37,12 @@ Default recommendation: publish criteria, compute explainable eligibility, and r
 
 Define treatment of policy changes while training or review is underway, grandfathering, expired certifications, transfers, partial completion, assessor conflicts, appeals and overturned assessments. Keep employee-visible reasons sufficient to challenge a result without disclosing other employees' records or confidential HR deliberations. Notifications must distinguish “eligible for review” from “pay increase approved” and “effective in payroll.”
 
+## Performance and Job Description Boundary Amendment
+
+Consume [0009](0009-people-job-descriptions-and-performance.md) records only through approved policy and authorized references. Where a progression criterion includes performance, record the KPI definition, target assignment, period and finalized review versions alongside competency and applicable position/JD evidence. A performance review is not competence, promotion eligibility, an appointment or a salary decision. A revised JD does not retroactively change an employee's historical eligibility.
+
+Published policy must state whether performance is relevant, eligible review periods, finality/freshness requirements, treatment of missing/disputed evidence and transition rules. Do not silently interpret missing performance as zero or make all progression depend on KPIs. Corrections or appeals flag affected decisions for governed reevaluation; they never rewrite prior awards, deduct salary or send new payroll instructions automatically. Only performance-dependent paths wait for 0009's finalized-review contract; existing independent skill pathways remain separately defined.
+
 ## Phases
 
 ### Validate and agree the boundary
@@ -46,6 +52,7 @@ Define treatment of policy changes while training or review is underway, grandfa
 
 ### Implement after explicit owner resumption
 
+- [ ] Prove optional, published-policy use of versioned performance reviews without conflating competence, eligibility, appointment or pay; preserve corrections and disputed-evidence treatment.
 - [ ] Record approved policy publication authority, employee visibility, entitlement/review distinction, transition rules and appeals.
 - [ ] Deliver versioned paths and reproducible eligibility with unmet-criterion explanations and evidence snapshots.
 - [ ] Deliver review/exception/appeal and award history with separation of duties and effective dates.
