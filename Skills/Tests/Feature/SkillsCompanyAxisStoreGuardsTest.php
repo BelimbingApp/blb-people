@@ -310,8 +310,10 @@ test('assessment submission and locking refuse sibling skills, assessments and s
     expect(fn () => $store->requestHodVerification($alpha['hr'], $alpha['company'], (int) $betaAssessment->id))
         ->toThrow(InvalidAssessmentException::class, 'was not found');
 
-    // Guard: SkillAudience::authorizeAssessmentFinalization deny (line 398).
-    expect(fn () => app(SkillAudience::class)->authorizeAssessmentFinalization($beta['hod'], $alpha['company'], $alpha['employees'][0]))
+    // Guards: SkillAudience::authorizeAssessmentSubmission deny (line 366) and authorizeAssessmentFinalization deny (line 398).
+    expect(fn () => app(SkillAudience::class)->authorizeAssessmentSubmission($beta['hr'], $alpha['company'], $alpha['employees'][0]))
+        ->toThrow(AuthorizationDeniedException::class)
+        ->and(fn () => app(SkillAudience::class)->authorizeAssessmentFinalization($beta['hod'], $alpha['company'], $alpha['employees'][0]))
         ->toThrow(AuthorizationDeniedException::class);
 });
 
