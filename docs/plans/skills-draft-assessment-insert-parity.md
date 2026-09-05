@@ -1,6 +1,6 @@
 # skills-draft-assessment-insert-parity.md
 
-**Status:** Implemented in PR #187; database CI verification pending.
+**Status:** Complete — PR #187 landed with both database CI lanes passing.
 **Last Updated:** 2026-09-06
 **Sources:** [People #179 CI run](https://github.com/BelimbingApp/blb-people/actions/runs/33976173747), Skills migration 0330_02_05_000000_harden_skill_assessment_workflow.php.
 **Agents:** desktop-astra/gpt-6-astra
@@ -33,7 +33,7 @@ against legacy data independently of this repair.
 - [x] Reproduce the same fixture's acceptance on SQLite and rejection on PostgreSQL; remove that nonportable fixture from the self-read suite. desktop-astra/gpt-6-astra
 - [x] Add one shared behavioral fixture matrix for draft verification/finalization fields, ordinary draft insertion and authorized submission on both drivers.
 - [x] Add an upgrade-safe migration with explicit preflight refusal for existing inconsistent rows and parity for new writes.
-- [ ] Verify migration replay and the full People domain on fresh SQLite and PostgreSQL databases; retain finalized-row immutability and workflow authority checks.
+- [x] Verify migration replay and the full People domain on fresh SQLite and PostgreSQL databases; retain finalized-row immutability and workflow authority checks.
 
 ## Implementation Evidence
 
@@ -56,3 +56,5 @@ non-draft insertion assertion; the final focused suite passed 10/32. Five
 mutations were caught: remove preflight, omit each of the three invalid-field
 predicates, and apply the trigger to every status. The last mutation initially
 survived; an explicit post-upgrade non-draft insertion assertion now catches it.
+
+Completion evidence: [CI run 33978109447](https://github.com/BelimbingApp/blb-people/actions/runs/33978109447) passed SQLite, PostgreSQL and the aggregate gate before PR #187 merged at 61a34a672a77614332c9fe84ccbb7ac6b0f0a8e6. This closes the verification phase that was pending in the authored commit.
