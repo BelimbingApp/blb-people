@@ -210,3 +210,15 @@ test('the command reports counts and sends nothing', function (): void {
     Mail::assertNothingSent();
     Notification::assertNothingSent();
 });
+
+test('the command refuses to run without a company', function (): void {
+    $f = reminderFixture('Reminder No Company Tenant');
+    reminderScore($f, $f['companyId'], $f['employeeId'], ['next_assessment_due' => now()->subDays(3)->toDateString()]);
+
+    // Reminders are per company by design. A tenant-wide run would be the one
+    // shape that can name somebody else's employee, so there is no default to
+    // fall back on.
+    $this->artisan('people:reminders-due', ['--tenant' => $f['tenantId']])
+        ->expectsOutputToContain('per company')
+        ->assertExitCode(1);
+});

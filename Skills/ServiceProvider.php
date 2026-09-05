@@ -9,6 +9,7 @@ use App\Base\Menu\Services\MenuConditionRegistry;
 use App\Base\Workflow\Events\TransitionCompleted;
 use App\Core\User\Models\User;
 use App\Domains\People\Organisation\Contracts\SummarizesOrganisationSkillCoverage;
+use App\Domains\People\Skills\Console\Commands\RemindersDueCommand;
 use App\Domains\People\Skills\Contracts\ConfirmsAssessableRequirementVersion;
 use App\Domains\People\Skills\Contracts\ReadsOwnSkillStanding;
 use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
@@ -43,8 +44,16 @@ class ServiceProvider extends BaseServiceProvider
         );
     }
 
+    protected function registerConsole(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([RemindersDueCommand::class]);
+        }
+    }
+
     public function boot(): void
     {
+        $this->registerConsole();
         $this->loadViewsFrom(__DIR__.'/Views', 'people');
         Event::listen(TransitionCompleted::class, SendRequirementProfileTransitionNotification::class);
 
