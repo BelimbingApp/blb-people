@@ -63,7 +63,7 @@ beforeEach(function (): void {
 
 function requirementEntity(int $tenantId, string $type, ?int $companyEntityId = null): Model
 {
-    return NativeWorkforceFixture::create($tenantId, WorkforceResourceType::from($type));
+    return NativeWorkforceFixture::create($tenantId, WorkforceResourceType::from($type), $companyEntityId);
 }
 
 /**
@@ -412,13 +412,33 @@ test('company isolation: sibling company cannot address profiles', function (): 
         ->toThrow(RequirementProfileNotFoundException::class);
 });
 
+test('native requirement fixtures honor each explicit company', function (): void {
+    [$tenantId, $companyAId] = requirementFixture();
+    $companyB = requirementEntity($tenantId, 'company');
+
+    $departmentA = requirementEntity($tenantId, 'organization_unit', $companyAId);
+    $departmentB = requirementEntity($tenantId, 'organization_unit', (int) $companyB->id);
+
+    expect((int) $departmentA->company_id)->toBe($companyAId)
+        ->and((int) $departmentB->company_id)->toBe((int) $companyB->id);
+});
+
 test('company isolation: department selector cannot reference sibling company organization unit', function (): void {
-    [$tenantId, $companyAId, $skillA, $skillB] = requirementFixture();
+    [$tenantId, $companyAId] = requirementFixture();
     $store = app(RequirementProfileStore::class);
 
     $companyB = requirementEntity($tenantId, 'company');
 
     $deptEntity = requirementEntity($tenantId, 'organization_unit', $companyAId);
+
+    $catalog = app(SkillCatalogStore::class);
+    $categoryB = $catalog->defineCategory((int) $companyB->id, 'safety', 'Safety');
+    $ownSkill = $catalog->defineSkill((int) $companyB->id, new SkillDraft(
+        code: 'company.b.skill',
+        name: 'Company B Skill',
+        definition: 'A valid skill in the drafting company',
+        categoryId: (int) $categoryB->id,
+    ));
 
     $crossCompanyProfile = new RequirementProfileDraft(
         code: 'cross.company',
@@ -428,7 +448,7 @@ test('company isolation: department selector cannot reference sibling company or
         ],
         items: [
             new RequirementItemDraft(
-                skillId: (int) $skillA->id,
+                skillId: (int) $ownSkill->id,
                 sequence: 1,
                 requiredLevel: 3,
                 criticality: RequirementCriticality::Critical,
