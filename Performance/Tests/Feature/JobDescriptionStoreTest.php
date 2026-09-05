@@ -75,16 +75,23 @@ function jobDescriptionDraft(array $fixture, int $version = 1, ?int $profileId =
     return new JobDescriptionDraft(
         reference: 'software-engineer',
         positionStableId: (string) $fixture['position'],
+        positionVersion: 4,
         version: $version,
         effectiveFrom: '2026-09-01',
         effectiveTo: null,
+        purpose: 'Build dependable products.',
         responsibilities: ['Own reliable product delivery'],
-        requirementProfileId: $profileId ?? $fixture['profile'],
-        requirementProfileVersion: 3,
+        duties: ['Review production readiness'],
+        authority: 'Approve expenditure up to the departmental limit.',
+        qualifications: ['Relevant engineering degree or equivalent experience'],
+        competencyLinks: [[
+            'requirement_profile_id' => $profileId ?? $fixture['profile'],
+            'requirement_profile_version' => 3,
+        ]],
     );
 }
 
-it('drafts, publishes, and explicitly supersedes immutable job-description versions', function (): void {
+it('preserves structured content and exact competency links across published versions', function (): void {
     $fixture = jobDescriptionFixture();
     $store = app(JobDescriptionStore::class);
     $first = $store->draft($fixture['company'], jobDescriptionDraft($fixture));
@@ -94,9 +101,57 @@ it('drafts, publishes, and explicitly supersedes immutable job-description versi
     $current = $store->supersede($fixture['hr'], $fixture['company'], (int) $published->id, (int) $replacement->id);
 
     expect($current->status)->toBe(JobDescriptionStatus::Published)
+        ->and($current->position_version)->toBe(4)
+        ->and($current->purpose)->toBe('Build dependable products.')
         ->and($current->responsibilities)->toBe(['Own reliable product delivery'])
-        ->and($current->requirement_profile_version)->toBe(3)
+        ->and($current->duties)->toBe(['Review production readiness'])
+        ->and($current->authority)->toBe('Approve expenditure up to the departmental limit.')
+        ->and($current->qualifications)->toBe(['Relevant engineering degree or equivalent experience'])
+        ->and($current->competency_links)->toBe([[
+            'requirement_profile_id' => $fixture['profile'],
+            'requirement_profile_version' => 3,
+        ]])
         ->and($published->refresh()->status)->toBe(JobDescriptionStatus::Superseded);
+});
+
+it('resolves the exact position and job-description versions effective on the requested date', function (): void {
+    $fixture = jobDescriptionFixture();
+    $store = app(JobDescriptionStore::class);
+    $first = $store->publish(
+        $fixture['hr'],
+        $fixture['company'],
+        (int) $store->draft($fixture['company'], jobDescriptionDraft($fixture))->id,
+    );
+    $futureDraft = jobDescriptionDraft($fixture, 2);
+    $futureDraft = new JobDescriptionDraft(...[
+        ...get_object_vars($futureDraft),
+        'effectiveFrom' => '2027-01-01',
+    ]);
+    $future = $store->draft($fixture['company'], $futureDraft);
+    $store->supersede($fixture['hr'], $fixture['company'], (int) $first->id, (int) $future->id);
+
+    expect($store->applicable($fixture['company'], (string) $fixture['position'], 4, new DateTimeImmutable('2026-12-31'))?->id)
+        ->toBe($first->id)
+        ->and($store->applicable($fixture['company'], (string) $fixture['position'], 4, new DateTimeImmutable('2027-01-01'))?->id)
+        ->toBe($future->id)
+        ->and($store->applicable($fixture['company'], (string) $fixture['position'], 5, new DateTimeImmutable('2027-01-01')))
+        ->toBeNull();
+});
+
+it('keeps published shared content immutable and grants no capability from authority prose', function (): void {
+    $fixture = jobDescriptionFixture();
+    $store = app(JobDescriptionStore::class);
+    $description = $store->draft($fixture['company'], jobDescriptionDraft($fixture));
+
+    expect(fn () => $store->publish($fixture['hod'], $fixture['company'], (int) $description->id))
+        ->toThrow(AuthorizationDeniedException::class);
+
+    $published = $store->publish($fixture['hr'], $fixture['company'], (int) $description->id);
+    $published->authority = 'Approve all expenditure without limit.';
+
+    expect(fn () => $published->save())
+        ->toThrow(JobDescriptionException::class, 'cannot be modified')
+        ->and($published->refresh()->authority)->toBe('Approve expenditure up to the departmental limit.');
 });
 
 it('refuses a missing tenant', function (): void {
@@ -118,7 +173,10 @@ it('refuses a position owned by another company', function (): void {
         'status' => PeopleReferenceEntry::STATUS_ACTIVE,
     ]);
     $draft = jobDescriptionDraft($fixture);
-    $draft = new JobDescriptionDraft($draft->reference, (string) $otherPosition->id, $draft->version, $draft->effectiveFrom, $draft->effectiveTo, $draft->responsibilities, $draft->requirementProfileId, $draft->requirementProfileVersion);
+    $draft = new JobDescriptionDraft(...[
+        ...get_object_vars($draft),
+        'positionStableId' => (string) $otherPosition->id,
+    ]);
 
     expect(fn () => app(JobDescriptionStore::class)->draft($fixture['company'], $draft))
         ->toThrow(JobDescriptionException::class, 'position is not active in this company');
