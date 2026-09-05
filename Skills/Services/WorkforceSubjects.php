@@ -5,6 +5,7 @@ namespace App\Domains\People\Skills\Services;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
 use App\Domains\People\Provider\Data\WorkforceCompany;
 use App\Domains\People\Provider\Data\WorkforceEmployee;
+use App\Domains\People\Provider\Data\WorkforceOrganizationUnit;
 use App\Domains\People\Provider\Data\WorkforceRemapFact;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 
@@ -50,6 +51,12 @@ final class WorkforceSubjects
     public function employees(int $companyId): array
     {
         return $this->directory->employees((string) $companyId);
+    }
+
+    /** @return list<WorkforceOrganizationUnit> */
+    public function organizationUnits(int $companyId): array
+    {
+        return $this->directory->organizationUnits((string) $companyId);
     }
 
     public function employeeForUser(int $companyId, int $platformUserId): ?WorkforceEmployee
