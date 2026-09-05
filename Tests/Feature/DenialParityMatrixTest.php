@@ -9,14 +9,30 @@ test('every denial parity evidence path exists in the People domain', function (
     $rows = collect(preg_split('/\R/', $matrix))
         ->filter(fn (string $line): bool => str_starts_with($line, '|'))
         ->map(fn (string $line): array => array_map('trim', explode('|', trim($line, '|'))))
-        ->filter(fn (array $cells): bool => count($cells) === 7)
+        ->filter(fn (array $cells): bool => count($cells) === 8)
         ->reject(fn (array $cells): bool => $cells[0] === 'Module' || $cells[0] === '---')
         ->values();
 
     expect($rows)->not->toBeEmpty();
 
-    $rows->each(function (array $cells) use ($domainRoot): void {
-        [$module, $operation, $wrongTenant, $wrongCompany, $missingCapability, $unauthorizedActor, $testFiles] = $cells;
+    $projectionPaths = 0;
+
+    $rows->each(function (array $cells) use ($domainRoot, &$projectionPaths): void {
+        [$module, $operation, $wrongTenant, $wrongCompany, $missingCapability, $unauthorizedActor, $testFiles, $projectionPath] = $cells;
+
+        // A projection path is either absent or a connector-relative pair of
+        // implementation and parity test. The connector is optional and not
+        // composed here, so only the shape is checked; the connector's own
+        // suite executes it.
+        if ($projectionPath !== 'missing') {
+            preg_match_all('/`connector:([^`]+\.php)`/', $projectionPath, $projectionMatches);
+
+            expect($projectionMatches[1])->toHaveCount(2, "{$module} / {$operation} must name a connector implementation and its parity test")
+                ->and($projectionMatches[1][0])->toStartWith('Connector/Services/')
+                ->and($projectionMatches[1][1])->toStartWith('Connector/Tests/');
+
+            $projectionPaths++;
+        }
 
         expect($module)->toBeIn(['Skills', 'Training', 'Provider', 'Progression'])
             ->and($operation)->not->toBeEmpty();
@@ -40,4 +56,9 @@ test('every denial parity evidence path exists in the People domain', function (
                 ->toBeTrue("{$module} / {$operation} names missing test file {$testFile}");
         }
     });
+
+    // The count is pinned so a new second-path implementation cannot land
+    // without the matrix (and the connector's parity suite) recording it.
+    expect($projectionPaths)->toBe(1);
+    fwrite(STDERR, sprintf("denial parity: %d of %d rows have a projection path\n", $projectionPaths, $rows->count()));
 });
