@@ -1,7 +1,7 @@
 {
     "name": "blb/people-skills",
     "type": "blb-module",
-    "description": "Connector-owned skill catalog: categories, skill definitions, and versioned proficiency scales.",
+    "description": "People-owned skill catalog: categories, skill definitions, and versioned proficiency scales.",
     "license": "MIT",
     "autoload": {
         "psr-4": {
