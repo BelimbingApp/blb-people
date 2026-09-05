@@ -49,7 +49,7 @@ The salary/progression requirement is a later owner clarification. It is not a q
 
 ### Confirmed requirements versus proposals
 
-Confirmed: employee self-service; optional separate HR backend; native/third-party integration; HR governance; HOD accountability; full workbook feature coverage; progression transparency with salary linkage; a development halt while rethinking the approach.
+Confirmed: employee self-service; optional separate HR backend; native/third-party integration; HR governance; HOD accountability; full workbook feature coverage; progression transparency with salary linkage; first-class position-linked job descriptions and KPI/performance management; a development halt while rethinking the approach.
 
 Recommended here, not yet ratified: People owns skills/training/progression; connector owns integration; one writer per capability and scope; HOD proposes incentive mappings while HR and an authorized compensation approver publish them; initial awards are reviewed rather than automatically changing pay; separate deployment uses the same business contracts as co-location.
 
@@ -61,9 +61,13 @@ The owner subsequently clarified that training is based on ISO and requires an o
 
 Use ISO 10015:2019 as primary development guidance, ISO 9001:2015 clause 7.2 as an applicable QMS competence baseline, and ISO 30422:2022 as complementary learning guidance, subject to licensed-text review and confirmation of SBG's applicable standards/editions. Exact plan periods, approval hierarchy, budget controls and review intervals are company controls, not blanket ISO mandates. The official sources and limits are in 0003. No ISO certification claim is made.
 
+### Additional confirmed job-description and performance requirement
+
+The owner also explicitly requested first-class, position-linked job descriptions and KPI/Performance Management. [0009](0009-people-job-descriptions-and-performance.md) owns structured job-description versions, KPI definitions and assignments, measures/targets/periods/owners/evidence, effective-dated history, scoped visibility and organisation-explorer drill-through. It keeps job descriptions, skills, performance evidence, progression eligibility and compensation as linked but separate records and workflows. Publication, appraisal, appeals and any performance-based progression policy remain recommendations pending business confirmation; this plan does not authorize implementation.
+
 ## Numbered Plan Index and Reading Order
 
-This revision splits the former single handoff into an epic and eight workstreams, adds the owner's ISO-aligned training-plan requirement, and defines parallel-agent boundaries. It preserves the workbook map, historical snapshot, open-work inventory and prior design reasoning rather than restarting the programme.
+This revision splits the former single handoff into an epic and nine workstreams, adds the owner's ISO-aligned training-plan and JD/performance requirements, and defines parallel-agent boundaries. It preserves the workbook map, historical snapshot, open-work inventory and prior design reasoning rather than restarting the programme.
 
 Read this epic first, then 0008 for historical implementation context, then the assigned workstream and its dependencies. Transfer the whole numbered plan set, not a single child document. Numbers identify plans; they do not rename or correspond one-for-one to the old [0000]/[1000] GitHub issue prefixes.
 
@@ -77,6 +81,7 @@ Read this epic first, then 0008 for historical implementation context, then the 
 | [0006 Data migration and workbook parity](0006-people-data-migration-and-workbook-parity.md) | All 18 sheets, source evidence, ownership migration and cutover reconciliation | Target contracts from 0001–0004; HR/HOD source approval |
 | [0007 Verification, security and rollout](0007-people-verification-security-and-rollout.md) | Independent integrated acceptance and release evidence | Feature evidence plus 0006 recovery/cutover proof |
 | [0008 Existing work and backlog](0008-people-existing-work-and-backlog-reconciliation.md) | Historical snapshots, preserved PRs, issue reconciliation and release coordination | All workstreams report evidence and changes |
+| [0009 Job descriptions and performance](0009-people-job-descriptions-and-performance.md) | Position-linked job descriptions, KPI definitions/assignments, performance evidence and governed reviews | 0001 position/identity/scope; 0002 competency references; 0004 progression policy; 0006 migration and 0007 verification interfaces |
 
 The detailed checklist within each child is canonical for its work. This epic tracks cross-workstream outcomes, decisions and integration milestones. Do not duplicate a child's task status into another issue or document without linking its canonical evidence.
 
@@ -89,6 +94,7 @@ These are responsibilities, not promises about current class names or final pack
 | People Skills | Catalogue, requirement versions, evidence-backed assessments, competency projections, gaps and coverage | A side effect of provider synchronization |
 | People Training | Needs, approved plan versions, optional budget, catalogue/events, participation, evaluation and effectiveness | A second editable copy of assessment history |
 | People Progression | Published paths and incentive rules, eligibility explanations, reviews/appeals and approved decision history | A hidden formula that directly changes payroll |
+| People Job Descriptions and Performance | Position-linked JD versions, KPI definitions/assignments, period results, evidence and governed review history | A combined employee score, executable authority from job text or an automatic pay decision |
 | Employee-facing People surface | Own tasks, leave/attendance/shift access, learning, passport and progression explanations | A general-administrator view of restricted HR records |
 | HOD and HR surfaces | Department-scoped operational decisions and HR-wide governance according to grants | Broad access granted merely by job title or navigation visibility |
 | Connector | Provider bindings, adapters, capability discovery, identity mapping, allowed projections, transport and reconciliation | The owner of skills/training because another provider lacks them |
@@ -177,13 +183,13 @@ Report the bounded outcome, commits/files, consumed/changed contract versions, t
 
 - [x] Publish halt records and notices to the known open implementation PRs/masters. codex/astra-medium.
 - [x] Preserve business context, workbook mapping and historical implementation inventory in a portable plan set. codex/astra-medium.
-- [x] Split the epic into numbered workstreams and add approved training planning, ISO reference boundaries and optional budget semantics. codex/astra-medium.
+- [x] Split the epic into numbered workstreams and add approved training planning, ISO reference boundaries, optional budget semantics and the confirmed JD/KPI/performance workstream. codex/astra-medium.
 - [ ] Confirm active-agent/automation halt acknowledgements; published notices alone are not proof.
 - [ ] Transfer all numbered plans and the authorized workbook, or obtain explicit permission to commit/push the plan set.
 
 ### Phase 1 — Validate direction before resuming
 
-- [ ] Resolve applicable HR/QMS/compensation policy and provider/trust/package decisions through 0001–0004 and 0008.
+- [ ] Resolve applicable HR/QMS/compensation policy and provider/trust/package decisions through 0001–0004, 0008 and 0009.
 - [ ] Audit reusable implementation and estimate controlled ownership migration without discarding existing work.
 - [ ] Obtain explicit owner approval of the direction and instruction to resume implementation.
 
@@ -197,13 +203,13 @@ Report the bounded outcome, commits/files, consumed/changed contract versions, t
 
 - [ ] Integrate real workforce identity, governed requirements and verified assessment.
 - [ ] Execute an approved training-plan item through delivery, evaluation, effectiveness and reassessment with optional budgeting.
-- [ ] Demonstrate employee standing, explainable progression and authorized reward handling without implicit payroll changes.
+- [ ] Demonstrate employee standing, explainable performance/progression and authorized reward handling without implicit payroll changes.
 - [ ] Prove failures, scope denials, history/version preservation and provider limitations.
 
 ### Phase 4 — Complete product coverage
 
 - [ ] Deliver the authorised organisation explorer from company to employee, with skills/training drill-through, HOD planning and reproducible historical audit views under 0001/0005/0007.
-- [ ] Validate all 18 workbook families and three forms plus first-class training planning.
+- [ ] Validate all 18 workbook families and three forms plus first-class training planning and JD/KPI/performance coverage.
 - [ ] Deliver prioritized employee leave/attendance/shift capabilities against verified backend support.
 - [ ] Complete HR/HOD governance and standard-component employee experience with integrated review.
 
@@ -233,6 +239,6 @@ Main risks are business logic remaining trapped in connector packaging, accident
 
 Read this epic and both halt issues first, then 0008 for historical state and the assigned workstream's dependencies. The immediate mission remains design validation, not draining the old backlog. A larger token budget does not authorize new policy decisions or implementation.
 
-Transfer this entire numbered plan set and the authorized workbook identified in 0006. No employee records or credentials belong in these public-facing plans. Local paths and commit hashes in 0008 are historical orientation, not instructions to reset checkouts. The former unnumbered document is now a navigation pointer so prior links remain useful.
+Transfer this entire numbered plan set and the authorized workbook identified in 0006. No employee records or credentials belong in these public-facing plans. Local paths and commit hashes in 0008 are historical orientation, not instructions to reset checkouts. The earlier unnumbered plan was redundant and has been removed; the numbered plan set is the sole canonical design surface.
 
-Each child owns its detailed checklist; this epic owns shared decisions and integration milestones. Update dates, evidence and affected contracts when reality changes. Historical snapshots must be refreshed before implementation. The plan split did not refresh remote repository state, implement features, edit the workbook, change GitHub issues or lift the halt. These documents remain local and uncommitted/unpushed unless separately authorized.
+Each child owns its detailed checklist; this epic owns shared decisions and integration milestones. Update dates, evidence and affected contracts when reality changes. Historical snapshots must be refreshed before implementation. The plan split did not refresh remote repository state, implement features, edit the workbook, change GitHub issues or lift the halt. These documents do not authorize implementation or policy decisions.
