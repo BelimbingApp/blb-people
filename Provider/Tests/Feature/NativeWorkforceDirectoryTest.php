@@ -146,6 +146,75 @@ test('native identities never invent a company remap without an auditable provid
     ))->toBeNull();
 });
 
+
+test('company stable ids with a numeric prefix are refused rather than cast', function (): void {
+    [$tenant, $company] = createTenantWithCompany();
+    app(TenantContext::class)->set($tenant->id);
+
+    // (int) '12-not-mine' is 12. Without ctype_digit the directory answers for
+    // a company the caller did not name.
+    expect(app(ReadsWorkforceDirectory::class)->company($company->id.'-not-mine'))->toBeNull();
+});
+
+test('enumerated employees publish a user reference only for an active portal binding that matches the employee user', function (): void {
+    [$tenant, $company] = createTenantWithCompany();
+    $employee = Employee::factory()->create(['company_id' => $company->id, 'status' => 'active']);
+    $user = User::factory()->create(['company_id' => $company->id, 'employee_id' => $employee->id]);
+    app(TenantContext::class)->set($tenant->id);
+    $directory = app(ReadsWorkforceDirectory::class);
+
+    expect(collect($directory->employees((string) $company->id))
+        ->first(fn ($candidate) => $candidate->reference->externalId === (string) $employee->id)
+        ?->userReference)->toBeNull();
+
+    $access = EmployeePortalAccess::query()->create([
+        'employee_id' => $employee->id,
+        'user_id' => $user->id,
+        'display_name' => $employee->displayName(),
+        'status' => EmployeePortalAccess::STATUS_ACTIVE,
+    ]);
+
+    expect(collect($directory->employees((string) $company->id))
+        ->first(fn ($candidate) => $candidate->reference->externalId === (string) $employee->id)
+        ?->userReference?->externalId)->toBe((string) $user->id);
+
+    $access->update(['status' => EmployeePortalAccess::STATUS_REVOKED]);
+    expect(collect($directory->employees((string) $company->id))
+        ->first(fn ($candidate) => $candidate->reference->externalId === (string) $employee->id)
+        ?->userReference)->toBeNull();
+    $access->update(['status' => EmployeePortalAccess::STATUS_ACTIVE]);
+
+    $stranger = User::factory()->create(['company_id' => $company->id]);
+    $access->update(['user_id' => $stranger->id]);
+    expect(collect($directory->employees((string) $company->id))
+        ->first(fn ($candidate) => $candidate->reference->externalId === (string) $employee->id)
+        ?->userReference)->toBeNull();
+});
+
+test('a relationship entry of the wrong reference type is not published', function (): void {
+    [$tenant, $company] = createTenantWithCompany();
+    $employee = Employee::factory()->create([
+        'company_id' => $company->id,
+        'status' => 'active',
+    ]);
+    $organization = directoryReference($company, PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT, 'OPS', 'Ops');
+    $position = directoryReference($company, PeopleReferenceEntry::TYPE_JOB_TITLE, 'ENG', 'Engineer');
+    EmployeeWorkProfile::query()->create([
+        'employee_id' => $employee->id,
+        'organization_unit_id' => $organization->id,
+        'job_title_id' => $position->id,
+    ]);
+    // Bad data: the organization_unit_id column points at a job-title row.
+    $organization->update(['type' => PeopleReferenceEntry::TYPE_JOB_TITLE]);
+    app(TenantContext::class)->set($tenant->id);
+
+    $record = collect(app(ReadsWorkforceDirectory::class)->employees((string) $company->id))
+        ->first(fn ($candidate) => $candidate->reference->externalId === (string) $employee->id);
+
+    expect($record?->organizationReference)->toBeNull()
+        ->and($record?->positionReference?->externalId)->toBe((string) $position->id);
+});
+
 function directoryReference(Company $company, string $type, string $code, string $name): PeopleReferenceEntry
 {
     return PeopleReferenceEntry::query()->create([
