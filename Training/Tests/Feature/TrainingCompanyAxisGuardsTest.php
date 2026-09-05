@@ -17,6 +17,7 @@ use App\Domains\People\Training\Data\TrainingEventDraft;
 use App\Domains\People\Training\Enums\DeliveryMode;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEventException;
 use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
+use App\Domains\People\Training\Livewire\Event\Index as EventIndex;
 use App\Domains\People\Training\Models\TrainingCourse;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Services\TrainingAudience;
@@ -157,6 +158,14 @@ test('mapped skills keeps the course tenant and company scope explicit', functio
 
     expect($source)->toContain(
         '->forCompany((int) $this->tenant_id, (int) $this->company_entity_id)',
+    );
+});
+
+test('event history keeps an explicit tenant and company scope before filtering visible ids', function (): void {
+    $source = trainingGuardMethodSource(EventIndex::class, 'render');
+
+    expect($source)->toMatch(
+        '/TrainingEventAuditEvent::query\(\)\s*->forCompany\(app\(TenantContext::class\)->requireTenantId\(\), \$company\)/',
     );
 });
 
