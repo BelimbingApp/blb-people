@@ -119,6 +119,9 @@ test('actor binding requires the active reviewed portal relationship in the same
     $otherCompany = Company::factory()->create(['tenant_id' => $tenant->id]);
     $user->update(['company_id' => $otherCompany->id]);
     expect($directory->employeeForUser((string) $company->id, $user->id))->toBeNull();
+    $enumerated = collect($directory->employees((string) $company->id))
+        ->first(fn ($candidate) => $candidate->reference->externalId === (string) $employee->id);
+    expect($enumerated?->userReference)->toBeNull();
     $user->update(['company_id' => $company->id]);
 
     $employee->update(['status' => 'inactive']);
@@ -145,7 +148,6 @@ test('native identities never invent a company remap without an auditable provid
         (string) $company->id,
     ))->toBeNull();
 });
-
 
 test('company stable ids with a numeric prefix are refused rather than cast', function (): void {
     [$tenant, $company] = createTenantWithCompany();

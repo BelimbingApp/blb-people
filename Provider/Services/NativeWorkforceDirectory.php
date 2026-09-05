@@ -140,6 +140,7 @@ final class NativeWorkforceDirectory implements ReadsWorkforceDirectory
                 email: $employee->email,
                 userReference: is_numeric($portalUserId)
                     && (int) $employee->user?->getKey() === (int) $portalUserId
+                    && ($employee->user?->company_id === null || (int) $employee->user->company_id === $companyId)
                         ? $this->reference(WorkforceResourceType::User, (int) $portalUserId)
                         : null,
                 organizationReference: $this->relationshipReference(
