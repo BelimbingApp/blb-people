@@ -8,6 +8,8 @@ return [
     'capabilities' => [
         'people.training.event.view',
         'people.training.event.manage',
+        'people.training.plan.submit',
+        'people.training.plan.approve',
         'people.training.participation.manage',
         'people.training.participation.verify',
         'people.training.participation.evidence.assign',
@@ -18,6 +20,7 @@ return [
             'capabilities' => [
                 'people.training.event.view',
                 'people.training.event.manage',
+                'people.training.plan.approve',
                 'people.training.participation.manage',
                 'people.training.participation.verify',
                 'people.training.participation.evidence.assign',
@@ -31,6 +34,7 @@ return [
         'people_hod' => [
             'capabilities' => [
                 'people.training.event.view',
+                'people.training.plan.submit',
             ],
         ],
     ],
