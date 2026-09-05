@@ -12,9 +12,10 @@ final readonly class ExternalReference implements JsonSerializable
     public function __construct(
         public WorkforceResourceType $resourceType,
         public string $externalId,
+        public string $providerId = self::PROVIDER_ID,
     ) {
-        if (trim($externalId) === '') {
-            throw new \InvalidArgumentException('A workforce external reference cannot be empty.');
+        if (trim($providerId) === '' || trim($externalId) === '') {
+            throw new \InvalidArgumentException('A workforce external reference provider and ID cannot be empty.');
         }
     }
 
@@ -22,7 +23,7 @@ final readonly class ExternalReference implements JsonSerializable
     public function jsonSerialize(): array
     {
         return [
-            'provider_id' => self::PROVIDER_ID,
+            'provider_id' => $this->providerId,
             'resource_type' => $this->resourceType->value,
             'external_id' => $this->externalId,
         ];
