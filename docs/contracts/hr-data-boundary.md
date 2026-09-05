@@ -1,13 +1,35 @@
 # The HR data boundary
 
 **Document type:** Ownership and data-boundary contract
-**Status:** Active
+**Status:** Rebaselined 2026-09-05 to the approved ownership in [plan 0001](../plans/0001-people-architecture-and-provider-boundaries.md); enforcement awaits re-audit.
 **Issue:** BelimbingApp/blb-people#21, under the `[1000]` master BelimbingApp/blb-people#20
 **Companion:** `docs/contracts/company-ownership.md` in BelimbingApp/blb-people-connector, which
 says how a query is scoped. This document says who owns the data being scoped.
-**Last updated:** 2026-09-02
+**Last updated:** 2026-09-05
 
 ---
+
+## Governing ownership and implementation status
+
+**People owns Skills, Training and Progression business records.** The connector owns
+identities, projections, checkpoints, reconciliation issues and provider connections.
+Business workflows and history belong to the selected authoritative People installation;
+provider capability declarations do not transfer that ownership to the connector.
+
+The 2026-09-05 ownership decision supersedes the earlier amendments cited by this contract.
+[Plan 0001](../plans/0001-people-architecture-and-provider-boundaries.md) governs the boundary;
+[plan 0008](../plans/0008-people-existing-work-and-backlog-reconciliation.md) governs preservation
+and reconciliation of prior work. Implementation is tracked by
+[R1: workforce subject seam](https://github.com/BelimbingApp/blb-people/issues/112),
+[R2: Skills relocation](https://github.com/BelimbingApp/blb-people/issues/113),
+[R3: Training relocation](https://github.com/BelimbingApp/blb-people/issues/114), and
+[R4: integration-only connector](https://github.com/BelimbingApp/blb-people-connector/issues/121).
+The existing connector copies are relocation sources, not a second business authority.
+
+This amendment changes documentation only. Statements below about what code does "today",
+counts, findings and issue implementation status retain the prior 2026-09-02 evidence;
+they are not a fresh enforcement certification. Preserve the identity and security rules
+during relocation. The checklist at the end records the claims requiring a later code audit.
 
 ## What this document is for
 
@@ -28,8 +50,8 @@ Three things are already decided elsewhere and are not reopened here:
   discovers company-owned models, and a lint that fails the suite on an unreasoned bypass.
   Read `docs/contracts/company-ownership.md` in the connector repository for it. This
   document uses that mechanism and does not restate it.
-- **The Skill Management System is connector-owned.** Settled by the amendment on
-  BelimbingApp/blb-people#9 and by #20's ownership model.
+- **People owns Skills, Training and Progression.** The approved boundary in plan 0001
+  supersedes the earlier ownership amendments on BelimbingApp/blb-people#9 and #20.
 - **The connector is a provider-neutral layer.** Feature code talks to a port, never to
   `blb-people` or HR2000 classes. That is #20's first architectural invariant.
 
@@ -141,28 +163,30 @@ names, which is what the count above already does. Deciding that belongs with th
 **#24**, not here — a naming rule and the thing that enforces it should be settled together
 or they drift apart again.
 
-### Rule 1.2 — connector-owned data is keyed on the workforce company, never the platform company
+### Rule 1.2 — preserve the workforce company axis of the relocated People business records
 
-Every connector-owned supplemental record — the whole Skill and Training lifecycle, and
-anything added to it later — resolves to a workforce company: either directly, through its
-own `company_entity_id`, or through a named parent that has one. That is the connector
-contract's Class C and Class D. No connector-owned supplemental table may carry a platform
-`company_id`.
+Existing Skill and Training records become People-owned while retaining their workforce
+company scope: either directly, through their own `company_entity_id`, or through a named
+parent that has one. That is the existing contract's Class C and Class D. R2 and R3 preserve
+these columns and guards; moving the Module does not convert a workforce entity id into a
+platform `company_id`. New People business records, including Progression, follow plan 0001's
+explicit tenant/company scope and stable workforce subject contract; their schema is not
+implicitly dictated by the legacy connector layout.
 
 Three reasons, in order of weight:
 
 1. **Provider replacement has to keep the data.** #20 requires that replacing an HR
-   provider preserves connector-owned history. Workforce entity ids are connector-issued
-   and stable across connections, so a remap of external identities carries every skill
+   provider preserves People-owned business history and connector integration history.
+   Workforce entity ids are connector-issued and stable across connections, so a remap of external identities carries every skill
    record with it. Platform company ids would survive too, but they cannot express the
    case where the provider's idea of a company does not line up one-to-one with
    Belimbing's — and that mismatch is precisely what the connector exists to absorb.
 2. **The provider must never need to know about platform companies.** An adapter is handed
-   a workforce scope and returns provider records. If supplements were keyed on platform
-   companies, every adapter would need the mapping in section 2, and a wrong or hostile
+   a workforce scope and returns provider records. If the relocated records were silently
+   re-keyed on platform companies, every adapter would need the mapping in section 2, and a wrong or hostile
    provider payload could then select which platform company's data it wrote into.
-3. **The mechanism is already there.** The connector guard is built on `company_entity_id`. A
-   second axis with a second guard is a second thing to forget.
+3. **Preserve the existing mechanism.** The current guard is built on `company_entity_id`.
+   Relocation must retain its protection behind the People seam, with no unguarded interval.
 
 ### Rule 1.3 — two connector tables may store a platform company id, and no others
 
@@ -193,7 +217,7 @@ implementer would have had to guess which was authoritative. It is the same defe
 tracking its own body.
 
 `provider_connections.company_id` is not an exception to rule 1.2, because a connection is
-not a supplemental record. It is an installation fact: it says which platform company an
+not a People business record. It is an installation fact: it says which platform company an
 integration was *configured for*. That distinction matters in the next section, because it
 is the exact thing the current code mistakes for ownership.
 
@@ -427,8 +451,8 @@ the tenant's *primary* company. So:
 4. `withTrashed()->count()` now returns 1. The carve-out reopens.
 5. Every workforce company in the tenant, including the deleted company's, is now offered
    to the surviving company's users — and the deleted company's employees, skills and
-   assessments are all still in the connector, because deleting a platform company deletes
-   none of them.
+   assessments persist independently of the platform company, because deleting it deletes
+   none of them. Relocating those business records to People must preserve this distinction.
 
 A **soft** delete does not do this: the count includes trashed rows, so archiving the second
 company leaves it at two and everything stays closed. That control was run, and it narrows
@@ -468,10 +492,10 @@ claims, training, documents, single sign-on.
 
 **Ten of those are things an HR provider owns. Two are not.**
 
-**`Training`.** #20's scope amendment says the entire training lifecycle is
-**connector-owned** for SBG — needs, requests, approvals, events, attendance, results,
-certificates, evaluations, effectiveness reviews, passports — and that any training data
-HR2000 holds is an import source with provenance, not a second live writer.
+**`Training`.** Plan 0001 assigns the entire training lifecycle to **People** — needs,
+requests, approvals, events, attendance, results, certificates, evaluations, effectiveness
+reviews and passports. HR2000's overlapping historical training data is an import source
+with provenance, not a second live writer for the selected People Training installation.
 
 **`SingleSignOn`.** The register in section 4 gives it to the platform identity layer under
 #25, with nothing stored and no data direction. A provider may well be able to perform it.
@@ -489,9 +513,11 @@ makes the rule below stronger, not weaker: a single odd member of a list reads a
 exception, and two read as what they are — the enum is a list of things a provider can do,
 and it was never a list of things a provider owns.
 
-Note that `PeopleCapability` has no `Skills` case, and should not gain one. That is
-correct and it is the model to follow: a connector-owned capability is not something a
-provider declares.
+The historical `PeopleCapability` list has no `Skills` case. That absence does not decide
+ownership or prohibit a People integration contract: a published capability may expose a
+People business operation while its authoritative writer remains the selected People
+installation. Adding a declaration requires the explicit contract and authorization
+proof in plan 0001; the connector does not become its business owner.
 
 ### Rule 3.1 — a capability declaration states reachability, never authority
 
@@ -505,11 +531,14 @@ Before any provider read whose result will be **stored**, and before any provide
 feature code asks the ownership register who owns the data class. Only then does it ask the
 capability set whether the owner's provider can serve it.
 
-- If the register says the connector owns it, the provider is not written to, whatever it
-  declares. A provider read of the same class is an **import**, and every imported record
-  carries provenance saying which connection and which run produced it.
-- If the register says the provider owns it, a declared write channel may be used and a
-  connector-side copy is a projection, subject to section 6.
+- If the register assigns a business class to People, writes go through that selected
+  authoritative People installation's contract. A read from another source of the same
+  class is an **import**, and every imported record carries provenance saying which
+  connection and which run produced it; the source never becomes a second live writer.
+- If the register says the selected HR provider owns it, a declared write channel may be
+  used and a connector-side copy is a projection, subject to section 6.
+- Connector integration records remain connector-owned; provider declarations grant no
+  authority to alter administered identity mappings, attribution or provider connections.
 
 A capability alone is never authority to write. That sentence is the rule; the rest of this
 section is why it needed writing down.
@@ -545,8 +574,9 @@ already held.
 ## 4. The ownership register
 
 Who is authoritative, what the connector may keep, which way data flows, and how fresh it
-has to be. This table is the register referred to in rule 3.2. A deployment may override a
-row, but only by an explicit recorded decision — the default is what is written here.
+has to be. This table is the register referred to in rule 3.2. A deployment records its
+selected authoritative source explicitly under plan 0001. That selection does not move
+Skills, Training or Progression business ownership into the connector.
 
 | Capability | Authoritative owner | Connector may store | Direction | Freshness requirement |
 |---|---|---|---|---|
@@ -560,9 +590,10 @@ row, but only by an explicit recorded decision — the default is what is writte
 | Leave | Provider | **Nothing** | Read-through only | Live at point of use |
 | Claims | Provider | **Nothing** | Read-through only | Live at point of use |
 | Documents | Provider | **Nothing** | Read-through only | Live at point of use |
-| Training | **Connector** | Everything; it is the system of record | Provider → connector as import only | n/a |
+| Training | Selected People Training installation | **Nothing** under the current projection allowlist | Historical source → People as import with provenance; authorized operations → selected People installation | Fresh context where the operation requires it |
 | Single sign-on | Platform identity layer, #25 | n/a | n/a | n/a |
-| Skills and assessments (not a provider capability) | **Connector** | Everything; it is the system of record | n/a | n/a |
+| Skills and assessments | Selected People Skills installation | **Nothing** under the current projection allowlist | Authorized operations → selected People installation | Fresh context where the operation requires it |
+| Progression policy, eligibility and business history | Selected People Progression installation | **Nothing** under the current projection allowlist | Authorized operations → selected People installation | Published policy/version and required current evidence |
 
 **Rule 4.1 — a capability with no row in this register is owned by nobody.** It may not be
 stored, and it may not be written, until a row exists. An author who adds a capability,
@@ -593,41 +624,44 @@ where there were two.
 
 ---
 
-## 5. Connector-owned supplemental capabilities
+## 5. People-owned business capabilities
 
-The rules that apply to anything the connector owns. Today that is Skills and Training;
-these are written to be true of the next one too.
+Skills, Training and Progression are People business capabilities. The connector supplies
+integration context and transport, not a second store or writer for their business records.
 
-**5.1 — A connector-owned capability works with no provider support at all.** The provider
-supplies workforce and organisation context. It does not supply the capability, and the
-capability does not degrade when the provider has no matching feature. This is the test
-that decides whether something is genuinely connector-owned or is really a provider
-capability with a connector-side cache.
+**5.1 — A People business capability does not require a matching external HR feature.**
+The selected workforce source supplies workforce and organisation context. It does not
+supply the People business capability, and absence of a matching HR2000 feature does not
+disable it. This does not waive required context, authorization or availability of the
+selected authoritative People installation.
 
-**5.2 — Connector-owned records reference the provider only through workforce entity ids.**
-Never a provider's own id, never a name, never an email. A supplemental record that stored an
+**5.2 — People business records reference the provider only through stable workforce subjects.**
+Never a provider's own id, never a name, never an email. A People business record that stored an
 external id would be pinned to the provider that issued it, which is exactly what a provider
 swap has to be able to change. Where an external id may legitimately be stored is rule 8.1;
-a connector-owned supplemental table is not on that list.
+a People business table is not on that list. Relocated records retain their workforce entity
+ids through the R1 seam.
 
-**5.3 — Every table belonging to a connector-owned capability is company-owned on the
-workforce axis** (rule 1.2), and carries the `CompanyOwned` trait so the connector's company
-guard applies — directly for Class C, through its named parent for Class D. A new table
-enrols by adding the trait; the discovery contract test then covers it automatically. This
-is about capability data, not about the connector's own plumbing:
-`provider_connections` and `workforce_entities` are deliberately tenant-wide, for the
-reasons the connector contract gives.
+**5.3 — Relocated People business tables keep their company guard on the workforce axis**
+(rule 1.2), directly for Class C and through their named parent for Class D. R2 and R3 must
+preserve the existing `CompanyOwned` protection and discovery tests behind the People seam;
+physical relocation alone proves neither. New tenant-owned People tables carry `tenant_id`
+and explicit company scope under plan 0001. The connector's integration records have their
+own scope: `provider_connections` and `workforce_entities` are deliberately tenant-wide,
+for the reasons the connector contract gives.
 
-**5.4 — Provider data that overlaps a connector-owned capability is an import, with
+**5.4 — External HR data that overlaps a People business capability is an import, with
 provenance, and is never a live second writer.** HR2000's historical training records come
 in as an import that records where each record came from and when. After import, the
-connector is the only writer. Reversing this for a particular deployment requires an
-explicit recorded decision under #28, not an adapter declaring a write channel.
+selected People installation is the only business writer. Changing the authoritative
+source requires an explicit recorded transition under plan 0001, not an adapter declaring
+a write channel; historical provenance and authority must survive that transition.
 
-**5.5 — A provider outage never blocks a connector-owned write.** Skills and training are
-the system of record; they do not need the provider to be reachable. If an operation needs
-fresh provider context to be correct, it fails with that reason rather than proceeding on
-a stale projection and rather than being silently queued.
+**5.5 — An external HR outage does not by itself block an independent People business write.**
+The selected People installation is the system of record. If an operation needs fresh
+provider context to be correct, it fails with that reason rather than proceeding on a stale
+projection and rather than being silently queued. An unavailable authoritative People
+installation is not permission for the connector to become a fallback business writer.
 
 ---
 
@@ -779,10 +813,11 @@ looking at the screen. Every request is equally authorised, so "the provider aut
 authorises everything.
 
 **So, for any content fetched from a provider rather than stored: the connector-side
-permission is checked before the fetch is made.** It is the only gate in the path that knows
-who is asking. The provider's authorisation still applies, and it is a second gate, not the
-first one — it constrains what the connector may ever see, never who may see it through the
-connector.
+permission is checked before the fetch is made.** This gate knows who is asking; a broad
+service credential does not replace it. Under plan 0001, the authoritative backend also
+rechecks employee binding, tenant/company, operation and record access using the approved
+identity assertion. Provider authorisation remains an additional gate, never a substitute
+for the caller's permission or the backend's record-level checks.
 
 Where a row is genuinely permissive, say what it is permissive *within*.
 
@@ -794,7 +829,7 @@ Where a row is genuinely permissive, say what it is permissive *within*.
 | **Employment** | Employment dates, position history, termination details | **Never projected**; none of this is on rule 6.1's list. Read-through: the employee themselves, their management chain, HR |
 | **Compensation** | Payroll of any kind, bank details, claims amounts | **Never projected.** Read-through: payroll role only. Authorised connector-side before the fetch, per rule 7.1 |
 | **Absence** | Leave and attendance records | **Never projected.** Read-through: the employee, their manager, HR |
-| **Competence** | Skills, assessments, results, certificates, training history — connector-owned | The employee themselves, their management chain, the HOD for their department, HR |
+| **Competence** | Skills, assessments, results, certificates, training history — People-owned | The employee themselves, their management chain, the HOD for their department, HR |
 | **Documents** | Provider-held files and their metadata | **Never projected**, metadata included. Read-through: the employee themselves, their management chain, HR. Addressed by a provider reference held for one request; authorised connector-side before the fetch, per rule 7.1 |
 
 **Rule 7.2 — data that fits no class in this table is treated as Compensation until it is
@@ -805,7 +840,7 @@ default is deliberately the most restrictive class rather than a middle one, so 
 classifying a new kind of data is always a loosening, made on purpose, by a change to this
 table.
 
-This default is a poor fit for data the connector **originates**, where "never projected" and
+This default is a poor fit for data People **originates**, where "never projected" and
 "read-through" have nothing to refer to and only "narrowest audience" carries. That is a real
 gap and it is deferred rather than patched here, as open question 8.
 
@@ -846,7 +881,7 @@ against.
 
 ### Rule 7.3 — HR access is granted, never inherited
 
-A role holds access to a provider or connector-owned HR capability only if it has been
+A role holds access to a provider or People-owned HR capability only if it has been
 granted a permission that names that capability. No platform-administration role acquires
 it by being administrative: not tenant owner, not company administrator, not the role that
 configures provider connections, not a developer or support role.
@@ -914,7 +949,7 @@ The permitted places, each for a stated reason:
   event has to remain readable after the identity it refers to has been remapped or merged
   away. See rule 6.2.
 
-**A provider id on a projection row, or on a connector-owned supplemental record, is a bug**,
+**A provider id on a projection row, or on a People-owned business record, is a bug**,
 for the same reason as rule 1.3: it would pin live data to a provider we intend to be able to
 replace. History and reconciliation are not live data — one is a record of what was said, the
 other is a record of what could not be resolved.
@@ -957,9 +992,11 @@ is unreachable the screen says the data is stale rather than presenting it as cu
 Hiding the data entirely is also wrong: it turns an outage into an apparent deletion, which
 is rule 9.1 wearing a different hat.
 
-**Rule 9.3 — a provider outage degrades provider capabilities only.** Connector-owned work
-continues. Read-through capabilities fail with a clear reason. Projections continue to be
-served, marked stale.
+**Rule 9.3 — an external HR outage degrades the operations that depend on it.** Independent
+People business work and connector integration work may continue; rule 5.5 still refuses
+operations requiring fresh unavailable context. Read-through capabilities fail with a clear
+reason. Projections continue to be served, marked stale. There is no local fallback writer
+for an unavailable authoritative source.
 
 **Rule 9.4 — a write whose outcome is unknown is not retried blindly.** The connector
 already has `ProviderUnknownOutcomeException` for this. An unknown outcome is reconciled
@@ -970,13 +1007,14 @@ worse than a failed one.
 
 ## 10. Provider replacement
 
-The whole point of keying supplements on workforce entities (rule 1.2) is that this stays
-possible.
+The whole point of stable workforce subjects for People business records (rule 1.2) is that
+this stays possible.
 
 Replacing a provider means: a new connection, a new set of external identities, and an
 administered remap from the old workforce entities to the new provider's records. Every
-connector-owned record follows automatically because it references the entity, not the
-provider.
+People business record retains its stable subject because it references the entity, not
+the provider. Relocation must preserve and verify those references; it does not prove
+that remapping or cutover is automatic.
 
 **Rule 10.1 — the remap is administered and reviewable.** Same reasoning as decision 2.3:
 an automatic matcher deciding that HR2000's employee 4471 is the same person as the native
@@ -988,8 +1026,8 @@ costume.
 even though everything the provider said about it has been replaced.
 
 **Rule 10.3 — cutover is reversible within a stated window.** #31 owns the mechanics. The
-constraint this contract places on it is that connector-owned history is never rewritten
-during a cutover, only re-pointed.
+constraint this contract places on it is that People business history and connector
+integration history are never rewritten during a cutover, only re-pointed.
 
 ---
 
@@ -1061,19 +1099,18 @@ than guessed, and each names who should close it.
    this into an enforced rule is a change to `WorkforceIdentityStore` and belongs with
    **#26**, not in a document.
 
-8. **Is rule 7.2's default meaningful for data the connector originates?** The default sends
+8. **Is rule 7.2's default meaningful for data People originates?** The default sends
    an unclassified data class to Compensation — never projected, read-through only, narrowest
-   audience. Two of those three are statements about *provider* data. For data the connector
+   audience. Two of those three are statements about *provider* data. For data People
    originates there is nothing to read through to, so only "narrowest audience" carries and
    the rest of the sentence is decoration.
 
    Deferred rather than patched, and the reason is worth stating because the obvious fix is
-   wrong. Adding a second default for connector-originated data puts a branch in the one rule
+   wrong. Adding a second default for People-originated data puts a branch in the one rule
    whose entire value is having no branches — a default that asks a question before it applies
    is a default an author can argue their way out of. The real question underneath is whether
-   an unclassified connector-owned data class should be able to exist at all, given that rule
-   5.1 says a connector-owned capability is a deliberate decision rather than something that
-   accumulates. That is a governance question, not a wording one. **#24.** Raised by
+   an unclassified People-owned business data class should be able to exist at all, given that
+   rule 4.1 requires an explicit ownership-register entry before storage or writes. That is a governance question, not a wording one. **#24.** Raised by
    `agent:opus-5-review-m`.
 
    Recorded here rather than left as a judgement call I made quietly. This document's best
@@ -1159,3 +1196,24 @@ statement, while the rule it must obey is a paragraph away carrying its qualific
 inline.** Checking a rule against the code turned out to be the easy half. Checking it against
 its own neighbours is where this document kept failing, and tables are where the neighbours
 are hardest to see.
+
+---
+
+## Enforcement re-audit checklist
+
+These are follow-up checks, not findings or claims that the 2026-09-05 amendment verified code.
+
+- [ ] Re-audit the R1–R4 ownership seam: People business records have one authoritative writer and the connector retains integration records only.
+- [ ] Re-audit tenant/company guards, Class C/D parent resolution, discovery coverage and justified scope bypasses after relocation (rules 1.2 and 5.3).
+- [ ] Re-audit identifier naming and permitted platform-company/external-id persistence, including JSON and history exceptions (rules 1.1, 1.3 and 8.1).
+- [ ] Re-audit stored attribution, tenant-safe foreign keys, administration-only mapping changes and refusal of unattributed access (section 2).
+- [ ] Re-audit the single-company carve-out, hard-delete scenario and claimed retirement/docblock mitigation against current code (section 2 and belimbing#489).
+- [ ] Re-audit ownership-before-capability enforcement, undeclared capability refusal and provider conformance on actual read/write paths (section 3).
+- [ ] Re-audit projection field allowlists and preservation of administered fields during sync and provider replacement (rules 2.4 and 6.1).
+- [ ] Re-audit snapshot factories, payload vocabulary, all snapshot writers and rejection of unlisted provider fields (rule 6.2).
+- [ ] Re-audit read-through non-persistence across caches, sessions, logs, snapshots and exports (rule 6.3).
+- [ ] Re-audit granted HR permissions, audience/company boundaries, connector-before-fetch checks, authoritative-backend checks and co-located/remote denial parity (section 7 and plan 0001).
+- [ ] Re-audit break-glass expiry, immutable audit evidence and HR notification (rule 7.4).
+- [ ] Re-audit workforce identity remapping, merge/deactivation authority and employee-to-login binding without matching mutable attributes (section 8).
+- [ ] Re-audit positive deactivation, visible staleness, fresh-context refusal and unknown-outcome reconciliation without blind retry or fallback writers (sections 5 and 9).
+- [ ] Re-audit provider cutover, retained attribution and business/integration history, and the stated reversal window (section 10).

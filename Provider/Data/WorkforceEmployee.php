@@ -20,6 +20,7 @@ final readonly class WorkforceEmployee implements JsonSerializable
         public ?string $email = null,
         public ?ExternalReference $userReference = null,
         public ?ExternalReference $organizationReference = null,
+        public ?ExternalReference $positionReference = null,
         public ?ExternalReference $managerReference = null,
         public ?ExternalReference $departmentHeadReference = null,
         public ?string $sourceVersion = null,
@@ -42,6 +43,7 @@ final readonly class WorkforceEmployee implements JsonSerializable
             || $companyReference->resourceType !== WorkforceResourceType::Company
             || ($userReference !== null && $userReference->resourceType !== WorkforceResourceType::User)
             || ($organizationReference !== null && $organizationReference->resourceType !== WorkforceResourceType::OrganizationUnit)
+            || ($positionReference !== null && $positionReference->resourceType !== WorkforceResourceType::Position)
             || ($managerReference !== null && $managerReference->resourceType !== WorkforceResourceType::Employee)
             || ($departmentHeadReference !== null && $departmentHeadReference->resourceType !== WorkforceResourceType::Employee)) {
             throw new \InvalidArgumentException('Workforce employees contain a mismatched workforce reference type.');
@@ -66,7 +68,7 @@ final readonly class WorkforceEmployee implements JsonSerializable
             'email' => $this->email,
             'user_reference' => $this->userReference?->jsonSerialize(),
             'organization_reference' => $this->organizationReference?->jsonSerialize(),
-            'position_reference' => null,
+            'position_reference' => $this->positionReference?->jsonSerialize(),
             'manager_reference' => $this->managerReference?->jsonSerialize(),
             'department_head_reference' => $this->departmentHeadReference?->jsonSerialize(),
             'source_version' => $this->sourceVersion,
