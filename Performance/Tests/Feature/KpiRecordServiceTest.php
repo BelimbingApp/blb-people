@@ -10,12 +10,19 @@ use App\Core\Company\Models\Department;
 use App\Core\Company\Models\DepartmentType;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
+use App\Domains\People\Performance\Data\KpiResultValue;
+use App\Domains\People\Performance\Data\TeamKpiAttribution;
+use App\Domains\People\Performance\Enums\KpiDirection;
+use App\Domains\People\Performance\Enums\KpiValueState;
 use App\Domains\People\Performance\Exceptions\KpiRecordException;
+use App\Domains\People\Performance\Models\KpiDefinition;
 use App\Domains\People\Performance\Models\KpiRecord;
 use App\Domains\People\Performance\Services\KpiRecordService;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Exceptions\MissingCompanyScopeException;
 
 afterEach(fn () => app(TenantContext::class)->clear());
@@ -24,7 +31,7 @@ test('performance capabilities are discovered from the module', function (): voi
     expect(config('authz.capabilities'))->toContain('people.performance.kpi.submit');
 });
 
-/** @return array{tenant: int, company: int, hod: User, hr: User, employee: User, owner: WorkforceSubject} */
+/** @return array{tenant: int, company: int, hod: User, hr: User, employee: User, owner: WorkforceSubject, organization: WorkforceSubject} */
 function kpiFixture(): array
 {
     [$tenant, $company] = createTenantWithCompany();
@@ -42,6 +49,13 @@ function kpiFixture(): array
         'department_type_id' => $type->id,
         'status' => 'active',
     ]);
+    $organization = PeopleReferenceEntry::query()->create([
+        'company_id' => $company->id,
+        'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+        'code' => 'kpi-unit',
+        'name' => 'KPI Unit',
+        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+    ]);
     $head = Employee::factory()->create(['company_id' => $company->id, 'status' => 'active']);
     $department->update(['head_id' => $head->id]);
     $employee = Employee::factory()->create([
@@ -49,6 +63,10 @@ function kpiFixture(): array
         'department_id' => $department->id,
         'supervisor_id' => $head->id,
         'status' => 'active',
+    ]);
+    EmployeeWorkProfile::query()->create([
+        'employee_id' => $employee->id,
+        'organization_unit_id' => $organization->id,
     ]);
     $hod = User::factory()->create(['company_id' => $company->id, 'employee_id' => $head->id]);
     $worker = User::factory()->create(['company_id' => $company->id, 'employee_id' => $employee->id]);
@@ -84,17 +102,41 @@ function kpiFixture(): array
             WorkforceResourceType::Employee,
             (string) $employee->id,
         ),
+        'organization' => new WorkforceSubject(
+            (int) $tenant->id,
+            (int) $company->id,
+            WorkforceResourceType::OrganizationUnit,
+            (string) $organization->id,
+        ),
     ];
 }
 
 function proposedKpi(array $fixture, bool $confidential = false): KpiRecord
 {
-    return app(KpiRecordService::class)->propose(
+    $service = app(KpiRecordService::class);
+    $definition = $service->define(
         $fixture['hod'],
         $fixture['company'],
         $fixture['owner'],
         'delivery-quality',
+        1,
+        'Delivery quality',
+        'Keep accepted deliveries reliable.',
+        'percent',
         'Accepted deliveries / total deliveries',
+        'ops:delivery-quality',
+        KpiDirection::HigherIsBetter,
+        null,
+        'ratio-v1',
+        2,
+        'Higher is better.',
+    );
+
+    return $service->propose(
+        $fixture['hod'],
+        $fixture['company'],
+        $fixture['owner'],
+        $definition->id,
         'At least 98%',
         new DateTimeImmutable('2026-01-01'),
         new DateTimeImmutable('2026-03-31'),
@@ -108,9 +150,14 @@ test('a KPI preserves its owner measure target period evidence and reviewed publ
     $service = app(KpiRecordService::class);
     $record = proposedKpi($fixture);
 
+    $definition = KpiDefinition::query()->forCompany($fixture['tenant'], $fixture['company'])->findOrFail($record->kpi_definition_id);
+
     expect($record->owner_subject_type)->toBe(WorkforceResourceType::Employee->value)
         ->and($record->owner_subject_id)->toBe($fixture['owner']->stableId)
-        ->and($record->measure)->toBe('Accepted deliveries / total deliveries')
+        ->and($definition->measure)->toBe('Accepted deliveries / total deliveries')
+        ->and($definition->unit)->toBe('percent')
+        ->and($definition->direction)->toBe(KpiDirection::HigherIsBetter)
+        ->and($record->getAttributes())->not->toHaveKeys(['measure', 'unit', 'direction', 'rubric', 'calculation'])
         ->and($record->target)->toBe('At least 98%')
         ->and($record->period_start->toDateString())->toBe('2026-01-01')
         ->and($record->period_end->toDateString())->toBe('2026-03-31')
@@ -141,8 +188,7 @@ test('a KPI proposal refuses an actor without the HOD capability', function (): 
         $fixture['employee'],
         $fixture['company'],
         $fixture['owner'],
-        'delivery-quality',
-        'Accepted deliveries',
+        999999,
         '98%',
         new DateTimeImmutable('2026-01-01'),
         new DateTimeImmutable('2026-03-31'),
@@ -151,6 +197,7 @@ test('a KPI proposal refuses an actor without the HOD capability', function (): 
 
 test('a KPI proposal refuses another company and its owner subject', function (): void {
     $fixture = kpiFixture();
+    $definitionId = proposedKpi($fixture)->kpi_definition_id;
     $sibling = Company::factory()->create(['tenant_id' => $fixture['tenant'], 'status' => 'active']);
     $otherEmployee = Employee::factory()->create(['company_id' => $sibling->id, 'status' => 'active']);
     $owner = new WorkforceSubject(
@@ -164,8 +211,7 @@ test('a KPI proposal refuses another company and its owner subject', function ()
         $fixture['hod'],
         (int) $sibling->id,
         $owner,
-        'foreign',
-        'Foreign measure',
+        $definitionId,
         '1',
         new DateTimeImmutable('2026-01-01'),
         new DateTimeImmutable('2026-03-31'),
@@ -189,5 +235,80 @@ test('KPI records require an explicit company scope', function (): void {
     proposedKpi($fixture);
 
     expect(fn () => KpiRecord::query()->forTenant($fixture['tenant'])->get())
+        ->toThrow(MissingCompanyScopeException::class)
+        ->and(fn () => KpiDefinition::query()->forTenant($fixture['tenant'])->get())
         ->toThrow(MissingCompanyScopeException::class);
+});
+
+test('an approved target amendment preserves the original target and approval', function (): void {
+    $fixture = kpiFixture();
+    $service = app(KpiRecordService::class);
+    $original = proposedKpi($fixture);
+    $service->review($fixture['hr'], $fixture['company'], $original->id, 'Approved original target.');
+
+    $replacement = $service->amendTarget(
+        $fixture['hod'],
+        $fixture['company'],
+        $original->id,
+        'At least 99%',
+        new DateTimeImmutable('2026-02-01'),
+        'Customer acceptance criteria changed.',
+    );
+
+    expect($original->refresh()->target)->toBe('At least 98%')
+        ->and($original->review_outcome)->toBe('Approved original target.')
+        ->and($replacement->target)->toBe('At least 99%')
+        ->and($replacement->target_version)->toBe(2)
+        ->and($replacement->supersedes_assignment_id)->toBe($original->id)
+        ->and($replacement->amendment_reason)->toBe('Customer acceptance criteria changed.')
+        ->and($replacement->effective_from->toDateString())->toBe('2026-02-01');
+});
+
+test('missing zero and zero denominator are distinct typed values', function (): void {
+    $missing = new KpiResultValue(KpiValueState::Missing);
+    $zero = new KpiResultValue(KpiValueState::Zero, 0.0);
+    $zeroDenominator = new KpiResultValue(KpiValueState::ZeroDenominator);
+
+    expect($missing->state)->toBe(KpiValueState::Missing)
+        ->and($missing->value)->toBeNull()
+        ->and($zero->state)->toBe(KpiValueState::Zero)
+        ->and($zero->value)->toBe(0.0)
+        ->and($zeroDenominator->state)->toBe(KpiValueState::ZeroDenominator)
+        ->and(fn () => new KpiResultValue(KpiValueState::Value, 0.0))
+        ->toThrow(KpiRecordException::class, 'does not match its declared state')
+        ->and(fn () => new KpiResultValue(KpiValueState::Missing, 0.0))
+        ->toThrow(KpiRecordException::class, 'does not match its declared state')
+        ->and(fn () => new KpiResultValue(KpiValueState::ZeroDenominator, 0.0))
+        ->toThrow(KpiRecordException::class, 'does not match its declared state');
+});
+
+test('team KPI attribution never copies or double counts people implicitly', function (): void {
+    $fixture = kpiFixture();
+    $service = app(KpiRecordService::class);
+    $definitionId = proposedKpi($fixture)->kpi_definition_id;
+    $team = $service->propose(
+        $fixture['hod'],
+        $fixture['company'],
+        $fixture['organization'],
+        $definitionId,
+        'At least 98%',
+        new DateTimeImmutable('2026-01-01'),
+        new DateTimeImmutable('2026-03-31'),
+        attribution: TeamKpiAttribution::notAttributed(),
+    );
+    $declared = $service->propose(
+        $fixture['hod'],
+        $fixture['company'],
+        $fixture['organization'],
+        $definitionId,
+        'At least 98%',
+        new DateTimeImmutable('2026-04-01'),
+        new DateTimeImmutable('2026-06-30'),
+        attribution: TeamKpiAttribution::declared([$fixture['owner']->stableId]),
+    );
+
+    expect($team->attributed_employee_subject_ids)->toBe([])
+        ->and($declared->attributed_employee_subject_ids)->toBe([$fixture['owner']->stableId])
+        ->and(fn () => TeamKpiAttribution::declared(['employee-1', 'employee-1']))
+        ->toThrow(KpiRecordException::class, 'unique declared employee subjects');
 });
