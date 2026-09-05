@@ -43,15 +43,15 @@ return new class extends Migration
                 ->references('id')->on('tenants')->restrictOnDelete();
             $table->foreign(['company_entity_id', 'tenant_id'], 'pcs_actor_binding_company_fk')
                 ->references(['id', 'tenant_id'])
-                ->on('people_connector_connector_workforce_entities')
+                ->on('companies')
                 ->restrictOnDelete();
-            $table->foreign(['employee_entity_id', 'tenant_id'], 'pcs_actor_binding_employee_fk')
-                ->references(['id', 'tenant_id'])
-                ->on('people_connector_connector_workforce_entities')
+            $table->foreign('employee_entity_id', 'pcs_actor_binding_employee_fk')
+                ->references('id')
+                ->on('employees')
                 ->restrictOnDelete();
-            $table->foreign(['user_entity_id', 'tenant_id'], 'pcs_actor_binding_user_entity_fk')
-                ->references(['id', 'tenant_id'])
-                ->on('people_connector_connector_workforce_entities')
+            $table->foreign('user_entity_id', 'pcs_actor_binding_user_entity_fk')
+                ->references('id')
+                ->on('users')
                 ->restrictOnDelete();
         });
 
@@ -78,11 +78,11 @@ return new class extends Migration
                 ->references('id')->on('tenants')->restrictOnDelete();
             $table->foreign(['company_entity_id', 'tenant_id'], 'pcs_assessor_assignment_company_fk')
                 ->references(['id', 'tenant_id'])
-                ->on('people_connector_connector_workforce_entities')
+                ->on('companies')
                 ->restrictOnDelete();
-            $table->foreign(['employee_entity_id', 'tenant_id'], 'pcs_assessor_assignment_employee_fk')
-                ->references(['id', 'tenant_id'])
-                ->on('people_connector_connector_workforce_entities')
+            $table->foreign('employee_entity_id', 'pcs_assessor_assignment_employee_fk')
+                ->references('id')
+                ->on('employees')
                 ->restrictOnDelete();
         });
 

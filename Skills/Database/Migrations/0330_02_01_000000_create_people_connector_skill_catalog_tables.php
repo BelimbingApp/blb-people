@@ -89,33 +89,6 @@ return new class extends Migration
                     AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at THEN
                     RETURN NEW;
                 END IF;
-                -- A company merge carries a published scale to the survivor:
-                -- only the owner changes, and only from an entity already
-                -- marked merged into the new owner. Content, lifecycle and
-                -- audit metadata stay immutable; updated_at is the one column
-                -- deliberately not pinned, because the merge writes it. Every
-                -- column of the table is either pinned here or named as
-                -- permitted in CompanyMergeTest, which fails when a column is
-                -- added and neither (#38).
-                IF NEW.company_entity_id IS DISTINCT FROM OLD.company_entity_id
-                    AND NEW.status = OLD.status
-                    AND NEW.tenant_id = OLD.tenant_id
-                    AND NEW.code = OLD.code
-                    AND NEW.name = OLD.name
-                    AND NEW.version = OLD.version
-                    AND NEW.published_at IS NOT DISTINCT FROM OLD.published_at
-                    AND NEW.retired_at IS NOT DISTINCT FROM OLD.retired_at
-                    AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at
-                    AND NEW.id = OLD.id
-                    AND EXISTS (
-                        SELECT 1 FROM people_connector_connector_workforce_entities
-                        WHERE id = OLD.company_entity_id
-                            AND tenant_id = OLD.tenant_id
-                            AND state = 'merged'
-                            AND merged_into_entity_id = NEW.company_entity_id
-                    ) THEN
-                    RETURN NEW;
-                END IF;
                 RAISE EXCEPTION 'proficiency scale % is % and immutable; draft a new version instead', OLD.id, OLD.status;
             END;
             $$ LANGUAGE plpgsql;
@@ -169,14 +142,7 @@ return new class extends Migration
 
             CREATE OR REPLACE FUNCTION pcs_company_owner_guard() RETURNS trigger AS $$
             BEGIN
-                IF NEW.company_entity_id IS DISTINCT FROM OLD.company_entity_id
-                    AND NOT EXISTS (
-                        SELECT 1 FROM people_connector_connector_workforce_entities
-                        WHERE id = OLD.company_entity_id
-                            AND tenant_id = OLD.tenant_id
-                            AND state = 'merged'
-                            AND merged_into_entity_id = NEW.company_entity_id
-                    ) THEN
+                IF NEW.company_entity_id IS DISTINCT FROM OLD.company_entity_id THEN
                     RAISE EXCEPTION 'catalog row % belongs to company entity % and cannot move to another company', OLD.id, OLD.company_entity_id;
                 END IF;
                 RETURN NEW;
@@ -207,22 +173,12 @@ return new class extends Migration
 
     private function createSqliteGuards(): void
     {
-        // The third arm mirrors the plpgsql function: a company merge may
-        // change the owner of a non-draft scale, and nothing else, and only
-        // from an entity already marked merged into the new owner.
         DB::statement(
             'CREATE TRIGGER pcs_scale_update_guard BEFORE UPDATE ON people_connector_skill_proficiency_scales'
             ." WHEN NOT (OLD.status = 'draft' OR (OLD.status = 'published' AND NEW.status = 'retired'"
             .' AND NEW.id = OLD.id AND NEW.tenant_id = OLD.tenant_id AND NEW.company_entity_id = OLD.company_entity_id'
             .' AND NEW.code = OLD.code AND NEW.name = OLD.name AND NEW.version = OLD.version'
-            .' AND NEW.published_at IS OLD.published_at AND NEW.created_at IS OLD.created_at)'
-            .' OR (NEW.company_entity_id != OLD.company_entity_id AND NEW.status = OLD.status'
-            .' AND NEW.tenant_id = OLD.tenant_id AND NEW.code = OLD.code AND NEW.name = OLD.name'
-            .' AND NEW.version = OLD.version AND NEW.published_at IS OLD.published_at AND NEW.retired_at IS OLD.retired_at'
-            .' AND NEW.created_at IS OLD.created_at AND NEW.id = OLD.id'
-            .' AND EXISTS (SELECT 1 FROM people_connector_connector_workforce_entities'
-            .' WHERE id = OLD.company_entity_id AND tenant_id = OLD.tenant_id'
-            ." AND state = 'merged' AND merged_into_entity_id = NEW.company_entity_id)))"
+            .' AND NEW.published_at IS OLD.published_at AND NEW.created_at IS OLD.created_at))'
             ." BEGIN SELECT RAISE(ABORT, 'proficiency scale is published and immutable; draft a new version instead'); END",
         );
         DB::statement(
@@ -277,25 +233,16 @@ return new class extends Migration
         );
 
         // The company axis has no database backstop of its own: the composite
-        // foreign key accepts any entity in the tenant, so a pinned UPDATE can
-        // move a catalog row to a sibling company and nothing objects. The one
-        // move a catalog row may make is to the survivor of a company merge,
-        // and the merge marks the old entity merged-into the survivor before
-        // it rewrites anything, so that is the rule the database checks.
+        // foreign key accepts any company in the tenant, so the trigger makes
+        // company ownership immutable.
         DB::statement(
             'CREATE TRIGGER pcs_category_company_owner_guard BEFORE UPDATE ON people_connector_skill_categories'
-            .' WHEN NEW.company_entity_id != OLD.company_entity_id AND NOT EXISTS ('
-            .' SELECT 1 FROM people_connector_connector_workforce_entities'
-            .' WHERE id = OLD.company_entity_id AND tenant_id = OLD.tenant_id'
-            ." AND state = 'merged' AND merged_into_entity_id = NEW.company_entity_id)"
+            .' WHEN NEW.company_entity_id != OLD.company_entity_id'
             ." BEGIN SELECT RAISE(ABORT, 'catalog row belongs to its company entity and cannot move to another company'); END",
         );
         DB::statement(
             'CREATE TRIGGER pcs_skill_company_owner_guard BEFORE UPDATE ON people_connector_skill_skills'
-            .' WHEN NEW.company_entity_id != OLD.company_entity_id AND NOT EXISTS ('
-            .' SELECT 1 FROM people_connector_connector_workforce_entities'
-            .' WHERE id = OLD.company_entity_id AND tenant_id = OLD.tenant_id'
-            ." AND state = 'merged' AND merged_into_entity_id = NEW.company_entity_id)"
+            .' WHEN NEW.company_entity_id != OLD.company_entity_id'
             ." BEGIN SELECT RAISE(ABORT, 'catalog row belongs to its company entity and cannot move to another company'); END",
         );
         // The POSITION of this statement is load-bearing. SQLite fires
@@ -312,10 +259,7 @@ return new class extends Migration
         // in Skill/Tests/Feature/ProficiencyScaleTest.php. See #37.
         DB::statement(
             'CREATE TRIGGER pcs_scale_company_owner_guard BEFORE UPDATE ON people_connector_skill_proficiency_scales'
-            .' WHEN NEW.company_entity_id != OLD.company_entity_id AND NOT EXISTS ('
-            .' SELECT 1 FROM people_connector_connector_workforce_entities'
-            .' WHERE id = OLD.company_entity_id AND tenant_id = OLD.tenant_id'
-            ." AND state = 'merged' AND merged_into_entity_id = NEW.company_entity_id)"
+            .' WHEN NEW.company_entity_id != OLD.company_entity_id'
             ." BEGIN SELECT RAISE(ABORT, 'catalog row belongs to its company entity and cannot move to another company'); END",
         );
     }
@@ -458,9 +402,18 @@ return new class extends Migration
 
     private function addEntityForeignKey(Blueprint $table, string $column, string $name): void
     {
-        $table->foreign([$column, 'tenant_id'], $name)
-            ->references(['id', 'tenant_id'])
-            ->on('people_connector_connector_workforce_entities')
+        if ($column === 'company_entity_id') {
+            $table->foreign([$column, 'tenant_id'], $name)
+                ->references(['id', 'tenant_id'])
+                ->on('companies')
+                ->restrictOnDelete();
+
+            return;
+        }
+
+        $table->foreign($column, $name)
+            ->references('id')
+            ->on($column === 'department_entity_id' ? 'people_reference_entries' : 'employees')
             ->restrictOnDelete();
     }
 };

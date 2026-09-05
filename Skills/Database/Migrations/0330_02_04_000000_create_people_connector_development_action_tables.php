@@ -73,10 +73,10 @@ return new class extends Migration
             $table->index(['tenant_id', 'mandatory_gate', 'priority_score'], 'pcs_dev_action_priority_idx');
 
             $table->foreign('tenant_id', 'pcs_dev_action_tenant_fk')->references('id')->on('tenants')->restrictOnDelete();
-            $table->foreign(['employee_entity_id', 'tenant_id'], 'pcs_dev_action_employee_fk')->references(['id', 'tenant_id'])->on('people_connector_connector_workforce_entities')->restrictOnDelete();
-            $table->foreign(['owner_employee_entity_id', 'tenant_id'], 'pcs_dev_action_owner_fk')->references(['id', 'tenant_id'])->on('people_connector_connector_workforce_entities')->restrictOnDelete();
-            $table->foreign(['hr_coordinator_employee_entity_id', 'tenant_id'], 'pcs_dev_action_hr_fk')->references(['id', 'tenant_id'])->on('people_connector_connector_workforce_entities')->restrictOnDelete();
-            $table->foreign(['trainer_employee_entity_id', 'tenant_id'], 'pcs_dev_action_trainer_fk')->references(['id', 'tenant_id'])->on('people_connector_connector_workforce_entities')->restrictOnDelete();
+            $table->foreign('employee_entity_id', 'pcs_dev_action_employee_fk')->references('id')->on('employees')->restrictOnDelete();
+            $table->foreign('owner_employee_entity_id', 'pcs_dev_action_owner_fk')->references('id')->on('employees')->restrictOnDelete();
+            $table->foreign('hr_coordinator_employee_entity_id', 'pcs_dev_action_hr_fk')->references('id')->on('employees')->restrictOnDelete();
+            $table->foreign('trainer_employee_entity_id', 'pcs_dev_action_trainer_fk')->references('id')->on('employees')->restrictOnDelete();
             $table->foreign(['skill_id', 'tenant_id'], 'pcs_dev_action_skill_fk')->references(['id', 'tenant_id'])->on('people_connector_skill_skills')->restrictOnDelete();
             $table->foreign(['source_assessment_id', 'tenant_id'], 'pcs_dev_action_source_fk')->references(['id', 'tenant_id'])->on('people_connector_skill_assessments')->restrictOnDelete();
             $table->foreign(['post_assessment_id', 'tenant_id'], 'pcs_dev_action_post_fk')->references(['id', 'tenant_id'])->on('people_connector_skill_assessments')->restrictOnDelete();
@@ -102,7 +102,7 @@ return new class extends Migration
             $table->index(['tenant_id', 'company_entity_id', 'development_action_id', 'occurred_at'], 'pcs_dev_event_action_idx');
             $table->foreign('tenant_id', 'pcs_dev_event_tenant_fk')->references('id')->on('tenants')->restrictOnDelete();
             $table->foreign(['development_action_id', 'tenant_id'], 'pcs_dev_event_action_fk')->references(['id', 'tenant_id'])->on('people_connector_skill_development_actions')->restrictOnDelete();
-            $table->foreign(['actor_employee_entity_id', 'tenant_id'], 'pcs_dev_event_actor_fk')->references(['id', 'tenant_id'])->on('people_connector_connector_workforce_entities')->restrictOnDelete();
+            $table->foreign('actor_employee_entity_id', 'pcs_dev_event_actor_fk')->references('id')->on('employees')->restrictOnDelete();
         });
 
         $this->createAuditImmutabilityGuards();

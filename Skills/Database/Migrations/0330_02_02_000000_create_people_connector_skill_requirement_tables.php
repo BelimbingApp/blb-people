@@ -468,9 +468,18 @@ return new class extends Migration
 
     private function addEntityForeignKey(Blueprint $table, string $column, string $name): void
     {
-        $table->foreign([$column, 'tenant_id'], $name)
-            ->references(['id', 'tenant_id'])
-            ->on('people_connector_connector_workforce_entities')
+        if ($column === 'company_entity_id') {
+            $table->foreign([$column, 'tenant_id'], $name)
+                ->references(['id', 'tenant_id'])
+                ->on('companies')
+                ->restrictOnDelete();
+
+            return;
+        }
+
+        $table->foreign($column, $name)
+            ->references('id')
+            ->on($column === 'selector_entity_id' ? 'people_reference_entries' : 'employees')
             ->restrictOnDelete();
     }
 };

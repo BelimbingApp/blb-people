@@ -2,8 +2,8 @@
 
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Exceptions\MissingCompanyScopeException;
-use App\Domains\People\Connector\Testing\CompanyIsolationContract;
-use App\Domains\People\Connector\Testing\TwoCompanyTenant;
+use App\Domains\People\Skills\Tests\Support\CompanyIsolationFixture;
+use App\Domains\People\Skills\Tests\Support\TwoCompanyTenant;
 use App\Domains\People\Skills\Data\ProficiencyLevelDraft;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
@@ -29,7 +29,7 @@ afterEach(function (): void {
 
 function companyIsolationTenant(): TwoCompanyTenant
 {
-    $fixture = CompanyIsolationContract::twoCompaniesInOneTenant();
+    $fixture = CompanyIsolationFixture::twoCompaniesInOneTenant();
     app(TenantContext::class)->set($fixture->tenantId);
 
     return $fixture;
@@ -239,7 +239,7 @@ function companyIsolationCatalogs(): array
     // and TenantOwnedModel carries no global tenant scope, so the SQL the
     // relation emitted had no tenant_id predicate at all.
     app(TenantContext::class)->clear();
-    $other = CompanyIsolationContract::twoCompaniesInOneTenant('Gamma Ltd', 'Delta Ltd');
+    $other = CompanyIsolationFixture::twoCompaniesInOneTenant('Gamma Ltd', 'Delta Ltd');
     app(TenantContext::class)->set($other->tenantId);
     $gammaCategory = $catalog->defineCategory($other->alphaCompanyEntityId, 'safety', 'Gamma Safety');
     $gammaSkill = $catalog->defineSkill(

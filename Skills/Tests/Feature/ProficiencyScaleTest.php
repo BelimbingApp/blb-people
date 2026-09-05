@@ -2,7 +2,7 @@
 
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Exceptions\CompanyMoveRefusedException;
-use App\Domains\People\Connector\Models\WorkforceEntity;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Data\ProficiencyLevelDraft;
 use App\Domains\People\Skills\Enums\ProficiencyScaleStatus;
 use App\Domains\People\Skills\Events\ProficiencyScalePublished;
@@ -14,6 +14,7 @@ use App\Domains\People\Skills\Models\ProficiencyScale;
 use App\Domains\People\Skills\Models\ProficiencyScaleLevel;
 use App\Domains\People\Skills\Services\ProficiencyScaleStore;
 use App\Domains\People\Skills\Services\SkillCatalogDefaults;
+use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -30,12 +31,7 @@ function proficiencyScaleFixture(string $tenantName = 'Scale Tenant'): array
     $tenant = createTenant(['name' => $tenantName]);
     app(TenantContext::class)->set((int) $tenant->id);
 
-    $company = WorkforceEntity::query()->create([
-        'tenant_id' => (int) $tenant->id,
-        'resource_type' => 'company',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
+    $company = NativeWorkforceFixture::create((int) $tenant->id, WorkforceResourceType::Company);
 
     return [(int) $tenant->id, (int) $company->id];
 }
@@ -81,12 +77,7 @@ test('starter pack installs the ten controlled categories and the published 0-5 
 test('a scale cannot move to a sibling company at the model or database layer', function (): void {
     [$tenantId, $companyEntityId] = proficiencyScaleFixture('Scale Owner Guard Tenant');
     $scale = app(ProficiencyScaleStore::class)->draft($companyEntityId, 'core', 'Core', proficiencyScaleLevels());
-    $sibling = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => 'company',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
+    $sibling = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Company);
 
     expect(fn () => ProficiencyScale::query()->forCompany($tenantId, $companyEntityId)->update(['company_entity_id' => $sibling->id]))
         ->toThrow(CompanyMoveRefusedException::class, 'would leave its company')
@@ -124,12 +115,7 @@ test('when both scale guards would refuse, the owner guard is the one that speak
     $scale = $store->draft($companyEntityId, 'core', 'Core', proficiencyScaleLevels());
     $store->publish($companyEntityId, (int) $scale->id);
 
-    $sibling = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => 'company',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
+    $sibling = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Company);
 
     // Published AND moving company with no merge record, so BOTH guards would
     // refuse. Which message surfaces is decided purely by firing order.
@@ -292,12 +278,7 @@ test('company axis: a sibling company cannot publish, draft from, or retire this
     $store = app(ProficiencyScaleStore::class);
     $draft = $store->draft($companyEntityIdA, 'standard', 'Standard', proficiencyScaleLevels());
 
-    $companyB = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => 'company',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
+    $companyB = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Company);
 
     expect(fn () => $store->publish((int) $companyB->id, (int) $draft->id))
         ->toThrow(SkillCatalogRecordNotFoundException::class);

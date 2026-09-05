@@ -3,11 +3,8 @@
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Models\PrincipalCapability;
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Core\Company\Models\Company;
 use App\Core\User\Models\User;
-use App\Domains\People\Connector\Models\ExternalIdentity;
-use App\Domains\People\Connector\Models\ProviderConnection;
-use App\Domains\People\Connector\Models\WorkforceCompanyProjection;
-use App\Domains\People\Connector\Models\WorkforceEntity;
 use App\Domains\People\Skills\Livewire\Assessment\Matrix;
 use Livewire\Livewire;
 
@@ -17,43 +14,15 @@ afterEach(function (): void {
 
 function assessmentPageCompanyEntity(int $tenantId, string $name, ?int $platformCompanyId = null): int
 {
-    $entity = WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => 'company',
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
+    $company = $platformCompanyId === null
+        ? Company::factory()->create(['tenant_id' => $tenantId, 'name' => $name, 'status' => 'active'])
+        : Company::query()->forTenant($tenantId)->findOrFail($platformCompanyId);
 
-    $connection = ProviderConnection::query()->firstOrCreate([
-        'tenant_id' => $tenantId,
-        'scope_key' => $platformCompanyId === null ? 'tenant' : 'company:'.$platformCompanyId,
-        'provider_id' => 'test.people',
-    ], ['company_id' => $platformCompanyId, 'status' => 'active']);
+    if ($platformCompanyId !== null && $company->name !== $name) {
+        $company->update(['name' => $name]);
+    }
 
-    $identity = ExternalIdentity::query()->create([
-        'tenant_id' => $tenantId,
-        'connection_id' => $connection->id,
-        'workforce_entity_id' => $entity->id,
-        'provider_id' => 'test.people',
-        'resource_type' => 'company',
-        'external_id' => 'company-'.$entity->id,
-        'external_id_hash' => hash('sha256', 'company-'.$entity->id),
-        'state' => 'active',
-        'effective_from' => now(),
-        'last_observed_at' => now(),
-    ]);
-
-    WorkforceCompanyProjection::query()->create([
-        'tenant_id' => $tenantId,
-        'workforce_entity_id' => $entity->id,
-        'source_identity_id' => $identity->id,
-        'name' => $name,
-        'active' => true,
-        'effective_at' => now(),
-        'observed_at' => now(),
-    ]);
-
-    return (int) $entity->id;
+    return (int) $company->id;
 }
 
 function assessmentPageGrantHr(User $user): void

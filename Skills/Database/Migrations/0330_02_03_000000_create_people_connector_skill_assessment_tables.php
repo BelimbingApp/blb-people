@@ -87,9 +87,9 @@ return new class extends Migration
 
             $table->foreign('tenant_id', 'pcs_assess_tenant_fk')
                 ->references('id')->on('tenants')->restrictOnDelete();
-            $table->foreign(['employee_entity_id', 'tenant_id'], 'pcs_assess_employee_tenant_fk')
-                ->references(['id', 'tenant_id'])
-                ->on('people_connector_connector_workforce_entities')
+            $table->foreign('employee_entity_id', 'pcs_assess_employee_tenant_fk')
+                ->references('id')
+                ->on('employees')
                 ->restrictOnDelete();
             $table->foreign(['skill_id', 'tenant_id'], 'pcs_assess_skill_tenant_fk')
                 ->references(['id', 'tenant_id'])
@@ -130,9 +130,9 @@ return new class extends Migration
 
             $table->foreign('tenant_id', 'pcs_score_tenant_fk')
                 ->references('id')->on('tenants')->restrictOnDelete();
-            $table->foreign(['employee_entity_id', 'tenant_id'], 'pcs_score_employee_tenant_fk')
-                ->references(['id', 'tenant_id'])
-                ->on('people_connector_connector_workforce_entities')
+            $table->foreign('employee_entity_id', 'pcs_score_employee_tenant_fk')
+                ->references('id')
+                ->on('employees')
                 ->restrictOnDelete();
             $table->foreign(['skill_id', 'tenant_id'], 'pcs_score_skill_tenant_fk')
                 ->references(['id', 'tenant_id'])

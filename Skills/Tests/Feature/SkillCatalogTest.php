@@ -2,7 +2,7 @@
 
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Exceptions\CompanyMoveRefusedException;
-use App\Domains\People\Connector\Models\WorkforceEntity;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
 use App\Domains\People\Skills\Enums\CriticalClassification;
@@ -15,6 +15,8 @@ use App\Domains\People\Skills\Exceptions\SkillCatalogRecordNotFoundException;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillCategory;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
+use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -23,14 +25,9 @@ afterEach(function (): void {
     app(TenantContext::class)->clear();
 });
 
-function skillCatalogEntity(int $tenantId, string $type): WorkforceEntity
+function skillCatalogEntity(int $tenantId, string $type): Model
 {
-    return WorkforceEntity::query()->create([
-        'tenant_id' => $tenantId,
-        'resource_type' => $type,
-        'state' => WorkforceEntity::STATE_ACTIVE,
-        'first_seen_at' => now(),
-    ]);
+    return NativeWorkforceFixture::create($tenantId, WorkforceResourceType::from($type));
 }
 
 /**
