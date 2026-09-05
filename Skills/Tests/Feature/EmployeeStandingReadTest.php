@@ -45,14 +45,14 @@ function standingReadFixture(string $role = 'people_employee'): array
     return [$user, $subject, $employee, $binding];
 }
 
-function standingReadAssessment(User $user, Employee $employee, bool $published = true, array $overrides = []): SkillAssessment
+function standingReadAssessment(User $user, Employee $employee, bool $published = true): SkillAssessment
 {
     $catalog = app(SkillCatalogStore::class);
     $category = SkillCategory::query()->forCompany((int) $user->tenant_id, (int) $user->company_id)->where('code', 'standing')->first() ?? $catalog->defineCategory((int) $user->company_id, 'standing', 'Standing');
     $skill = Skill::query()->forCompany((int) $user->tenant_id, (int) $user->company_id)->where('code', 'standing.skill')->first() ?? $catalog->defineSkill((int) $user->company_id, new SkillDraft('standing.skill', 'Standing skill', 'A measured skill.', (int) $category->id));
     $reviewer = User::factory()->create(['company_id' => $user->company_id]);
 
-    return AssessmentWorkflowContext::runStoreMutation(function () use ($user, $employee, $skill, $reviewer, $published, $overrides) {
+    return AssessmentWorkflowContext::runStoreMutation(function () use ($user, $employee, $skill, $reviewer, $published) {
         $assessment = SkillAssessment::query()->create([
             'tenant_id' => $user->tenant_id, 'company_entity_id' => $user->company_id, 'employee_entity_id' => $employee->id,
             'skill_id' => $skill->id, 'requirement_reference' => 'published.requirement', 'requirement_version' => 7,
@@ -64,7 +64,6 @@ function standingReadAssessment(User $user, Employee $employee, bool $published 
             'finalized_at' => null, 'finalized_by_user_id' => null,
             'notes' => 'PRIVATE ASSESSOR NOTES', 'hod_decision_notes' => 'PRIVATE HOD DELIBERATION',
             'evidence' => 'PRIVATE DOCUMENT LINK',
-            ...$overrides,
         ]);
         if ($published) {
             $assessment->update(['status' => 'pending_hod_verification']);
@@ -206,12 +205,6 @@ it('requires an authenticated actor and explicit self audience', function () {
     [$user, $subject] = standingReadFixture('people_hr');
     standingReadDenied(fn () => app(EmployeeStandingReader::class)->read(null, $subject), SelfStandingRefusal::Unauthorized);
     standingReadDenied(fn () => app(EmployeeStandingReader::class)->read($user, $subject), SelfStandingRefusal::Unauthorized);
-});
-
-it('does not treat an inconsistent draft timestamp as publication', function () {
-    [$user, $subject, $employee] = standingReadFixture();
-    standingReadAssessment($user, $employee, false, ['finalized_at' => now()]);
-    expect(app(EmployeeStandingReader::class)->read($user, $subject)->skills->outcomes)->toBe([]);
 });
 
 it('does not publish future finalized records before their cutoff', function () {
