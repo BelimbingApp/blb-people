@@ -83,93 +83,68 @@ picks up the current `scripts/`/`templates/`/`LICENSE` layout. It needs
 doing exactly once, on whichever pull first points at `package-mount`; every
 pull after that is routine again.
 
-### Activate and refresh the mount
+### Refresh the mount explicitly
 
-After the initial mount, install the adopter-owned activation entry point in
-the same owner-reviewed change:
+Joining a session never refreshes or requalifies the package. The checked-in
+mount is reviewed repository code; a clean default branch matching `origin`
+is the version the owner approved. Package CI qualifies package releases and
+every adopter's required CI qualifies its refresh PR.
+
+Install the optional owner-controlled maintenance command with the initial
+mount:
 
 ```bash
 mkdir -p .ai-team
-cp docs/ai-team/templates/activate.sh .ai-team/activate.sh
+cp docs/ai-team/templates/package-refresh.sh .ai-team/package-refresh.sh
 cp docs/ai-team/templates/package-refresh.conf .ai-team/package-refresh.conf
-chmod +x .ai-team/activate.sh
+chmod +x .ai-team/package-refresh.sh
 ```
 
-Commit these files with the mount, have that adopter-owned change reviewed and
-merged, then pull a clean default branch that exactly matches `origin` before
-the first activation. Activation deliberately refuses an uncommitted install,
-a feature branch, or a behind/diverged default checkout.
+Run `.ai-team/package-refresh.sh` only when deliberately updating the mount.
+It resolves the approved ref to an immutable revision and prepares a dedicated
+`ai-team/package-refresh` PR that changes only `docs/ai-team/`. It does not run
+the mechanism suite locally; the refresh PR's required CI does that. While the
+refresh branch exists, `claim.sh` refuses new claims, but orientation and
+read-only review continue normally.
 
-Review the plain `source=` and `ref=` values in
-`.ai-team/package-refresh.conf`, then start team sessions with
-`.ai-team/activate.sh` instead of calling `docs/ai-team/scripts/orient.sh`
-directly. Activation resolves the approved ref to an immutable revision. If
-the mount is behind, it creates one isolated draft `ai-team/package-refresh`
-PR, verifies the exact mounted tree and full mechanism suite away from the
-caller's checkout, and pauses onboarding until that PR merges and the updated
-default branch is pulled. It never changes adopter-owned paths outside
-`docs/ai-team/`.
+`package-refresh.sh` and `claim.sh` share the short
+`ai-team/claim-refresh-mutex` compare-and-swap lease so neither can cross the
+claim/refresh boundary concurrently. Missing ref, PR, label, push, or delete
+permission is a hard failure.
 
-The activation identity needs permission to create/update the reserved
-`ai-team/package-refresh` and `ai-team/activation-mutex` refs, delete those
-exact refs after verified cleanup, create/edit PRs, and create/apply labels.
-Branch or token policy may grant that narrowly to an owner-controlled bot;
-missing push, delete, PR, or label permission is a hard failure, never a
-reason to bypass review protection.
+For the one migration from `activate.sh`, first resume and finish, land, or
+truthfully close every existing claimed lane with the legacy client; no issue
+or PR metadata needs rewriting. Then stop legacy processes and verify that no
+active/review issue or open PR remains. A legacy mount does not contain the new
+template, so fetch one exact owner-reviewed `package-mount` revision and
+extract both files from that immutable object before removing activation:
 
-Current `activate.sh` and `claim.sh` clients share the short remote
-`ai-team/activation-mutex` compare-and-swap lease. A normal claim holds it only
-until its branch, PR, and labels are visible; activation holds it until the
-durable refresh branch and draft PR are visible. The refresh branch then
-remains the claim barrier through merge. Two current clients therefore cannot
-cross the claim/refresh boundary together, and concurrent activations observe
-the same refresh lane.
+```bash
+package_source=https://github.com/BelimbingApp/ai-team.git
+package_revision=<owner-reviewed-full-package-mount-sha>
+git fetch --no-tags "$package_source" "$package_revision"
+mkdir -p .ai-team
+git show "$package_revision:templates/package-refresh.sh" > .ai-team/package-refresh.sh
+git show "$package_revision:templates/package-refresh.conf" > .ai-team/package-refresh.conf
+chmod +x .ai-team/package-refresh.sh
+git rm .ai-team/activate.sh
+```
 
-A legacy `claim.sh` that predates this protocol does **not** observe either
-lease. The first migration has no technical mutual-exclusion guarantee, so
-activation fails closed by default. The repository owner must perform this
-one exclusive boundary:
+Review the extracted policy values, commit this adopter-owned migration, and
+keep the exclusive window in force while running:
 
-1. Stop every legacy claim/activation process and verify that no
-   `task:active`/`task:review` issue and no open PR exists.
-2. If the old mount does not contain the templates, copy them from one exact,
-   owner-reviewed `package-mount` revision instead of from a moving checkout:
+```bash
+AI_TEAM_EXCLUSIVE_REFRESH_MIGRATION=1 .ai-team/package-refresh.sh
+```
 
-   ```bash
-   package_source=https://github.com/BelimbingApp/ai-team.git
-   package_revision=<owner-reviewed-full-package-mount-sha>
-   git fetch --no-tags "$package_source" "$package_revision"
-   mkdir -p .ai-team
-   git show "$package_revision:templates/activate.sh" > .ai-team/activate.sh
-   git show "$package_revision:templates/package-refresh.conf" > .ai-team/package-refresh.conf
-   chmod +x .ai-team/activate.sh
-   ```
+Keep legacy clients stopped until that refresh PR lands and the default branch
+is pulled. The acknowledgement variable records owner-established exclusion;
+it is not itself a lock.
 
-   Commit, review, and merge both adopter-owned files; then pull the clean,
-   up-to-date default branch. Run the one bootstrap as an explicit owner
-   attestation:
-
-   ```bash
-   AI_TEAM_EXCLUSIVE_FIRST_REFRESH=1 .ai-team/activate.sh
-   ```
-
-3. Keep every legacy client stopped while the refresh PR is built and
-   reviewed. Merge it, update/pull the adopter's default branch, and only then
-   resume sessions with the newly mounted clients.
-
-`AI_TEAM_EXCLUSIVE_FIRST_REFRESH=1` cannot stop an old process; it records that
-the owner already established this external exclusion. Never set it merely to
-bypass the refusal.
-
-Recovery is exact and owner-guided. First prove that no activation or claim is
-running and inspect the reported immutable SHA. Recover a validated stale
-short lease with `AI_TEAM_RECOVER_MUTEX_SHA=<exact-sha> .ai-team/activate.sh`
-(or pass the same variable to the intended `claim.sh` command). Resume a
-validated pending/failed/verified refresh with
-`AI_TEAM_RECOVER_REFRESH_SHA=<exact-sha> .ai-team/activate.sh`. Both scripts
-use that SHA as a deletion/update lease; they never steal an unknown,
-malformed, or concurrently changed ref. Do not delete either fixed branch by
-name as a shortcut.
+Recovery remains exact and owner-guided. After proving no refresh or claim is
+running, pass `AI_TEAM_RECOVER_MUTEX_SHA=<exact-sha>` to the intended claim or
+refresh command, or pass `AI_TEAM_RECOVER_REFRESH_SHA=<exact-sha>` to
+`.ai-team/package-refresh.sh`. Neither command steals unknown or changed refs.
 
 Its intended permanent home is `.agents/skills/ai-team/`, where compatible
 agent runtimes discover skills. It remains at `docs/ai-team/` until Claude Code
@@ -187,7 +162,7 @@ Orient before acting:
 package/scripts/orient.sh
 
 # Adopting repository
-.ai-team/activate.sh
+docs/ai-team/scripts/orient.sh
 ```
 
 It reports a halt first, then `main`, lanes, holds, claimable work, blockers,
@@ -243,10 +218,14 @@ field GitHub acts on at merge. The Development panel populates it without
 touching the body, so a pull request can read as closing nothing and still close
 an issue (BelimbingApp/ai-team#67). A lane that declares none while GitHub would
 close one, or names a different one, is refused: declare the lane or unlink it.
-`land.sh` resolves the merge method from the repository's own settings —
-`merge` when allowed so the reviewed commit survives verbatim, else `squash`,
-else `rebase` — and refuses before merging when none is. Override with
-`LAND_MERGE_METHOD=merge|squash|rebase` (BelimbingApp/ai-team#66).
+`land.sh` resolves the merge method from the intersection of repository
+settings, classic protection on the pull request's target branch, and every
+active matching repository or parent ruleset. It prefers `merge` when the
+effective policy allows it so the reviewed commit survives verbatim, else
+`squash`, else `rebase`, and refuses before merging when policy is unreadable,
+ambiguous, or has no common method. `LAND_MERGE_METHOD=merge|squash|rebase`
+selects from that effective set; it does not bypass policy
+(BelimbingApp/ai-team#66, BelimbingApp/ai-team#95).
 When a pull request declares no lane through its title, branch, or an exact
 `AI-Team-Lane-Issue: none` line, `ready.sh`, `gate.sh` and `land.sh` refuse and
 name `READY_ISSUE=<n>` — and all three honour it. `orient.sh` does not: it
@@ -286,11 +265,14 @@ does not choose an adopter's branch protections: retaining or changing a native
 approval requirement is an owner-controlled policy decision, not a substitute
 for an independently reviewed AI Team lane.
 
-Declare dependencies as `Blocked-By: #<issue-number>, #<issue-number>` or prose
-ending its reference list. Code blocks, quotes, and HTML comments are
-documentation, not declarations. `blocked_by_sweep.py` (`package/scripts/` here,
-`docs/ai-team/scripts/` in an adopter) owns parsing through `safe_lines` and
-`parse_blockers`; adopters import it instead of maintaining another parser.
+Declare dependencies as
+`Blocked-By: #<issue-number>, owner/repository#<issue-number>`; local and
+qualified comma-separated references may mix in prose. Unknown or unreadable
+blockers fail closed, as does any malformed declaration. Code, quotes, and HTML
+comments are not declarations.
+`blocked_by_sweep.py` owns `safe_lines` and `parse_blocker_references`;
+`parse_blockers` remains local-only and fails closed on qualified declarations.
+Adopters import these canonical parsers.
 
 ---
 

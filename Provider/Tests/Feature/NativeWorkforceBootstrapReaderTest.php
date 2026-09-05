@@ -2,6 +2,7 @@
 
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Base\Tenancy\Exceptions\TenantContextMissingException;
+use App\Core\Company\Models\Company;
 use App\Core\Company\Models\Department;
 use App\Core\Company\Models\DepartmentType;
 use App\Core\Employee\Models\Employee;
@@ -9,7 +10,9 @@ use App\Core\User\Models\User;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceBootstrap;
 use App\Domains\People\Provider\Data\WorkforceBootstrapRequest;
 use App\Domains\People\Provider\Exceptions\InvalidWorkforceBootstrapCursorException;
+use App\Domains\People\Provider\Exceptions\WorkforceProjectionException;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use Illuminate\Support\Facades\DB;
 
 test('workforce bootstrap fails closed without a tenant context', function (): void {
     app(TenantContext::class)->clear();
@@ -129,6 +132,7 @@ test('workforce bootstrap projects only the current tenant and drops unsafe rela
 
     expect($payload['provider_id'])->toBe('blb-people')
         ->and($payload['supported_resources'])->toBe(['company', 'organization_unit', 'employee', 'user'])
+        ->and($payload['supported_resources'])->not->toContain('position')
         ->and($payload['positions'])->toBe([])
         ->and($payload['complete'])->toBeTrue()
         ->and(collect($payload['companies'])->pluck('reference.external_id')->all())
@@ -233,6 +237,77 @@ test('workforce bootstrap cursors preserve one boundary and cannot cross tenants
         ->and($third->resumeCursor)->not->toBeNull()
         ->and($projectedIds)->toBe($expectedIds)
         ->and($projectedIds)->not->toContain((string) $lateEmployee->id);
+});
+
+test('later bootstrap pages validate organization references without hydrating department types', function (): void {
+    [$tenant, $company] = createTenantWithCompany(['name' => 'Paged Projection Tenant']);
+    $otherCompany = Company::factory()->create([
+        'tenant_id' => $tenant->id,
+        'name' => 'Other Company',
+    ]);
+    $departmentType = DepartmentType::query()->create([
+        'code' => 'paged-projection',
+        'name' => 'Paged Projection',
+        'category' => 'operational',
+        'is_active' => true,
+    ]);
+    $otherCompanyDepartment = Department::query()->create([
+        'company_id' => $otherCompany->id,
+        'department_type_id' => $departmentType->id,
+        'status' => 'active',
+    ]);
+    Employee::factory()->create([
+        'company_id' => $company->id,
+        'employee_type' => 'full_time',
+    ]);
+    $crossCompanyEmployee = Employee::factory()->create([
+        'company_id' => $company->id,
+        'department_id' => $otherCompanyDepartment->id,
+        'employee_type' => 'full_time',
+    ]);
+
+    app(TenantContext::class)->set((int) $tenant->id);
+    $reader = app(ReadsWorkforceBootstrap::class);
+    $firstPage = $reader->read(new WorkforceBootstrapRequest(limit: 1));
+
+    $queries = [];
+    DB::listen(static function ($query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+
+    $secondPage = $reader->read(new WorkforceBootstrapRequest($firstPage->nextPageCursor, 1));
+    $employee = $secondPage->employees[0];
+
+    expect($employee->reference->externalId)->toBe((string) $crossCompanyEmployee->id)
+        ->and($employee->organizationReference)->toBeNull()
+        ->and($secondPage->companies)->toBe([])
+        ->and($secondPage->organizationUnits)->toBe([])
+        ->and(collect($queries)->contains(
+            static fn (string $sql): bool => str_contains($sql, 'company_department_types'),
+        ))->toBeFalse();
+});
+
+test('workforce bootstrap identifies a malformed record in a declared resource', function (): void {
+    [$tenant, $company] = createTenantWithCompany(['name' => 'Projection Failure Tenant']);
+    $departmentType = DepartmentType::query()->create([
+        'code' => 'nameless-department',
+        'name' => '   ',
+        'category' => 'operational',
+        'is_active' => true,
+    ]);
+    $department = Department::query()->create([
+        'company_id' => $company->id,
+        'department_type_id' => $departmentType->id,
+        'status' => 'active',
+    ]);
+
+    app(TenantContext::class)->set((int) $tenant->id);
+
+    expect(fn () => app(ReadsWorkforceBootstrap::class)->read(new WorkforceBootstrapRequest))
+        ->toThrow(
+            WorkforceProjectionException::class,
+            "Department [{$department->id}] cannot be projected without a department type name.",
+        );
 });
 
 test('workforce bootstrap is not exposed over HTTP before service authentication exists', function (): void {
