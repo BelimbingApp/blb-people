@@ -413,3 +413,133 @@ test('employee explorer detail returns the applicable published JD and released 
         ->and($detail->performance->records[0]['evidence_references'])->toBe(['ops:delivery-quality:v1'])
         ->and($detail->performance->records[0]['evidence_refusal'])->toBeNull();
 });
+
+test('a KPI definition refuses an actor without the submit capability', function (): void {
+    $fixture = kpiFixture();
+
+    expect(fn () => app(KpiRecordService::class)->define(
+        $fixture['employee'],
+        $fixture['company'],
+        $fixture['owner'],
+        'delivery-quality',
+        1,
+        'Delivery quality',
+        'Keep accepted deliveries reliable.',
+        'percent',
+        'Accepted deliveries / total deliveries',
+        'ops:delivery-quality',
+        KpiDirection::HigherIsBetter,
+        null,
+        'ratio-v1',
+        2,
+        'Higher is better.',
+    ))->toThrow(AuthorizationDeniedException::class);
+});
+
+test('a KPI definition refuses another company before resolving its steward', function (): void {
+    $fixture = kpiFixture();
+    $sibling = Company::factory()->create(['tenant_id' => $fixture['tenant'], 'status' => 'active']);
+
+    expect(fn () => app(KpiRecordService::class)->define(
+        $fixture['hod'],
+        (int) $sibling->id,
+        $fixture['owner'],
+        'delivery-quality',
+        1,
+        'Delivery quality',
+        'Keep accepted deliveries reliable.',
+        'percent',
+        'Accepted deliveries / total deliveries',
+        'ops:delivery-quality',
+        KpiDirection::HigherIsBetter,
+        null,
+        'ratio-v1',
+        2,
+        'Higher is better.',
+    ))->toThrow(KpiRecordException::class, 'may not access KPI records for this company');
+});
+
+test('a KPI definition refuses a missing tenant before writing', function (): void {
+    $fixture = kpiFixture();
+    app(TenantContext::class)->clear();
+
+    expect(fn () => app(KpiRecordService::class)->define(
+        $fixture['hod'],
+        $fixture['company'],
+        $fixture['owner'],
+        'delivery-quality',
+        1,
+        'Delivery quality',
+        'Keep accepted deliveries reliable.',
+        'percent',
+        'Accepted deliveries / total deliveries',
+        'ops:delivery-quality',
+        KpiDirection::HigherIsBetter,
+        null,
+        'ratio-v1',
+        2,
+        'Higher is better.',
+    ))->toThrow(KpiRecordException::class, 'tenant context is required');
+});
+
+test('a target amendment refuses an actor without the submit capability', function (): void {
+    $fixture = kpiFixture();
+    $record = proposedKpi($fixture);
+
+    expect(fn () => app(KpiRecordService::class)->amendTarget(
+        $fixture['employee'],
+        $fixture['company'],
+        $record->id,
+        'At least 99%',
+        new DateTimeImmutable('2026-02-01'),
+        'Customer acceptance criteria changed.',
+    ))->toThrow(AuthorizationDeniedException::class);
+});
+
+test('review refuses an actor without the review capability', function (): void {
+    $fixture = kpiFixture();
+    $record = proposedKpi($fixture);
+
+    expect(fn () => app(KpiRecordService::class)->review(
+        $fixture['employee'],
+        $fixture['company'],
+        $record->id,
+        'Approved.',
+    ))->toThrow(AuthorizationDeniedException::class);
+});
+
+test('review refuses another company before loading the record', function (): void {
+    $fixture = kpiFixture();
+    $record = proposedKpi($fixture);
+    $sibling = Company::factory()->create(['tenant_id' => $fixture['tenant'], 'status' => 'active']);
+
+    expect(fn () => app(KpiRecordService::class)->review(
+        $fixture['hr'],
+        (int) $sibling->id,
+        $record->id,
+        'Approved.',
+    ))->toThrow(KpiRecordException::class, 'may not access KPI records for this company');
+});
+
+test('publication refuses an actor without the approve capability', function (): void {
+    $fixture = kpiFixture();
+    $record = proposedKpi($fixture);
+
+    expect(fn () => app(KpiRecordService::class)->publishToEmployee(
+        $fixture['employee'],
+        $fixture['company'],
+        $record->id,
+    ))->toThrow(AuthorizationDeniedException::class);
+});
+
+test('employee KPI reads refuse a missing tenant before loading the record', function (): void {
+    $fixture = kpiFixture();
+    $record = proposedKpi($fixture);
+    app(TenantContext::class)->clear();
+
+    expect(fn () => app(KpiRecordService::class)->readForEmployee(
+        $fixture['employee'],
+        $fixture['company'],
+        $record->id,
+    ))->toThrow(KpiRecordException::class, 'tenant context is required');
+});
