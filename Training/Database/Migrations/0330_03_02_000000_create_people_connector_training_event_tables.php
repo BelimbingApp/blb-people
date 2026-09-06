@@ -48,9 +48,18 @@ return new class extends Migration
             $table->timestamp('cancelled_at')->nullable();
             $table->text('cancellation_reason')->nullable();
             $table->unsignedBigInteger('created_by_user_id')->nullable();
+            // Provenance for an event a plan item executed into. Nullable
+            // because most events are scheduled directly; the item key is the
+            // identity that survives an amendment, so the unique index below
+            // is what makes execution idempotent rather than the service.
+            $table->unsignedBigInteger('plan_id')->nullable();
+            $table->unsignedInteger('plan_version')->nullable();
+            $table->unsignedBigInteger('plan_item_id')->nullable();
+            $table->uuid('plan_item_key')->nullable();
             $table->timestamps();
 
             $table->index('tenant_id', 'pct_event_tenant_idx');
+            $table->unique(['tenant_id', 'company_entity_id', 'plan_item_key'], 'pct_event_plan_item_uq');
             $table->unique(['id', 'tenant_id', 'company_entity_id'], 'pct_event_owner_uq');
             $table->unique(['tenant_id', 'event_key'], 'pct_event_key_uq');
             $table->index(['tenant_id', 'company_entity_id', 'status', 'starts_at'], 'pct_event_register_idx');

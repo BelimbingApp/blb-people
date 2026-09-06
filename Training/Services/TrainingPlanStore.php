@@ -26,6 +26,7 @@ final class TrainingPlanStore
         private readonly TenantContext $tenancy,
         private readonly CompanyAttribution $companies,
         private readonly SkillAudience $audiences,
+        private readonly TrainingPlanExecution $execution,
     ) {}
 
     public function createDraft(User $actor, int $companyId, TrainingPlanDraft $draft): TrainingPlan
@@ -93,6 +94,7 @@ final class TrainingPlanStore
             if ($plan->amends_plan_id !== null) {
                 $prior = $this->find($tenant, $companyId, (int) $plan->amends_plan_id);
                 $prior->update(['status' => TrainingPlanStatus::Superseded]);
+                $this->execution->cancelDroppedItemEvents($companyId, (int) $plan->id, $actor->getKey());
             }
 
             return $plan->refresh();
@@ -129,7 +131,7 @@ final class TrainingPlanStore
             $items = $prior->items()->get()->map(fn (TrainingPlanItem $item): TrainingPlanItemDraft => new TrainingPlanItemDraft(
                 $tenant, $companyId, $item->need_reference, $item->expected_result,
                 $item->target_cohort, $item->delivery_approach, $item->responsible_owner_reference,
-                $item->intended_timing, $item->evaluation_approach, $item->budget_line,
+                $item->intended_timing, $item->evaluation_approach, $item->budget_line, $item->item_key,
             ))->all();
             $this->writeItems($plan, $items);
 
@@ -204,6 +206,7 @@ final class TrainingPlanStore
                 'tenant_id' => $plan->tenant_id,
                 'company_entity_id' => $plan->company_entity_id,
                 'training_plan_id' => $plan->id,
+                'item_key' => $item->itemKey ?? (string) Str::uuid(),
                 'need_reference' => trim($item->needReference),
                 'expected_result' => trim($item->expectedResult),
                 'target_cohort' => trim($item->targetCohort),

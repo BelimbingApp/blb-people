@@ -18,5 +18,10 @@ final readonly class TrainingPlanItemDraft
         public string $intendedTiming,
         public string $evaluationApproach,
         public ?array $budgetLine = null,
+        /**
+         * Set only when an amendment carries a prior revision's item forward.
+         * A fresh draft leaves it null and the store mints one.
+         */
+        public ?string $itemKey = null,
     ) {}
 }
