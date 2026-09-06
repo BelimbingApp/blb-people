@@ -184,3 +184,12 @@ it('marks expired certificates explicitly', function (): void {
     expect($html)->toContain('data-certificate-status="expired"')
         ->and($html)->toContain('Expired');
 });
+
+it('refuses a client-tampered subject id on the locked Livewire property', function (): void {
+    $f = trainingPassportPageFixture();
+
+    Livewire::actingAs($f['user'])
+        ->test(TrainingPassport::class)
+        ->set('subjectId', (string) $f['other']->id)
+        ->assertStatus(403);
+});
