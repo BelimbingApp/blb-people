@@ -7,7 +7,7 @@
 **Sources:** [0001 authority and evidence boundaries](../plans/0001-people-architecture-and-provider-boundaries.md),
 [0003 training planning and delivery](../plans/0003-people-training-planning-and-delivery.md),
 and [0008 participant-record reconciliation](../plans/0008-people-existing-work-and-backlog-reconciliation.md).  
-**Last updated:** 2026-09-05
+**Last updated:** 2026-09-07
 
 This contract defines the canonical per-employee facts produced by training
 delivery. The event register schedules delivery and consumes aggregate counts.
@@ -183,10 +183,23 @@ results remain null, not-applicable is explicit, and zero is a real score agains
 the supplied maximum/pass mark. Actual minutes never default to scheduled hours.
 
 This slice does not implement nomination lifecycle, confirmed-fact corrections,
-request/plan allocations, self-report, evaluation, participant read/export or
-passport integration. A confirmed correction is refused until an append-only
+request/plan allocations, evaluation, participant read/export or passport
+integration. A confirmed correction is refused until an append-only
 correction operation is provided. Evidence fields hold opaque references only;
-document resolution, upload, download and export remain separate governed
-operations, not functionality supplied by this store. The existing aggregate
-and self-standing readers are not replaced or marked complete by this write
-slice.
+download and export remain separate governed operations. The existing aggregate
+and self-standing readers are not replaced or marked complete by this write slice.
+
+## Employee evidence submission slice (issue #267)
+
+An authenticated employee with the explicit self-service capability may submit
+one short reflection, optional certificate number and expiry, and one governed
+document for their own attended event. The server resolves the live employee
+binding and participant; request-supplied participant identity is never trusted.
+The submission is a separate tenant/company/event/participant-scoped pending
+record and does not revise or confirm the participation fact.
+
+The write boundary requires recorded present attendance and refuses participation
+that HR has already confirmed. The document is stored through the platform media
+store under a tenant-prefixed path, while the participation record retains only
+its opaque asset identifier. Confirmation, correction, evidence retrieval,
+download, retention administration, and HR queue actions remain separate work.

@@ -3,7 +3,9 @@
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
+use App\Base\Media\Models\MediaAsset;
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Data\ExternalReference;
 use App\Domains\People\Provider\Data\WorkforceSubject;
@@ -83,7 +85,7 @@ function evidenceFixture(): array
     return compact('tenant', 'company', 'employee', 'otherEmployee', 'hr', 'user', 'course', 'event');
 }
 
-function evidenceAttendance(array $fixture, AttendanceStatus $attendance, bool $confirmed = false): mixed
+function evidenceAttendance(array $fixture, AttendanceStatus $attendance, bool $confirmed = false, ?Employee $employee = null): mixed
 {
     $store = app(TrainingParticipationStore::class);
     $session = $store->defineSession(
@@ -91,10 +93,11 @@ function evidenceAttendance(array $fixture, AttendanceStatus $attendance, bool $
         (string) Str::uuid(), $fixture['event']->starts_at, $fixture['event']->ends_at,
     );
     test()->travelTo($fixture['event']->ends_at->addHour());
+    $employee ??= $fixture['employee'];
     $subject = new WorkforceSubject(
         (int) $fixture['tenant']->id, (int) $fixture['company']->id, WorkforceResourceType::Employee,
-        (string) $fixture['employee']->id,
-        new ExternalReference(WorkforceResourceType::Employee, (string) $fixture['employee']->id),
+        (string) $employee->id,
+        new ExternalReference(WorkforceResourceType::Employee, (string) $employee->id),
     );
     $fact = $store->recordAttendance($fixture['hr'], (int) $fixture['company']->id, (int) $session->id, $subject, new ParticipationFactDraft(
         attendance: $attendance,
@@ -105,12 +108,27 @@ function evidenceAttendance(array $fixture, AttendanceStatus $attendance, bool $
     return $confirmed ? $store->confirm($fixture['hr'], (int) $fixture['company']->id, (int) $fact->id) : $fact;
 }
 
+function evidenceDocument(string $name): UploadedFile
+{
+    return UploadedFile::fake()->createWithContent($name, base64_decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        true,
+    ));
+}
+
+function evidenceSubmissions(array $fixture): mixed
+{
+    return TrainingEvidenceSubmission::query()
+        ->forCompany((int) $fixture['tenant']->id, (int) $fixture['company']->id);
+}
+
 test('an employee submits evidence only for their own attended event and it remains pending HR confirmation', function (): void {
     $fixture = evidenceFixture();
+    $otherFact = evidenceAttendance($fixture, AttendanceStatus::Present, employee: $fixture['otherEmployee']);
     $fact = evidenceAttendance($fixture, AttendanceStatus::Present);
-    $file = UploadedFile::fake()->create('forklift-certificate.pdf', 128, 'application/pdf');
+    $file = evidenceDocument('forklift-certificate.png');
 
-    Livewire::withQueryParams(['participant_id' => 999999])
+    Livewire::withQueryParams(['participant_id' => $otherFact->participant_id])
         ->actingAs($fixture['user'])
         ->test(Index::class)
         ->assertSee('Forklift safety')
@@ -122,7 +140,7 @@ test('an employee submits evidence only for their own attended event and it rema
         ->assertHasNoErrors()
         ->assertSee('Pending HR confirmation');
 
-    $submission = TrainingEvidenceSubmission::query()->sole();
+    $submission = evidenceSubmissions($fixture)->sole();
     expect($submission->tenant_id)->toBe((int) $fixture['tenant']->id)
         ->and($submission->company_entity_id)->toBe((int) $fixture['company']->id)
         ->and($submission->event_id)->toBe((int) $fixture['event']->id)
@@ -133,6 +151,10 @@ test('an employee submits evidence only for their own attended event and it rema
         ->and($submission->status)->toBe('pending')
         ->and($submission->submitted_by_user_id)->toBe($fixture['user']->id)
         ->and($submission->document_asset_id)->not->toBeNull();
+    $asset = MediaAsset::query()->findOrFail($submission->document_asset_id);
+    expect($asset->metadata['purpose'])->toBe('people.training.participation.evidence')
+        ->and($asset->metadata['participant_id'])->toBe((int) $fact->participant_id);
+    Storage::disk('local')->assertExists($asset->storage_key);
 });
 
 test('a non-attended event cannot receive employee evidence', function (): void {
@@ -141,12 +163,12 @@ test('a non-attended event cannot receive employee evidence', function (): void 
 
     Livewire::actingAs($fixture['user'])->test(Index::class)
         ->set('reflection', 'This must not be accepted.')
-        ->set('document', UploadedFile::fake()->create('claim.pdf', 32, 'application/pdf'))
+        ->set('document', evidenceDocument('claim.png'))
         ->call('submit', (int) $fixture['event']->id)
         ->assertHasErrors('evidence')
         ->assertSee('attended');
 
-    expect(TrainingEvidenceSubmission::query()->count())->toBe(0);
+    expect(evidenceSubmissions($fixture)->count())->toBe(0);
 });
 
 test('confirmed participation refuses employee evidence with visible recovery guidance', function (): void {
@@ -155,12 +177,12 @@ test('confirmed participation refuses employee evidence with visible recovery gu
 
     Livewire::actingAs($fixture['user'])->test(Index::class)
         ->set('reflection', 'Late certificate.')
-        ->set('document', UploadedFile::fake()->create('late.pdf', 32, 'application/pdf'))
+        ->set('document', evidenceDocument('late.png'))
         ->call('submit', (int) $fixture['event']->id)
         ->assertHasErrors('evidence')
         ->assertSee('already been confirmed');
 
-    expect(TrainingEvidenceSubmission::query()->count())->toBe(0);
+    expect(evidenceSubmissions($fixture)->count())->toBe(0);
 });
 
 test('the route is available to employees and refused to users outside the self-service audience', function (): void {
