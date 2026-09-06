@@ -63,6 +63,17 @@ final readonly class JobDescriptionStore
         return DB::transaction(function () use ($tenantId, $companyId, $descriptionId, $actor): JobDescription {
             $draft = $this->locked($tenantId, $companyId, $descriptionId);
             $this->assertDraft($draft);
+
+            // Publishing is the moment a version becomes policy. Whatever put
+            // this row into its current state, the sections are checked again
+            // here rather than trusted from draft time.
+            self::assertSectionsComplete(
+                (string) $draft->purpose,
+                (string) $draft->authority,
+                (array) $draft->responsibilities,
+                (array) $draft->duties,
+                (array) $draft->qualifications,
+            );
             $this->assertPublishedProfiles($tenantId, $companyId, $draft->competency_links);
 
             if (JobDescription::query()->forCompany($tenantId, $companyId)
@@ -87,6 +98,16 @@ final readonly class JobDescriptionStore
                 || (int) $replacement->version <= (int) $current->version) {
                 throw new JobDescriptionException('Supersession requires a newer draft of the same published job description.');
             }
+            // The second door to markPublished. Guarding only publish would
+            // leave a row emptied after drafting a way to become the live
+            // version, which is exactly what the publish check exists to stop.
+            self::assertSectionsComplete(
+                (string) $replacement->purpose,
+                (string) $replacement->authority,
+                (array) $replacement->responsibilities,
+                (array) $replacement->duties,
+                (array) $replacement->qualifications,
+            );
             $this->assertPublishedProfiles($tenantId, $companyId, $replacement->competency_links);
             $current->forceFill(['status' => JobDescriptionStatus::Superseded, 'superseded_at' => now()])->save();
 
@@ -155,13 +176,54 @@ final readonly class JobDescriptionStore
 
     private function assertComplete(JobDescriptionDraft $draft): void
     {
-        $requiredText = [$draft->reference, $draft->positionStableId, $draft->purpose, $draft->authority];
-        $requiredLists = [$draft->responsibilities, $draft->duties, $draft->qualifications, $draft->competencyLinks];
-
         if ($draft->positionVersion < 1 || $draft->version < 1
-            || array_any($requiredText, fn (string $value): bool => trim($value) === '')
-            || array_any($requiredLists, fn (array $value): bool => $value === [])) {
+            || array_any([$draft->reference, $draft->positionStableId], fn (string $value): bool => trim($value) === '')
+            || $draft->competencyLinks === []) {
             throw new JobDescriptionException('A job-description version requires complete structured content and version links.');
+        }
+
+        self::assertSectionsComplete(
+            $draft->purpose,
+            $draft->authority,
+            $draft->responsibilities,
+            $draft->duties,
+            $draft->qualifications,
+        );
+    }
+
+    /**
+     * Every structured section must carry something a reader can act on.
+     *
+     * An empty list was already refused, but ['  '] is not an empty list: a
+     * non-empty list of nothing is exactly the shape that slips past a
+     * "the list is not empty" check while saying nothing at all. Each entry is
+     * held to the same standard as the free-text sections.
+     *
+     * @param  list<mixed>  $responsibilities
+     * @param  list<mixed>  $duties
+     * @param  list<mixed>  $qualifications
+     */
+    private static function assertSectionsComplete(
+        string $purpose,
+        string $authority,
+        array $responsibilities,
+        array $duties,
+        array $qualifications,
+    ): void {
+        if (array_any([$purpose, $authority], static fn (string $value): bool => trim($value) === '')) {
+            throw new JobDescriptionException('A job-description version requires complete structured content and version links.');
+        }
+
+        foreach ([$responsibilities, $duties, $qualifications] as $section) {
+            if ($section === []) {
+                throw new JobDescriptionException('A job-description version requires complete structured content and version links.');
+            }
+
+            foreach ($section as $entry) {
+                if (! is_string($entry) || trim($entry) === '') {
+                    throw new JobDescriptionException('A job-description section entry cannot be blank.');
+                }
+            }
         }
     }
 
