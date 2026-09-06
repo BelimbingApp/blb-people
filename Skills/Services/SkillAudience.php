@@ -113,17 +113,38 @@ class SkillAudience
      */
     public function visibleEmployeeEntityIds(User $user, int $companyEntityId, bool $manage): array
     {
-        $capability = $manage
-            ? 'people.skill.assessment.manage'
-            : 'people.skill.assessment.view';
-        $audiences = $this->authorizeAudience($user, $capability);
+        return $this->visibleEmployeeEntityIdsFor(
+            $user,
+            $companyEntityId,
+            $manage ? 'people.skill.assessment.manage' : 'people.skill.assessment.view',
+            includeAssessorAssignments: true,
+            includeSelf: ! $manage,
+        );
+    }
 
+    /**
+     * The same HR/HOD/self scoping, for a caller that names its own capability.
+     *
+     * Exposed so other modules do not grow a second policy engine to answer
+     * "which employees may this person see" — plan 0008 asks for exactly one.
+     * The capability stays the caller's: Skills should not learn about
+     * another module's permissions in order to scope its rows.
+     *
+     * @return list<int> workforce employee entity ids
+     */
+    public function visibleEmployeeEntityIdsFor(
+        User $user,
+        int $companyEntityId,
+        string $functionalCapability,
+        bool $includeAssessorAssignments = false,
+        bool $includeSelf = true,
+    ): array {
         return $this->scopedEmployeeEntityIds(
             $user,
             $companyEntityId,
-            $audiences,
-            includeAssessorAssignments: true,
-            includeSelf: ! $manage,
+            $this->authorizeAudience($user, $functionalCapability),
+            includeAssessorAssignments: $includeAssessorAssignments,
+            includeSelf: $includeSelf,
         );
     }
 
