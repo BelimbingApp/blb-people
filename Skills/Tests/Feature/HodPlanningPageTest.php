@@ -25,6 +25,7 @@ use App\Domains\People\Skills\Services\SkillCatalogStore;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingPriority;
+use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Services\TrainingRequestStore;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
@@ -44,7 +45,7 @@ beforeEach(function (): void {
  * Alpha unit (HOD + two members, one open gap) and Beta unit (one member,
  * one open gap). The HOD heads Alpha's department; Beta is out of scope.
  *
- * @return array{tenant: mixed, company: mixed, unitA: PeopleReferenceEntry, unitB: PeopleReferenceEntry, hod: Employee, a1: Employee, b1: Employee, skill: mixed, gapA: SkillAssessment, gapB: SkillAssessment}
+ * @return array{tenant: mixed, company: mixed, unitA: PeopleReferenceEntry, unitB: PeopleReferenceEntry, hod: Employee, a1: Employee, a2: Employee, b1: Employee, skill: mixed, gapA: SkillAssessment, gapB: SkillAssessment}
  */
 function hodPlanningFixture(): array
 {
@@ -122,7 +123,7 @@ function hodPlanningFixture(): array
     return [
         'tenant' => $tenant, 'company' => $company,
         'unitA' => $unitA, 'unitB' => $unitB,
-        'hod' => $hod, 'a1' => $a1, 'b1' => $b1,
+        'hod' => $hod, 'a1' => $a1, 'a2' => $a2, 'b1' => $b1,
         'skill' => $skill, 'gapA' => $gapA, 'gapB' => $gapB,
     ];
 }
@@ -291,10 +292,53 @@ test('an hod proposes a development action for an in-scope gap', function (): vo
         ->set('daIntervention.'.(string) $fixture['gapA']->id, 'Hod action intervention')
         ->set('daEvidence.'.(string) $fixture['gapA']->id, 'Hod action evidence')
         ->set('daTrainer.'.(string) $fixture['gapA']->id, (string) $fixture['hod']->id)
+        ->set('daHr.'.(string) $fixture['gapA']->id, (string) $fixture['a2']->id)
         ->call('proposeDevelopmentAction', (string) $fixture['gapA']->id)
         ->assertSee(__('proposed'));
 
+    $action = DevelopmentAction::query()
+        ->forCompany((int) $fixture['tenant']->id, (int) $fixture['company']->id)
+        ->where('employee_entity_id', $fixture['a1']->id)->sole();
+    expect((int) $action->owner_employee_entity_id)->toBe((int) $fixture['hod']->id)
+        ->and((int) $action->hr_coordinator_employee_entity_id)->toBe((int) $fixture['a2']->id);
+});
+
+test('a development action proposal without an hr coordinator is refused', function (): void {
+    $fixture = hodPlanningFixture();
+    $hodUser = hodPlanningUser((int) $fixture['company']->id, $fixture['hod'], 'people_hod');
+
+    Livewire::actingAs($hodUser)
+        ->test(Index::class)
+        ->set('daObjective.'.(string) $fixture['gapA']->id, 'Hod action objective')
+        ->set('daIntervention.'.(string) $fixture['gapA']->id, 'Hod action intervention')
+        ->set('daEvidence.'.(string) $fixture['gapA']->id, 'Hod action evidence')
+        ->set('daTrainer.'.(string) $fixture['gapA']->id, (string) $fixture['hod']->id)
+        ->call('proposeDevelopmentAction', (string) $fixture['gapA']->id)
+        ->assertSee(__('HR coordinator'));
+
     expect(DevelopmentAction::query()
         ->forCompany((int) $fixture['tenant']->id, (int) $fixture['company']->id)
-        ->where('employee_entity_id', $fixture['a1']->id)->count())->toBe(1);
+        ->where('employee_entity_id', $fixture['a1']->id)->count())->toBe(0);
+});
+
+test('an hod with the submit capability drafts a training request', function (): void {
+    $fixture = hodPlanningFixture();
+    $companyId = (int) $fixture['company']->id;
+    $hodUser = hodPlanningUser($companyId, $fixture['hod'], 'people_hod');
+    PrincipalCapability::query()->create([
+        'company_id' => $companyId, 'principal_type' => PrincipalType::USER->value,
+        'principal_id' => $hodUser->id, 'capability_key' => TrainingRequestStore::SUBMIT, 'is_allowed' => true,
+    ]);
+
+    Livewire::actingAs($hodUser)
+        ->test(Index::class)
+        ->set('reqNeed.'.(string) $fixture['a1']->id, 'Hod positive need')
+        ->set('reqObjective.'.(string) $fixture['a1']->id, 'Hod positive objective')
+        ->set('reqResult.'.(string) $fixture['a1']->id, 'Hod positive result')
+        ->call('draftTrainingRequest', (string) $fixture['a1']->id)
+        ->assertSee(__('drafted'));
+
+    expect(TrainingRequest::query()
+        ->forCompany((int) $fixture['tenant']->id, $companyId)
+        ->where('need', 'Hod positive need')->count())->toBe(1);
 });

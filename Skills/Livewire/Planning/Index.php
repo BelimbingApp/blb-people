@@ -67,6 +67,12 @@ class Index extends Component
     /** @var array<string, string> assessmentId => trainer employee id */
     public array $daTrainer = [];
 
+    /** @var array<string, string> assessmentId => owner employee id, empty means the acting HOD */
+    public array $daOwner = [];
+
+    /** @var array<string, string> assessmentId => HR coordinator employee id */
+    public array $daHr = [];
+
     public function mount(): void
     {
         $this->authorizeView();
@@ -157,6 +163,22 @@ class Index extends Component
 
         abort_unless(in_array((int) $trainerRaw, $scoped, true), 404);
 
+        $ownerRaw = trim((string) ($this->daOwner[$assessmentId] ?? ''));
+        $ownerId = $ownerRaw === '' ? (int) Auth::user()->employee_id : (int) $ownerRaw;
+
+        abort_unless($ownerRaw === '' || ctype_digit($ownerRaw), 404);
+        abort_unless(in_array($ownerId, $scoped, true), 404);
+
+        $hrRaw = trim((string) ($this->daHr[$assessmentId] ?? ''));
+
+        if ($hrRaw === '' || ! ctype_digit($hrRaw)) {
+            $this->addError('planning', __('Choose an HR coordinator from your department.'));
+
+            return;
+        }
+
+        abort_unless(in_array((int) $hrRaw, $scoped, true), 404);
+
         try {
             app(DevelopmentActionStore::class)->proposeFromAssessments(
                 $companyEntityId,
@@ -167,8 +189,8 @@ class Index extends Component
                     objective: trim((string) ($this->daObjective[$assessmentId] ?? '')),
                     intervention: trim((string) ($this->daIntervention[$assessmentId] ?? '')),
                     expectedEvidence: trim((string) ($this->daEvidence[$assessmentId] ?? '')),
-                    ownerEmployeeEntityId: (int) $assessment->employee_entity_id,
-                    hrCoordinatorEmployeeEntityId: (int) $assessment->employee_entity_id,
+                    ownerEmployeeEntityId: $ownerId,
+                    hrCoordinatorEmployeeEntityId: (int) $hrRaw,
                     startDate: now()->addDay(),
                     dueDate: now()->addMonth(),
                     trainerEmployeeEntityId: (int) $trainerRaw,

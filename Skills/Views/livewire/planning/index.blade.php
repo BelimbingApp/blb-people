@@ -58,6 +58,25 @@
                                         <option value="{{ $trainer['id'] }}">{{ $trainer['name'] }}</option>
                                     @endforeach
                                 </x-ui.select>
+                                <x-ui.select :label="__('Owner')" wire:model="daOwner.{{ $gap['id'] }}" :block="false">
+                                    <option value="">{{ __('Acting HOD (default)') }}</option>
+                                    @foreach ($unit['employees'] as $owner)
+                                        <option value="{{ $owner['id'] }}">{{ $owner['name'] }}</option>
+                                    @endforeach
+                                </x-ui.select>
+                                <x-ui.select :label="__('HR coordinator')" wire:model="daHr.{{ $gap['id'] }}" :block="false">
+                                    <option value="">{{ __('Choose HR coordinator') }}</option>
+                                    @foreach ($unit['employees'] as $coordinator)
+                                        <option value="{{ $coordinator['id'] }}">{{ $coordinator['name'] }}</option>
+                                    @endforeach
+                                </x-ui.select>
+                                <x-ui.select :label="__('Type')" wire:model="daType.{{ $gap['id'] }}" :block="false">
+                                    <option value="">{{ __('Coaching (default)') }}</option>
+                                    <option value="on_the_job_training">{{ __('On-the-job training') }}</option>
+                                    <option value="classroom_training">{{ __('Classroom training') }}</option>
+                                    <option value="supervised_practice">{{ __('Supervised practice') }}</option>
+                                    <option value="improvement_project">{{ __('Improvement project') }}</option>
+                                </x-ui.select>
                                 <button
                                     type="button"
                                     wire:click="proposeDevelopmentAction('{{ $gap['id'] }}')"
