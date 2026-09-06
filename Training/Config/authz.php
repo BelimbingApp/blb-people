@@ -17,6 +17,7 @@ return [
         'people.training.participation.manage',
         'people.training.participation.verify',
         'people.training.participation.evidence.assign',
+        'people.training.passport.view',
         'people.training.effectiveness.review',
         'people.training.effectiveness.close',
 
@@ -47,6 +48,7 @@ return [
                 'people.training.participation.manage',
                 'people.training.participation.verify',
                 'people.training.participation.evidence.assign',
+                'people.training.passport.view',
                 'people.training.effectiveness.close',
             ],
         ],
@@ -62,10 +64,11 @@ return [
                 'people.training.plan.submit',
                 'people.training.request.hod-approve',
                 'people.training.effectiveness.review',
+                'people.training.passport.view',
             ],
         ],
         'people_employee' => [
-            'capabilities' => ['people.training.evaluation.view'],
+            'capabilities' => ['people.training.evaluation.view', 'people.training.passport.view'],
         ],
         'people_training_approver' => [
             'name' => 'People Training Approver',

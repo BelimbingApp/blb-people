@@ -4,12 +4,17 @@ use App\Domains\People\Employees\Http\Controllers\EmployeeWorkbenchExportControl
 use App\Domains\People\Employees\Livewire\Index;
 use App\Domains\People\Employees\Livewire\MyStanding;
 use App\Domains\People\Employees\Livewire\Show;
+use App\Domains\People\Employees\Livewire\TrainingPassport;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function () {
     Route::get('people/my-standing', MyStanding::class)
         ->middleware('authz:people.skill.assessment.view')
         ->name('people.employee-standing.show');
+
+    Route::get('people/training/passport', TrainingPassport::class)
+        ->middleware('authz:people.training.passport.view')
+        ->name('people.training.passport');
 
     Route::get('people/employees', Index::class)
         ->middleware('authz:people.employee.list')
