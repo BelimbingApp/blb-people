@@ -179,6 +179,10 @@ final readonly class OrganisationPerformanceDetail implements ContributesOrganis
             ->join('base_authz_role_capabilities', 'base_authz_role_capabilities.role_id', '=', 'base_authz_roles.id')
             ->where('base_authz_principal_roles.principal_type', PrincipalType::USER->value)
             ->where('base_authz_principal_roles.principal_id', $actor->id)
+            ->where(static function ($query) use ($actor): void {
+                $query->whereNull('base_authz_principal_roles.company_id')
+                    ->orWhere('base_authz_principal_roles.company_id', $actor->companyId);
+            })
             ->where('base_authz_role_capabilities.capability_key', $capability)
             ->exists();
     }
