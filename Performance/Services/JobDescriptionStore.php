@@ -98,6 +98,16 @@ final readonly class JobDescriptionStore
                 || (int) $replacement->version <= (int) $current->version) {
                 throw new JobDescriptionException('Supersession requires a newer draft of the same published job description.');
             }
+            // The second door to markPublished. Guarding only publish would
+            // leave a row emptied after drafting a way to become the live
+            // version, which is exactly what the publish check exists to stop.
+            self::assertSectionsComplete(
+                (string) $replacement->purpose,
+                (string) $replacement->authority,
+                (array) $replacement->responsibilities,
+                (array) $replacement->duties,
+                (array) $replacement->qualifications,
+            );
             $this->assertPublishedProfiles($tenantId, $companyId, $replacement->competency_links);
             $current->forceFill(['status' => JobDescriptionStatus::Superseded, 'superseded_at' => now()])->save();
 

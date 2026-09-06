@@ -217,3 +217,33 @@ test('JP-A03: a holder of the described position gains nothing from the authorit
 
     expect($decision->allowed)->toBeFalse();
 });
+
+test('supersede refuses a replacement whose sections were emptied after drafting', function (): void {
+    $f = sectionFixture();
+    $store = app(JobDescriptionStore::class);
+    $published = $store->publish($f['hr'], $f['company'], (int) $store->draft($f['company'], sectionBaseDraft($f))->id);
+    $replacement = $store->draft($f['company'], sectionDraft($f, ['version' => 2]));
+    DB::table('people_job_descriptions')->where('id', $replacement->id)->update(['purpose' => '   ']);
+
+    // Supersession is the second door to markPublished. Guarding only publish
+    // would leave a tampered row a way to become the live version, which is the
+    // exact thing the publish check exists to stop.
+    expect(fn () => $store->supersede($f['hr'], $f['company'], (int) $published->id, (int) $replacement->id))
+        ->toThrow(JobDescriptionException::class);
+
+    expect(JobDescription::query()->forCompany($f['tenant'], $f['company'])->whereKey($published->id)->value('status'))
+        ->toBe(JobDescriptionStatus::Published)
+        ->and(JobDescription::query()->forCompany($f['tenant'], $f['company'])->whereKey($replacement->id)->value('status'))
+        ->toBe(JobDescriptionStatus::Draft);
+});
+
+test('supersede still promotes a complete replacement', function (): void {
+    $f = sectionFixture();
+    $store = app(JobDescriptionStore::class);
+    $published = $store->publish($f['hr'], $f['company'], (int) $store->draft($f['company'], sectionBaseDraft($f))->id);
+    $replacement = $store->draft($f['company'], sectionDraft($f, ['version' => 2]));
+
+    $promoted = $store->supersede($f['hr'], $f['company'], (int) $published->id, (int) $replacement->id);
+
+    expect($promoted->status)->toBe(JobDescriptionStatus::Published);
+});
