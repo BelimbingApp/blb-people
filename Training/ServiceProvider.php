@@ -2,10 +2,10 @@
 
 namespace App\Domains\People\Training;
 
-use App\Domains\People\Training\Console\Commands\EffectivenessDueCommand;
 use App\Base\Menu\Services\MenuConditionRegistry;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Training\Console\Commands\EffectivenessDueCommand;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
 use App\Domains\People\Training\Services\UnavailableTrainingParticipationSummary;
 use Illuminate\Contracts\Auth\Authenticatable;
