@@ -62,13 +62,16 @@ return [
                 'people.training.event.view',
                 'people.training.evaluation.view',
                 'people.training.plan.submit',
+                'people.training.request.submit',
                 'people.training.request.hod-approve',
                 'people.training.effectiveness.review',
                 'people.training.passport.view',
             ],
         ],
         'people_employee' => [
-            'capabilities' => ['people.training.evaluation.view', 'people.training.passport.view'],
+            // Submitting is drafting for oneself; the request page pins the
+            // requestor to the bound employee (0005-i).
+            'capabilities' => ['people.training.evaluation.view', 'people.training.passport.view', 'people.training.request.submit'],
         ],
         'people_training_approver' => [
             'name' => 'People Training Approver',
