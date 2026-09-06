@@ -14,7 +14,11 @@ use App\Domains\People\Attendance\Livewire\RosterEmployeeHistory;
             :subtitle="__('All roster cell changes for this employee, in reverse chronological order.')"
         />
 
-        @if (! $employee)
+        @if (! $employee && $refused && $refusal === \App\Domains\People\Provider\Enums\WorkforceSubjectRefusal::Deactivated)
+            <x-ui.alert variant="warning">{{ __('That employee is no longer active.') }}</x-ui.alert>
+        @elseif (! $employee && $refused)
+            <x-ui.alert variant="warning">{{ __('That employee is not in your company scope.') }}</x-ui.alert>
+        @elseif (! $employee)
             <x-ui.alert variant="warning">{{ __('No employee selected.') }}</x-ui.alert>
         @else
             {{-- Date filter --}}

@@ -5,9 +5,14 @@ namespace App\Domains\People\Attendance\Livewire;
 use App\Base\Audit\Models\AuditMutation;
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Foundation\Livewire\Concerns\InteractsWithNotifications;
+use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScreen;
+use App\Domains\People\Provider\Contracts\ResolvesWorkforceSubjects;
+use App\Domains\People\Provider\Data\WorkforceSubject;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
+use App\Domains\People\Provider\Enums\WorkforceSubjectRefusal;
 use Illuminate\Contracts\View\View;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Component;
@@ -35,10 +40,28 @@ class RosterEmployeeHistory extends Component
     public function render(): View
     {
         $companyId = $this->companyId();
+        $employee = null;
+        $refused = false;
+        $refusal = null;
 
-        $employee = $this->employeeId !== ''
-            ? Employee::query()->where('company_id', $companyId)->find((int) $this->employeeId)
-            : null;
+        // The id came from the request. It is a workforce subject, so it is
+        // resolved through the seam with the acting user's company (plan 0001,
+        // #249): a subject of another company, a deactivated one, or an id
+        // that is not a stable id is refused, never coerced into a lookup.
+        if ($this->employeeId !== '') {
+            $resolution = app(ResolvesWorkforceSubjects::class)->resolve(new WorkforceSubject(
+                app(TenantContext::class)->requireTenantId(),
+                $companyId,
+                WorkforceResourceType::Employee,
+                $this->employeeId,
+            ));
+
+            $employee = $resolution->record instanceof Employee ? $resolution->record : null;
+            $refused = $employee === null;
+            // The reason is shown truthfully: a deactivated employee of this
+            // company is not a company-scope failure (review on #250).
+            $refusal = $refused ? ($resolution->refusal ?? WorkforceSubjectRefusal::Unknown) : null;
+        }
 
         $rows = collect();
 
@@ -70,6 +93,8 @@ class RosterEmployeeHistory extends Component
 
         return view('people-attendance::livewire.people.attendance.roster-employee-history', [
             'employee' => $employee,
+            'refused' => $refused,
+            'refusal' => $refusal,
             'rows' => $rows,
             'userNames' => $userNames,
         ]);
