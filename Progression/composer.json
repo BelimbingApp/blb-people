@@ -14,6 +14,7 @@
             "version": "0.1.0",
             "description": "Scoped published-policy identities without eligibility or compensation decisions.",
             "requires-modules": {
+                "people/performance": "*",
                 "people/provider": "*",
                 "people/skills": "*"
             },
