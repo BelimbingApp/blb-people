@@ -13,11 +13,15 @@ final readonly class EmployeeStanding
 
     public null $trainingCertificates;
 
-    public function __construct(public OwnSkillStanding $skills)
+    /** @var list<OwnEffectivenessOutcome> */
+    public array $effectivenessOutcomes;
+
+    public function __construct(public OwnSkillStanding $skills, array $effectivenessOutcomes = [])
     {
         // People #34 has not supplied employee-level participation/certificate records.
         $this->trainingAvailability = TrainingHistoryAvailability::Unsupported;
         $this->trainingParticipation = null;
         $this->trainingCertificates = null;
+        $this->effectivenessOutcomes = $effectivenessOutcomes;
     }
 }
