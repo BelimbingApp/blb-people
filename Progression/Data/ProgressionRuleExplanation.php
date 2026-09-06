@@ -21,5 +21,22 @@ final readonly class ProgressionRuleExplanation
         public ?int $requiredLevel = null,
         public ?int $observedLevel = null,
         public ?int $requirementVersion = null,
+        /**
+         * Which released review answered this rule, and which version of it.
+         *
+         * A performance answer without the review version behind it cannot be
+         * audited later: the same period can have been reviewed once and then
+         * corrected, and "met" means different things against each.
+         */
+        public ?int $reviewId = null,
+        public ?int $reviewVersion = null,
+        public ?string $period = null,
+        /**
+         * The consumed review supersedes an earlier one, so any decision taken
+         * on the earlier answer needs governed reevaluation. This flags it; it
+         * does not rewrite anything, and there is nothing here that could.
+         */
+        public bool $reevaluationRequired = false,
+        public ?int $supersededReviewId = null,
     ) {}
 }

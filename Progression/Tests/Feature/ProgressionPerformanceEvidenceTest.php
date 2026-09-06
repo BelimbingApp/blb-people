@@ -56,11 +56,11 @@ function perfPolicyFixture(array $performanceRules, string $status = Progression
         'tenant_id' => $tenantId,
         'company_entity_id' => $companyId,
         'policy_id' => 'technical-progression',
-        'version' => '2027.1',
+        'version' => '2026.1',
         'status' => $status,
-        'effective_from' => '2027-01-01',
+        'effective_from' => '2026-01-01',
         'rules' => ['competence' => [], 'performance' => $performanceRules],
-        'published_at' => $status === ProgressionPolicyStatus::Published->value ? '2027-01-01 00:00:00' : null,
+        'published_at' => $status === ProgressionPolicyStatus::Published->value ? '2026-01-01 00:00:00' : null,
     ]);
 
     return compact('tenantId', 'companyId', 'hr', 'employee');
@@ -76,15 +76,15 @@ function perfPolicyReview(array $f, bool $finalize = true, PerformanceOutcome $o
     $store = app(PerformanceReviewStore::class);
     $observation = $store->recordObservation($f['hr'], $f['companyId'], new ObservationDraft(
         employeeEntityId: (int) $f['employee']->id,
-        windowStart: new DateTimeImmutable('2027-01-01'),
-        windowEnd: new DateTimeImmutable('2027-03-31'),
+        windowStart: new DateTimeImmutable('2026-01-01'),
+        windowEnd: new DateTimeImmutable('2026-03-31'),
         evidence: 'Delivered the governed changeover.',
     ));
     $draft = $store->draftReview($f['hr'], $f['companyId'], new ReviewDraft(
         employeeEntityId: (int) $f['employee']->id,
-        periodStart: new DateTimeImmutable('2027-01-01'),
-        periodEnd: new DateTimeImmutable('2027-03-31'),
-        cutoffAt: new DateTimeImmutable('2027-04-07T00:00:00+00:00'),
+        periodStart: new DateTimeImmutable('2026-01-01'),
+        periodEnd: new DateTimeImmutable('2026-03-31'),
+        cutoffAt: new DateTimeImmutable('2026-04-07T00:00:00+00:00'),
         observationIds: [(int) $observation->id],
         outcome: $outcome,
         rationale: 'Met the agreed expectation with attributable evidence.',
@@ -98,7 +98,7 @@ function perfPolicyRules(array $overrides = []): array
 {
     return array_replace([
         'relevant' => true,
-        'periods' => [['start' => '2027-01-01', 'end' => '2027-03-31']],
+        'periods' => [['start' => '2026-01-01', 'end' => '2026-03-31']],
         'require_final' => true,
         'missing_evidence' => 'unknown',
     ], $overrides);
@@ -135,7 +135,7 @@ test('a published policy consumes the finalized review and records the version i
         ->and($rules[0]->status)->toBe(ProgressionRuleStatus::Met)
         ->and($rules[0]->reviewId)->toBe((int) $review->id)
         ->and($rules[0]->reviewVersion)->toBe(1)
-        ->and($rules[0]->period)->toBe('2027-01-01/2027-03-31');
+        ->and($rules[0]->period)->toBe('2026-01-01/2026-03-31');
 });
 
 test('a review that is not final is refused when the policy requires finality', function (): void {
@@ -169,7 +169,7 @@ test('a policy may publish not_met as its missing-evidence rule, and that is hon
 });
 
 test('a review outside the policy periods is not consumed', function (): void {
-    $f = perfPolicyFixture(perfPolicyRules(['periods' => [['start' => '2026-01-01', 'end' => '2026-03-31']]]));
+    $f = perfPolicyFixture(perfPolicyRules(['periods' => [['start' => '2025-01-01', 'end' => '2025-03-31']]]));
     perfPolicyReview($f);
 
     expect(perfPolicyPerformance($f)[0]->status)->toBe(ProgressionRuleStatus::Unknown);
@@ -181,9 +181,9 @@ test('a corrected review flags governed reevaluation and never rewrites the prio
     $original = perfPolicyReview($f);
     $corrected = $store->correct($f['hr'], $f['companyId'], (int) $original->id, new ReviewDraft(
         employeeEntityId: (int) $f['employee']->id,
-        periodStart: new DateTimeImmutable('2027-01-01'),
-        periodEnd: new DateTimeImmutable('2027-03-31'),
-        cutoffAt: new DateTimeImmutable('2027-04-07T00:00:00+00:00'),
+        periodStart: new DateTimeImmutable('2026-01-01'),
+        periodEnd: new DateTimeImmutable('2026-03-31'),
+        cutoffAt: new DateTimeImmutable('2026-04-07T00:00:00+00:00'),
         observationIds: [],
         outcome: PerformanceOutcome::PartiallyMet,
         rationale: 'Late source correction reduced the attributable result.',

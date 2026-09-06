@@ -3,6 +3,9 @@
 namespace App\Domains\People\Progression\Services;
 
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Domains\People\Performance\Enums\PerformanceOutcome;
+use App\Domains\People\Performance\Enums\PerformanceReviewStatus;
+use App\Domains\People\Performance\Models\PerformanceReview;
 use App\Domains\People\Progression\Contracts\ReadsPublishedProgressionPolicy;
 use App\Domains\People\Progression\Data\ProgressionEligibilityExplanation;
 use App\Domains\People\Progression\Data\ProgressionRuleExplanation;
@@ -49,7 +52,7 @@ final class ProgressionEligibilityExplainer
             policyVersion: $policy->version,
             rules: [
                 ...$this->competenceRules($policy->tenantId, $policy->companyId, (int) $subject->stableId, $rules),
-                ...self::performanceRules($rules),
+                ...$this->performanceRules($policy->tenantId, $policy->companyId, (int) $subject->stableId, $rules),
             ],
         );
     }
@@ -107,7 +110,8 @@ final class ProgressionEligibilityExplainer
     }
 
     /**
-     * Performance appears only when the policy says it is relevant.
+     * Performance appears only when the policy says it is relevant, and only
+     * the versioned review evidence the policy declared eligible.
      *
      * Omitted is not the same as unknown. A policy that never mentions
      * performance is not one whose performance evidence is missing, and
@@ -117,7 +121,7 @@ final class ProgressionEligibilityExplainer
      * @param  array<string, mixed>  $rules
      * @return list<ProgressionRuleExplanation>
      */
-    private static function performanceRules(array $rules): array
+    private function performanceRules(int $tenantId, int $companyId, int $employeeEntityId, array $rules): array
     {
         $performance = $rules['performance'] ?? null;
 
@@ -125,12 +129,80 @@ final class ProgressionEligibilityExplainer
             return [];
         }
 
-        // Declared relevant, and no performance evidence is wired up yet. The
-        // honest answer is unknown rather than an invented pass.
+        $review = $this->eligibleReview($tenantId, $companyId, $employeeEntityId, $performance);
+
+        // No eligible review is not a failed review. The policy has to have
+        // published what an absence means; this reads that rule rather than
+        // assuming the harsher answer.
+        if ($review === null) {
+            return [new ProgressionRuleExplanation(
+                code: 'performance',
+                source: ProgressionRuleSource::Performance,
+                status: ($performance['missing_evidence'] ?? 'unknown') === 'not_met'
+                    ? ProgressionRuleStatus::NotMet
+                    : ProgressionRuleStatus::Unknown,
+            )];
+        }
+
         return [new ProgressionRuleExplanation(
             code: 'performance',
             source: ProgressionRuleSource::Performance,
-            status: ProgressionRuleStatus::Unknown,
+            status: in_array($review->outcome, [PerformanceOutcome::Met, PerformanceOutcome::Exceeded], true)
+                ? ProgressionRuleStatus::Met
+                : ProgressionRuleStatus::NotMet,
+            reviewId: (int) $review->id,
+            reviewVersion: (int) $review->version,
+            period: $review->period_start->format('Y-m-d').'/'.$review->period_end->format('Y-m-d'),
+            reevaluationRequired: $review->supersedes_review_id !== null,
+            supersededReviewId: $review->supersedes_review_id === null ? null : (int) $review->supersedes_review_id,
         )];
+    }
+
+    /**
+     * The most recent review the policy declares eligible.
+     *
+     * Periods are matched in PHP rather than as an OR over the query, because
+     * the company scope refuses a disjunction before the company axis is
+     * pinned, and a person's reviews are few.
+     *
+     * @param  array<string, mixed>  $performance
+     */
+    private function eligibleReview(int $tenantId, int $companyId, int $employeeEntityId, array $performance): ?PerformanceReview
+    {
+        $requireFinal = ($performance['require_final'] ?? true) !== false;
+        $periods = is_array($performance['periods'] ?? null) ? $performance['periods'] : [];
+
+        $query = PerformanceReview::query()
+            ->forCompany($tenantId, $companyId)
+            ->where('employee_entity_id', $employeeEntityId);
+
+        if ($requireFinal) {
+            $query->where('status', PerformanceReviewStatus::Finalized->value);
+        }
+
+        foreach ($query->orderByDesc('version')->orderByDesc('id')->get() as $review) {
+            if ($this->withinDeclaredPeriod($review, $periods)) {
+                return $review;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param array<int, mixed> $periods */
+    private function withinDeclaredPeriod(PerformanceReview $review, array $periods): bool
+    {
+        foreach ($periods as $period) {
+            if (! is_array($period) || ! isset($period['start'], $period['end'])) {
+                continue;
+            }
+            $start = $review->period_start->format('Y-m-d');
+            $end = $review->period_end->format('Y-m-d');
+            if ($start >= (string) $period['start'] && $end <= (string) $period['end']) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
