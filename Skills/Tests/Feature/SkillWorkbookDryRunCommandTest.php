@@ -82,3 +82,11 @@ test('a defect not marked blocking remains visible without failing the dry run',
         unlink($path);
     }
 });
+
+test('an associative blocking defect configuration is rejected instead of being treated as a list', function (): void {
+    config()->set('people-skills.workbook.blocking_defects', ['formula' => 'formula']);
+
+    $this->artisan('people:skills-workbook-dry-run', ['workbook' => skillWorkbookDryRunFixture()])
+        ->expectsOutputToContain('people-skills.workbook.blocking_defects must be a list of defect names.')
+        ->assertFailed();
+});
