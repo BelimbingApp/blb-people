@@ -2,6 +2,13 @@
 
 return [
     'items' => [[
+        'id' => 'people.team-training-passports',
+        'label' => 'Team training passports',
+        'icon' => 'heroicon-o-identification',
+        'route' => 'people.training.team-passports',
+        'permission' => 'people.training.passport.view-team',
+        'parent' => 'people',
+    ], [
         'id' => 'people.training-catalog',
         'label' => 'Training catalog',
         'icon' => 'heroicon-o-academic-cap',

@@ -5,9 +5,14 @@ use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
 use App\Domains\People\Training\Livewire\Event\Index;
 use App\Domains\People\Training\Livewire\HrGovernance\Index as HrGovernanceIndex;
 use App\Domains\People\Training\Livewire\Request\Index as RequestIndex;
+use App\Domains\People\Training\Livewire\TeamPassports;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function (): void {
+    Route::get('people/training/team-passports/{employeeId?}', TeamPassports::class)
+        ->middleware('authz:'.TeamPassports::VIEW_CAPABILITY)
+        ->name('people.training.team-passports');
+
     Route::get('people/training-catalog', CatalogIndex::class)
         ->middleware('authz:people.training.event.view', AuthorizeTrainingAudience::class)
         ->name('people.training.catalog.index');

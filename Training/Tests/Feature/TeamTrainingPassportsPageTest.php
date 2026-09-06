@@ -12,7 +12,16 @@ use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Models\SkillActorBinding;
+use App\Domains\People\Training\Enums\AttendanceStatus;
+use App\Domains\People\Training\Enums\DeliveryMode;
+use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Livewire\TeamPassports;
+use App\Domains\People\Training\Models\TrainingCourse;
+use App\Domains\People\Training\Models\TrainingEvent;
+use App\Domains\People\Training\Models\TrainingParticipant;
+use App\Domains\People\Training\Models\TrainingParticipationFact;
+use App\Domains\People\Training\Models\TrainingSession;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 afterEach(function (): void {
@@ -101,6 +110,60 @@ function teamPassportsEmployee(
     return $employee;
 }
 
+function teamPassportsTraining(User $actor, Employee $employee): void
+{
+    $tenantId = (int) $actor->tenant_id;
+    $companyId = (int) $actor->company_id;
+    $course = TrainingCourse::query()->create([
+        'tenant_id' => $tenantId, 'company_entity_id' => $companyId,
+        'code' => 'team-passport-'.Str::lower(Str::random(8)),
+        'title' => 'Completed passport course', 'delivery_mode' => DeliveryMode::InternalClassroom,
+        'internal_trainer_employee_entity_id' => $employee->id, 'active' => true,
+    ]);
+    $makeEvent = function (TrainingEventStatus $status, string $title, DateTimeImmutable $startsAt) use (
+        $tenantId, $companyId, $course, $employee,
+    ): TrainingEvent {
+        return TrainingEvent::query()->create([
+            'tenant_id' => $tenantId, 'company_entity_id' => $companyId,
+            'event_key' => (string) Str::uuid(), 'course_id' => $course->id,
+            'course_code_snapshot' => $course->code, 'course_title_snapshot' => $title,
+            'delivery_mode_snapshot' => DeliveryMode::InternalClassroom,
+            'organizer_employee_entity_id' => $employee->id,
+            'internal_trainer_employee_entity_id' => $employee->id,
+            'starts_at' => $startsAt, 'ends_at' => $startsAt->addHours(2),
+            'capacity' => 10, 'status' => $status,
+            'completed_at' => $status === TrainingEventStatus::Completed ? $startsAt->addHours(2) : null,
+            'completion_evidence' => $status === TrainingEventStatus::Completed ? 'Completion register' : null,
+        ]);
+    };
+    $scheduled = $makeEvent(TrainingEventStatus::Scheduled, 'Scheduled passport course', now()->addMonth()->toImmutable());
+    $completed = $makeEvent(TrainingEventStatus::Completed, 'Completed passport course', now()->subMonth()->toImmutable());
+    TrainingParticipant::query()->create([
+        'tenant_id' => $tenantId, 'company_entity_id' => $companyId, 'event_id' => $scheduled->id,
+        'provider_id' => 'core', 'employee_subject_id' => (string) $employee->id,
+        'workforce_observed_at' => now(),
+    ]);
+    $participant = TrainingParticipant::query()->create([
+        'tenant_id' => $tenantId, 'company_entity_id' => $companyId, 'event_id' => $completed->id,
+        'provider_id' => 'core', 'employee_subject_id' => (string) $employee->id,
+        'workforce_observed_at' => now(),
+    ]);
+    $session = TrainingSession::query()->create([
+        'tenant_id' => $tenantId, 'company_entity_id' => $companyId, 'event_id' => $completed->id,
+        'session_reference' => 'team-passport-session', 'starts_at' => $completed->starts_at,
+        'ends_at' => $completed->ends_at, 'created_by_user_id' => $actor->id,
+    ]);
+    TrainingParticipationFact::query()->create([
+        'tenant_id' => $tenantId, 'company_entity_id' => $companyId, 'event_id' => $completed->id,
+        'participant_id' => $participant->id, 'session_id' => $session->id,
+        'attendance' => AttendanceStatus::Present, 'actual_minutes' => 120,
+        'certificate_reference' => 'CERT-TEAM-90', 'certificate_valid_from' => today(),
+        'certificate_valid_until' => today()->addDays(30), 'evidence_references' => [],
+        'source' => 'fixture', 'source_reference' => 'team-passport-fact',
+        'recorded_by_user_id' => $actor->id, 'recorded_capability' => 'fixture', 'recorded_at' => now(),
+    ]);
+}
+
 test('an hod sees only employees in the department they head', function (): void {
     $fixture = teamPassportsFixture();
 
@@ -121,6 +184,25 @@ test('a request supplied department is ignored', function (): void {
         ->assertOk()
         ->assertSee('Passport Direct Report')
         ->assertDontSee('Passport Outside Department');
+});
+
+test('the summary separates scheduled attended completed and expiring counts and drills into the passport', function (): void {
+    $fixture = teamPassportsFixture();
+    teamPassportsTraining($fixture['hod'], $fixture['member']);
+
+    Livewire::actingAs($fixture['hod'])
+        ->test(TeamPassports::class)
+        ->assertSeeHtml('data-passport-counts="1:1:1:1"');
+
+    $this->actingAs($fixture['hod'])
+        ->get(route('people.training.team-passports', ['employeeId' => $fixture['member']->id]))
+        ->assertOk()
+        ->assertSee('Completed passport course')
+        ->assertSee('CERT-TEAM-90');
+
+    $this->actingAs($fixture['hod'])
+        ->get(route('people.training.team-passports', ['employeeId' => $fixture['outside']->id]))
+        ->assertNotFound();
 });
 
 test('the team passport capability is required', function (): void {
