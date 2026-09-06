@@ -1,6 +1,7 @@
 <?php
 
 use App\Base\Authz\Enums\PrincipalType;
+use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
@@ -8,6 +9,7 @@ use App\Core\User\Models\User;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use App\Domains\People\Skills\Data\SkillDraft;
+use App\Domains\People\Skills\Models\SkillActorBinding;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
 use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use App\Domains\People\Training\Data\TrainingCourseDraft;
@@ -78,6 +80,22 @@ function evaluationVisibilityFixture(): array
                 'user_id' => $user->id,
                 'display_name' => $key,
                 'status' => EmployeePortalAccess::STATUS_ACTIVE,
+            ]);
+        }
+
+        if ($spec['employee'] !== null) {
+            // Self-scoping resolves through the Skills actor binding, not the
+            // portal record alone. Worth knowing: an employee's access to their
+            // own training evaluation depends on a Skills-owned binding.
+            SkillActorBinding::query()->create([
+                'tenant_id' => $tenantId,
+                'company_entity_id' => $companyId,
+                'employee_entity_id' => (int) $spec['employee']->id,
+                'user_entity_id' => (int) NativeWorkforceFixture::create($tenantId, WorkforceResourceType::User, $companyId)->id,
+                'platform_user_id' => (int) $user->id,
+                'confirmed_by_user_id' => (int) $user->id,
+                'confirmed_at' => now(),
+                'review_reference' => 'binding-2026-09-06',
             ]);
         }
 
@@ -156,22 +174,28 @@ test('a colleague sees no one else evaluation', function (): void {
     expect($visible)->toHaveCount(0);
 });
 
-test('the trainer who taught the event sees nothing', function (): void {
+test('the trainer who taught the event is refused outright', function (): void {
     $f = evaluationVisibilityFixture();
 
     // docs/contracts/training-evaluation.md: no automatic evaluation audience
     // is defined for this role, and teaching an event is insufficient. The
     // evaluation rates trainer effectiveness and carries free text about the
     // session, so this is the disclosure the contract withholds pending an
-    // approved policy — not an oversight to be filled in.
-    $visible = app(TrainingEvaluationReader::class)->visibleTo($f['trainerUser'], $f['companyId'])->get();
-
-    expect($visible)->toHaveCount(0);
+    // approved policy.
+    //
+    // A refusal rather than an empty list, and that is the stronger answer: the
+    // trainer role simply does not hold the evaluation capability, so there is
+    // no branch in the reader to get wrong later.
+    expect(fn () => app(TrainingEvaluationReader::class)->visibleTo($f['trainerUser'], $f['companyId']))
+        ->toThrow(AuthorizationDeniedException::class);
 });
 
 test('an evaluation from another company is never visible', function (): void {
     $f = evaluationVisibilityFixture();
     $other = evaluationVisibilityFixture();
+    // Building the second fixture moved the tenant context; put it back before
+    // asking the first company's HR what they can see.
+    app(TenantContext::class)->set($f['tenantId']);
 
     $visible = app(TrainingEvaluationReader::class)->visibleTo($f['hr'], $f['companyId'])->get();
 
