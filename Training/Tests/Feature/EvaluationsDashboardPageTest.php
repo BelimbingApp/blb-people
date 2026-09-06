@@ -23,8 +23,10 @@ use App\Domains\People\Training\Enums\DeliveryMode;
 use App\Domains\People\Training\Enums\TrainingEvaluationStatus;
 use App\Domains\People\Training\Livewire\Evaluations\Index;
 use App\Domains\People\Training\Models\TrainingEvaluation;
+use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Models\TrainingParticipationFact;
+use App\Domains\People\Training\Models\TrainingSession;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
 use Livewire\Livewire;
@@ -123,11 +125,21 @@ function dashParticipant(array $f, int $eventId, string $name, bool $attended = 
         'provider_id' => 'native', 'employee_subject_id' => (string) $employee->id,
         'workforce_observed_at' => now(),
     ]);
+    $event = TrainingEvent::query()->forCompany($f['tenantId'], $f['companyId'])->findOrFail($eventId);
+    $session = TrainingSession::query()->firstOrCreate([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'], 'event_id' => $eventId,
+        'session_reference' => 'dash-session-'.$eventId,
+    ], [
+        'starts_at' => $event->starts_at, 'ends_at' => $event->ends_at,
+        'created_by_user_id' => $f['hr']->id,
+    ]);
     TrainingParticipationFact::query()->create([
         'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'],
-        'event_id' => $eventId, 'participant_id' => $participant->id,
+        'event_id' => $eventId, 'participant_id' => $participant->id, 'session_id' => $session->id,
         'attendance' => $attended ? AttendanceStatus::Present : AttendanceStatus::Absent,
-        'observed_at' => now(),
+        'actual_minutes' => 120, 'evidence_references' => [],
+        'source' => 'fixture', 'source_reference' => 'dash-fact-'.$participant->id,
+        'recorded_by_user_id' => $f['hr']->id, 'recorded_capability' => 'fixture', 'recorded_at' => now(),
     ]);
 
     return $participant;
