@@ -187,12 +187,39 @@ test('an expired qualification is not cover', function (): void {
 test('another company\'s qualified employee is never cover here', function (): void {
     $f = coverFixture();
     coverScore($f, coverEmployee($f, 'Ours'), current: 4);
-    coverScore($f, coverEmployee($f, 'Theirs', companyId: (int) $f['sibling']->id), current: 4, companyId: (int) $f['sibling']->id);
+
+    // Deliberately against *our* skill id, filed under the sibling company —
+    // the cross-company reference the company scope exists to refuse. Giving
+    // the sibling its own skill row would have let the skill lookup separate
+    // them and the score scope would never have been tested.
+    $theirs = coverEmployee($f, 'Theirs', companyId: (int) $f['sibling']->id);
+    $ourSkillId = coverSkill($f, $f['companyId']);
+    $assessment = AssessmentWorkflowContext::runStoreMutation(static fn (): SkillAssessment => SkillAssessment::query()->create([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => (int) $f['sibling']->id,
+        'employee_entity_id' => $theirs->id, 'skill_id' => $ourSkillId,
+        'requirement_reference' => 'fixture.safety', 'requirement_version' => 2,
+        'required_level' => 3, 'criticality' => RequirementCriticality::Critical, 'weight_percent' => 100,
+        'mandatory_gate' => true, 'assessed_level' => 4, 'gap' => 0,
+        'weighted_gap' => 0, 'priority_score' => 0,
+        'result_band' => AssessmentResultBand::fromGap(0, 4, 3),
+        'method' => AssessmentMethod::DirectObservation, 'cycle' => AssessmentCycle::Annual,
+        'status' => AssessmentStatus::Draft, 'evidence' => 'Observed task.', 'assessed_at' => now()->subDays(3),
+        'assessor_user_id' => 9, 'hod_verification' => HodVerification::Pending,
+    ]));
+    EmployeeSkillScore::query()->forCompany($f['tenantId'], (int) $f['sibling']->id)->create([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => (int) $f['sibling']->id,
+        'employee_entity_id' => $theirs->id, 'skill_id' => $ourSkillId,
+        'source_assessment_id' => $assessment->id,
+        'requirement_reference' => 'fixture.safety', 'requirement_version' => 2,
+        'required_level' => 3, 'current_level' => 4, 'gap' => 0, 'mandatory_gate' => true,
+        'criticality' => RequirementCriticality::Critical, 'assessed_at' => now()->subDays(3),
+    ]);
 
     $row = collect(coverRows($f))->firstWhere('skill', 'Energy isolation');
 
     expect($row['covered'])->toBe(1)
-        ->and($row['single_point_of_failure'])->toBeTrue();
+        ->and($row['single_point_of_failure'])->toBeTrue()
+        ->and($row['holders'])->toBe(['Ours']);
 });
 
 test('non-critical skills are not listed', function (): void {

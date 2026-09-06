@@ -1,6 +1,7 @@
 <?php
 
 use App\Domains\People\Skills\Livewire\Assessment\Matrix;
+use App\Domains\People\Skills\Livewire\BackupCoverage\Index as BackupCoverageIndex;
 use App\Domains\People\Skills\Livewire\Catalog\Index;
 use App\Domains\People\Skills\Livewire\DevelopmentAction\Index as DevelopmentActionIndex;
 use App\Domains\People\Skills\Livewire\Planning\Index as HodPlanningIndex;
@@ -12,6 +13,10 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/skills', Index::class)
         ->middleware('authz:people.skill.catalog.view')
         ->name('people.skill.catalog.index');
+
+    Route::get('people/skills/backup-coverage', BackupCoverageIndex::class)
+        ->middleware('authz:'.BackupCoverageIndex::VIEW_CAPABILITY)
+        ->name('people.skill.backup-coverage.index');
 
     Route::get('people/skills/team-gaps', TeamGapsIndex::class)
         ->middleware('authz:'.TeamGapsIndex::VIEW_CAPABILITY)
