@@ -158,6 +158,7 @@ it('renders only the signed-in employee training passport', function (): void {
     Livewire::actingAs($f['user'])
         ->test(TrainingPassport::class)
         ->assertSee('Own training')
+        ->assertSee('Scheduled')
         ->assertSee('CERT-OWN')
         ->assertSee('Own skill')
         ->assertDontSee('Other training')

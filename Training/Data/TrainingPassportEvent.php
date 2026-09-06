@@ -7,6 +7,10 @@ use DateTimeInterface;
 
 final readonly class TrainingPassportEvent
 {
+    public string $statusLabel;
+
+    public string $statusVariant;
+
     public function __construct(
         public int $eventId,
         public string $title,
@@ -15,5 +19,13 @@ final readonly class TrainingPassportEvent
         public TrainingEventStatus $status,
         public bool $attended,
         public int $actualMinutes,
-    ) {}
+    ) {
+        $this->statusLabel = $status->label();
+        $this->statusVariant = match ($status) {
+            TrainingEventStatus::Completed => 'success',
+            TrainingEventStatus::Cancelled => 'danger',
+            TrainingEventStatus::InProgress => 'info',
+            TrainingEventStatus::Scheduled => 'warning',
+        };
+    }
 }

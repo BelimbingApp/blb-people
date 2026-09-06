@@ -32,7 +32,7 @@ use App\Domains\People\Employees\Livewire\TrainingPassport;
                                 <p class="text-sm font-medium text-ink">{{ $event->title }}</p>
                                 <p class="text-xs text-muted"><x-ui.datetime :value="$event->startsAt" format="date" /></p>
                             </div>
-                            <x-ui.badge :variant="$this->eventStatusVariant($event->status->value)">{{ $this->eventStatusLabel($event->status->value) }}</x-ui.badge>
+                            <x-ui.badge :variant="$event->statusVariant">{{ $event->statusLabel }}</x-ui.badge>
                         </div>
                         <p class="mt-2 text-sm text-muted">
                             {{ $event->attended ? __('Attended') : __('Attendance not recorded') }}
@@ -60,7 +60,7 @@ use App\Domains\People\Employees\Livewire\TrainingPassport;
                         <tr wire:key="passport-event-{{ $event->eventId }}">
                             <td class="px-table-cell-x py-table-cell-y text-sm font-medium text-ink">{{ $event->title }}</td>
                             <td class="px-table-cell-x py-table-cell-y text-sm text-ink"><x-ui.datetime :value="$event->startsAt" format="date" /></td>
-                            <td class="px-table-cell-x py-table-cell-y"><x-ui.badge :variant="$this->eventStatusVariant($event->status->value)">{{ $this->eventStatusLabel($event->status->value) }}</x-ui.badge></td>
+                            <td class="px-table-cell-x py-table-cell-y"><x-ui.badge :variant="$event->statusVariant">{{ $event->statusLabel }}</x-ui.badge></td>
                             <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $event->attended ? __('Attended') : __('Attendance not recorded') }}</td>
                             <td class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-ink">{{ $event->actualMinutes }}</td>
                         </tr>
@@ -88,7 +88,7 @@ use App\Domains\People\Employees\Livewire\TrainingPassport;
                         <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $certificate->validUntil?->format('Y-m-d') ?? __('No expiry recorded') }}</td>
                         <td class="px-table-cell-x py-table-cell-y">
                             <span data-certificate-status="{{ $certificate->expired ? 'expired' : 'current' }}">
-                                <x-ui.badge :variant="$certificate->expired ? 'danger' : 'success'">{{ $this->certificateStatusLabel($certificate) }}</x-ui.badge>
+                                <x-ui.badge :variant="$certificate->statusVariant">{{ $certificate->statusLabel }}</x-ui.badge>
                             </span>
                         </td>
                     </tr>

@@ -6,12 +6,10 @@ use App\Core\User\Models\User;
 use App\Domains\People\Provider\Data\ExternalReference;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
-use App\Domains\People\Training\Data\TrainingPassportCertificate;
 use App\Domains\People\Training\Exceptions\TrainingPassportDenied;
 use App\Domains\People\Training\Services\TrainingPassportReader;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -26,26 +24,6 @@ final class TrainingPassport extends Component
         abort_unless($actor instanceof User && $actor->employee_id !== null, 403);
 
         $this->subjectId = (string) $actor->employee_id;
-    }
-
-    public function eventStatusLabel(string $status): string
-    {
-        return (string) Str::headline($status);
-    }
-
-    public function eventStatusVariant(string $status): string
-    {
-        return match ($status) {
-            'completed' => 'success',
-            'cancelled' => 'danger',
-            'in_progress' => 'info',
-            default => 'warning',
-        };
-    }
-
-    public function certificateStatusLabel(TrainingPassportCertificate $certificate): string
-    {
-        return $certificate->expired ? __('Expired') : __('Current');
     }
 
     public function render(TrainingPassportReader $reader): View
