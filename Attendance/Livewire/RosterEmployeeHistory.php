@@ -12,6 +12,7 @@ use App\Domains\People\Attendance\Livewire\Concerns\InteractsWithAttendanceScree
 use App\Domains\People\Provider\Contracts\ResolvesWorkforceSubjects;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
+use App\Domains\People\Provider\Enums\WorkforceSubjectRefusal;
 use Illuminate\Contracts\View\View;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Component;
@@ -41,6 +42,7 @@ class RosterEmployeeHistory extends Component
         $companyId = $this->companyId();
         $employee = null;
         $refused = false;
+        $refusal = null;
 
         // The id came from the request. It is a workforce subject, so it is
         // resolved through the seam with the acting user's company (plan 0001,
@@ -56,6 +58,9 @@ class RosterEmployeeHistory extends Component
 
             $employee = $resolution->record instanceof Employee ? $resolution->record : null;
             $refused = $employee === null;
+            // The reason is shown truthfully: a deactivated employee of this
+            // company is not a company-scope failure (review on #250).
+            $refusal = $refused ? ($resolution->refusal ?? WorkforceSubjectRefusal::Unknown) : null;
         }
 
         $rows = collect();
@@ -89,6 +94,7 @@ class RosterEmployeeHistory extends Component
         return view('people-attendance::livewire.people.attendance.roster-employee-history', [
             'employee' => $employee,
             'refused' => $refused,
+            'refusal' => $refusal,
             'rows' => $rows,
             'userNames' => $userNames,
         ]);
