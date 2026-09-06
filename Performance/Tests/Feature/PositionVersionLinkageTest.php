@@ -18,6 +18,7 @@ use App\Domains\People\Performance\Services\JobDescriptionStore;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Workflow\RequirementProfileTransitionAuthority;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 afterEach(fn () => app(TenantContext::class)->clear());
@@ -308,4 +309,28 @@ test('an interval that ends before it starts is refused for both versions and as
         type: PositionAssignmentType::Substantive,
         effectiveFrom: new DateTimeImmutable('2026-06-01'), effectiveTo: new DateTimeImmutable('2026-01-01'),
     )))->toThrow(InvalidPositionDirectoryException::class, 'cannot end before it starts');
+});
+
+test('an assignment filed under another tenant\'s company is refused by the owner key', function (): void {
+    $f = positionFixture();
+    [, $otherCompany] = createTenantWithCompany(['name' => 'Other Tenant']);
+    $entry = PeopleReferenceEntry::query()->create([
+        'company_id' => $otherCompany->id, 'type' => PeopleReferenceEntry::TYPE_JOB_TITLE,
+        'code' => 'OUT', 'name' => 'Outside title', 'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+    ]);
+    $outsider = Employee::factory()->create([
+        'company_id' => $otherCompany->id, 'full_name' => 'Outsider',
+        'status' => 'active', 'employee_type' => 'full_time',
+    ]);
+
+    // The position and the employee both belong to that company, so the two
+    // service guards pass. What refuses it is the (company_entity_id, tenant_id)
+    // owner key: the row would be filed under this tenant naming another one's
+    // company. Recorded here because that check lives in the schema, so a
+    // future migration edit could remove it without any service test noticing.
+    expect(fn () => app(PositionDirectory::class)->assign((int) $otherCompany->id, new PositionAssignmentDraft(
+        positionStableId: (string) $entry->id, employeeEntityId: (int) $outsider->id,
+        type: PositionAssignmentType::Substantive,
+        effectiveFrom: new DateTimeImmutable('2026-01-01'), effectiveTo: null,
+    )))->toThrow(QueryException::class);
 });

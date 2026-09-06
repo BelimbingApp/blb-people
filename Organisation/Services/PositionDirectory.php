@@ -3,6 +3,7 @@
 namespace App\Domains\People\Organisation\Services;
 
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Core\Employee\Models\Employee;
 use App\Domains\People\Organisation\Data\PositionAssignmentDraft;
 use App\Domains\People\Organisation\Data\PositionVersionDraft;
 use App\Domains\People\Organisation\Enums\PositionAssignmentType;
@@ -75,6 +76,7 @@ final class PositionDirectory
     {
         $tenantId = $this->tenantId();
         $this->assertPosition($companyEntityId, $draft->positionStableId);
+        $this->assertEmployee($companyEntityId, $draft->employeeEntityId);
         if ($draft->effectiveTo !== null && $this->day($draft->effectiveTo) < $this->day($draft->effectiveFrom)) {
             throw new InvalidPositionDirectoryException('An assignment cannot end before it starts.');
         }
@@ -172,6 +174,27 @@ final class PositionDirectory
             ->exists();
         if (! $exists) {
             throw new InvalidPositionDirectoryException('The position is not a job title in this company.');
+        }
+    }
+
+    /**
+     * The holder has to belong to the company the assignment is filed under.
+     *
+     * Without this the row is written with the requested company and tenant
+     * while naming someone else's employee, and every later read —
+     * assignmentsForEmployee() above, and the job-description resolution built
+     * on it — treats that as local data. The position was checked and the
+     * employee was not, which is the half-check that makes a cross-company
+     * reference look native.
+     */
+    private function assertEmployee(int $companyEntityId, int $employeeEntityId): void
+    {
+        $exists = Employee::query()
+            ->where('company_id', $companyEntityId)
+            ->whereKey($employeeEntityId)
+            ->exists();
+        if (! $exists) {
+            throw new InvalidPositionDirectoryException('The employee does not belong to this company.');
         }
     }
 
