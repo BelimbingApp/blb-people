@@ -1,28 +1,20 @@
 name: ci
 
-# Thin caller for the BLB People Domain. All build/test/scan logic
-# lives once in the platform repo's reusable domain-ci workflow; this repo only
-# declares its contract path and SonarCloud identity.
+# Temporary proof pin for BelimbingApp/belimbing#662 composed subject-id scan.
+# Not for merge — close after the domain-ci step is visible on a green run.
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
-  # Run independently of repository changes so month-boundary regressions and
-  # future platform-ref drift are detected by a dedicated signal. GitHub cron
-  # is UTC; two runs per day cover every calendar boundary.
-  schedule:
-    - cron: '17 3,15 * * *'
   workflow_dispatch:
 
 jobs:
   ci:
-    uses: BelimbingApp/belimbing/.github/workflows/domain-ci.yml@main
+    uses: BelimbingApp/belimbing/.github/workflows/domain-ci.yml@839ee6a4363a2c4fc3f642c56016ffffc1c6ac10
     with:
       domain-path: app/Domains/People
+      platform-ref: 839ee6a4363a2c4fc3f642c56016ffffc1c6ac10
       sonar-project-key: BelimbingApp_blb-people
       sonar-organization: belimbingapp
     secrets:
