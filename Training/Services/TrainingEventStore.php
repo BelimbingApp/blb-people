@@ -3,6 +3,7 @@
 namespace App\Domains\People\Training\Services;
 
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\TrainingEventDraft;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
@@ -11,6 +12,7 @@ use App\Domains\People\Training\Exceptions\TrainingEventNotFoundException;
 use App\Domains\People\Training\Models\TrainingCourse;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingEventAuditEvent;
+use App\Domains\People\Training\Models\TrainingParticipationFact;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +24,7 @@ final class TrainingEventStore
     public function __construct(
         private readonly TenantContext $tenantContext,
         private readonly WorkforceSubjects $workforce,
+        private readonly TrainingAudience $audiences,
     ) {}
 
     public function schedule(
@@ -32,31 +35,8 @@ final class TrainingEventStore
     ): TrainingEvent {
         return DB::transaction(function () use ($companyEntityId, $draft, $actorUserId, $actorEmployeeEntityId): TrainingEvent {
             $course = $this->validateDraft($companyEntityId, $draft);
-            $trainerId = $draft->internalTrainerEmployeeEntityId ?? $course->internal_trainer_employee_entity_id;
-            $event = TrainingEvent::query()->create([
-                'tenant_id' => $this->tenantContext->requireTenantId(),
-                'company_entity_id' => $companyEntityId,
-                'event_key' => (string) Str::uuid(),
-                'course_id' => $course->id,
-                'course_code_snapshot' => $course->code,
-                'course_title_snapshot' => $course->title,
-                'delivery_mode_snapshot' => $draft->deliveryMode ?? $course->delivery_mode,
-                'target_department_entity_id' => $draft->targetDepartmentEntityId,
-                'organizer_employee_entity_id' => $draft->organizerEmployeeEntityId,
-                'internal_trainer_employee_entity_id' => $trainerId,
-                'external_trainer_reference' => $this->trimNullable($draft->externalTrainerReference),
-                'external_trainer_name_snapshot' => $this->trimNullable($draft->externalTrainerName),
-                'venue' => $this->trimNullable($draft->venue),
-                'starts_at' => $draft->startsAt,
-                'ends_at' => $draft->endsAt,
-                'capacity' => $draft->capacity,
-                'status' => TrainingEventStatus::Scheduled,
-                'created_by_user_id' => $actorUserId,
-            ]);
-            $this->record($event, 'scheduled', null, TrainingEventStatus::Scheduled, null, null,
-                $actorUserId, $actorEmployeeEntityId);
 
-            return $event;
+            return $this->createScheduled($companyEntityId, $course, $draft, $actorUserId, $actorEmployeeEntityId);
         });
     }
 
@@ -72,7 +52,7 @@ final class TrainingEventStore
             if ($event->status !== TrainingEventStatus::Scheduled) {
                 throw new InvalidTrainingEventException('Only a scheduled event can be revised.');
             }
-            $course = $this->validateDraft($companyEntityId, $draft);
+            $course = $this->validateDraft($companyEntityId, $draft, (int) $event->id);
             $event->update([
                 'course_id' => $course->id,
                 'course_code_snapshot' => $course->code,
@@ -143,6 +123,10 @@ final class TrainingEventStore
             if ($event->status->isTerminal()) {
                 throw new InvalidTrainingEventException('A terminal training event cannot be cancelled.');
             }
+            if ($this->hasConfirmedParticipants($companyEntityId, (int) $event->id)
+                && ! $this->isHr($companyEntityId, $actorUserId)) {
+                throw new InvalidTrainingEventException('An event with confirmed participants can only be cancelled by HR.');
+            }
             $from = $event->status;
             $event->update([
                 'status' => TrainingEventStatus::Cancelled,
@@ -153,6 +137,35 @@ final class TrainingEventStore
                 $actorUserId, $actorEmployeeEntityId);
 
             return $event->refresh();
+        });
+    }
+
+    /**
+     * Rescheduling keeps history honest: the old event remains as a cancelled
+     * record pointing at its replacement, and the replacement is a new event
+     * with its own key and audit trail. The replacement still goes through
+     * the duplicate-slot check, ignoring the event it supersedes.
+     */
+    public function reschedule(
+        int $companyEntityId,
+        int $eventId,
+        TrainingEventDraft $draft,
+        ?int $actorUserId = null,
+        ?int $actorEmployeeEntityId = null,
+    ): TrainingEvent {
+        return DB::transaction(function () use ($companyEntityId, $eventId, $draft, $actorUserId, $actorEmployeeEntityId): TrainingEvent {
+            $event = $this->find($companyEntityId, $eventId, true);
+            if ($event->status !== TrainingEventStatus::Scheduled) {
+                throw new InvalidTrainingEventException('Only a scheduled event can be rescheduled.');
+            }
+            $course = $this->validateDraft($companyEntityId, $draft, (int) $event->id);
+            $moved = $this->createScheduled($companyEntityId, $course, $draft, $actorUserId, $actorEmployeeEntityId);
+            $reason = "Rescheduled to event {$moved->event_key}.";
+            $cancelled = $this->cancel($companyEntityId, (int) $event->id, $reason, $actorUserId, $actorEmployeeEntityId);
+            $this->record($cancelled, 'rescheduled', TrainingEventStatus::Scheduled,
+                TrainingEventStatus::Cancelled, $reason, null, $actorUserId, $actorEmployeeEntityId);
+
+            return $moved;
         });
     }
 
@@ -177,7 +190,60 @@ final class TrainingEventStore
             ->orderByDesc('starts_at');
     }
 
-    private function validateDraft(int $companyEntityId, TrainingEventDraft $draft): TrainingCourse
+    private function createScheduled(
+        int $companyEntityId,
+        TrainingCourse $course,
+        TrainingEventDraft $draft,
+        ?int $actorUserId,
+        ?int $actorEmployeeEntityId,
+    ): TrainingEvent {
+        $trainerId = $draft->internalTrainerEmployeeEntityId ?? $course->internal_trainer_employee_entity_id;
+        $event = TrainingEvent::query()->create([
+            'tenant_id' => $this->tenantContext->requireTenantId(),
+            'company_entity_id' => $companyEntityId,
+            'event_key' => (string) Str::uuid(),
+            'course_id' => $course->id,
+            'course_code_snapshot' => $course->code,
+            'course_title_snapshot' => $course->title,
+            'delivery_mode_snapshot' => $draft->deliveryMode ?? $course->delivery_mode,
+            'target_department_entity_id' => $draft->targetDepartmentEntityId,
+            'organizer_employee_entity_id' => $draft->organizerEmployeeEntityId,
+            'internal_trainer_employee_entity_id' => $trainerId,
+            'external_trainer_reference' => $this->trimNullable($draft->externalTrainerReference),
+            'external_trainer_name_snapshot' => $this->trimNullable($draft->externalTrainerName),
+            'venue' => $this->trimNullable($draft->venue),
+            'starts_at' => $draft->startsAt,
+            'ends_at' => $draft->endsAt,
+            'capacity' => $draft->capacity,
+            'status' => TrainingEventStatus::Scheduled,
+            'created_by_user_id' => $actorUserId,
+        ]);
+        $this->record($event, 'scheduled', null, TrainingEventStatus::Scheduled, null, null,
+            $actorUserId, $actorEmployeeEntityId);
+
+        return $event;
+    }
+
+    private function hasConfirmedParticipants(int $companyEntityId, int $eventId): bool
+    {
+        return TrainingParticipationFact::query()
+            ->forCompany($this->tenantContext->requireTenantId(), $companyEntityId)
+            ->where('event_id', $eventId)
+            ->whereNotNull('confirmed_at')
+            ->exists();
+    }
+
+    private function isHr(int $companyEntityId, ?int $actorUserId): bool
+    {
+        if ($actorUserId === null) {
+            return false;
+        }
+        $user = User::query()->find($actorUserId);
+
+        return $user !== null && $this->audiences->canManage($user, $companyEntityId);
+    }
+
+    private function validateDraft(int $companyEntityId, TrainingEventDraft $draft, ?int $ignoreEventId = null): TrainingCourse
     {
         $tenantId = $this->tenantContext->requireTenantId();
         $course = TrainingCourse::query()->forCompany($tenantId, $companyEntityId)
@@ -185,6 +251,16 @@ final class TrainingEventStore
             ?? throw new InvalidTrainingEventException('Choose an active training course from this company.');
         if (CarbonImmutable::instance($draft->endsAt)->lessThanOrEqualTo(CarbonImmutable::instance($draft->startsAt))) {
             throw new InvalidTrainingEventException('The event end must be after its start.');
+        }
+        $overlaps = TrainingEvent::query()->forCompany($tenantId, $companyEntityId)
+            ->where('course_id', $course->id)
+            ->whereIn('status', [TrainingEventStatus::Scheduled, TrainingEventStatus::InProgress])
+            ->where('starts_at', '<', CarbonImmutable::instance($draft->endsAt))
+            ->where('ends_at', '>', CarbonImmutable::instance($draft->startsAt))
+            ->when($ignoreEventId !== null, static fn (Builder $query): Builder => $query->whereKeyNot($ignoreEventId))
+            ->exists();
+        if ($overlaps) {
+            throw new InvalidTrainingEventException('The course already has an event at that time.');
         }
         if (! CarbonImmutable::instance($draft->endsAt)->isFuture()) {
             throw new InvalidTrainingEventException('The event must end in the future.');

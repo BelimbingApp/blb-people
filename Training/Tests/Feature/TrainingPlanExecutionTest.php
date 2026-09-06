@@ -135,12 +135,12 @@ function planExecApprovedPlan(array $f, array $needReferences = ['need:LOTO-1'])
     return $store->approve($f['hr'], (int) $f['company']->id, (int) $plan->id);
 }
 
-function planExecEventDraft(array $f): TrainingEventDraft
+function planExecEventDraft(array $f, string $day = '2027-03-01'): TrainingEventDraft
 {
     return new TrainingEventDraft(
         courseId: (int) $f['course']->id,
-        startsAt: new DateTimeImmutable('2027-03-01T09:00:00+00:00'),
-        endsAt: new DateTimeImmutable('2027-03-01T17:00:00+00:00'),
+        startsAt: new DateTimeImmutable($day.'T09:00:00+00:00'),
+        endsAt: new DateTimeImmutable($day.'T17:00:00+00:00'),
         capacity: 12,
         organizerEmployeeEntityId: (int) $f['head']->id,
         targetDepartmentEntityId: (int) $f['entry']->id,
@@ -194,8 +194,9 @@ test('an item dropped by an approved amendment cancels its unstarted event and l
     $first = planExecApprovedPlan($f, ['need:LOTO-1', 'need:LOTO-2']);
     $execution = app(TrainingPlanExecution::class);
     $items = $first->items()->orderBy('need_reference')->get();
+    // Same course, so each item takes its own day now that double-booking is refused.
     $kept = $execution->execute($company, (int) $items[0]->id, planExecEventDraft($f));
-    $dropped = $execution->execute($company, (int) $items[1]->id, planExecEventDraft($f));
+    $dropped = $execution->execute($company, (int) $items[1]->id, planExecEventDraft($f, '2027-03-08'));
 
     $store = app(TrainingPlanStore::class);
     $second = $store->amend($f['hod'], $company, (int) $first->id, 'Drop the second need.');
@@ -215,7 +216,7 @@ test('an amendment does not cancel an event that has already started', function 
     $first = planExecApprovedPlan($f, ['need:LOTO-1', 'need:LOTO-2']);
     $execution = app(TrainingPlanExecution::class);
     $items = $first->items()->orderBy('need_reference')->get();
-    $execution->execute($company, (int) $items[0]->id, planExecEventDraft($f));
+    $execution->execute($company, (int) $items[0]->id, planExecEventDraft($f, '2027-03-08'));
     $started = $execution->execute($company, (int) $items[1]->id, planExecEventDraft($f));
     $this->travelTo(new DateTimeImmutable('2027-03-01T10:00:00+00:00'));
     app(TrainingEventStore::class)->start($company, (int) $started->id);
@@ -260,7 +261,7 @@ test('amending one plan lineage leaves another lineage\'s events alone', functio
     expect($theirs->plan_key)->not->toBe($mine->plan_key);
 
     $execution->execute($company, (int) $mine->items()->sole()->id, planExecEventDraft($f));
-    $other = $execution->execute($company, (int) $theirs->items()->sole()->id, planExecEventDraft($f));
+    $other = $execution->execute($company, (int) $theirs->items()->sole()->id, planExecEventDraft($f, '2027-03-08'));
 
     $second = $store->amend($f['hod'], $company, (int) $mine->id, 'Drop the only need.');
     TrainingPlanItem::query()->forCompany((int) $f['tenant']->id, $company)
