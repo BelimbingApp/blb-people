@@ -6,10 +6,12 @@ return [
     ],
     'capabilities' => [
         'people.performance.job-description.manage',
+        'people.performance.job-description.view',
         'people.performance.kpi.submit',
         'people.performance.kpi.review',
         'people.performance.kpi.approve',
         'people.performance.kpi.view',
+        'people.performance.kpi.evidence.view',
     ],
     'roles' => [
         'people_hod' => ['capabilities' => ['people.performance.kpi.submit']],

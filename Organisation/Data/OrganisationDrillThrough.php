@@ -11,5 +11,6 @@ final readonly class OrganisationDrillThrough
         public OrganisationNode $source,
         public OrganisationPurpose $purpose,
         public array $nodes,
+        public ?OrganisationRecordDetail $detail = null,
     ) {}
 }

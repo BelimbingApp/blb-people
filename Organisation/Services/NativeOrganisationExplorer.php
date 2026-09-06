@@ -7,6 +7,7 @@ use App\Base\Authz\DTO\Actor;
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Domains\People\Organisation\Contracts\ContributesOrganisationRecordDetail;
 use App\Domains\People\Organisation\Contracts\ReadsOrganisationExplorer;
 use App\Domains\People\Organisation\Contracts\SummarizesOrganisationSkillCoverage;
 use App\Domains\People\Organisation\Data\OrganisationAggregate;
@@ -21,6 +22,7 @@ use App\Domains\People\Provider\Contracts\ReadsWorkforcePositions;
 use App\Domains\People\Provider\Data\WorkforceCompany;
 use App\Domains\People\Provider\Data\WorkforceEmployee;
 use App\Domains\People\Provider\Data\WorkforceOrganizationUnit;
+use App\Domains\People\Provider\Data\WorkforcePosition;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use DateTimeImmutable;
@@ -36,6 +38,7 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
         private readonly AuthorizationService $authorization,
         private readonly ReadsWorkforceDirectory $workforce,
         private readonly ?SummarizesOrganisationSkillCoverage $skillCoverage = null,
+        private readonly ?ContributesOrganisationRecordDetail $recordDetail = null,
     ) {}
 
     public function structureNode(
@@ -174,7 +177,12 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
             }
         }
 
-        return new OrganisationDrillThrough($source, $purpose, $nodes);
+        $detail = $purpose === OrganisationPurpose::IndividualDetail
+            && in_array($source->subject->type, [WorkforceResourceType::Position, WorkforceResourceType::Employee], true)
+                ? $this->recordDetail?->detail($actor, $source->subject, $node->asOf)
+                : null;
+
+        return new OrganisationDrillThrough($source, $purpose, $nodes, $detail);
     }
 
     private function readNode(
@@ -273,6 +281,8 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
     {
         return ($subject->type === WorkforceResourceType::Employee
                 && $subject->stableId === $employee->reference->externalId)
+            || ($subject->type === WorkforceResourceType::Position
+                && $subject->stableId === $employee->positionReference?->externalId)
             || ($subject->type === WorkforceResourceType::OrganizationUnit
                 && $subject->stableId === $employee->organizationReference?->externalId);
     }
@@ -293,6 +303,21 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
 
         if ($subject->type === WorkforceResourceType::OrganizationUnit) {
             return in_array($subject->stableId, $managedUnitIds, true);
+        }
+
+        if ($subject->type === WorkforceResourceType::Position) {
+            if (! $this->workforce instanceof ReadsWorkforcePositions) {
+                return false;
+            }
+
+            foreach ($this->workforce->positions($company->reference->externalId) as $position) {
+                if ($position->reference->externalId === $subject->stableId) {
+                    return $position->organizationReference !== null
+                        && in_array($position->organizationReference->externalId, $managedUnitIds, true);
+                }
+            }
+
+            return false;
         }
 
         if ($subject->type !== WorkforceResourceType::Employee) {
@@ -317,6 +342,7 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
         $projection = match ($subject->type) {
             WorkforceResourceType::Company => $subject->stableId === $company->reference->externalId ? $company : null,
             WorkforceResourceType::OrganizationUnit => $this->findUnit($company, $subject->stableId),
+            WorkforceResourceType::Position => $this->findPosition($company, $subject->stableId),
             WorkforceResourceType::Employee => $this->findEmployee($company, $subject->stableId),
             default => false,
         };
@@ -341,24 +367,31 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
     /** @return list<WorkforceSubject> */
     private function structureChildren(WorkforceSubject $source, WorkforceCompany $company): array
     {
-        if ($source->type !== WorkforceResourceType::Company) {
-            return [];
-        }
-
-        return array_map(
-            fn (WorkforceOrganizationUnit $unit): WorkforceSubject => $this->subject(
-                $source,
-                WorkforceResourceType::OrganizationUnit,
-                $unit->reference->externalId,
+        return match ($source->type) {
+            WorkforceResourceType::Company => array_map(
+                fn (WorkforceOrganizationUnit $unit): WorkforceSubject => $this->subject(
+                    $source,
+                    WorkforceResourceType::OrganizationUnit,
+                    $unit->reference->externalId,
+                ),
+                $this->workforce->organizationUnits($company->reference->externalId),
             ),
-            $this->workforce->organizationUnits($company->reference->externalId),
-        );
+            WorkforceResourceType::OrganizationUnit => array_map(
+                fn ($position): WorkforceSubject => $this->subject(
+                    $source,
+                    WorkforceResourceType::Position,
+                    $position->reference->externalId,
+                ),
+                $this->positionsIn($company, $source->stableId),
+            ),
+            default => [],
+        };
     }
 
     /** @return list<WorkforceSubject> */
     private function detailChildren(WorkforceSubject $source, WorkforceCompany $company): array
     {
-        if (! in_array($source->type, [WorkforceResourceType::Company, WorkforceResourceType::OrganizationUnit], true)) {
+        if (! in_array($source->type, [WorkforceResourceType::Company, WorkforceResourceType::OrganizationUnit, WorkforceResourceType::Position], true)) {
             return [];
         }
 
@@ -371,7 +404,10 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
             array_filter(
                 $this->workforce->employees($company->reference->externalId),
                 fn (WorkforceEmployee $employee): bool => $source->type === WorkforceResourceType::Company
-                    || $employee->organizationReference?->externalId === $source->stableId,
+                    || ($source->type === WorkforceResourceType::OrganizationUnit
+                        && $employee->organizationReference?->externalId === $source->stableId)
+                    || ($source->type === WorkforceResourceType::Position
+                        && $employee->positionReference?->externalId === $source->stableId),
             ),
         ));
     }
@@ -394,6 +430,35 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
             if ($employee->reference->externalId === $stableId
                 && $employee->companyReference == $company->reference) {
                 return $employee;
+            }
+        }
+
+        return null;
+    }
+
+    /** @return list<WorkforcePosition> */
+    private function positionsIn(WorkforceCompany $company, string $organizationStableId): array
+    {
+        if (! $this->workforce instanceof ReadsWorkforcePositions) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $this->workforce->positions($company->reference->externalId),
+            fn (WorkforcePosition $position): bool => $position->organizationReference?->externalId === $organizationStableId,
+        ));
+    }
+
+    private function findPosition(WorkforceCompany $company, string $stableId): ?WorkforcePosition
+    {
+        if (! $this->workforce instanceof ReadsWorkforcePositions) {
+            return null;
+        }
+
+        foreach ($this->workforce->positions($company->reference->externalId) as $position) {
+            if ($position->reference->externalId === $stableId
+                && $position->companyReference == $company->reference) {
+                return $position;
             }
         }
 

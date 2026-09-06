@@ -12,6 +12,7 @@ use App\Domains\People\Performance\Exceptions\KpiRecordException;
 use App\Domains\People\Performance\Models\KpiDefinition;
 use App\Domains\People\Performance\Models\KpiRecord;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
+use App\Domains\People\Provider\Contracts\ReadsWorkforcePositions;
 use App\Domains\People\Provider\Contracts\ResolvesWorkforceSubjects;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
@@ -267,6 +268,12 @@ final readonly class KpiRecordService
             return false;
         }
 
+        $position = $owner->type === WorkforceResourceType::Position
+            && $this->directory instanceof ReadsWorkforcePositions
+                ? collect($this->directory->positions($company->reference->externalId))
+                    ->first(fn ($position) => $position->reference->externalId === $owner->stableId)
+                : null;
+
         foreach ($this->directory->employees($company->reference->externalId) as $employee) {
             if ($employee->departmentHeadReference?->externalId !== $hod->reference->externalId) {
                 continue;
@@ -274,6 +281,11 @@ final readonly class KpiRecordService
 
             if (($owner->type === WorkforceResourceType::Employee && $owner->stableId === $employee->reference->externalId)
                 || ($owner->type === WorkforceResourceType::OrganizationUnit && $owner->stableId === $employee->organizationReference?->externalId)) {
+                return true;
+            }
+
+            if ($position !== null
+                && $position->organizationReference?->externalId === $employee->organizationReference?->externalId) {
                 return true;
             }
         }
