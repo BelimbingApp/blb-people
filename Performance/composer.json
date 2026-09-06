@@ -14,6 +14,7 @@
             "version": "0.1.0",
             "description": "Company-owned job-description versions and KPI performance records.",
             "requires-modules": {
+                "people/organisation": "*",
                 "people/provider": "*",
                 "people/skills": "*"
             },

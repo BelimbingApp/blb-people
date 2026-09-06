@@ -1,7 +1,9 @@
 <?php
 
+use App\Base\Authz\DTO\Actor;
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
+use App\Base\Authz\Models\PrincipalCapability;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
@@ -12,12 +14,15 @@ use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Performance\Data\KpiResultValue;
 use App\Domains\People\Performance\Data\TeamKpiAttribution;
+use App\Domains\People\Performance\Enums\JobDescriptionStatus;
 use App\Domains\People\Performance\Enums\KpiDirection;
 use App\Domains\People\Performance\Enums\KpiValueState;
 use App\Domains\People\Performance\Exceptions\KpiRecordException;
+use App\Domains\People\Performance\Models\JobDescription;
 use App\Domains\People\Performance\Models\KpiDefinition;
 use App\Domains\People\Performance\Models\KpiRecord;
 use App\Domains\People\Performance\Services\KpiRecordService;
+use App\Domains\People\Performance\Services\OrganisationPerformanceDetail;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;

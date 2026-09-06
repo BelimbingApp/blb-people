@@ -17,6 +17,8 @@ return [
         'people.training.participation.manage',
         'people.training.participation.verify',
         'people.training.participation.evidence.assign',
+        'people.training.effectiveness.review',
+        'people.training.effectiveness.close',
 
         /*
          * The participant evaluation read. A capability of its own rather than
@@ -45,6 +47,7 @@ return [
                 'people.training.participation.manage',
                 'people.training.participation.verify',
                 'people.training.participation.evidence.assign',
+                'people.training.effectiveness.close',
             ],
         ],
         'people_training_trainer' => [
@@ -58,6 +61,7 @@ return [
                 'people.training.evaluation.view',
                 'people.training.plan.submit',
                 'people.training.request.hod-approve',
+                'people.training.effectiveness.review',
             ],
         ],
         'people_employee' => [
