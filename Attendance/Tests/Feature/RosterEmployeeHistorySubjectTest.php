@@ -76,6 +76,8 @@ test('a deactivated employee is refused by the seam', function (): void {
         ->assertOk()
         ->assertViewHas('employee', null)
         ->assertViewHas('refused', true)
+        ->assertSee('That employee is no longer active.')
+        ->assertDontSee('not in your company scope')
         ->assertDontSee('Former Operator');
 });
 
