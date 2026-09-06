@@ -17,6 +17,7 @@ use App\Domains\People\Performance\Services\PerformanceReviewStore;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 
 /**
  * 0009-c: a weekly nudge for reviews that have gone quiet, written once per
@@ -195,7 +196,12 @@ test('the database refuses a second reminder for the same manager, review and we
     $review = overdueDraft($f, now()->subDays(31)->toDateTimeString());
     overdueRun($f);
 
-    $duplicate = fn (): PerformanceReviewReminder => PerformanceReviewReminder::query()->create([
+    // Wrapped in a transaction so the violation rolls back to a savepoint.
+    // Postgres aborts the whole surrounding transaction on a failed statement,
+    // so without this the count below dies with "current transaction is
+    // aborted" instead of answering the question. SQLite does not, which is
+    // why this passed locally and only postgres-mirror caught it.
+    $duplicate = fn (): PerformanceReviewReminder => DB::transaction(fn (): PerformanceReviewReminder => PerformanceReviewReminder::query()->create([
         'tenant_id' => $f['tenantId'],
         'company_entity_id' => $f['companyId'],
         'review_id' => (int) $review->id,
@@ -203,7 +209,7 @@ test('the database refuses a second reminder for the same manager, review and we
         'reason' => OverdueReviewReason::StaleDraft,
         'week_key' => OverdueReviewReminders::weekKey(now()),
         'notified_at' => now(),
-    ]);
+    ]));
 
     // The service checks first, but the key is what makes the promise: two
     // runs racing each other cannot both win.
