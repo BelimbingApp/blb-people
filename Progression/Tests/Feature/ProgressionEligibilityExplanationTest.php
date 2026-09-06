@@ -86,12 +86,14 @@ function explainSubject(array $f): WorkforceSubject
  * constraint, and a fixture the application cannot produce is not worth testing
  * against.
  */
-function explainScore(array $f, int $currentLevel, int $requirementVersion = 3): EmployeeSkillScore
+function explainScore(array $f, int $currentLevel, int $requirementVersion = 3, ?string $assessedAt = null): EmployeeSkillScore
 {
-    $category = app(SkillCatalogStore::class)->defineCategory($f['companyId'], 'ops', 'Operations');
+    static $seq = 0;
+    $seq++;
+    $category = app(SkillCatalogStore::class)->defineCategory($f['companyId'], 'ops-'.$seq, 'Operations '.$seq);
     $skillId = (int) app(SkillCatalogStore::class)->defineSkill($f['companyId'], new SkillDraft(
-        code: 'forklift.operation',
-        name: 'Forklift Operation',
+        code: 'forklift.operation.'.$seq,
+        name: 'Forklift Operation '.$seq,
         definition: 'Operates a counterbalance forklift.',
         categoryId: (int) $category->id,
         scope: SkillScope::Shared,
@@ -117,7 +119,7 @@ function explainScore(array $f, int $currentLevel, int $requirementVersion = 3):
         'cycle' => 'annual',
         'status' => 'draft',
         'evidence' => 'Observed lift cycle.',
-        'assessed_at' => now(),
+        'assessed_at' => $assessedAt ?? now(),
         'assessor_user_id' => 9,
     ]);
 
@@ -134,7 +136,7 @@ function explainScore(array $f, int $currentLevel, int $requirementVersion = 3):
         'gap' => max(4 - $currentLevel, 0),
         'mandatory_gate' => true,
         'criticality' => 'critical',
-        'assessed_at' => now(),
+        'assessed_at' => $assessedAt ?? now(),
     ]);
 }
 
@@ -249,4 +251,25 @@ test('an explanation names the policy version it explains and decides nothing', 
     expect($explanation->policyId)->toBe('technical-progression')
         ->and($explanation->policyVersion)->toBe('2026.1')
         ->and(method_exists($explanation, 'eligible'))->toBeFalse();
+});
+
+test('an explanation reports the subject own evidence, not a colleague at the same company', function (): void {
+    $f = explainFixture();
+    $colleague = Employee::factory()->create(['company_id' => $f['companyId'], 'status' => 'active']);
+    explainScore($f, currentLevel: 1, assessedAt: '2026-01-01 00:00:00');
+    // Newer than the subject's, so without the subject filter the ordering
+    // would pick the colleague's row and report it as this person's.
+    explainScore(
+        ['tenantId' => $f['tenantId'], 'companyId' => $f['companyId'], 'employeeId' => (int) $colleague->id],
+        currentLevel: 5,
+        assessedAt: '2026-06-01 00:00:00',
+    );
+
+    // Same company, so no company boundary is crossed and nothing refuses this.
+    // The only thing keeping one person's explanation about that person is the
+    // subject filter itself.
+    $explanation = app(ProgressionEligibilityExplainer::class)->explain(explainSubject($f));
+
+    expect($explanation->rules[0]->observedLevel)->toBe(1)
+        ->and($explanation->rules[0]->status)->toBe(ProgressionRuleStatus::NotMet);
 });
