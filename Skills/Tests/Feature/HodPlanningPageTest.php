@@ -224,7 +224,7 @@ test('the hod planning route requires the assessment view capability', function 
         ->get(route('people.skill.planning.index'))
         ->assertOk();
 
-    $stranger = User::factory()->create();
+    $stranger = User::factory()->create(['company_id' => $fixture['company']->id]);
     $this->actingAs($stranger)
         ->get(route('people.skill.planning.index'))
         ->assertForbidden();

@@ -297,6 +297,6 @@ test('the route refuses a HOD, a stranger and a platform admin', function (): vo
 
     $this->actingAs($a['hr'])->get(route('people.hr-governance.index'))->assertOk();
     $this->actingAs($a['hod'])->get(route('people.hr-governance.index'))->assertForbidden();
-    $this->actingAs(User::factory()->create())->get(route('people.hr-governance.index'))->assertForbidden();
+    $this->actingAs(User::factory()->create(['company_id' => $a['company']->id]))->get(route('people.hr-governance.index'))->assertForbidden();
     $this->actingAs(hrGovUser($a['company'], 'core_admin'))->get(route('people.hr-governance.index'))->assertForbidden();
 });
