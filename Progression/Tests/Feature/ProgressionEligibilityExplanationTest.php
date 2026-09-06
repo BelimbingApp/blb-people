@@ -230,6 +230,14 @@ test('an explanation is refused for a subject in another tenant', function (): v
         ->toBe(ProgressionPolicyRefusal::TenantMismatch);
 });
 
+test('an explanation is refused without a current tenant context', function (): void {
+    $f = explainFixture();
+    app(TenantContext::class)->clear();
+
+    expect(app(ProgressionEligibilityExplainer::class)->explain(explainSubject($f)))
+        ->toBe(ProgressionPolicyRefusal::MissingTenant);
+});
+
 test('an explanation is refused when no policy is published for the company', function (): void {
     [$tenant, $company] = createTenantWithCompany();
     app(TenantContext::class)->set((int) $tenant->id);

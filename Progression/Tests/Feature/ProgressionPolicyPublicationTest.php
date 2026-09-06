@@ -76,6 +76,26 @@ it('publishes a draft and supersedes the previously published version of the sam
         ->and($otherPolicy->refresh()->status)->toBe(ProgressionPolicyStatus::Published);
 });
 
+it('supersedes the same policy only inside the requested company', function (): void {
+    ['tenant' => $tenantId, 'company' => $companyId, 'hr' => $hr] = publicationFixture();
+    $current = publicationDraft($tenantId, $companyId, '2026.1', [
+        'status' => ProgressionPolicyStatus::Published,
+        'published_at' => now(),
+    ]);
+    $replacement = publicationDraft($tenantId, $companyId, '2026.2');
+    $siblingCompanyId = (int) Company::factory()->create(['tenant_id' => $tenantId, 'status' => 'active'])->id;
+    $siblingCurrent = publicationDraft($tenantId, $siblingCompanyId, '2026.1', [
+        'status' => ProgressionPolicyStatus::Published,
+        'published_at' => now(),
+    ]);
+
+    app(ProgressionPolicyPublisher::class)->publish($hr, $companyId, (int) $replacement->id);
+
+    expect($current->refresh()->status)->toBe(ProgressionPolicyStatus::Superseded)
+        ->and($replacement->refresh()->status)->toBe(ProgressionPolicyStatus::Published)
+        ->and($siblingCurrent->refresh()->status)->toBe(ProgressionPolicyStatus::Published);
+});
+
 it('refuses to publish without a tenant context', function (): void {
     ['tenant' => $tenantId, 'company' => $companyId, 'hr' => $hr] = publicationFixture();
     $draft = publicationDraft($tenantId, $companyId);
@@ -96,6 +116,14 @@ it('refuses to publish without the manage capability', function (): void {
         ->toThrow(AuthorizationDeniedException::class);
 
     expect($draft->refresh()->status)->toBe(ProgressionPolicyStatus::Draft);
+});
+
+it('refuses a missing capability before resolving the requested company or policy', function (): void {
+    ['tenant' => $tenantId, 'hod' => $hod] = publicationFixture();
+    $siblingCompanyId = (int) Company::factory()->create(['tenant_id' => $tenantId, 'status' => 'active'])->id;
+
+    expect(fn () => app(ProgressionPolicyPublisher::class)->publish($hod, $siblingCompanyId, PHP_INT_MAX))
+        ->toThrow(AuthorizationDeniedException::class);
 });
 
 it('refuses to publish for a company the actor is not attributed to, and a policy outside the company', function (): void {

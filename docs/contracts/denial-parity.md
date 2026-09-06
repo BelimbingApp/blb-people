@@ -97,3 +97,5 @@ drifting as tests move or disappear.
 | Provider | Resolve a workforce remap | covered | covered | missing | missing | `Provider/Tests/Feature/NativeWorkforceDirectoryTest.php` | missing |
 | Provider | Resolve a workforce subject | covered | covered | missing | missing | `Provider/Tests/Feature/NativeWorkforceSubjectResolverTest.php`<br>`Provider/Tests/Feature/WorkforceSubjectContractTest.php` | `connector:Connector/Services/ProjectionWorkforceSubjectResolver.php`<br>`connector:Connector/Tests/Feature/WorkforceSubjectDenialParityTest.php` |
 | Progression | Read the published progression policy | covered | covered | missing | missing | `Progression/Tests/Feature/PublishedProgressionPolicyTest.php` | missing |
+| Progression | Publish and supersede a progression policy | covered | covered | covered | covered | `Progression/Tests/Feature/ProgressionPolicyPublicationTest.php` | missing |
+| Progression | Explain progression eligibility | covered | covered | missing | missing | `Progression/Tests/Feature/ProgressionEligibilityExplanationTest.php` | missing |
