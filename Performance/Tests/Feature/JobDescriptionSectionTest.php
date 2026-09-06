@@ -147,7 +147,7 @@ test('publish refuses a version whose sections were emptied after drafting', fun
     // Draft-time validation is not publish-time validation. Whatever put this
     // row into this state, publishing is the moment it becomes policy, so the
     // check belongs there too.
-    DB::table('people_performance_job_descriptions')->where('id', $draft->id)->update(['purpose' => '   ']);
+    DB::table('people_job_descriptions')->where('id', $draft->id)->update(['purpose' => '   ']);
 
     expect(fn () => app(JobDescriptionStore::class)->publish($f['hr'], $f['company'], (int) $draft->id))
         ->toThrow(JobDescriptionException::class);
@@ -159,7 +159,7 @@ test('publish refuses a version whose sections were emptied after drafting', fun
 test('publish refuses a version whose section list was emptied after drafting', function (): void {
     $f = sectionFixture();
     $draft = app(JobDescriptionStore::class)->draft($f['company'], sectionBaseDraft($f));
-    DB::table('people_performance_job_descriptions')->where('id', $draft->id)->update(['duties' => json_encode([])]);
+    DB::table('people_job_descriptions')->where('id', $draft->id)->update(['duties' => json_encode([])]);
 
     expect(fn () => app(JobDescriptionStore::class)->publish($f['hr'], $f['company'], (int) $draft->id))
         ->toThrow(JobDescriptionException::class);
