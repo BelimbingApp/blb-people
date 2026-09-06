@@ -2,6 +2,13 @@
 
 return [
     'items' => [[
+        'id' => 'people.training-evidence',
+        'label' => 'Training evidence',
+        'icon' => 'heroicon-o-document-arrow-up',
+        'route' => 'people.training.evidence.index',
+        'permission' => 'people.training.participation.evidence.submit',
+        'parent' => 'people',
+    ], [
         'id' => 'people.team-training-passports',
         'label' => 'Team training passports',
         'icon' => 'heroicon-o-identification',
