@@ -4,6 +4,7 @@ namespace App\Domains\People\Performance\Console\Commands;
 
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Performance\Enums\OverdueReviewReason;
+use App\Domains\People\Performance\Services\OverdueReviewEscalations;
 use App\Domains\People\Performance\Services\OverdueReviewReminders;
 use Illuminate\Console\Command;
 
@@ -23,8 +24,11 @@ final class OverdueReviewsCommand extends Command
 
     protected $description = 'Record weekly reminders for stale draft reviews and unanswered released reviews';
 
-    public function handle(TenantContext $tenants, OverdueReviewReminders $reminders): int
-    {
+    public function handle(
+        TenantContext $tenants,
+        OverdueReviewReminders $reminders,
+        OverdueReviewEscalations $escalations,
+    ): int {
         $tenantOption = $this->option('tenant');
 
         if ($tenantOption !== null && $tenantOption !== '') {
@@ -48,6 +52,10 @@ final class OverdueReviewsCommand extends Command
                 static fn (object $overdue): OverdueReviewReason => $overdue->reason,
                 $due,
             )));
+            // Escalations are read from the reminder rows already on the table,
+            // so a dry run reports them from what is written today rather than
+            // from the reminders this run would have added.
+            $this->line('Would escalate: '.count($escalations->due($tenantId, $companyId)));
             $this->line('Nothing was recorded.');
 
             return self::SUCCESS;
@@ -58,6 +66,11 @@ final class OverdueReviewsCommand extends Command
             static fn (object $reminder): OverdueReviewReason => $reminder->reason,
             $written,
         )));
+
+        // After reminding, not before: this week's reminder is half of what
+        // makes two consecutive weeks, so escalating first would always be a
+        // week behind.
+        $this->line('Escalated: '.count($escalations->escalate($tenantId, $companyId)));
 
         return self::SUCCESS;
     }
