@@ -94,3 +94,46 @@ test('a swap between sibling company employees finds no assignment and writes no
 
     expect(AttendanceRosterAssignment::query()->where('company_id', $f['sibling']->id)->get()->map(fn ($a) => $a->exceptions)->all())->toBe($before);
 });
+
+test('copying a previous period for a sibling company employee refuses and writes nothing', function (): void {
+    $f = rosterScopeFixture();
+
+    // The sibling's assignments sit on 2026-09-01, inside the previous period
+    // of this window. rosterEmployeeId is the fallback selection, so a
+    // sibling id must resolve to no employees and the copy must stop there.
+    Livewire::actingAs($f['user'])->test(Rosters::class)
+        ->set('rosterEffectiveFrom', '2026-09-08')
+        ->set('rosterEffectiveTo', '2026-09-14')
+        ->set('rosterEmployeeId', (string) $f['foreignA']->id)
+        ->call('copyPreviousPeriod')
+        ->assertHasErrors(['selectedRosterEmployeeIds' => 'Select employees before copying a previous period.'])
+        ->assertNotDispatched('notify');
+
+    expect(AttendanceRosterAssignment::query()->where('employee_id', $f['foreignA']->id)->count())->toBe(1)
+        ->and(AttendanceRosterAssignment::query()->where('company_id', $f['company']->id)->count())->toBe(0);
+});
+
+test('saving a roster assignment for a sibling company employee is rejected before any write', function (): void {
+    $f = rosterScopeFixture();
+    $shift = AttendanceShiftTemplate::query()->create([
+        'company_id' => $f['company']->id, 'code' => 'OWN', 'name' => 'Own shift',
+        'starts_at' => '08:00:00', 'ends_at' => '17:00:00', 'expected_work_minutes' => 480,
+        'effective_from' => '2026-01-01', 'status' => 'active',
+    ]);
+    $policy = AttendancePolicyGroup::query()->create([
+        'company_id' => $f['company']->id, 'code' => 'OWN', 'name' => 'Own policy',
+        'effective_from' => '2026-01-01', 'status' => AttendancePolicyGroup::STATUS_ACTIVE,
+    ]);
+
+    Livewire::actingAs($f['user'])->test(Rosters::class)
+        ->set('rosterEmployeeId', (string) $f['foreignA']->id)
+        ->set('rosterShiftTemplateId', (string) $shift->id)
+        ->set('rosterPolicyGroupId', (string) $policy->id)
+        ->set('rosterEffectiveFrom', '2026-09-08')
+        ->set('rosterEffectiveTo', '2026-09-14')
+        ->call('saveRosterAssignment')
+        ->assertHasErrors(['rosterEmployeeId']);
+
+    expect(AttendanceRosterAssignment::query()->where('company_id', $f['company']->id)->count())->toBe(0)
+        ->and(AttendanceRosterAssignment::query()->where('employee_id', $f['foreignA']->id)->count())->toBe(1);
+});
