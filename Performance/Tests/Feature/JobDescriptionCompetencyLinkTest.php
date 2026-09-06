@@ -75,27 +75,6 @@ function linkBaseFixture(): array
     return ['tenant' => $tenantId, 'company' => $companyId, 'sibling' => $siblingId, 'hr' => $users['hr'], 'hod' => $users['hod'], 'position' => (int) $position->id, 'profile' => 9000];
 }
 
-function sectionBaseDraft(array $fixture, int $version = 1, ?int $profileId = null): JobDescriptionDraft
-{
-    return new JobDescriptionDraft(
-        reference: 'software-engineer',
-        positionStableId: (string) $fixture['position'],
-        positionVersion: 4,
-        version: $version,
-        effectiveFrom: '2026-09-01',
-        effectiveTo: null,
-        purpose: 'Build dependable products.',
-        responsibilities: ['Own reliable product delivery'],
-        duties: ['Review production readiness'],
-        authority: 'Approve expenditure up to the departmental limit.',
-        qualifications: ['Relevant engineering degree or equivalent experience'],
-        competencyLinks: [[
-            'requirement_profile_id' => $profileId ?? $fixture['profile'],
-            'requirement_profile_version' => 3,
-        ]],
-    );
-}
-
 function linkBaseDraft(array $fixture, int $version = 1, ?int $profileId = null): JobDescriptionDraft
 {
     return new JobDescriptionDraft(
