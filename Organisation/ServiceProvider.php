@@ -13,4 +13,9 @@ final class ServiceProvider extends BaseServiceProvider
         $this->mergeConfigFrom(__DIR__.'/Config/organisation.php', 'people-organisation');
         $this->app->bind(ReadsOrganisationExplorer::class, NativeOrganisationExplorer::class);
     }
+
+    public function boot(): void
+    {
+        $this->loadViewsFrom(__DIR__.'/Views', 'people');
+    }
 }
