@@ -19,10 +19,12 @@ use App\Domains\People\Training\Data\TrainingCourseDraft;
 use App\Domains\People\Training\Data\TrainingEventDraft;
 use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\DeliveryMode;
+use App\Domains\People\Training\Exceptions\InvalidTrainingEvidenceSubmissionException;
 use App\Domains\People\Training\Livewire\Evidence\Index;
 use App\Domains\People\Training\Models\TrainingEvidenceSubmission;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
+use App\Domains\People\Training\Services\TrainingEvidenceSubmissionStore;
 use App\Domains\People\Training\Services\TrainingParticipationStore;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -153,7 +155,8 @@ test('an employee submits evidence only for their own attended event and it rema
         ->and($submission->document_asset_id)->not->toBeNull();
     $asset = MediaAsset::query()->findOrFail($submission->document_asset_id);
     expect($asset->metadata['purpose'])->toBe('people.training.participation.evidence')
-        ->and($asset->metadata['participant_id'])->toBe((int) $fact->participant_id);
+        ->and($asset->metadata['participant_id'])->toBe((int) $fact->participant_id)
+        ->and(mb_check_encoding($asset->original_filename, 'UTF-8'))->toBeTrue();
     Storage::disk('local')->assertExists($asset->storage_key);
 });
 
@@ -183,6 +186,24 @@ test('confirmed participation refuses employee evidence with visible recovery gu
         ->assertSee('already been confirmed');
 
     expect(evidenceSubmissions($fixture)->count())->toBe(0);
+});
+
+test('the store refuses an oversized document even without Livewire validation', function (): void {
+    $fixture = evidenceFixture();
+    evidenceAttendance($fixture, AttendanceStatus::Present);
+
+    expect(fn () => app(TrainingEvidenceSubmissionStore::class)->submit(
+        $fixture['user'],
+        (int) $fixture['company']->id,
+        (int) $fixture['event']->id,
+        'Reflection.',
+        null,
+        null,
+        UploadedFile::fake()->create('oversized.bin', 10_241, 'application/octet-stream'),
+    ))->toThrow(InvalidTrainingEvidenceSubmissionException::class, 'no larger than 10 MB');
+
+    expect(evidenceSubmissions($fixture)->count())->toBe(0)
+        ->and(MediaAsset::query()->count())->toBe(0);
 });
 
 test('the route is available to employees and refused to users outside the self-service audience', function (): void {

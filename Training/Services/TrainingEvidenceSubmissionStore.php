@@ -67,7 +67,7 @@ final class TrainingEvidenceSubmissionStore
         }
 
         try {
-            $asset = $this->media->putUploadedFile('local', 'people/training/evidence', $document, [
+            $asset = $this->media->putUploadedFile('local', 'people/training/evidence', $this->storableDocument($document), [
                 'purpose' => 'people.training.participation.evidence',
                 'tenant_id' => $tenant,
                 'company_entity_id' => $companyId,
@@ -211,6 +211,27 @@ final class TrainingEvidenceSubmissionStore
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    private function storableDocument(UploadedFile $document): UploadedFile
+    {
+        $name = $document->getClientOriginalName();
+        if (! mb_check_encoding($name, 'UTF-8')) {
+            $name = '';
+        }
+        $name = basename(str_replace('\\', '/', $name));
+        $name = preg_replace('/[\x00-\x1F\x7F]/u', '', $name) ?? '';
+        if (trim($name) === '') {
+            $name = 'training-evidence.'.($document->guessExtension() ?: 'bin');
+        }
+
+        return new UploadedFile(
+            $document->getRealPath(),
+            mb_strcut($name, 0, 240, 'UTF-8'),
+            $document->getMimeType(),
+            $document->getError(),
+            true,
+        );
     }
 
     private function discard(MediaAsset $asset): void
