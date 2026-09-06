@@ -37,6 +37,7 @@ return [
          */
         'people.training.evaluation.view',
         'people.training.evaluation.submit',
+        'people.training.evaluation-aggregate.view',
     ],
 
     'roles' => [
@@ -53,6 +54,7 @@ return [
                 'people.training.participation.evidence.assign',
                 'people.training.passport.view',
                 'people.training.effectiveness.close',
+                'people.training.evaluation-aggregate.view',
             ],
         ],
         'people_training_trainer' => [
@@ -68,6 +70,7 @@ return [
                 'people.training.request.submit',
                 'people.training.request.hod-approve',
                 'people.training.effectiveness.review',
+                'people.training.evaluation-aggregate.view',
                 'people.training.passport.view',
                 'people.training.passport.view-team',
             ],
