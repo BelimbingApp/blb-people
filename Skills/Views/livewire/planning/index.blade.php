@@ -123,4 +123,13 @@
             </x-ui.card>
         @endforeach
     @endif
+
+    {{-- The 30/60/90-day effectiveness questions live on their own page, but
+         this is where a HOD looks at their team, so this is where the link
+         belongs (0013-a). --}}
+    <p class="text-sm text-muted">
+        <a class="underline" href="{{ route('people.training.effectiveness.index') }}">
+            {{ __('Training effectiveness questions for your team') }}
+        </a>
+    </p>
 </div>
