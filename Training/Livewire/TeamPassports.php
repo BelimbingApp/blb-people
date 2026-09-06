@@ -16,7 +16,7 @@ use Livewire\Component;
 
 final class TeamPassports extends Component
 {
-    public const VIEW_CAPABILITY = 'people.training.passport.view-team';
+    public const VIEW_CAPABILITY = 'people.training.team-passports.view';
 
     #[Locked]
     public ?string $employeeId = null;

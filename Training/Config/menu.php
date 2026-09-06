@@ -6,7 +6,7 @@ return [
         'label' => 'Team training passports',
         'icon' => 'heroicon-o-identification',
         'route' => 'people.training.team-passports',
-        'permission' => 'people.training.passport.view-team',
+        'permission' => 'people.training.team-passports.view',
         'parent' => 'people',
     ], [
         'id' => 'people.training-catalog',
