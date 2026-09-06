@@ -226,7 +226,7 @@ test('the route requires the view capability', function (): void {
         ->get(route('people.skill.catalog.index'))
         ->assertOk();
 
-    $stranger = User::factory()->create();
+    $stranger = User::factory()->create(['company_id' => $admin->company_id]);
     $this->actingAs($stranger)
         ->get(route('people.skill.catalog.index'))
         ->assertForbidden();

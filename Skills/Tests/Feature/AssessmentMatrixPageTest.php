@@ -57,7 +57,7 @@ test('the assessment matrix route requires the view capability', function (): vo
         ->get(route('people.skill.assessment.matrix'))
         ->assertOk();
 
-    $stranger = User::factory()->create();
+    $stranger = User::factory()->create(['company_id' => $admin->company_id]);
     $this->actingAs($stranger)
         ->get(route('people.skill.assessment.matrix'))
         ->assertForbidden();
