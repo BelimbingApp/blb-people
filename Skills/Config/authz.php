@@ -25,6 +25,7 @@ return [
         'people.skill.assessor.view',
         'people.skill.employee.view',
         'people.skill.gaps.view-team',
+        'people.skill.coverage.view',
     ],
 
     // Audience capabilities identify why a principal may see People-owned
@@ -44,6 +45,7 @@ return [
                 'people.skill-requirement.approve',
                 'people.skill-requirement-publication.approve',
                 'people.skill-requirement-retirement.approve',
+                'people.skill.coverage.view',
                 'people.skill.development-action.view',
                 'people.skill.development-action.manage',
                 'people.skill.assessment.submit',
