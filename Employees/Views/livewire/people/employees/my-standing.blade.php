@@ -113,6 +113,53 @@ use App\Domains\People\Employees\Livewire\MyStanding;
                 </div>
             </x-ui.card>
 
+            <x-ui.card>
+                <div class="mb-4">
+                    <h2 class="text-lg font-medium tracking-tight text-ink">{{ __('Training effectiveness') }}</h2>
+                    <p class="mt-1 text-sm text-muted">{{ __('Your training review outcomes by stage. Reviewer material is never shown here.') }}</p>
+                </div>
+
+                <x-ui.table container="flush" :caption="__('Training effectiveness')" :row-hover="false">
+                    <x-slot name="head">
+                        <tr>
+                            <x-ui.th>{{ __('Stage') }}</x-ui.th>
+                            <x-ui.th>{{ __('State') }}</x-ui.th>
+                            <x-ui.th>{{ __('Outcome') }}</x-ui.th>
+                            <x-ui.th>{{ __('Reviewed') }}</x-ui.th>
+                        </tr>
+                    </x-slot>
+
+                    @forelse ($standing->effectivenessOutcomes as $outcome)
+                        <tr wire:key="effectiveness-{{ $outcome->stage }}">
+                        <td class="px-table-cell-x py-table-cell-y text-sm font-medium text-ink">
+                            {{ $this->effectivenessStageLabel($outcome->stage) }}
+                        </td>
+                        <td class="px-table-cell-x py-table-cell-y">
+                            <x-ui.badge :variant="$this->effectivenessStateVariant($outcome->state)">
+                                {{ $this->effectivenessStateLabel($outcome->state) }}
+                            </x-ui.badge>
+                        </td>
+                        <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
+                            {{ $this->effectivenessOutcomeLabel($outcome->outcome) }}
+                        </td>
+                        <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
+                            @if ($outcome->reviewedOn !== null)
+                                <x-ui.datetime :value="$outcome->reviewedOn" format="date" />
+                            @else
+                                {{ __('Not recorded') }}
+                            @endif
+                        </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="4" class="px-table-cell-x py-10 text-center text-sm text-muted">
+                                {{ __('No training effectiveness outcomes recorded yet.') }}
+                            </td>
+                        </tr>
+                    @endforelse
+                </x-ui.table>
+            </x-ui.card>
+
             <x-ui.alert variant="info">
                 {{ __('Training history is not available from the current People source.') }}
             </x-ui.alert>
