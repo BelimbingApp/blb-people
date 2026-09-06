@@ -12,4 +12,9 @@ final class ServiceProvider extends BaseServiceProvider
     {
         $this->app->bind(ContributesOrganisationRecordDetail::class, OrganisationPerformanceDetail::class);
     }
+
+    public function boot(): void
+    {
+        $this->loadViewsFrom(__DIR__.'/Views', 'people');
+    }
 }

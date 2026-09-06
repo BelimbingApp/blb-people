@@ -197,6 +197,27 @@ final class PerformanceReviewStore
         ]);
     }
 
+    /**
+     * Every review this actor authored, newest first.
+     *
+     * The author is the scope. A manager reads what they released, including
+     * the versions they superseded, and a peer's review is not theirs to read
+     * — which is why this takes the actor rather than a subject id from the
+     * caller.
+     *
+     * @return list<PerformanceReview>
+     */
+    public function authoredBy(User $actor, int $companyId): array
+    {
+        $tenantId = $this->scope($actor, $companyId);
+
+        return PerformanceReview::query()->forCompany($tenantId, $companyId)
+            ->where('reviewer_user_id', $actor->getKey())
+            ->orderByDesc('id')
+            ->get()
+            ->all();
+    }
+
     /** @return list<PerformanceReviewResponse> */
     public function responsesFor(int $companyId, int $reviewId): array
     {
