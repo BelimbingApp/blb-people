@@ -257,9 +257,11 @@ test('a viewer without hod scope sees no departments', function (): void {
 
 test('a training request draft without the submit capability is refused', function (): void {
     $fixture = hodPlanningFixture();
-    $hodUser = hodPlanningUser((int) $fixture['company']->id, $fixture['hod'], 'people_hod');
+    // An assessor opens the planning page but holds no
+    // people.training.request.submit; a HOD does since 0005-i (#254).
+    $assessor = hodPlanningUser((int) $fixture['company']->id, $fixture['hod'], 'people_assessor');
 
-    Livewire::actingAs($hodUser)
+    Livewire::actingAs($assessor)
         ->test(Index::class)
         ->set('reqNeed.'.(string) $fixture['a1']->id, 'Hod draft need')
         ->set('reqObjective.'.(string) $fixture['a1']->id, 'Hod draft objective')
