@@ -318,6 +318,102 @@ test('team KPI attribution never copies or double counts people implicitly', fun
         ->toThrow(KpiRecordException::class, 'unique declared employee subjects');
 });
 
+test('an HOD can define a position KPI template only inside the managed department', function (): void {
+    $fixture = kpiFixture();
+    $position = PeopleReferenceEntry::query()->create([
+        'company_id' => $fixture['company'],
+        'type' => PeopleReferenceEntry::TYPE_JOB_TITLE,
+        'parent_id' => (int) $fixture['organization']->stableId,
+        'code' => 'managed-position',
+        'name' => 'Managed Position',
+        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+    ]);
+    $subject = new WorkforceSubject(
+        $fixture['tenant'],
+        $fixture['company'],
+        WorkforceResourceType::Position,
+        (string) $position->id,
+    );
+
+    $definition = app(KpiRecordService::class)->define(
+        $fixture['hod'],
+        $fixture['company'],
+        $subject,
+        'position-quality',
+        1,
+        'Position quality',
+        'Set a reusable expectation for this position.',
+        'percent',
+        'Accepted work / total work',
+        'ops:position-quality',
+        KpiDirection::HigherIsBetter,
+        null,
+        'ratio-v1',
+        2,
+        'Higher is better.',
+    );
+
+    expect($definition->steward_subject_type)->toBe(WorkforceResourceType::Position->value)
+        ->and($definition->steward_subject_id)->toBe((string) $position->id);
+});
+
+test('employee explorer detail returns the applicable published JD and released KPI with separately permitted evidence', function (): void {
+    $fixture = kpiFixture();
+    $position = PeopleReferenceEntry::query()->create([
+        'company_id' => $fixture['company'],
+        'type' => PeopleReferenceEntry::TYPE_JOB_TITLE,
+        'code' => 'employee-position',
+        'name' => 'Employee Position',
+        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+    ]);
+    EmployeeWorkProfile::query()->where('employee_id', $fixture['employee']->employee_id)
+        ->update(['job_title_id' => $position->id]);
+    JobDescription::query()->create([
+        'tenant_id' => $fixture['tenant'],
+        'company_entity_id' => $fixture['company'],
+        'reference' => 'employee-position-jd',
+        'position_stable_id' => (string) $position->id,
+        'position_version' => 1,
+        'version' => 2,
+        'status' => JobDescriptionStatus::Published,
+        'effective_from' => '2026-01-01',
+        'purpose' => 'Own dependable delivery.',
+        'responsibilities' => ['Deliver agreed outcomes'],
+        'duties' => ['Review work evidence'],
+        'authority' => 'Approve work inside the assigned remit.',
+        'qualifications' => ['Relevant experience'],
+        'competency_links' => [['requirement_profile_id' => 10, 'requirement_profile_version' => 3]],
+        'published_at' => now(),
+        'published_by_user_id' => $fixture['hr']->id,
+    ]);
+    $record = proposedKpi($fixture);
+    app(KpiRecordService::class)->review($fixture['hr'], $fixture['company'], $record->id, 'Released outcome rationale.');
+    app(KpiRecordService::class)->publishToEmployee($fixture['hr'], $fixture['company'], $record->id);
+
+    foreach (['people.performance.job-description.view', 'people.performance.kpi.evidence.view'] as $capability) {
+        PrincipalCapability::query()->create([
+            'company_id' => $fixture['company'],
+            'principal_type' => PrincipalType::USER->value,
+            'principal_id' => $fixture['employee']->id,
+            'capability_key' => $capability,
+            'is_allowed' => true,
+        ]);
+    }
+
+    $detail = app(OrganisationPerformanceDetail::class)->detail(
+        Actor::forUser($fixture['employee']),
+        $fixture['owner'],
+        new DateTimeImmutable('2026-02-01'),
+    );
+
+    expect($detail->jobDescription->records[0]['version'])->toBe(2)
+        ->and($detail->jobDescription->records[0]['authority'])->toBe('Approve work inside the assigned remit.')
+        ->and($detail->performance->records[0]['status'])->toBe(KpiRecord::PUBLISHED)
+        ->and($detail->performance->records[0]['released_outcome'])->toBe('Released outcome rationale.')
+        ->and($detail->performance->records[0]['evidence_references'])->toBe(['ops:delivery-quality:v1'])
+        ->and($detail->performance->records[0]['evidence_refusal'])->toBeNull();
+});
+
 test('a KPI definition refuses an actor without the submit capability', function (): void {
     $fixture = kpiFixture();
 
