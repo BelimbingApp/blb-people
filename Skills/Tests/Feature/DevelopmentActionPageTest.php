@@ -41,7 +41,7 @@ test('the development action route requires view capability', function (): void 
 
     $this->actingAs($viewer)->get(route('people.skill.development-actions.index'))->assertOk();
 
-    $stranger = User::factory()->create();
+    $stranger = User::factory()->create(['company_id' => $company->id]);
     $this->actingAs($stranger)->get(route('people.skill.development-actions.index'))->assertForbidden();
 
     setupAuthzRoles();
