@@ -5,6 +5,7 @@ namespace App\Domains\People\Training\Livewire\HrGovernance;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
+use App\Domains\People\Performance\Models\PerformanceReviewEscalation;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Models\RequirementProfile;
 use App\Domains\People\Skills\Services\RequirementProfileStore;
@@ -126,7 +127,26 @@ final class Index extends Component
             'profiles' => $companyEntityId === null ? collect() : $this->pendingProfiles($companyEntityId),
             'requests' => $companyEntityId === null ? collect() : $this->pendingRequests($companyEntityId),
             'plans' => $companyEntityId === null ? collect() : $this->pendingPlans($companyEntityId),
+            'escalations' => $companyEntityId === null ? collect() : $this->escalatedReviews($companyEntityId),
         ]);
+    }
+
+    /**
+     * Performance reviews escalated past their manager (0009-d).
+     *
+     * Listed, never acted on here: HR reads that a review has outlasted two
+     * weekly reminders. The reviews themselves stay the manager's to finish,
+     * which is why this section carries no buttons.
+     *
+     * @return Collection<int, PerformanceReviewEscalation>
+     */
+    private function escalatedReviews(int $companyEntityId): Collection
+    {
+        return PerformanceReviewEscalation::query()
+            ->forCompany($this->tenantId(), $companyEntityId)
+            ->orderByDesc('notified_at')
+            ->orderByDesc('id')
+            ->get();
     }
 
     /**

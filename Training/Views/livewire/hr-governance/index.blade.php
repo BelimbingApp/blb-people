@@ -123,5 +123,43 @@
                 </x-ui.table>
             @endif
         </section>
+
+        <section class="space-y-4">
+            <h2 class="text-lg font-semibold">{{ __('Escalated reviews') }}</h2>
+            @if ($escalations->isEmpty())
+                <p class="text-sm text-muted">{{ __('No performance review has outlasted two weekly reminders.') }}</p>
+            @else
+                {{-- Listed, not actioned: the review stays the manager's to
+                     finish, and HR reading it is the whole point. --}}
+                <x-ui.table>
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Review') }}</x-ui.th>
+                            <x-ui.th>{{ __('Manager') }}</x-ui.th>
+                            <x-ui.th>{{ __('Escalated to') }}</x-ui.th>
+                            <x-ui.th>{{ __('Raised') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($escalations as $escalation)
+                            <tr wire:key="escalation-{{ $escalation->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">#{{ $escalation->review_id }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">#{{ $escalation->manager_user_id }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm">
+                                    @if ($escalation->escalated_to_user_id === null)
+                                        <x-ui.badge variant="warning">{{ $escalation->audience->label() }}</x-ui.badge>
+                                    @else
+                                        <span class="text-ink tabular-nums">#{{ $escalation->escalated_to_user_id }}</span>
+                                    @endif
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted">
+                                    <x-ui.datetime :value="$escalation->notified_at" />
+                                </td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </section>
     @endif
 </div>
