@@ -47,6 +47,20 @@ return [
          */
         'people.training.budget.view',
         'people.training.budget.manage',
+
+        /*
+         * Approving a request that takes a department past its allocation
+         * (0010-b). Declared here and granted to no role on purpose: an
+         * exception everybody in a role holds is not an exception, so it is
+         * given to a named principal who then has to state a reason, which the
+         * budget audit keeps.
+         *
+         * The verb is `unlock` rather than `override` because `override` is
+         * not in the platform's declared verb list, and an unknown verb is
+         * filtered rather than refused — the capability would silently cease
+         * to exist. `unlock` is declared and already means this in People.
+         */
+        'people.training.budget.unlock',
     ],
 
     'roles' => [

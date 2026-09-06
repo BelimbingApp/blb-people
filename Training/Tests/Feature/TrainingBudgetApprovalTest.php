@@ -1,6 +1,7 @@
 <?php
 
 use App\Base\Authz\Enums\PrincipalType;
+use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Authz\Models\PrincipalCapability;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
@@ -76,7 +77,7 @@ function approvalGrantOverride(array $f, User $user): void
 {
     PrincipalCapability::query()->create([
         'company_id' => $f['companyId'], 'principal_type' => PrincipalType::USER->value,
-        'principal_id' => $user->id, 'capability_key' => TrainingBudgetStore::OVERRIDE,
+        'principal_id' => $user->id, 'capability_key' => TrainingBudgetStore::UNLOCK,
         'is_allowed' => true,
     ]);
 }
@@ -185,9 +186,12 @@ test('a reason without the capability does not buy an override', function (): vo
     approvalSpend($f, '900.0000');
     $request = approvalRequest($f, '200.0000');
 
+    // The refusal is the authz layer's, not the domain's: stating a reason you
+    // are not entitled to state is a permission failure, and dressing it as a
+    // training-request error would hide which check said no.
     expect(fn () => app(TrainingRequestStore::class)->approve(
         $f['approver'], $f['companyId'], (int) $request->id, 'Approved.', 'I would like to.',
-    ))->toThrow(InvalidTrainingRequestException::class)
+    ))->toThrow(AuthorizationDeniedException::class)
         ->and(TrainingDepartmentBudgetAudit::query()->forCompany($f['tenantId'], $f['companyId'])
             ->where('kind', BudgetAuditKind::Override)->count())->toBe(0);
 });
@@ -236,6 +240,48 @@ test("company axis: a sibling company's spend does not constrain this approval",
 
     // The sibling is at its limit; this company has spent nothing.
     $request = approvalRequest($f, '900.0000');
+    app(TrainingRequestStore::class)->approve($f['approver'], $f['companyId'], (int) $request->id, 'Approved.');
+
+    expect($request->fresh()->status)->toBe(TrainingRequestStatus::Approved);
+});
+
+test('an unpriced request still approves once an override has put the department past its budget', function (): void {
+    $f = approvalFixture();
+    approvalGrantOverride($f, $f['approver']);
+    approvalBudget($f, '1000.0000');
+    approvalSpend($f, '1000.0000');
+    $over = approvalRequest($f, '200.0000');
+    app(TrainingRequestStore::class)->approve(
+        $f['approver'], $f['companyId'], (int) $over->id, 'Approved.', 'Safety-critical.',
+    );
+
+    // Remaining is now negative. An unpriced request has no cost to compare
+    // against it, so it must not be swept up by the overspend — without the
+    // null check, an empty cost reads as zero and zero is more than a negative
+    // remainder.
+    $unpriced = approvalRequest($f, null);
+    app(TrainingRequestStore::class)->approve($f['approver'], $f['companyId'], (int) $unpriced->id, 'Approved.');
+
+    expect($unpriced->fresh()->status)->toBe(TrainingRequestStatus::Approved);
+});
+
+test("one department's spend does not consume another's budget", function (): void {
+    $f = approvalFixture();
+    $second = PeopleReferenceEntry::query()->create([
+        'company_id' => $f['companyId'], 'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+        'code' => 'OPS-SECOND', 'name' => 'Operations Second', 'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+    ]);
+    $secondFixture = array_merge($f, ['department' => $second]);
+
+    approvalBudget($f, '1000.0000');
+    approvalBudget($secondFixture, '1000.0000');
+    // The first department spends its whole allocation.
+    approvalSpend($f, '1000.0000');
+
+    // Same company, same year: only the department filter separates these, so
+    // this is the case that proves the roll-up is per department and not per
+    // company.
+    $request = approvalRequest($secondFixture, '900.0000');
     app(TrainingRequestStore::class)->approve($f['approver'], $f['companyId'], (int) $request->id, 'Approved.');
 
     expect($request->fresh()->status)->toBe(TrainingRequestStatus::Approved);

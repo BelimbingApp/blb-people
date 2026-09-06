@@ -9,6 +9,7 @@ use App\Core\User\Models\User;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Services\CompanyAttribution;
 use App\Domains\People\Training\Data\DepartmentTrainingSpend;
+use App\Domains\People\Training\Enums\BudgetAuditKind;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingBudgetException;
 use App\Domains\People\Training\Models\TrainingDepartmentBudget;
@@ -30,6 +31,19 @@ final class TrainingBudgetStore
     public const VIEW = 'people.training.budget.view';
 
     public const MANAGE = 'people.training.budget.manage';
+
+    /**
+     * Approving past a department's allocation.
+     *
+     * The verb is `unlock`, not `override`: `override` is not a declared verb
+     * in the platform grammar, and an undeclared verb does not fail loudly, it
+     * simply stops existing. `unlock` is declared and already carries this
+     * exact meaning elsewhere in People — see people.attendance.roster.unlock.
+     *
+     * Deliberately granted to a principal and to no role: an exception that
+     * everybody in a role holds is not an exception.
+     */
+    public const UNLOCK = 'people.training.budget.unlock';
 
     private const SCALE = 4;
 
@@ -158,13 +172,80 @@ final class TrainingBudgetStore
             TrainingDepartmentBudgetAudit::query()->create([
                 'tenant_id' => $tenantId, 'company_entity_id' => $companyEntityId,
                 'training_department_budget_id' => $budget->id,
+                'kind' => BudgetAuditKind::Allocation,
                 'previous_amount' => $previous, 'amount' => $scaled,
+                'overage_amount' => null,
                 'reason' => trim($reason), 'actor_user_id' => $actor->getKey(),
                 'occurred_at' => now(),
             ]);
 
             return $budget->refresh();
         });
+    }
+
+    /**
+     * What is left of a department's allocation this year, or null when it has
+     * none.
+     *
+     * No actor and no capability check, unlike rollUp(): this is the rule the
+     * approval obeys, not somebody reading the budget page. An approver who
+     * cannot open that page is still bound by the number on it.
+     */
+    public function remainingFor(int $tenantId, int $companyEntityId, int $departmentEntityId, int $year): ?string
+    {
+        $budget = TrainingDepartmentBudget::query()->forCompany($tenantId, $companyEntityId)
+            ->where('department_entity_id', $departmentEntityId)
+            ->where('budget_year', $year)
+            ->first();
+
+        if ($budget === null) {
+            return null;
+        }
+
+        $approved = $this->total(
+            TrainingRequest::query()->forCompany($tenantId, $companyEntityId)
+                ->whereYear('created_at', $year)
+                ->where('status', TrainingRequestStatus::Approved)
+                ->where('department_subject_id', (string) $departmentEntityId)
+                ->get(),
+        );
+
+        return bcsub((string) $budget->amount, $approved, self::SCALE);
+    }
+
+    /**
+     * Record that somebody approved past the allocation, and why.
+     *
+     * The allocation itself does not move: what changed is that money was
+     * committed beyond it, so the row carries the cost approved and the
+     * distance past, and leaves the amount alone.
+     */
+    public function recordOverride(
+        int $tenantId,
+        int $companyEntityId,
+        int $departmentEntityId,
+        int $year,
+        string $approvedCost,
+        string $overage,
+        string $reason,
+        int $actorUserId,
+    ): TrainingDepartmentBudgetAudit {
+        $budget = TrainingDepartmentBudget::query()->forCompany($tenantId, $companyEntityId)
+            ->where('department_entity_id', $departmentEntityId)
+            ->where('budget_year', $year)
+            ->first()
+            ?? throw new InvalidTrainingBudgetException('There is no training budget to override.');
+
+        return TrainingDepartmentBudgetAudit::query()->create([
+            'tenant_id' => $tenantId, 'company_entity_id' => $companyEntityId,
+            'training_department_budget_id' => $budget->id,
+            'kind' => BudgetAuditKind::Override,
+            'previous_amount' => null,
+            'amount' => bcadd($approvedCost, '0', self::SCALE),
+            'overage_amount' => bcadd($overage, '0', self::SCALE),
+            'reason' => trim($reason), 'actor_user_id' => $actorUserId,
+            'occurred_at' => now(),
+        ]);
     }
 
     /** @param  Collection<int, TrainingRequest>  $requests */
