@@ -58,14 +58,23 @@ final class PerformanceReviewStore
      * A corrected observation is a new row. The original keeps its evidence so
      * a review that pinned it still shows what the reviewer was looking at.
      */
-    public function correctObservation(User $actor, int $companyId, int $observationId, string $correction): PerformanceObservation
-    {
+    public function correctObservation(
+        User $actor,
+        int $companyId,
+        int $observationId,
+        string $correctedEvidence,
+        ?string $reason = null,
+    ): PerformanceObservation {
         $tenantId = $this->scope($actor, $companyId);
-        if (trim($correction) === '') {
-            throw new PerformanceReviewException('A correction needs a stated reason.');
+        if (trim($correctedEvidence) === '') {
+            throw new PerformanceReviewException('A correction needs the corrected evidence.');
         }
+        // The reason a record changed is not the same fact as what it now says.
+        // Defaulting one to the other is fine for a caller that has only the
+        // text, but a caller with both must be able to keep them apart.
+        $reason = $reason === null || trim($reason) === '' ? $correctedEvidence : $reason;
 
-        return DB::transaction(function () use ($tenantId, $companyId, $observationId, $correction, $actor): PerformanceObservation {
+        return DB::transaction(function () use ($tenantId, $companyId, $observationId, $correctedEvidence, $reason, $actor): PerformanceObservation {
             $original = $this->observation($tenantId, $companyId, $observationId);
 
             $replacement = PerformanceObservation::query()->create([
@@ -74,13 +83,13 @@ final class PerformanceReviewStore
                 'employee_entity_id' => $original->employee_entity_id,
                 'window_start' => $original->window_start,
                 'window_end' => $original->window_end,
-                'evidence' => trim($correction),
+                'evidence' => trim($correctedEvidence),
                 'source_reference' => $original->source_reference,
                 'source_version' => $original->source_version,
                 'author_user_id' => $actor->getKey(),
                 'recorded_at' => now(),
                 'supersedes_observation_id' => $original->id,
-                'correction_reason' => trim($correction),
+                'correction_reason' => trim($reason),
             ]);
 
             $original->update(['corrected_at' => now()]);
@@ -179,13 +188,32 @@ final class PerformanceReviewStore
         });
     }
 
-    public function recordEmployeeResponse(int $companyId, int $reviewId, int $employeeEntityId, string $response): PerformanceReviewResponse
-    {
-        $tenantId = $this->tenantId();
+    /**
+     * The employee's answer to a review they were actually shown.
+     *
+     * Three things this refuses, because a response is a record of what one
+     * named person said about one released decision: a draft, which the
+     * employee has not seen; a subject other than the one the review is about;
+     * and an actor outside the company, like every sibling write on this class.
+     */
+    public function recordEmployeeResponse(
+        User $actor,
+        int $companyId,
+        int $reviewId,
+        int $employeeEntityId,
+        string $response,
+    ): PerformanceReviewResponse {
+        $tenantId = $this->scope($actor, $companyId);
         if (trim($response) === '') {
             throw new PerformanceReviewException('An employee response cannot be empty.');
         }
         $review = $this->review($tenantId, $companyId, $reviewId);
+        if ($review->status === PerformanceReviewStatus::Draft) {
+            throw new PerformanceReviewException('A response answers a released review; this one is not released yet.');
+        }
+        if ((int) $employeeEntityId !== (int) $review->employee_entity_id) {
+            throw new PerformanceReviewException('A response must name the subject the review is about.');
+        }
 
         return PerformanceReviewResponse::query()->create([
             'tenant_id' => $tenantId,

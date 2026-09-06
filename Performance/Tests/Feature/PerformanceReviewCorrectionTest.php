@@ -132,7 +132,7 @@ test('JP-A07: an employee response survives a correction, even when the outcome 
     $f = perfFixture();
     $store = app(PerformanceReviewStore::class);
     $original = perfFinalized($f);
-    $store->recordEmployeeResponse($f['company'], (int) $original->id, $f['subject'], 'I dispute the second stop.');
+    $store->recordEmployeeResponse($f['hr'], $f['company'], (int) $original->id, $f['subject'], 'I dispute the second stop.');
 
     $corrected = $store->correct($f['hr'], $f['company'], (int) $original->id, perfReviewDraft($f, []), 'Recheck after the dispute; outcome unchanged.');
 
@@ -148,7 +148,7 @@ test('JP-A07: correcting an observation does not change the finalized review tha
     $draft = $store->draftReview($f['hod'], $f['company'], perfReviewDraft($f, [(int) $observation->id]));
     $review = $store->finalize($f['hod'], $f['company'], (int) $draft->id);
 
-    $store->correctObservation($f['hod'], $f['company'], (int) $observation->id, 'Corrected: the stop was on the prior shift.');
+    $store->correctObservation($f['hod'], $f['company'], (int) $observation->id, 'Corrected: the stop was on the prior shift.', 'Late source correction.');
 
     $pinned = $store->observationsFor($f['company'], (int) $review->id);
 
@@ -238,4 +238,69 @@ test('a finalized review cannot be deleted', function (): void {
     expect(fn () => $review->delete())
         ->toThrow(PerformanceReviewException::class, 'deleted')
         ->and($review->exists)->toBeTrue();
+});
+
+test('a response is refused on a review that has not been released', function (): void {
+    $f = perfFixture();
+    $store = app(PerformanceReviewStore::class);
+    $observation = perfObservation($f);
+    $draft = $store->draftReview($f['hod'], $f['company'], perfReviewDraft($f, [(int) $observation->id]));
+
+    // The workflow is finalize, then response. A response to a draft answers
+    // something the employee was never shown.
+    expect(fn () => $store->recordEmployeeResponse($f['hr'], $f['company'], (int) $draft->id, $f['subject'], 'Early.'))
+        ->toThrow(PerformanceReviewException::class, 'released');
+});
+
+test('a response must name the employee the review is about', function (): void {
+    $f = perfFixture();
+    $review = perfFinalized($f);
+    $someoneElse = Employee::factory()->create([
+        'company_id' => $f['company'], 'full_name' => 'Other Subject',
+        'status' => 'active', 'employee_type' => 'full_time',
+    ]);
+
+    expect(fn () => app(PerformanceReviewStore::class)
+        ->recordEmployeeResponse($f['hr'], $f['company'], (int) $review->id, (int) $someoneElse->id, 'Not mine.'))
+        ->toThrow(PerformanceReviewException::class, 'subject');
+});
+
+test('an actor from another company cannot record a response on this review', function (): void {
+    $f = perfFixture();
+    $review = perfFinalized($f);
+    $outsider = User::factory()->create(['company_id' => $f['sibling']]);
+    PrincipalRole::query()->create([
+        'company_id' => $f['sibling'], 'principal_type' => PrincipalType::USER->value,
+        'principal_id' => $outsider->id,
+        'role_id' => Role::query()->whereNull('company_id')->where('code', 'people_hr')->valueOrFail('id'),
+    ]);
+
+    expect(fn () => app(PerformanceReviewStore::class)
+        ->recordEmployeeResponse($outsider, $f['company'], (int) $review->id, $f['subject'], 'Outsider.'))
+        ->toThrow(PerformanceReviewException::class, 'company scope');
+});
+
+test('an observation correction states its reason separately from the corrected evidence', function (): void {
+    $f = perfFixture();
+    $store = app(PerformanceReviewStore::class);
+    $observation = perfObservation($f);
+
+    $replacement = $store->correctObservation(
+        $f['hod'], $f['company'], (int) $observation->id,
+        'The stop was on the prior shift.',
+        'Source system re-attributed the stop after the shift-boundary fix.',
+    );
+
+    expect($replacement->evidence)->toBe('The stop was on the prior shift.')
+        ->and($replacement->correction_reason)->toBe('Source system re-attributed the stop after the shift-boundary fix.')
+        ->and($replacement->evidence)->not->toBe($replacement->correction_reason);
+});
+
+test('a recorded observation cannot be quietly rewritten', function (): void {
+    $f = perfFixture();
+    $observation = perfObservation($f);
+
+    // The store supersedes rather than edits, but Eloquent does not know that.
+    expect(fn () => $observation->update(['evidence' => 'Reworded after the fact.']))
+        ->toThrow(PerformanceReviewException::class, 'superseding');
 });
