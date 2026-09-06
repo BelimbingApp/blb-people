@@ -19,9 +19,11 @@ use App\Domains\People\Training\Data\TrainingEventDraft;
 use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\DeliveryMode;
 use App\Domains\People\Training\Enums\TrainingEvaluationStatus;
+use App\Domains\People\Training\Exceptions\InvalidTrainingEvaluationException;
 use App\Domains\People\Training\Livewire\Evaluation\Index;
 use App\Domains\People\Training\Models\TrainingEvaluation;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
+use App\Domains\People\Training\Services\TrainingEvaluationSubmissionStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
 use App\Domains\People\Training\Services\TrainingParticipationStore;
 use Illuminate\Support\Str;
@@ -83,8 +85,11 @@ function evaluationSubmissionFixture(): array
     return compact('tenant', 'company', 'employee', 'otherEmployee', 'hr', 'user', 'course', 'event');
 }
 
-function evaluationSubmissionAttendance(array $fixture, ?Employee $employee = null): mixed
-{
+function evaluationSubmissionAttendance(
+    array $fixture,
+    ?Employee $employee = null,
+    AttendanceStatus $attendance = AttendanceStatus::Present,
+): mixed {
     $store = app(TrainingParticipationStore::class);
     $session = $store->defineSession(
         $fixture['hr'], (int) $fixture['company']->id, (int) $fixture['event']->id,
@@ -99,8 +104,8 @@ function evaluationSubmissionAttendance(array $fixture, ?Employee $employee = nu
     );
 
     return $store->recordAttendance($fixture['hr'], (int) $fixture['company']->id, (int) $session->id, $subject, new ParticipationFactDraft(
-        attendance: AttendanceStatus::Present,
-        actualMinutes: 120,
+        attendance: $attendance,
+        actualMinutes: $attendance === AttendanceStatus::Present ? 120 : 0,
         source: 'manual',
         sourceReference: (string) Str::uuid(),
     ));
@@ -189,6 +194,44 @@ test('an evaluation after the event window closes is visibly refused', function 
 
     expect(evaluationSubmissionRows($fixture)->count())->toBe(0);
 });
+
+test('an employee cannot evaluate training they did not attend', function (): void {
+    $fixture = evaluationSubmissionFixture();
+    evaluationSubmissionAttendance($fixture, attendance: AttendanceStatus::Absent);
+
+    $component = Livewire::actingAs($fixture['user'])->test(Index::class);
+    evaluationSubmissionFill($component, evaluationSubmissionValues('I was not there.'))
+        ->call('submit', (int) $fixture['event']->id)
+        ->assertHasErrors('evaluation')
+        ->assertSee('only for training you attended');
+
+    expect(evaluationSubmissionRows($fixture)->count())->toBe(0);
+});
+
+test('the store refuses rating values outside its fixed integer scale', function (mixed $invalid): void {
+    $fixture = evaluationSubmissionFixture();
+    evaluationSubmissionAttendance($fixture);
+    $ratings = [
+        'relevance' => $invalid,
+        'trainer_effectiveness' => 4,
+        'materials_exercises' => 3,
+        'pace_duration' => 2,
+        'practical_usefulness' => 1,
+    ];
+
+    expect(fn () => app(TrainingEvaluationSubmissionStore::class)->submit(
+        $fixture['user'],
+        (int) $fixture['company']->id,
+        (int) $fixture['event']->id,
+        $ratings,
+        null,
+    ))->toThrow(InvalidTrainingEvaluationException::class, 'from 1 to 5');
+
+    expect(evaluationSubmissionRows($fixture)->count())->toBe(0);
+})->with([
+    'zero' => 0,
+    'numeric string' => '5',
+]);
 
 test('the evaluation route is employee-only', function (): void {
     $fixture = evaluationSubmissionFixture();
