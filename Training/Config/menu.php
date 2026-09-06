@@ -2,6 +2,13 @@
 
 return [
     'items' => [[
+        'id' => 'people.training-budget',
+        'label' => 'Training budget',
+        'icon' => 'heroicon-o-banknotes',
+        'route' => 'people.training.budget.index',
+        'permission' => 'people.training.budget.view',
+        'parent' => 'people',
+    ], [
         'id' => 'people.training-evaluations',
         'label' => 'Training evaluations',
         'icon' => 'heroicon-o-chat-bubble-left-right',

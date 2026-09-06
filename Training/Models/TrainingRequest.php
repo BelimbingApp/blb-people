@@ -22,7 +22,7 @@ final class TrainingRequest extends TenantOwnedModel
             $facts = ['tenant_id', 'company_entity_id', 'request_key', 'requestor_provider_id',
                 'requestor_subject_id', 'department_provider_id', 'department_subject_id', 'need_source',
                 'need', 'learning_objective', 'expected_result', 'priority', 'skill_gap_assessment_id',
-                'requirement_version', 'created_by_user_id'];
+                'requirement_version', 'estimated_cost', 'created_by_user_id'];
             if ($request->isDirty($facts)) {
                 throw new InvalidTrainingRequestException('Training request facts are immutable.');
             }
@@ -38,6 +38,7 @@ final class TrainingRequest extends TenantOwnedModel
     protected function casts(): array
     {
         return ['need_source' => TrainingNeedSource::class, 'priority' => TrainingPriority::class,
-            'status' => TrainingRequestStatus::class, 'requirement_version' => 'integer'];
+            'status' => TrainingRequestStatus::class, 'requirement_version' => 'integer',
+            'estimated_cost' => 'decimal:4'];
     }
 }

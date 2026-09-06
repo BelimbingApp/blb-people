@@ -38,6 +38,15 @@ return [
         'people.training.evaluation.view',
         'people.training.evaluation.submit',
         'people.training.evaluation-aggregate.view',
+
+        /*
+         * The department budget (0010-a). Viewing is separate from changing
+         * because a HOD is meant to see what their department has left without
+         * being able to award themselves more: the roll-up answers "can we
+         * afford this request", and only HR answers "what is the allocation".
+         */
+        'people.training.budget.view',
+        'people.training.budget.manage',
     ],
 
     'roles' => [
@@ -55,6 +64,8 @@ return [
                 'people.training.passport.view',
                 'people.training.effectiveness.close',
                 'people.training.evaluation-aggregate.view',
+                'people.training.budget.view',
+                'people.training.budget.manage',
             ],
         ],
         'people_training_trainer' => [
@@ -73,6 +84,7 @@ return [
                 'people.training.evaluation-aggregate.view',
                 'people.training.passport.view',
                 'people.training.passport.view-team',
+                'people.training.budget.view',
             ],
         ],
         'people_employee' => [
