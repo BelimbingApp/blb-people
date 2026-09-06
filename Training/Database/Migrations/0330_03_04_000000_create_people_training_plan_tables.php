@@ -52,6 +52,11 @@ return new class extends Migration
             $table->unsignedBigInteger('tenant_id')->index();
             $table->unsignedBigInteger('company_entity_id');
             $table->unsignedBigInteger('training_plan_id');
+            // Stable across amendments: amend() copies an item into the next
+            // revision as a new row, so the row id cannot say "this is the
+            // same need". The key can, which is what plan-to-event execution
+            // keys its once-only rule on.
+            $table->uuid('item_key');
             $table->string('need_reference', 160);
             $table->text('expected_result');
             $table->text('target_cohort');
@@ -63,11 +68,21 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['id', 'tenant_id', 'company_entity_id'], 'ptplan_item_owner_uq');
+            $table->unique(['tenant_id', 'company_entity_id', 'training_plan_id', 'item_key'], 'ptplan_item_key_uq');
             $table->index(['tenant_id', 'company_entity_id', 'training_plan_id'], 'ptplan_item_register_idx');
             $table->foreign(['company_entity_id', 'tenant_id'], 'ptplan_item_company_fk')
                 ->references(['id', 'tenant_id'])->on('companies')->restrictOnDelete();
             $table->foreign(['training_plan_id', 'tenant_id', 'company_entity_id'], 'ptplan_item_parent_fk')
                 ->references(['id', 'tenant_id', 'company_entity_id'])->on('people_training_plans')->restrictOnDelete();
+        });
+
+        Schema::table('people_connector_training_events', function (Blueprint $table): void {
+            $table->foreign(['plan_id', 'tenant_id', 'company_entity_id'], 'pct_event_plan_fk')
+                ->references(['id', 'tenant_id', 'company_entity_id'])->on('people_training_plans')
+                ->cascadeOnUpdate()->restrictOnDelete();
+            $table->foreign(['plan_item_id', 'tenant_id', 'company_entity_id'], 'pct_event_plan_item_fk')
+                ->references(['id', 'tenant_id', 'company_entity_id'])->on('people_training_plan_items')
+                ->cascadeOnUpdate()->restrictOnDelete();
         });
 
         foreach ($this->tables as $table) {
@@ -77,6 +92,11 @@ return new class extends Migration
 
     public function down(): void
     {
+        Schema::table('people_connector_training_events', function (Blueprint $table): void {
+            $table->dropForeign('pct_event_plan_item_fk');
+            $table->dropForeign('pct_event_plan_fk');
+        });
+
         foreach (array_reverse($this->tables) as $table) {
             $this->unregisterTable($table);
             Schema::dropIfExists($table);
