@@ -32,6 +32,7 @@ final class TrainingEvent extends TenantOwnedModel implements ReferencesWorkforc
             'starts_at' => 'immutable_datetime',
             'ends_at' => 'immutable_datetime',
             'capacity' => 'integer',
+            'plan_version' => 'integer',
             'status' => TrainingEventStatus::class,
             'completed_at' => 'immutable_datetime',
             'cancelled_at' => 'immutable_datetime',

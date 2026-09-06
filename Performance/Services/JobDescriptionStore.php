@@ -162,9 +162,25 @@ final readonly class JobDescriptionStore
     }
 
     /** @param list<array{requirement_profile_id: int, requirement_profile_version: int}> $links */
+    /**
+     * A competency link is two identifiers and nothing else.
+     *
+     * The moment a link may also carry its own wording, a job description holds
+     * a second description of the same requirement — and only the profile's is
+     * governed, versioned and reviewed. The copy is then free to drift, and
+     * nobody reading either can tell which one applied.
+     */
+    private const LINK_KEYS = ['requirement_profile_id', 'requirement_profile_version'];
+
     private function assertPublishedProfiles(int $tenantId, int $companyId, array $links): void
     {
         foreach ($links as $link) {
+            if (! is_array($link) || array_diff(array_keys($link), self::LINK_KEYS) !== []) {
+                throw new JobDescriptionException(
+                    'A competency link carries a requirement profile id and version and nothing else; competency wording belongs to the profile.',
+                );
+            }
+
             if (! RequirementProfile::query()->forCompany($tenantId, $companyId)
                 ->whereKey($link['requirement_profile_id'] ?? null)
                 ->where('version', $link['requirement_profile_version'] ?? null)

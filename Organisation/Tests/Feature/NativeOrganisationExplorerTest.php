@@ -7,15 +7,19 @@ use App\Base\Authz\DTO\ResourceContext;
 use App\Base\Authz\Enums\AuthorizationReasonCode;
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Domains\People\Organisation\Contracts\ContributesOrganisationRecordDetail;
 use App\Domains\People\Organisation\Contracts\ReadsOrganisationExplorer;
 use App\Domains\People\Organisation\Contracts\SummarizesOrganisationSkillCoverage;
 use App\Domains\People\Organisation\Data\OrganisationAggregate;
+use App\Domains\People\Organisation\Data\OrganisationDetailSection;
 use App\Domains\People\Organisation\Data\OrganisationIndicatorValue;
 use App\Domains\People\Organisation\Data\OrganisationNode;
+use App\Domains\People\Organisation\Data\OrganisationRecordDetail;
 use App\Domains\People\Organisation\Enums\OrganisationIndicator;
 use App\Domains\People\Organisation\Enums\OrganisationPurpose;
 use App\Domains\People\Organisation\Enums\OrganisationReadRefusal;
 use App\Domains\People\Organisation\Services\NativeOrganisationExplorer;
+use App\Domains\People\Performance\Services\OrganisationPerformanceDetail;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
 use App\Domains\People\Provider\Contracts\ReadsWorkforcePositions;
 use App\Domains\People\Provider\Data\ExternalReference;
@@ -42,7 +46,7 @@ function organisationSubject(
 }
 
 /** @param list<string> $capabilities */
-function organisationExplorer(array $capabilities): NativeOrganisationExplorer
+function organisationExplorer(array $capabilities, ?ContributesOrganisationRecordDetail $recordDetail = null): NativeOrganisationExplorer
 {
     $tenant = Mockery::mock(TenantContext::class);
     $tenant->shouldReceive('currentTenantId')->andReturn(1);
@@ -52,6 +56,7 @@ function organisationExplorer(array $capabilities): NativeOrganisationExplorer
         new OrganisationTestAuthorization($capabilities),
         new OrganisationTestDirectory,
         new OrganisationTestSkillCoverage,
+        $recordDetail,
     );
 }
 
@@ -244,6 +249,117 @@ test('drill-through re-resolves a supplied node instead of trusting caller data'
     ))->toBe(OrganisationReadRefusal::UnknownSubject);
 });
 
+test('the drill path reaches positions then occupants and carries canonical record detail', function (): void {
+    $reader = organisationExplorer([
+        'people.organisation.structure.view',
+        'people.organisation.detail.view',
+        'people.organisation.audience.hr',
+    ], new OrganisationTestRecordDetail);
+    $unit = new OrganisationNode(
+        organisationSubject(WorkforceResourceType::OrganizationUnit, 'unit-a'),
+        'Unit A',
+        true,
+        new DateTimeImmutable('now'),
+        new DateTimeImmutable('now'),
+    );
+    $positions = $reader->drillThrough(organisationActor(104), $unit, OrganisationPurpose::Structure);
+
+    expect($positions->nodes)->toHaveCount(3)
+        ->and($positions->nodes[0]->subject->type)->toBe(WorkforceResourceType::Position);
+
+    $position = $positions->nodes[1];
+    $detail = $reader->drillThrough(organisationActor(104), $position, OrganisationPurpose::IndividualDetail);
+
+    expect($detail->nodes)->toHaveCount(1)
+        ->and($detail->nodes[0]->subject->stableId)->toBe('employee-a')
+        ->and($detail->detail)->toBeInstanceOf(OrganisationRecordDetail::class)
+        ->and($detail->detail->jobDescription->records[0]['version'])->toBe(3)
+        ->and($detail->detail->performance->records[0]['status'])->toBe('published');
+});
+
+test('each audience row denies out-of-scope JD and KPI detail before any record payload is built', function (
+    string $audience,
+    Actor $actor,
+    WorkforceSubject $subject,
+    OrganisationReadRefusal $refusal,
+    string $section,
+): void {
+    $contributor = new OrganisationTestRecordDetail;
+    $reader = organisationExplorer([
+        'people.organisation.detail.view',
+        'people.organisation.audience.'.$audience,
+    ], $contributor);
+    $node = new OrganisationNode(
+        $subject,
+        'Untrusted client label',
+        true,
+        new DateTimeImmutable('now'),
+        new DateTimeImmutable('now'),
+    );
+
+    expect($reader->drillThrough($actor, $node, OrganisationPurpose::IndividualDetail))->toBe($refusal)
+        ->and($contributor->calls)->toBe(0)
+        ->and($section)->toBeIn(['job-description', 'kpi']);
+})->with([
+    'executive JD' => ['executive', organisationActor(101), organisationSubject(WorkforceResourceType::Position, 'position-b1', 20), OrganisationReadRefusal::WrongCompany, 'job-description'],
+    'executive KPI' => ['executive', organisationActor(101), organisationSubject(WorkforceResourceType::Employee, 'employee-b', 20), OrganisationReadRefusal::WrongCompany, 'kpi'],
+    'HOD JD' => ['hod', organisationActor(102), organisationSubject(WorkforceResourceType::Position, 'position-b1'), OrganisationReadRefusal::OutsideAudienceScope, 'job-description'],
+    'HOD KPI' => ['hod', organisationActor(102), organisationSubject(WorkforceResourceType::Employee, 'employee-b'), OrganisationReadRefusal::OutsideAudienceScope, 'kpi'],
+    'employee JD' => ['employee', organisationActor(103), organisationSubject(WorkforceResourceType::Position, 'position-b1'), OrganisationReadRefusal::OutsideAudienceScope, 'job-description'],
+    'employee KPI' => ['employee', organisationActor(103), organisationSubject(WorkforceResourceType::Employee, 'employee-b'), OrganisationReadRefusal::OutsideAudienceScope, 'kpi'],
+    'HR JD' => ['hr', organisationActor(104), organisationSubject(WorkforceResourceType::Position, 'position-b1', 20), OrganisationReadRefusal::WrongCompany, 'job-description'],
+    'HR KPI' => ['hr', organisationActor(104), organisationSubject(WorkforceResourceType::Employee, 'employee-b', 20), OrganisationReadRefusal::WrongCompany, 'kpi'],
+    'auditor JD' => ['auditor', organisationActor(105), organisationSubject(WorkforceResourceType::Position, 'position-a1'), OrganisationReadRefusal::AudienceScopeUnavailable, 'job-description'],
+    'auditor KPI' => ['auditor', organisationActor(105), organisationSubject(WorkforceResourceType::Employee, 'employee-a'), OrganisationReadRefusal::AudienceScopeUnavailable, 'kpi'],
+]);
+
+test('revoking detail access invalidates a previously visible drill-through without a cached payload', function (): void {
+    $authorization = new OrganisationRevocableAuthorization([
+        'people.organisation.detail.view',
+        'people.organisation.audience.employee',
+    ]);
+    $tenant = Mockery::mock(TenantContext::class);
+    $tenant->shouldReceive('currentTenantId')->andReturn(1);
+    $reader = new NativeOrganisationExplorer(
+        $tenant,
+        $authorization,
+        new OrganisationTestDirectory,
+        recordDetail: new OrganisationTestRecordDetail,
+    );
+    $node = new OrganisationNode(
+        organisationSubject(WorkforceResourceType::Employee, 'employee-a'),
+        'Employee A',
+        true,
+        new DateTimeImmutable('now'),
+        new DateTimeImmutable('now'),
+    );
+
+    expect($reader->drillThrough(organisationActor(103), $node, OrganisationPurpose::IndividualDetail))
+        ->toHaveProperty('detail');
+
+    $authorization->revoke('people.organisation.detail.view');
+
+    expect($reader->drillThrough(organisationActor(103), $node, OrganisationPurpose::IndividualDetail))
+        ->toBe(OrganisationReadRefusal::MissingCapability);
+});
+
+test('JD and KPI cells require their own record capabilities after explorer access', function (): void {
+    $subject = organisationSubject(WorkforceResourceType::Position, 'position-a1');
+    $jdDenied = (new OrganisationPerformanceDetail(
+        new OrganisationTestAuthorization(['people.performance.kpi.view']),
+        new OrganisationTestDirectory,
+    ))->detail(organisationActor(104), $subject, new DateTimeImmutable('now'));
+    $kpiDenied = (new OrganisationPerformanceDetail(
+        new OrganisationTestAuthorization(['people.performance.job-description.view']),
+        new OrganisationTestDirectory,
+    ))->detail(organisationActor(104), $subject, new DateTimeImmutable('now'));
+
+    expect($jdDenied->jobDescription->refusal)->toBe(OrganisationReadRefusal::MissingCapability)
+        ->and($jdDenied->performance->refusal)->toBeNull()
+        ->and($kpiDenied->jobDescription->refusal)->toBeNull()
+        ->and($kpiDenied->performance->refusal)->toBe(OrganisationReadRefusal::MissingCapability);
+});
+
 final class OrganisationTestAuthorization implements AuthorizationService
 {
     /** @param list<string> $capabilities */
@@ -280,6 +396,67 @@ final class OrganisationTestAuthorization implements AuthorizationService
         return $this->can($actor, $capability, context: $context)->allowed
             ? collect($resources)
             : collect();
+    }
+}
+
+final class OrganisationRevocableAuthorization implements AuthorizationService
+{
+    /** @param list<string> $capabilities */
+    public function __construct(private array $capabilities) {}
+
+    public function revoke(string $capability): void
+    {
+        $this->capabilities = array_values(array_diff($this->capabilities, [$capability]));
+    }
+
+    public function can(
+        Actor $actor,
+        string $capability,
+        ?ResourceContext $resource = null,
+        array $context = [],
+    ): AuthorizationDecision {
+        return in_array($capability, $this->capabilities, true)
+            ? AuthorizationDecision::allow(['explicit_test_grant'])
+            : AuthorizationDecision::deny(AuthorizationReasonCode::DENIED_MISSING_CAPABILITY);
+    }
+
+    public function authorize(
+        Actor $actor,
+        string $capability,
+        ?ResourceContext $resource = null,
+        array $context = [],
+    ): void {
+        if (! $this->can($actor, $capability, $resource, $context)->allowed) {
+            throw new LogicException('Test authorization refused the capability.');
+        }
+    }
+
+    public function filterAllowed(
+        Actor $actor,
+        string $capability,
+        iterable $resources,
+        array $context = [],
+    ): Collection {
+        return $this->can($actor, $capability, context: $context)->allowed
+            ? collect($resources)
+            : collect();
+    }
+}
+
+final class OrganisationTestRecordDetail implements ContributesOrganisationRecordDetail
+{
+    public int $calls = 0;
+
+    public function detail(Actor $actor, WorkforceSubject $subject, DateTimeInterface $asOf): OrganisationRecordDetail
+    {
+        $this->calls++;
+
+        return new OrganisationRecordDetail(
+            $subject,
+            DateTimeImmutable::createFromInterface($asOf),
+            OrganisationDetailSection::available([['reference' => 'jd-1', 'version' => 3]]),
+            OrganisationDetailSection::available([['reference' => 'kpi-1', 'status' => 'published']]),
+        );
     }
 }
 
