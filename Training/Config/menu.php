@@ -2,6 +2,13 @@
 
 return [
     'items' => [[
+        'id' => 'people.training-effectiveness',
+        'label' => 'Training effectiveness',
+        'icon' => 'heroicon-o-clipboard-document-check',
+        'route' => 'people.training.effectiveness.index',
+        'permission' => 'people.training.effectiveness.review',
+        'parent' => 'people',
+    ], [
         'id' => 'people.training-budget',
         'label' => 'Training budget',
         'icon' => 'heroicon-o-banknotes',

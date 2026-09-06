@@ -2,6 +2,7 @@
 
 namespace App\Domains\People\Training;
 
+use App\Domains\People\Training\Console\Commands\EffectivenessDueCommand;
 use App\Base\Menu\Services\MenuConditionRegistry;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
@@ -18,6 +19,12 @@ class ServiceProvider extends BaseServiceProvider
             SummarizesTrainingParticipation::class,
             UnavailableTrainingParticipationSummary::class,
         );
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                EffectivenessDueCommand::class,
+            ]);
+        }
     }
 
     public function boot(): void

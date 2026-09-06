@@ -23,15 +23,19 @@ use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\DeliveryMode;
 use App\Domains\People\Training\Enums\EffectivenessCheckpoint;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEffectivenessException;
+use App\Domains\People\Training\Livewire\Effectiveness\Index as EffectivenessIndex;
 use App\Domains\People\Training\Models\TrainingEffectivenessAnswer;
 use App\Domains\People\Training\Models\TrainingEffectivenessReminder;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEffectivenessCheckpoints;
 use App\Domains\People\Training\Services\TrainingEventStore;
 use App\Domains\People\Training\Services\TrainingParticipationStore;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Livewire\Livewire;
 
 /**
  * 0013-a: thirty, sixty and ninety days after somebody attended a course, ask
@@ -299,4 +303,110 @@ test('company axis: a sibling company in the same tenant is not listed here', fu
     Carbon::setTestNow();
 
     expect($open)->toBe([]);
+});
+
+test('the database refuses a second reminder for the same participant and checkpoint', function (): void {
+    $f = checkpointFixture();
+    $participantId = checkpointAttend($f);
+    checkpointRun($f, 31);
+
+    $duplicate = fn (): TrainingEffectivenessReminder => DB::transaction(
+        fn (): TrainingEffectivenessReminder => TrainingEffectivenessReminder::query()->create([
+            'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'],
+            'event_id' => (int) $f['event']->id, 'participant_id' => $participantId,
+            'checkpoint' => EffectivenessCheckpoint::Day30,
+            'hod_user_id' => (int) $f['hod']->id, 'notified_at' => now(),
+        ]),
+    );
+
+    // The service checks first, but the key is what makes the promise.
+    // Wrapped in a transaction so the violation rolls back to a savepoint
+    // rather than aborting Postgres's surrounding transaction.
+    expect($duplicate)->toThrow(UniqueConstraintViolationException::class)
+        ->and(TrainingEffectivenessReminder::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(1);
+});
+
+test('an answered checkpoint is not reminded again', function (): void {
+    $f = checkpointFixture();
+    $participantId = checkpointAttend($f);
+
+    Carbon::setTestNow($f['event']->ends_at->copy()->addDays(31));
+    app(TrainingEffectivenessCheckpoints::class)
+        ->answer($f['hod'], $f['companyId'], $participantId, EffectivenessCheckpoint::Day30, 4, 'Applied.');
+    Carbon::setTestNow();
+
+    checkpointRun($f, 31);
+
+    // The reminder is for silence, not for the checkpoint existing.
+    expect(TrainingEffectivenessReminder::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
+});
+
+test('an answer needs a comment and a rating inside the scale', function (int|string $rating, string $comment): void {
+    $f = checkpointFixture();
+    $participantId = checkpointAttend($f);
+    Carbon::setTestNow($f['event']->ends_at->copy()->addDays(31));
+
+    // A bare number is not an answer to "has the training been applied?", and
+    // a rating off the scale is not a point on it.
+    expect(fn () => app(TrainingEffectivenessCheckpoints::class)->answer(
+        $f['hod'], $f['companyId'], $participantId, EffectivenessCheckpoint::Day30, (int) $rating, $comment,
+    ))->toThrow(InvalidTrainingEffectivenessException::class)
+        ->and(TrainingEffectivenessAnswer::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
+
+    Carbon::setTestNow();
+})->with([
+    'no comment' => [4, '   '],
+    'below the scale' => [0, 'Applied.'],
+    'above the scale' => [6, 'Applied.'],
+]);
+
+test('the page lists only the signed-in HOD\'s open questions and records an answer', function (): void {
+    $f = checkpointFixture();
+    $participantId = checkpointAttend($f);
+    test()->withoutVite();
+
+    Carbon::setTestNow($f['event']->ends_at->copy()->addDays(31));
+
+    Livewire::actingAs($f['hod'])->test(EffectivenessIndex::class)
+        ->assertOk()
+        ->assertSee('Attendee Checkpoint')
+        ->assertSee('30 days')
+        ->set('rating.'.$participantId, 4)
+        ->set('comment.'.$participantId, 'Using the new checks on every changeover.')
+        ->call('save', $participantId);
+
+    $answer = TrainingEffectivenessAnswer::query()->forCompany($f['tenantId'], $f['companyId'])->sole();
+
+    expect((int) $answer->rating)->toBe(4)
+        ->and((int) $answer->participant_id)->toBe($participantId);
+
+    Carbon::setTestNow();
+});
+
+test('the page shows a HOD nothing for another department', function (): void {
+    $f = checkpointFixture();
+    checkpointAttend($f);
+    $otherType = DepartmentType::query()->firstOrCreate(
+        ['code' => 'ops-page-other'], ['name' => 'Other page', 'category' => 'operational', 'is_active' => true],
+    );
+    $otherDepartment = Department::query()->create([
+        'company_id' => $f['companyId'], 'department_type_id' => $otherType->id, 'status' => 'active',
+    ]);
+    $otherHead = Employee::factory()->create([
+        'company_id' => $f['companyId'], 'department_id' => $otherDepartment->id,
+        'full_name' => 'Other page head', 'status' => 'active', 'employee_type' => 'full_time',
+    ]);
+    $otherDepartment->update(['head_id' => $otherHead->id]);
+    $intruder = User::factory()->create(['company_id' => $f['companyId'], 'employee_id' => $otherHead->id]);
+    checkpointRole($intruder, 'people_hod');
+    test()->withoutVite();
+
+    Carbon::setTestNow($f['event']->ends_at->copy()->addDays(31));
+
+    Livewire::actingAs($intruder)->test(EffectivenessIndex::class)
+        ->assertOk()
+        ->assertDontSee('Attendee Checkpoint')
+        ->assertSee('No effectiveness question is open');
+
+    Carbon::setTestNow();
 });
