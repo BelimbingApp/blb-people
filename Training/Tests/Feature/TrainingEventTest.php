@@ -10,6 +10,9 @@ use App\Core\Company\Models\Department;
 use App\Core\Company\Models\DepartmentType;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
+use App\Domains\People\Provider\Data\ExternalReference;
+use App\Domains\People\Provider\Data\WorkforceSubject;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
@@ -18,8 +21,10 @@ use App\Domains\People\Skills\Enums\AssessmentMethod;
 use App\Domains\People\Skills\Services\SkillAudienceAssignmentStore;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
+use App\Domains\People\Training\Data\ParticipationFactDraft;
 use App\Domains\People\Training\Data\TrainingCourseDraft;
 use App\Domains\People\Training\Data\TrainingEventDraft;
+use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\DeliveryMode;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingCatalogException;
@@ -32,6 +37,7 @@ use App\Domains\People\Training\Models\TrainingEventAuditEvent;
 use App\Domains\People\Training\Services\TrainingAudience;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
+use App\Domains\People\Training\Services\TrainingParticipationStore;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -308,7 +314,12 @@ test('event schedule and transitions obey the event clock at the store boundary'
     ])))->toThrow(InvalidTrainingEventException::class, 'must end in the future');
 
     $event = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture));
-    $neverStarted = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture));
+    // A second event for the same course must take a different slot now that
+    // double-booking is refused; it still ends before the clock assertions.
+    $neverStarted = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture, [
+        'startsAt' => new DateTimeImmutable('2026-09-30T09:00:00+00:00'),
+        'endsAt' => new DateTimeImmutable('2026-09-30T17:00:00+00:00'),
+    ]));
     expect(fn () => $store->revise((int) $fixture['company']->id, (int) $event->id, trainingEventDraft($fixture, [
         'startsAt' => new DateTimeImmutable('2026-09-29T09:00:00+00:00'),
         'endsAt' => new DateTimeImmutable('2026-09-29T17:00:00+00:00'),
@@ -415,14 +426,21 @@ test('the actual register gives HR company scope, HOD department scope, and reje
     $fixture = trainingEventFixture();
     $store = app(TrainingEventStore::class);
     $operationsEvent = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture));
+    // Same course, so each event takes its own day now that double-booking is
+    // refused. The company-wide event stays the earliest so the HOD register
+    // keeps its newest-first order.
     $financeEvent = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture, [
         'targetDepartmentEntityId' => $fixture['departments'][1],
         'organizerEmployeeEntityId' => (int) $fixture['finance']->id,
         'venue' => 'Finance room',
+        'startsAt' => new DateTimeImmutable('2026-10-03T09:00:00+00:00'),
+        'endsAt' => new DateTimeImmutable('2026-10-03T17:00:00+00:00'),
     ]));
     $companyWideEvent = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture, [
         'targetDepartmentEntityId' => null,
         'venue' => 'Company hall',
+        'startsAt' => new DateTimeImmutable('2026-09-30T09:00:00+00:00'),
+        'endsAt' => new DateTimeImmutable('2026-09-30T17:00:00+00:00'),
     ]));
 
     $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
@@ -581,7 +599,10 @@ test('event cancel validates the reason, cancels for HR, and refuses a user with
     $fixture = trainingEventFixture();
     $store = app(TrainingEventStore::class);
     $event = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture));
-    $deniedEvent = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture));
+    $deniedEvent = $store->schedule((int) $fixture['company']->id, trainingEventDraft($fixture, [
+        'startsAt' => new DateTimeImmutable('2026-10-02T09:00:00+00:00'),
+        'endsAt' => new DateTimeImmutable('2026-10-02T17:00:00+00:00'),
+    ]));
     $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
     $hod = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
     trainingEventRole($hr, 'people_hr');
@@ -649,4 +670,147 @@ test('event cancelEdit discards local editing state without mutating the event',
         ->assertSet('venue', '');
 
     expect($event->refresh()->venue)->toBe('Original venue');
+});
+
+test('scheduling the same course at an overlapping time is refused', function (): void {
+    $fixture = trainingEventFixture();
+    $companyId = (int) $fixture['company']->id;
+    $store = app(TrainingEventStore::class);
+    $slot = static fn (int $day, int $from, int $to): array => [
+        'startsAt' => now()->addDays($day)->setTime($from, 0),
+        'endsAt' => now()->addDays($day)->setTime($to, 0),
+    ];
+    $first = $store->schedule($companyId, trainingEventDraft($fixture, $slot(1, 9, 17)));
+
+    expect(fn () => $store->schedule($companyId, trainingEventDraft($fixture, $slot(1, 9, 17))))
+        ->toThrow(InvalidTrainingEventException::class, 'already has an event');
+    expect(fn () => $store->schedule($companyId, trainingEventDraft($fixture, $slot(1, 13, 18))))
+        ->toThrow(InvalidTrainingEventException::class, 'already has an event');
+
+    // An adjacent slot is a different time, and another course may use the same slot.
+    $next = $store->schedule($companyId, trainingEventDraft($fixture, $slot(1, 17, 19)));
+    expect((int) $next->id)->not->toBe((int) $first->id);
+    $skillId = (int) $fixture['course']->mappedSkills()->firstOrFail()->id;
+    $otherCourse = app(TrainingCatalogStore::class)->defineCourse($companyId, new TrainingCourseDraft(
+        code: 'forklift.refresher',
+        title: 'Forklift refresher',
+        deliveryMode: DeliveryMode::InternalClassroom,
+        skillIds: [$skillId],
+        internalTrainerEmployeeEntityId: (int) $fixture['trainer']->id,
+    ));
+    $parallel = $store->schedule($companyId, trainingEventDraft($fixture,
+        ['courseId' => (int) $otherCourse->id] + $slot(1, 9, 17)));
+    expect((int) $parallel->course_id)->toBe((int) $otherCourse->id);
+
+    // Once the first event is cancelled its slot is free again.
+    $store->cancel($companyId, (int) $first->id, 'Room double-booked');
+    $replacement = $store->schedule($companyId, trainingEventDraft($fixture, $slot(1, 9, 17)));
+    expect($replacement->status)->toBe(TrainingEventStatus::Scheduled);
+});
+
+test('cancelling an event with confirmed participants needs HR', function (): void {
+    $fixture = trainingEventFixture();
+    $companyId = (int) $fixture['company']->id;
+    $tenantId = (int) $fixture['tenantId'];
+    $hr = User::factory()->create(['company_id' => $companyId]);
+    trainingEventRole($hr, 'people_hr');
+    $staff = User::factory()->create(['company_id' => $companyId]);
+    $store = app(TrainingEventStore::class);
+    $event = $store->schedule($companyId, trainingEventDraft($fixture, [
+        'startsAt' => now()->addDay()->setTime(9, 0),
+        'endsAt' => now()->addDay()->setTime(13, 0),
+    ]), (int) $hr->id);
+
+    $participation = app(TrainingParticipationStore::class);
+    $session = $participation->defineSession($hr, $companyId, (int) $event->id,
+        'session-1', $event->starts_at, $event->starts_at->addHours(2));
+    $subject = new WorkforceSubject($tenantId, $companyId, WorkforceResourceType::Employee,
+        (string) $fixture['operations']->id,
+        new ExternalReference(WorkforceResourceType::Employee, (string) $fixture['operations']->id));
+    $this->travelTo($event->ends_at->addHour());
+    $fact = $participation->recordAttendance($hr, $companyId, (int) $session->id, $subject,
+        new ParticipationFactDraft(
+            attendance: AttendanceStatus::Present,
+            actualMinutes: 90,
+            source: 'manual',
+            sourceReference: (string) Str::uuid(),
+        ));
+    $participation->confirm($hr, $companyId, (int) $fact->id);
+    $this->travelBack();
+
+    expect(fn () => $store->cancel($companyId, (int) $event->id, 'Low enrolment', (int) $staff->id))
+        ->toThrow(InvalidTrainingEventException::class, 'confirmed participants');
+    expect($event->refresh()->status)->toBe(TrainingEventStatus::Scheduled);
+
+    $cancelled = $store->cancel($companyId, (int) $event->id, 'Low enrolment', (int) $hr->id);
+    expect($cancelled->status)->toBe(TrainingEventStatus::Cancelled)
+        ->and($cancelled->cancellation_reason)->toBe('Low enrolment');
+});
+
+test('cancelling an event with only unconfirmed participation stays open', function (): void {
+    $fixture = trainingEventFixture();
+    $companyId = (int) $fixture['company']->id;
+    $tenantId = (int) $fixture['tenantId'];
+    $hr = User::factory()->create(['company_id' => $companyId]);
+    trainingEventRole($hr, 'people_hr');
+    $staff = User::factory()->create(['company_id' => $companyId]);
+    $store = app(TrainingEventStore::class);
+    $event = $store->schedule($companyId, trainingEventDraft($fixture, [
+        'startsAt' => now()->addDay()->setTime(9, 0),
+        'endsAt' => now()->addDay()->setTime(13, 0),
+    ]));
+
+    $participation = app(TrainingParticipationStore::class);
+    $session = $participation->defineSession($hr, $companyId, (int) $event->id,
+        'session-1', $event->starts_at, $event->starts_at->addHours(2));
+    $subject = new WorkforceSubject($tenantId, $companyId, WorkforceResourceType::Employee,
+        (string) $fixture['operations']->id,
+        new ExternalReference(WorkforceResourceType::Employee, (string) $fixture['operations']->id));
+    $this->travelTo($event->ends_at->addHour());
+    $participation->recordAttendance($hr, $companyId, (int) $session->id, $subject,
+        new ParticipationFactDraft(
+            attendance: AttendanceStatus::Present,
+            actualMinutes: 90,
+            source: 'manual',
+            sourceReference: (string) Str::uuid(),
+        ));
+    $this->travelBack();
+
+    expect($store->cancel($companyId, (int) $event->id, 'Low enrolment', (int) $staff->id)->status)
+        ->toBe(TrainingEventStatus::Cancelled);
+});
+
+test('rescheduling creates a new event and keeps the old one', function (): void {
+    $fixture = trainingEventFixture();
+    $companyId = (int) $fixture['company']->id;
+    $tenantId = (int) $fixture['tenantId'];
+    $store = app(TrainingEventStore::class);
+    $event = $store->schedule($companyId, trainingEventDraft($fixture, [
+        'startsAt' => now()->addDay()->setTime(9, 0),
+        'endsAt' => now()->addDay()->setTime(17, 0),
+    ]));
+
+    $moved = $store->reschedule($companyId, (int) $event->id, trainingEventDraft($fixture, [
+        'startsAt' => now()->addDays(2)->setTime(9, 0),
+        'endsAt' => now()->addDays(2)->setTime(17, 0),
+    ]));
+
+    expect((int) $moved->id)->not->toBe((int) $event->id)
+        ->and($moved->event_key)->not->toBe($event->event_key)
+        ->and($moved->status)->toBe(TrainingEventStatus::Scheduled)
+        ->and($moved->starts_at->format('Y-m-d'))->toBe(now()->addDays(2)->format('Y-m-d'));
+    $old = $event->refresh();
+    expect($old->status)->toBe(TrainingEventStatus::Cancelled)
+        ->and($old->cancellation_reason)->toContain($moved->event_key);
+    expect(TrainingEventAuditEvent::query()->forCompany($tenantId, $companyId)
+        ->where('training_event_id', (int) $moved->id)
+        ->where('event_type', 'scheduled')->exists())->toBeTrue();
+    expect(TrainingEventAuditEvent::query()->forCompany($tenantId, $companyId)
+        ->where('training_event_id', (int) $event->id)
+        ->where('event_type', 'rescheduled')->exists())->toBeTrue();
+
+    expect(fn () => $store->reschedule($companyId, (int) $event->id, trainingEventDraft($fixture, [
+        'startsAt' => now()->addDays(3)->setTime(9, 0),
+        'endsAt' => now()->addDays(3)->setTime(17, 0),
+    ])))->toThrow(InvalidTrainingEventException::class, 'scheduled event');
 });
