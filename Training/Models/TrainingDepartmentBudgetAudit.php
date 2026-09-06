@@ -4,6 +4,7 @@ namespace App\Domains\People\Training\Models;
 
 use App\Domains\People\Skills\Models\Concerns\CompanyOwned;
 use App\Domains\People\Skills\Models\TenantOwnedModel;
+use App\Domains\People\Training\Enums\BudgetAuditKind;
 use App\Domains\People\Training\Exceptions\InvalidTrainingBudgetException;
 
 /**
@@ -33,7 +34,9 @@ final class TrainingDepartmentBudgetAudit extends TenantOwnedModel
     protected function casts(): array
     {
         return [
+            'kind' => BudgetAuditKind::class,
             'previous_amount' => 'decimal:4',
+            'overage_amount' => 'decimal:4',
             'amount' => 'decimal:4',
             'occurred_at' => 'immutable_datetime',
         ];

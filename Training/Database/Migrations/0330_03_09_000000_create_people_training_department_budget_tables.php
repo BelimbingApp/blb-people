@@ -34,14 +34,21 @@ return new class extends Migration
         Schema::create('people_training_department_budget_audits', function (Blueprint $table): void {
             $this->identity($table, 'ptdba');
             $table->unsignedBigInteger('training_department_budget_id');
-            // Null on the first allocation: there was no amount before it.
+            $table->string('kind', 16);
+            // Null on the first allocation, and on every override: an override
+            // does not move the amount, so it has no amount it moved from.
             $table->decimal('previous_amount', 19, 4)->nullable();
+            // An allocation's new amount; an override's approved cost.
             $table->decimal('amount', 19, 4);
+            // How far past the allocation the override put the department.
+            // Null for an allocation, which by definition is not past itself.
+            $table->decimal('overage_amount', 19, 4)->nullable();
             $table->text('reason');
             $table->unsignedBigInteger('actor_user_id');
             $table->timestamp('occurred_at');
 
             $table->index(['tenant_id', 'company_entity_id', 'training_department_budget_id'], 'ptdba_budget_idx');
+            $table->index(['tenant_id', 'company_entity_id', 'kind'], 'ptdba_kind_idx');
             $table->foreign(['training_department_budget_id', 'tenant_id', 'company_entity_id'], 'ptdba_budget_fk')
                 ->references(['id', 'tenant_id', 'company_entity_id'])->on('people_training_department_budgets')
                 ->cascadeOnUpdate()->restrictOnDelete();
