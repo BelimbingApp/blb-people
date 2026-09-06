@@ -17,5 +17,12 @@ return [
         'permission' => 'people.training.event.view',
         'condition' => 'people.training.event-audience',
         'parent' => 'people',
+    ], [
+        'id' => 'people.hr-governance',
+        'label' => 'HR governance',
+        'icon' => 'heroicon-o-clipboard-document-check',
+        'route' => 'people.hr-governance.index',
+        'permission' => 'people.skill.hr.view',
+        'parent' => 'people',
     ]],
 ];

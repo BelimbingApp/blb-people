@@ -234,3 +234,42 @@ it('requires every model query to pin tenant and company', function (): void {
         ->toThrow(MissingCompanyScopeException::class)
         ->and(JobDescription::query()->forCompany($fixture['tenant'], $fixture['company'])->count())->toBe(1);
 });
+
+it('refuses publication for another company even when the actor can publish job descriptions', function (): void {
+    $fixture = jobDescriptionFixture();
+    $draft = app(JobDescriptionStore::class)->draft($fixture['company'], jobDescriptionDraft($fixture));
+
+    expect(fn () => app(JobDescriptionStore::class)->publish(
+        $fixture['hr'],
+        $fixture['sibling'],
+        (int) $draft->id,
+    ))->toThrow(JobDescriptionException::class, 'may not publish job descriptions for this company');
+});
+
+it('refuses supersession without the job-description capability', function (): void {
+    $fixture = jobDescriptionFixture();
+    $store = app(JobDescriptionStore::class);
+    $published = $store->publish($fixture['hr'], $fixture['company'], (int) $store->draft($fixture['company'], jobDescriptionDraft($fixture))->id);
+    $replacement = $store->draft($fixture['company'], jobDescriptionDraft($fixture, 2));
+
+    expect(fn () => $store->supersede(
+        $fixture['hod'],
+        $fixture['company'],
+        (int) $published->id,
+        (int) $replacement->id,
+    ))->toThrow(AuthorizationDeniedException::class);
+});
+
+it('refuses applicable-version lookup without a tenant context', function (): void {
+    $fixture = jobDescriptionFixture();
+    $store = app(JobDescriptionStore::class);
+    $store->publish($fixture['hr'], $fixture['company'], (int) $store->draft($fixture['company'], jobDescriptionDraft($fixture))->id);
+    app(TenantContext::class)->clear();
+
+    expect(fn () => $store->applicable(
+        $fixture['company'],
+        (string) $fixture['position'],
+        4,
+        new DateTimeImmutable('2026-09-01'),
+    ))->toThrow(JobDescriptionException::class, 'tenant context');
+});
