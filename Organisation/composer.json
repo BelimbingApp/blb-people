@@ -14,7 +14,9 @@
             "version": "0.1.0",
             "description": "Authorised organisation structure, aggregate and drill-through reads.",
             "requires-modules": {
-                "people/provider": "*"
+                "people/provider": "*",
+                "people/settings": "*",
+                "people/skills": "*"
             },
             "optional-modules": {},
             "publishes-events": [],

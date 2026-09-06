@@ -6,6 +6,8 @@ use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
 use App\Core\User\Models\User;
+use App\Domains\People\Organisation\Data\PositionVersionDraft;
+use App\Domains\People\Organisation\Services\PositionDirectory;
 use App\Domains\People\Performance\Data\JobDescriptionDraft;
 use App\Domains\People\Performance\Exceptions\JobDescriptionException;
 use App\Domains\People\Performance\Services\JobDescriptionStore;
@@ -54,6 +56,15 @@ function linkBaseFixture(): array
         'name' => 'Engineer',
         'status' => PeopleReferenceEntry::STATUS_ACTIVE,
     ]);
+
+    // A description binds to a position version the directory holds, so the
+    // fixture records the one these drafts name.
+    app(PositionDirectory::class)->recordVersion($companyId, new PositionVersionDraft(
+        positionStableId: (string) $position->id,
+        version: 4,
+        title: 'Engineer v4',
+        effectiveFrom: new DateTimeImmutable('2026-01-01'),
+    ));
     $profile = [
         'id' => 9000,
         'tenant_id' => $tenantId,

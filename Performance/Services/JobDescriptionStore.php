@@ -6,6 +6,9 @@ use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
+use App\Domains\People\Organisation\Enums\PositionAssignmentType;
+use App\Domains\People\Organisation\Models\PositionVersion;
+use App\Domains\People\Organisation\Services\PositionDirectory;
 use App\Domains\People\Performance\Data\JobDescriptionDraft;
 use App\Domains\People\Performance\Enums\JobDescriptionStatus;
 use App\Domains\People\Performance\Exceptions\JobDescriptionException;
@@ -28,12 +31,14 @@ final readonly class JobDescriptionStore
         private ResolvesWorkforceSubjects $subjects,
         private AuthorizationService $authorization,
         private CompanyAttribution $companies,
+        private PositionDirectory $positions,
     ) {}
 
     public function draft(int $companyId, JobDescriptionDraft $draft): JobDescription
     {
         $tenantId = $this->tenantId();
         $this->assertPosition($tenantId, $companyId, $draft->positionStableId);
+        $this->assertPositionVersion($tenantId, $companyId, $draft->positionStableId, $draft->positionVersion);
         $this->assertComplete($draft);
         $this->assertPublishedProfiles($tenantId, $companyId, $draft->competencyLinks);
 
@@ -159,6 +164,59 @@ final readonly class JobDescriptionStore
         if ($resolution->record === null) {
             throw new JobDescriptionException('The position is not active in this company.');
         }
+    }
+
+    /**
+     * A description binds to a position version the directory actually holds.
+     *
+     * Before this, position_version was any integer the caller cared to send,
+     * so a description could name a revision of the position that never
+     * existed and nothing would say so until somebody tried to read it back.
+     */
+    private function assertPositionVersion(int $tenantId, int $companyId, string $stableId, int $version): void
+    {
+        $exists = PositionVersion::query()->forCompany($tenantId, $companyId)
+            ->where('position_stable_id', $stableId)
+            ->where('version', $version)
+            ->exists();
+        if (! $exists) {
+            throw new JobDescriptionException(
+                'The directory holds no position version '.$version.' for this position.',
+            );
+        }
+    }
+
+    /**
+     * Every description that applies to an employee on one day, one row per
+     * assignment.
+     *
+     * A list rather than a single answer: an acting appointment alongside a
+     * substantive one is two real descriptions, and collapsing them would be
+     * the ambiguity JP-A02 exists to refuse. A vacant position is the mirror
+     * case and is not reachable from here at all — it keeps its description
+     * through applicable(), which asks about the position, not its holder.
+     *
+     * @return list<array{assignment_type: PositionAssignmentType, position_stable_id: string, position_version: int, job_description: JobDescription|null}>
+     */
+    public function applicableForEmployee(int $companyId, int $employeeEntityId, DateTimeInterface $asOf): array
+    {
+        $tenantId = $this->tenantId();
+        $rows = [];
+        foreach ($this->positions->assignmentsForEmployee($companyId, $employeeEntityId, $asOf) as $assignment) {
+            $stableId = (string) $assignment->position_stable_id;
+            $version = $this->positions->versionAt($companyId, $stableId, $asOf);
+            if ($version === null) {
+                continue;
+            }
+            $rows[] = [
+                'assignment_type' => $assignment->type,
+                'position_stable_id' => $stableId,
+                'position_version' => (int) $version->version,
+                'job_description' => $this->applicable($companyId, $stableId, (int) $version->version, $asOf),
+            ];
+        }
+
+        return $rows;
     }
 
     /** @param list<array{requirement_profile_id: int, requirement_profile_version: int}> $links */
