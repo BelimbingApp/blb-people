@@ -127,6 +127,14 @@ function evaluationSubmissionFill(mixed $component, array $values): mixed
     return $component;
 }
 
+function evaluationSubmissionRows(array $fixture): mixed
+{
+    return TrainingEvaluation::query()->forCompany(
+        (int) $fixture['tenant']->id,
+        (int) $fixture['company']->id,
+    );
+}
+
 test('an employee creates then updates one evaluation for their own attended event', function (): void {
     $fixture = evaluationSubmissionFixture();
     $otherFact = evaluationSubmissionAttendance($fixture, $fixture['otherEmployee']);
@@ -142,7 +150,7 @@ test('an employee creates then updates one evaluation for their own attended eve
         ->assertHasNoErrors()
         ->assertSee('Evaluation saved');
 
-    $first = TrainingEvaluation::query()->sole();
+    $first = evaluationSubmissionRows($fixture)->sole();
     expect($first->participant_id)->toBe((int) $fact->participant_id)
         ->and($first->participant_id)->not->toBe((int) $otherFact->participant_id)
         ->and($first->relevance)->toBe(5)
@@ -158,12 +166,12 @@ test('an employee creates then updates one evaluation for their own attended eve
         ->call('submit', (int) $fixture['event']->id)
         ->assertHasNoErrors();
 
-    $updated = TrainingEvaluation::query()->sole();
+    $updated = evaluationSubmissionRows($fixture)->sole();
     expect($updated->id)->toBe($first->id)
         ->and($updated->participant_id)->toBe((int) $fact->participant_id)
         ->and($updated->relevance)->toBe(4)
         ->and($updated->issues_or_improvements)->toBe('The revised pace was right.')
-        ->and(TrainingEvaluation::query()->count())->toBe(1);
+        ->and(evaluationSubmissionRows($fixture)->count())->toBe(1);
 });
 
 test('an evaluation after the event window closes is visibly refused', function (): void {
@@ -177,7 +185,7 @@ test('an evaluation after the event window closes is visibly refused', function 
         ->assertHasErrors('evaluation')
         ->assertSee('window has closed');
 
-    expect(TrainingEvaluation::query()->count())->toBe(0);
+    expect(evaluationSubmissionRows($fixture)->count())->toBe(0);
 });
 
 test('the evaluation route is employee-only', function (): void {

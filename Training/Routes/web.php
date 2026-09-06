@@ -2,6 +2,7 @@
 
 use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingAudience;
 use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
+use App\Domains\People\Training\Livewire\Evaluation\Index as EvaluationIndex;
 use App\Domains\People\Training\Livewire\Event\Index;
 use App\Domains\People\Training\Livewire\Evidence\Index as EvidenceIndex;
 use App\Domains\People\Training\Livewire\HrGovernance\Index as HrGovernanceIndex;
@@ -37,4 +38,8 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/training-evidence', EvidenceIndex::class)
         ->middleware('authz:'.EvidenceIndex::CAPABILITY)
         ->name('people.training.evidence.index');
+
+    Route::get('people/training-evaluations', EvaluationIndex::class)
+        ->middleware('authz:'.EvaluationIndex::CAPABILITY)
+        ->name('people.training.evaluations.index');
 });

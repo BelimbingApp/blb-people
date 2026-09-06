@@ -24,18 +24,19 @@ return [
         'people.training.effectiveness.close',
 
         /*
-         * The participant evaluation read. A capability of its own rather than
+         * Participant evaluation access has capabilities of its own rather than
          * reusing event.view: granting employees the events capability to reach
          * their own evaluation would widen menu and route access as a side
          * effect, and docs/contracts/training-evaluation.md asks for explicit
          * self-record access rather than access inherited from somewhere else.
          *
-         * Deliberately not granted to people_training_trainer. That contract
-         * defines no automatic evaluation audience for the role and says
-         * teaching an event is insufficient; the refusal is the absence of this
-         * grant rather than a special case in the reader.
+         * Submit is employee-only. Neither capability is granted to the
+         * people_training_trainer role: the contract defines no automatic
+         * evaluation audience for it and says teaching an event is insufficient;
+         * the refusal is the absence of this grant rather than a special case.
          */
         'people.training.evaluation.view',
+        'people.training.evaluation.submit',
     ],
 
     'roles' => [
@@ -79,6 +80,7 @@ return [
                 'people.training.passport.view',
                 'people.training.request.submit',
                 'people.training.participation.evidence.submit',
+                'people.training.evaluation.submit',
             ],
         ],
         'people_training_approver' => [

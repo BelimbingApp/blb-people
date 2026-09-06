@@ -2,6 +2,13 @@
 
 return [
     'items' => [[
+        'id' => 'people.training-evaluations',
+        'label' => 'Training evaluations',
+        'icon' => 'heroicon-o-chat-bubble-left-right',
+        'route' => 'people.training.evaluations.index',
+        'permission' => 'people.training.evaluation.submit',
+        'parent' => 'people',
+    ], [
         'id' => 'people.training-evidence',
         'label' => 'Training evidence',
         'icon' => 'heroicon-o-document-arrow-up',
