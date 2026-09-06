@@ -143,7 +143,9 @@ test('an employee creates then updates one evaluation for their own attended eve
     $component = Livewire::withQueryParams(['participant_id' => $otherFact->participant_id])
         ->actingAs($fixture['user'])
         ->test(Index::class)
-        ->assertSee('Forklift safety');
+        ->assertSee('Forklift safety')
+        ->call('selectEvent', (int) $fixture['event']->id)
+        ->assertSet('selectedEventId', (int) $fixture['event']->id);
 
     evaluationSubmissionFill($component, evaluationSubmissionValues('More practical exercises would help.'))
         ->call('submit', (int) $fixture['event']->id)
