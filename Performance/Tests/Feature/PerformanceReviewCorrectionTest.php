@@ -200,3 +200,33 @@ test('finalizing needs a rationale a reader can act on', function (): void {
         rationale: '   ',
     )))->toThrow(PerformanceReviewException::class, 'rationale');
 });
+
+test('an actor attributed only to another company cannot correct this review', function (): void {
+    $f = perfFixture();
+    $review = perfFinalized($f);
+    $outsider = User::factory()->create(['company_id' => $f['sibling']]);
+    PrincipalRole::query()->create([
+        'company_id' => $f['sibling'], 'principal_type' => PrincipalType::USER->value,
+        'principal_id' => $outsider->id,
+        'role_id' => Role::query()->whereNull('company_id')->where('code', 'people_hr')->valueOrFail('id'),
+    ]);
+
+    // The review id and the company id are both this company's. The only thing
+    // between the outsider and a released review is the attribution check —
+    // passing the sibling's own id would have been refused by the lookup alone.
+    expect(fn () => app(PerformanceReviewStore::class)
+        ->correct($outsider, $f['company'], (int) $review->id, perfReviewDraft($f, []), 'Reason.'))
+        ->toThrow(PerformanceReviewException::class, 'company scope');
+});
+
+test('a draft review cannot be corrected; it is still editable as a draft', function (): void {
+    $f = perfFixture();
+    $store = app(PerformanceReviewStore::class);
+    $observation = perfObservation($f);
+    $draft = $store->draftReview($f['hod'], $f['company'], perfReviewDraft($f, [(int) $observation->id]));
+
+    // Correction is the route for a released outcome. Offering it on a draft
+    // would mint a version 2 that never had a version 1 anyone saw.
+    expect(fn () => $store->correct($f['hr'], $f['company'], (int) $draft->id, perfReviewDraft($f, []), 'Reason.'))
+        ->toThrow(PerformanceReviewException::class, 'finalized');
+});
