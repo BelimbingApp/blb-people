@@ -18,7 +18,7 @@ return [
         'people.training.participation.verify',
         'people.training.participation.evidence.assign',
         'people.training.passport.view',
-        'people.training.team-passports.view',
+        'people.training.passport.view-team',
         'people.training.effectiveness.review',
         'people.training.effectiveness.close',
 
@@ -67,7 +67,7 @@ return [
                 'people.training.request.hod-approve',
                 'people.training.effectiveness.review',
                 'people.training.passport.view',
-                'people.training.team-passports.view',
+                'people.training.passport.view-team',
             ],
         ],
         'people_employee' => [
