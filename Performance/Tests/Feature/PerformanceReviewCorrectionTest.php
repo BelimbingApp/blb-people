@@ -230,3 +230,12 @@ test('a draft review cannot be corrected; it is still editable as a draft', func
     expect(fn () => $store->correct($f['hr'], $f['company'], (int) $draft->id, perfReviewDraft($f, []), 'Reason.'))
         ->toThrow(PerformanceReviewException::class, 'finalized');
 });
+
+test('a finalized review cannot be deleted', function (): void {
+    $f = perfFixture();
+    $review = perfFinalized($f);
+
+    expect(fn () => $review->delete())
+        ->toThrow(PerformanceReviewException::class, 'deleted')
+        ->and($review->exists)->toBeTrue();
+});
