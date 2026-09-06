@@ -58,13 +58,19 @@ function evaluationVisibilityFixture(): array
     app(TenantContext::class)->set($tenantId);
 
     $trainer = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, $companyId);
+    $hodEmployee = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, $companyId);
     $employee = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, $companyId);
     $colleague = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, $companyId);
+
+    // The HOD audience is scoped by the reporting line, so the participant has
+    // to actually report to them. Without this the HOD sees nothing and a test
+    // about redaction would pass for the wrong reason.
+    $employee->forceFill(['supervisor_id' => $hodEmployee->id])->save();
 
     $users = [];
     foreach ([
         'hr' => ['role' => 'people_hr', 'employee' => null],
-        'hod' => ['role' => 'people_hod', 'employee' => null],
+        'hod' => ['role' => 'people_hod', 'employee' => $hodEmployee],
         'trainerUser' => ['role' => 'people_training_trainer', 'employee' => $trainer],
         'employeeUser' => ['role' => 'people_employee', 'employee' => $employee],
         'colleagueUser' => ['role' => 'people_employee', 'employee' => $colleague],
@@ -202,4 +208,44 @@ test('an evaluation from another company is never visible', function (): void {
     expect($visible)->toHaveCount(1)
         ->and((int) $visible->first()->participant_id)->toBe($f['participantId'])
         ->and((int) $visible->first()->participant_id)->not->toBe($other['participantId']);
+});
+
+test('a HOD sees the evaluation without its unrestricted free text', function (): void {
+    $f = evaluationVisibilityFixture();
+
+    $row = app(TrainingEvaluationReader::class)->visibleTo($f['hod'], $f['companyId'])->first();
+
+    // The contract's HOD boundary: "No unrestricted free text, unrelated
+    // employees/companies, private evidence, HR follow-up or export solely by
+    // hierarchy." The ratings and completion state are departmental management
+    // information; the participant's written words are not.
+    expect($row)->not->toBeNull()
+        ->and($row->relevance)->toBe(4)
+        ->and($row->getAttributes())->not->toHaveKey('issues_or_improvements')
+        ->and($row->getAttributes())->not->toHaveKey('most_useful_learning')
+        ->and($row->getAttributes())->not->toHaveKey('notes');
+});
+
+test('HR and the participant do see the free text', function (): void {
+    $f = evaluationVisibilityFixture();
+    $reader = app(TrainingEvaluationReader::class);
+
+    // HR holds training-governance access and the participant wrote it. The
+    // restriction is the HOD's, not a blanket redaction.
+    expect($reader->visibleTo($f['hr'], $f['companyId'])->first()->issues_or_improvements)
+        ->toBe('The trainer rushed the practical section.')
+        ->and($reader->visibleTo($f['employeeUser'], $f['companyId'])->first()->issues_or_improvements)
+        ->toBe('The trainer rushed the practical section.');
+});
+
+test('someone who is both HOD and HR keeps the free text', function (): void {
+    $f = evaluationVisibilityFixture();
+    evaluationVisibilityRole($f['hod'], 'people_hr');
+
+    // The redaction belongs to the departmental audience alone. A person who
+    // also holds training governance should not be cut down to the lesser of
+    // their two audiences.
+    $row = app(TrainingEvaluationReader::class)->visibleTo($f['hod'], $f['companyId'])->first();
+
+    expect($row->issues_or_improvements)->toBe('The trainer rushed the practical section.');
 });
