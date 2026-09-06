@@ -22,6 +22,7 @@ use App\Domains\People\Training\Models\TrainingSession;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
 use Illuminate\Support\Str;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 
 afterEach(function (): void {
@@ -188,8 +189,8 @@ it('marks expired certificates explicitly', function (): void {
 it('refuses a client-tampered subject id on the locked Livewire property', function (): void {
     $f = trainingPassportPageFixture();
 
-    Livewire::actingAs($f['user'])
+    expect(fn () => Livewire::actingAs($f['user'])
         ->test(TrainingPassport::class)
-        ->set('subjectId', (string) $f['other']->id)
-        ->assertStatus(403);
+        ->set('subjectId', (string) $f['other']->id))
+        ->toThrow(CannotUpdateLockedPropertyException::class);
 });
