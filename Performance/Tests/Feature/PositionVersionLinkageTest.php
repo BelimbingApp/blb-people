@@ -276,6 +276,22 @@ test('the directory refuses a position version for another company', function ()
         ->toThrow(InvalidPositionDirectoryException::class);
 });
 
+test('an assignment cannot attach an employee from another company', function (): void {
+    $f = positionFixture();
+    $directory = app(PositionDirectory::class);
+    $directory->recordVersion($f['company'], positionVersionDraft($f, 'ENG', 1, '2026-01-01'));
+    $foreignEmployee = Employee::factory()->create([
+        'company_id' => $f['sibling'], 'full_name' => 'Foreign Employee',
+        'status' => 'active', 'employee_type' => 'full_time',
+    ]);
+
+    expect(fn () => $directory->assign($f['company'], new PositionAssignmentDraft(
+        positionStableId: (string) $f['positions']['ENG'], employeeEntityId: (int) $foreignEmployee->id,
+        type: PositionAssignmentType::Substantive,
+        effectiveFrom: new DateTimeImmutable('2026-01-01'), effectiveTo: null,
+    )))->toThrow(InvalidPositionDirectoryException::class);
+});
+
 test('an interval that ends before it starts is refused for both versions and assignments', function (): void {
     $f = positionFixture();
     $directory = app(PositionDirectory::class);
