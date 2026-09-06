@@ -8,11 +8,15 @@ use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Performance\Data\ObservationDraft;
 use App\Domains\People\Performance\Data\ReviewDraft;
+use App\Domains\People\Performance\Enums\OverdueReviewReason;
 use App\Domains\People\Performance\Enums\PerformanceOutcome;
 use App\Domains\People\Performance\Models\PerformanceReview;
 use App\Domains\People\Performance\Models\PerformanceReviewReminder;
+use App\Domains\People\Performance\Services\OverdueReviewReminders;
 use App\Domains\People\Performance\Services\PerformanceReviewStore;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 
 /**
  * 0009-c: a weekly nudge for reviews that have gone quiet, written once per
@@ -31,9 +35,14 @@ afterEach(function (): void {
 });
 
 /** @return array<string, mixed> */
-function overdueFixture(): array
+function overdueFixture(string $label = 'Overdue'): array
 {
-    [$tenant, $company] = createTenantWithCompany(['name' => 'Overdue Tenant'], ['name' => 'Overdue Company', 'status' => 'active']);
+    // companies.code is unique across the whole install, so a test that needs
+    // two tenants has to name them apart.
+    [$tenant, $company] = createTenantWithCompany(
+        ['name' => $label.' Tenant'],
+        ['name' => $label.' Company', 'status' => 'active'],
+    );
     $tenantId = (int) $tenant->id;
     $companyId = (int) $company->id;
     app(TenantContext::class)->set($tenantId);
@@ -89,7 +98,7 @@ function overdueFinalized(array $f, string $finalizedAt): PerformanceReview
 
 function overdueRun(array $f, array $options = []): int
 {
-    return Illuminate\Support\Facades\Artisan::call('people:performance:overdue', array_replace([
+    return Artisan::call('people:performance:overdue', array_replace([
         '--tenant' => $f['tenantId'],
         '--company' => $f['companyId'],
     ], $options));
@@ -120,12 +129,13 @@ test('running twice in the same week still leaves one reminder', function (): vo
     $f = overdueFixture();
     overdueDraft($f, now()->subDays(31)->toDateTimeString());
 
-    overdueRun($f);
-    overdueRun($f);
-
-    // A scheduler retry, or an operator running it by hand, is not a second
-    // thing the manager has ignored.
-    expect(overdueRows($f))->toBe(1);
+    // Both runs must *succeed*. A second run that blows up on the unique key
+    // also leaves one row behind, and that is not the same promise.
+    expect(overdueRun($f))->toBe(0)
+        ->and(overdueRun($f))->toBe(0)
+        // A scheduler retry, or an operator running it by hand, is not a
+        // second thing the manager has ignored.
+        ->and(overdueRows($f))->toBe(1);
 });
 
 test('the next week earns a fresh reminder', function (): void {
@@ -152,7 +162,7 @@ test('a finalized review answered by the employee is not reminded', function ():
     $f = overdueFixture();
     $review = overdueFinalized($f, now()->subDays(15)->toDateTimeString());
     app(PerformanceReviewStore::class)->recordEmployeeResponse(
-        $f['manager'], $f['companyId'], (int) $review->id, (int) $f['subject']->id, 'I accept this.',
+        $f['companyId'], (int) $review->id, (int) $f['subject']->id, 'I accept this.',
     );
 
     // The nudge is for silence, not for the record existing.
@@ -177,5 +187,56 @@ test('a review in another tenant is never reminded', function (): void {
 
     expect(PerformanceReviewReminder::query()
         ->forCompany((int) $otherTenant->id, (int) $otherCompany->id)->count())->toBe(0)
+        ->and(overdueRows($f))->toBe(0);
+});
+
+test('the database refuses a second reminder for the same manager, review and week', function (): void {
+    $f = overdueFixture();
+    $review = overdueDraft($f, now()->subDays(31)->toDateTimeString());
+    overdueRun($f);
+
+    $duplicate = fn (): PerformanceReviewReminder => PerformanceReviewReminder::query()->create([
+        'tenant_id' => $f['tenantId'],
+        'company_entity_id' => $f['companyId'],
+        'review_id' => (int) $review->id,
+        'manager_user_id' => (int) $f['manager']->id,
+        'reason' => OverdueReviewReason::StaleDraft,
+        'week_key' => OverdueReviewReminders::weekKey(now()),
+        'notified_at' => now(),
+    ]);
+
+    // The service checks first, but the key is what makes the promise: two
+    // runs racing each other cannot both win.
+    expect($duplicate)->toThrow(UniqueConstraintViolationException::class)
+        ->and(overdueRows($f))->toBe(1);
+});
+
+test('the tenant option decides whose reviews are read', function (): void {
+    $first = overdueFixture();
+    overdueDraft($first, now()->subDays(31)->toDateTimeString());
+    $second = overdueFixture('Second Overdue');
+    overdueDraft($second, now()->subDays(31)->toDateTimeString());
+
+    // Point the ambient context at the first tenant, so --tenant is the only
+    // thing that can select the second.
+    app(TenantContext::class)->set($first['tenantId']);
+
+    // Both tenants are overdue; only the one named is run.
+    overdueRun($second);
+
+    expect(overdueRows($second))->toBe(1)
+        ->and(overdueRows($first))->toBe(0);
+});
+
+test('a released review is never chased as a stale draft', function (): void {
+    $f = overdueFixture();
+    $review = overdueFinalized($f, now()->subDays(40)->toDateTimeString());
+    app(PerformanceReviewStore::class)->recordEmployeeResponse(
+        $f['companyId'], (int) $review->id, (int) $f['subject']->id, 'I accept this.',
+    );
+
+    // It is old enough to trip the draft rule by age alone. Status, not age,
+    // is what says whose turn it is.
+    expect(overdueRun($f))->toBe(0)
         ->and(overdueRows($f))->toBe(0);
 });
