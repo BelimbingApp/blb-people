@@ -13,6 +13,7 @@ use App\Domains\People\Skills\Exceptions\SelfStandingDenied;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
@@ -47,6 +48,30 @@ final class MyStanding extends Component
             ($outcome->gap ?? 1) > 0 => 'warning',
             default => 'success',
         };
+    }
+
+    public function effectivenessStageLabel(string $stage): string
+    {
+        return (string) Str::headline($stage);
+    }
+
+    public function effectivenessStateLabel(string $state): string
+    {
+        return (string) Str::headline($state);
+    }
+
+    public function effectivenessStateVariant(string $state): string
+    {
+        return match ($state) {
+            'closed' => 'success',
+            'outcome_recorded' => 'info',
+            default => 'warning',
+        };
+    }
+
+    public function effectivenessOutcomeLabel(?string $outcome): string
+    {
+        return $outcome === null ? __('Not recorded') : (string) Str::headline($outcome);
     }
 
     public function render(EmployeeStandingReader $reader): View
