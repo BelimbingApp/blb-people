@@ -36,6 +36,22 @@ it('renders published standing with band label and levels', function (): void {
         ->and($html)->toContain('4');
 });
 
+it('tones each assessment band by its enum value, not tone-unknown', function (string $band, string $toneClass, string $label): void {
+    $html = Blade::render(
+        '<x-people-standing-badge :skill="$skill" :assessed-level="2" :required-level="4" gap="2" :result-band="$band" :published="true" />',
+        ['skill' => 'Welding', 'band' => $band],
+    );
+
+    expect($html)->toContain($toneClass)->and($html)->toContain($label);
+})->with([
+    ['exceeds', 'border-green-700/30', 'Exceeds requirement'],
+    ['meets', 'border-green-700/30', 'Meets requirement'],
+    ['minor_gap', 'border-red-700/30', 'Below requirement'],
+    ['major_gap', 'border-red-700/30', 'Below requirement'],
+    ['critical_gap', 'border-red-700/30', 'Below requirement'],
+    ['not_assessed', 'border-stone-400/40', 'Unassessed'],
+]);
+
 it('renders the requirement version pill with pinned version and link', function (): void {
     $html = Blade::render(
         '<x-people-requirement-version-pill reference="welding.l3" :version="7" url="https://example.test/profiles/9" status="published" />',

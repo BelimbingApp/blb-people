@@ -3,7 +3,7 @@
     <span class="font-semibold">{{ $skill }}</span>
     <span aria-label="{{ __('Proficiency standing') }}">
         @if ($resultBand !== null)
-            {{ $resultBand }}
+            {{ $bandLabel() }}
         @else
             {{ __('unassessed') }}
         @endif
