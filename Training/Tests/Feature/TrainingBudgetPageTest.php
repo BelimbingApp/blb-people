@@ -1,6 +1,7 @@
 <?php
 
 use App\Base\Authz\Enums\PrincipalType;
+use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
@@ -67,18 +68,24 @@ function budgetFixture(string $label = 'Budget'): array
     setupAuthzRoles();
 
     $hr = budgetUser($company, 'people_hr');
+    // A HOD may read a budget but never set one, which is what makes them the
+    // right actor for the refusal test.
     $viewer = budgetUser($company, 'people_hod');
+    $approver = budgetUser($company, 'people_training_approver');
     $department = PeopleReferenceEntry::query()->create([
         'company_id' => $companyId, 'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
         'code' => 'OPS-'.$label, 'name' => 'Operations '.$label, 'status' => PeopleReferenceEntry::STATUS_ACTIVE,
     ]);
 
-    return compact('tenantId', 'companyId', 'company', 'hr', 'viewer', 'department');
+    return compact('tenantId', 'companyId', 'company', 'hr', 'viewer', 'approver', 'department');
 }
 
 /** A request at the given status, costing the given amount. */
-function budgetRequest(array $f, string $status, string $cost, ?string $createdAt = null): void
+function budgetRequest(array $f, string $status, ?string $cost, ?string $createdAt = null): void
 {
+    // Pin the context to this fixture's tenant: a test with two tenants leaves
+    // it on whichever was built last, and the store refuses across companies.
+    app(TenantContext::class)->set($f['tenantId']);
     Carbon::setTestNow($createdAt ?? now()->toDateTimeString());
     $employee = NativeWorkforceFixture::create($f['tenantId'], WorkforceResourceType::Employee, $f['companyId']);
     $store = app(TrainingRequestStore::class);
@@ -94,17 +101,25 @@ function budgetRequest(array $f, string $status, string $cost, ?string $createdA
     ));
     $store->submit($f['hr'], $f['companyId'], (int) $request->id);
 
-    match ($status) {
-        'approved' => $store->approve($f['hr'], $f['companyId'], (int) $request->id, 'Approved.'),
-        'rejected' => $store->reject($f['hr'], $f['companyId'], (int) $request->id, 'Not this year.'),
-        'cancelled' => $store->cancel($f['hr'], $f['companyId'], (int) $request->id, 'Withdrawn.'),
-        default => null,
-    };
+    // Approval is four steps and four capabilities, not one: the HOD
+    // recommends, HR reviews, and only the approver role decides.
+    if ($status === 'approved') {
+        $store->recommend($f['viewer'], $f['companyId'], (int) $request->id, 'Relevant.');
+        $store->review($f['hr'], $f['companyId'], (int) $request->id, 'Checked.');
+        $store->approve($f['approver'], $f['companyId'], (int) $request->id, 'Approved.');
+    }
+    if ($status === 'rejected') {
+        $store->reject($f['viewer'], $f['companyId'], (int) $request->id, 'Not this year.');
+    }
+    if ($status === 'cancelled') {
+        $store->cancel($f['hr'], $f['companyId'], (int) $request->id, 'Withdrawn.');
+    }
     Carbon::setTestNow();
 }
 
 function budgetRow(array $f, ?int $year = null): object
 {
+    app(TenantContext::class)->set($f['tenantId']);
     $rows = app(TrainingBudgetStore::class)->rollUp($f['hr'], $f['companyId'], $year ?? (int) now()->year);
 
     return collect($rows)->firstOrFail(
@@ -197,7 +212,7 @@ test('a viewer without the manage capability cannot change the budget', function
 
     expect(fn () => app(TrainingBudgetStore::class)->setBudget(
         $f['viewer'], $f['companyId'], (int) $f['department']->id, (int) now()->year, '5000.0000', 'Trying it on.',
-    ))->toThrow(InvalidTrainingBudgetException::class)
+    ))->toThrow(AuthorizationDeniedException::class)
         ->and(TrainingDepartmentBudget::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
 });
 
@@ -207,7 +222,6 @@ test("another company's requests never appear", function (): void {
     budgetRequest($f, 'approved', '100.0000');
     budgetRequest($other, 'approved', '4200.0000');
 
-    app(TenantContext::class)->set($f['tenantId']);
     expect(budgetRow($f)->approved)->toBe('100.0000');
 });
 
@@ -222,4 +236,95 @@ test('the page renders the roll-up for a user who may view it', function (): voi
         ->assertOk()
         ->assertSee('Operations Budget')
         ->assertSee('3800');
+});
+
+test('a request nobody has priced adds nothing but still lists its department', function (): void {
+    $f = budgetFixture();
+    budgetRequest($f, 'approved', null);
+
+    // An unpriced request is an unknown, not a cost. It must not be added as
+    // one, and the department must not vanish from the page because of it:
+    // "three requests and no costings" is the state HR most needs to see.
+    $row = budgetRow($f);
+    expect($row->approved)->toBe('0.0000')
+        ->and($row->departmentEntityId)->toBe((int) $f['department']->id);
+});
+
+test('a department of another company cannot be given a budget', function (): void {
+    $f = budgetFixture();
+    $other = budgetFixture('Foreign Budget');
+    app(TenantContext::class)->set($f['tenantId']);
+
+    expect(fn () => app(TrainingBudgetStore::class)->setBudget(
+        $f['hr'], $f['companyId'], (int) $other['department']->id, (int) now()->year, '5000.0000', 'Wrong company.',
+    ))->toThrow(InvalidTrainingBudgetException::class)
+        ->and(TrainingDepartmentBudget::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
+});
+
+test('a negative budget is refused', function (): void {
+    $f = budgetFixture();
+
+    expect(fn () => app(TrainingBudgetStore::class)->setBudget(
+        $f['hr'], $f['companyId'], (int) $f['department']->id, (int) now()->year, '-1.0000', 'Clawback.',
+    ))->toThrow(InvalidTrainingBudgetException::class);
+});
+
+test('a budget change with no stated reason is refused', function (): void {
+    $f = budgetFixture();
+
+    // The audit is only worth keeping if every row says why.
+    expect(fn () => app(TrainingBudgetStore::class)->setBudget(
+        $f['hr'], $f['companyId'], (int) $f['department']->id, (int) now()->year, '5000.0000', '   ',
+    ))->toThrow(InvalidTrainingBudgetException::class);
+});
+
+test('an audit row cannot be rewritten or deleted', function (): void {
+    $f = budgetFixture();
+    app(TrainingBudgetStore::class)->setBudget(
+        $f['hr'], $f['companyId'], (int) $f['department']->id, (int) now()->year, '5000.0000', 'Annual allocation.',
+    );
+    $audit = TrainingDepartmentBudgetAudit::query()->forCompany($f['tenantId'], $f['companyId'])->sole();
+
+    expect(fn () => $audit->update(['amount' => '9999.0000']))
+        ->toThrow(InvalidTrainingBudgetException::class)
+        ->and(fn () => $audit->delete())
+        ->toThrow(InvalidTrainingBudgetException::class);
+});
+
+test('company axis: a sibling company in the same tenant is not rolled up', function (): void {
+    $f = budgetFixture();
+    // Same tenant, second company. The tenant axis cannot separate these, so
+    // this is the test that actually exercises the company scope — the
+    // two-tenant test above passes even with the company filter removed.
+    $sibling = Company::factory()->create([
+        'tenant_id' => $f['tenantId'], 'name' => 'Sibling Budget Company', 'status' => 'active',
+    ]);
+    $siblingFixture = array_merge($f, [
+        'companyId' => (int) $sibling->id,
+        'company' => $sibling,
+        'hr' => budgetUser($sibling, 'people_hr'),
+        'viewer' => budgetUser($sibling, 'people_hod'),
+        'approver' => budgetUser($sibling, 'people_training_approver'),
+        'department' => PeopleReferenceEntry::query()->create([
+            'company_id' => $sibling->id, 'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+            'code' => 'OPS-SIB', 'name' => 'Operations Sibling', 'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+        ]),
+    ]);
+
+    budgetRequest($f, 'approved', '100.0000');
+    budgetRequest($siblingFixture, 'approved', '4200.0000');
+    // Give only the sibling an allocation, so the budget lookup's company
+    // scope is exercised as well as the request query's.
+    app(TenantContext::class)->set($f['tenantId']);
+    app(TrainingBudgetStore::class)->setBudget(
+        $siblingFixture['hr'], $siblingFixture['companyId'], (int) $siblingFixture['department']->id,
+        (int) now()->year, '9000.0000', 'Sibling allocation.',
+    );
+
+    $rows = app(TrainingBudgetStore::class)->rollUp($f['hr'], $f['companyId'], (int) now()->year);
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows[0]->departmentEntityId)->toBe((int) $f['department']->id)
+        ->and($rows[0]->approved)->toBe('100.0000')
+        ->and($rows[0]->budget)->toBeNull();
 });

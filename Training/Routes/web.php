@@ -1,6 +1,7 @@
 <?php
 
 use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingAudience;
+use App\Domains\People\Training\Livewire\Budget\Index as BudgetIndex;
 use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
 use App\Domains\People\Training\Livewire\Evaluation\Index as EvaluationIndex;
 use App\Domains\People\Training\Livewire\Event\Index;
@@ -38,6 +39,13 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/training-evidence', EvidenceIndex::class)
         ->middleware('authz:'.EvidenceIndex::CAPABILITY)
         ->name('people.training.evidence.index');
+
+    // HR sets the allocation; a HOD reads their own department's position.
+    // Both are the same page and the same capability to reach it — only
+    // people.training.budget.manage decides who may change an amount.
+    Route::get('people/training/budget', BudgetIndex::class)
+        ->middleware('authz:'.BudgetIndex::VIEW_CAPABILITY)
+        ->name('people.training.budget.index');
 
     Route::get('people/training-evaluations', EvaluationIndex::class)
         ->middleware('authz:'.EvaluationIndex::CAPABILITY)

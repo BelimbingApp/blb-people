@@ -18,5 +18,7 @@ final readonly class TrainingRequestDraft
         public TrainingPriority $priority,
         public ?int $skillGapAssessmentId = null,
         public ?int $requirementVersion = null,
+        /** Decimal string with 4 places, or null when nobody has priced it. */
+        public ?string $estimatedCost = null,
     ) {}
 }

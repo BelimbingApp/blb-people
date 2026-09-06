@@ -55,6 +55,7 @@ final readonly class TrainingRequestStore
                 'need_source' => $draft->needSource, 'need' => trim($draft->need),
                 'learning_objective' => trim($draft->learningObjective),
                 'expected_result' => trim($draft->expectedResult), 'priority' => $draft->priority,
+                'estimated_cost' => $draft->estimatedCost,
                 'skill_gap_assessment_id' => $draft->skillGapAssessmentId,
                 'requirement_version' => $draft->requirementVersion,
                 'status' => TrainingRequestStatus::Draft, 'created_by_user_id' => $actor->getKey(),

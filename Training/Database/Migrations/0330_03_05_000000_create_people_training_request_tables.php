@@ -27,6 +27,10 @@ return new class extends Migration
             $table->text('learning_objective');
             $table->text('expected_result');
             $table->string('priority', 16);
+            // What the request is expected to cost, for the department budget
+            // roll-up. Nullable because a request may be raised before anyone
+            // has priced it, and every request written before 0010-a has none.
+            $table->decimal('estimated_cost', 19, 4)->nullable();
             $table->unsignedBigInteger('skill_gap_assessment_id')->nullable();
             $table->unsignedInteger('requirement_version')->nullable();
             $table->string('status', 24);
