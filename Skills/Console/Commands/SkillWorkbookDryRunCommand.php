@@ -20,7 +20,9 @@ final class SkillWorkbookDryRunCommand extends Command
     {
         $blockingKinds = config('people-skills.workbook.blocking_defects');
 
-        if (! is_array($blockingKinds) || array_any($blockingKinds, static fn (mixed $kind): bool => ! is_string($kind))) {
+        if (! is_array($blockingKinds)
+            || ! array_is_list($blockingKinds)
+            || array_any($blockingKinds, static fn (mixed $kind): bool => ! is_string($kind))) {
             $this->error('people-skills.workbook.blocking_defects must be a list of defect names.');
 
             return self::FAILURE;
