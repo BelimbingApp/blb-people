@@ -308,3 +308,23 @@ test('an employee with no manager and no reports is still a gap', function (): v
     expect(cutoverCounts($f)['reporting_line'])->toBe(1)
         ->and(cutoverRun($f))->toBe(1);
 });
+
+test('an employee whose only report is inactive is not a manager', function (): void {
+    $f = cutoverFixture();
+    $lead = Employee::factory()->create([
+        'company_id' => $f['companyId'], 'full_name' => 'Lead Without Live Reports',
+        'status' => 'active', 'employee_type' => 'full_time', 'supervisor_id' => null,
+    ]);
+    Employee::factory()->create([
+        'company_id' => $f['companyId'], 'full_name' => 'Their Departed Report',
+        'status' => 'inactive', 'employee_type' => 'full_time', 'supervisor_id' => $lead->id,
+    ]);
+
+    // Both questions turn on the same rule, so one case holds both: the lead
+    // is a reporting-line gap, and is never asked the capability question
+    // (they have no account, so being treated as a manager would count them
+    // as unable as well).
+    expect(cutoverCounts($f)['reporting_line'])->toBe(1)
+        ->and(cutoverCounts($f)['manager_capability'])->toBe(0)
+        ->and(cutoverRun($f))->toBe(1);
+});

@@ -93,14 +93,7 @@ final class CutoverReadiness
      */
     private function employeesWithoutManager(int $companyEntityId): int
     {
-        $managerIds = Employee::query()
-            ->where('company_id', $companyEntityId)
-            ->where('status', 'active')
-            ->whereNotNull('supervisor_id')
-            ->distinct()
-            ->pluck('supervisor_id')
-            ->map(static fn (mixed $id): int => (int) $id)
-            ->all();
+        $managerIds = $this->activeManagerIds($companyEntityId);
 
         return Employee::query()
             ->where('company_id', $companyEntityId)
@@ -111,23 +104,15 @@ final class CutoverReadiness
     }
 
     /**
-     * A manager is somebody who supervises an active employee, not somebody
-     * holding a role: the question is whether the people who will be asked to
-     * write reviews can read one.
+     * Whether the people who will be asked to write reviews can read one.
+     * Managing is a fact about the reporting tree, not a role somebody holds.
      *
      * An employee who manages somebody but has no account at all counts too.
      * They cannot do the work either.
      */
     private function managersWithoutCapability(int $companyEntityId): int
     {
-        $managerIds = Employee::query()
-            ->where('company_id', $companyEntityId)
-            ->where('status', 'active')
-            ->whereNotNull('supervisor_id')
-            ->distinct()
-            ->pluck('supervisor_id')
-            ->map(static fn (mixed $id): int => (int) $id)
-            ->all();
+        $managerIds = $this->activeManagerIds($companyEntityId);
 
         if ($managerIds === []) {
             return 0;
@@ -155,6 +140,29 @@ final class CutoverReadiness
         }
 
         return $unable;
+    }
+
+    /**
+     * The employees who supervise at least one active employee.
+     *
+     * A manager is somebody the process will ask for a review, so the rule
+     * turns on live reports: somebody whose only report has left the company
+     * manages nobody the cutover cares about, and is a gap themselves rather
+     * than the answer to one. Both questions above read the rule from here so
+     * the two cannot drift apart.
+     *
+     * @return list<int>
+     */
+    private function activeManagerIds(int $companyEntityId): array
+    {
+        return Employee::query()
+            ->where('company_id', $companyEntityId)
+            ->where('status', 'active')
+            ->whereNotNull('supervisor_id')
+            ->distinct()
+            ->pluck('supervisor_id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->all();
     }
 
     private function staleDrafts(int $tenantId, int $companyEntityId, CarbonImmutable $now): int
