@@ -38,7 +38,7 @@
         @if ($rows->isEmpty())
             <p class="text-sm text-muted">{{ __('No training request matches.') }}</p>
         @else
-            <x-ui.table>
+            <x-ui.table :caption="__('Training requests register')">
                 <x-slot:head>
                     <tr>
                         <x-ui.th>{{ __('Created') }}</x-ui.th>
