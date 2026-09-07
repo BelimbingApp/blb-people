@@ -11,6 +11,7 @@ use App\Domains\People\Training\Livewire\Event\Index;
 use App\Domains\People\Training\Livewire\Evidence\Index as EvidenceIndex;
 use App\Domains\People\Training\Livewire\HrGovernance\Index as HrGovernanceIndex;
 use App\Domains\People\Training\Livewire\Request\Index as RequestIndex;
+use App\Domains\People\Training\Livewire\Requests\Register as RequestsRegister;
 use App\Domains\People\Training\Livewire\TeamPassports;
 use Illuminate\Support\Facades\Route;
 
@@ -39,6 +40,12 @@ Route::middleware(['auth'])->group(function (): void {
 
     // Employee (self) and HOD (department) request page; the audience and
     // the requestor are asserted inside the component (SkillAudience).
+    // HR register of every request in the company (0010-c); the HR audience
+    // is asserted inside the component.
+    Route::get('people/training/requests', RequestsRegister::class)
+        ->middleware('authz:'.RequestsRegister::VIEW_CAPABILITY)
+        ->name('people.training.requests.register');
+
     Route::get('people/training-requests', RequestIndex::class)
         ->middleware('authz:'.RequestIndex::CAPABILITY)
         ->name('people.training.requests.index');
