@@ -22,6 +22,8 @@ use App\Domains\People\Skills\Data\ResolvedSkillRequirement;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\AssessmentCycle;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
+use App\Domains\People\Skills\Enums\DevelopmentActionClosure;
+use App\Domains\People\Skills\Enums\DevelopmentActionStatus;
 use App\Domains\People\Skills\Enums\DevelopmentActionType;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
 use App\Domains\People\Skills\Enums\SelectorType;
@@ -52,6 +54,7 @@ use App\Domains\People\Training\Services\TrainingEffectivenessStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 afterEach(function (): void {
     app(TenantContext::class)->clear();
@@ -813,4 +816,206 @@ test('an existing action of another employee is refused', function (): void {
         ->toThrow(InvalidEffectivenessReviewException::class, 'another employee')
         ->and(TrainingEffectivenessReview::query()->forCompany($f['tenantId'], $f['companyId'])
             ->sole()->development_action_id)->toBeNull();
+});
+
+test('an existing action for a skill the reviewed course does not cover is refused', function (): void {
+    $f = effFixture();
+    $other = app(SkillCatalogStore::class)->defineSkill($f['companyId'], new SkillDraft(
+        code: 'forklift.link', name: 'Forklift basics',
+        definition: 'Operate a counterbalance forklift.',
+        categoryId: (int) app(SkillCatalogStore::class)->defineCategory($f['companyId'], 'plant-link', 'Plant')->id,
+        defaultAssessmentMethod: AssessmentMethod::DirectObservation,
+    ));
+    $review = effReviewed($f, EffectivenessOutcome::NotYetEffective);
+    $elsewhere = app(DevelopmentActionStore::class)->proposeManual($f['companyId'], effFollowUpDraft($f, [
+        'skillId' => (int) $other->id, 'startingLevel' => 1, 'targetLevel' => 3,
+        'manualReason' => 'A gap in an unrelated skill.',
+    ]), (int) $f['hod']->id);
+
+    expect(fn () => app(TrainingEffectivenessStore::class)
+        ->openFollowUpAction($f['hod'], $f['companyId'], (int) $review->id, (int) $elsewhere->id))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'does not cover')
+        ->and(TrainingEffectivenessReview::query()->forCompany($f['tenantId'], $f['companyId'])
+            ->sole()->development_action_id)->toBeNull();
+});
+
+test('a cancelled action cannot be linked as the follow-up', function (): void {
+    $f = effFixture();
+    $review = effReviewed($f, EffectivenessOutcome::NotYetEffective);
+    $actions = app(DevelopmentActionStore::class);
+    $stale = $actions->proposeManual($f['companyId'], effFollowUpDraft($f, [
+        'skillId' => (int) $f['skill']->id, 'startingLevel' => 2, 'targetLevel' => 4,
+        'manualReason' => 'Superseded by a shutdown.',
+    ]), (int) $f['hod']->id);
+    $actions->cancel($f['companyId'], (int) $stale->id, 'The plant shut down before it started.', (int) $f['hod']->id);
+
+    expect(fn () => app(TrainingEffectivenessStore::class)
+        ->openFollowUpAction($f['hod'], $f['companyId'], (int) $review->id, (int) $stale->id))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'Link an open development action')
+        ->and(TrainingEffectivenessReview::query()->forCompany($f['tenantId'], $f['companyId'])
+            ->sole()->development_action_id)->toBeNull();
+});
+
+/**
+ * Each level is asked for separately. A single review missing both would pass
+ * whichever half of the guard was left standing, so the two are split: unknown
+ * is not zero, and an action that starts or aims at a level nobody verified is
+ * the silent zero this contract keeps refusing.
+ */
+test('the review refuses to start an action with no level to aim at', function (): void {
+    $f = effFixture();
+    $review = effOpen($f, ['baselineLevel' => 2, 'targetLevel' => null]);
+    app(TrainingEffectivenessStore::class)->recordOutcome($f['hod'], $f['companyId'], (int) $review->id,
+        effOutcomeDraft(['outcome' => EffectivenessOutcome::NotYetEffective]));
+
+    expect(fn () => app(TrainingEffectivenessStore::class)
+        ->openFollowUpAction($f['hod'], $f['companyId'], (int) $review->id, effFollowUpDraft($f)))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'no level to start from')
+        ->and(DevelopmentAction::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
+});
+
+test('the review refuses to start an action with no level to start from', function (): void {
+    $f = effFixture();
+    $review = effOpen($f, ['baselineLevel' => null, 'targetLevel' => 4]);
+    app(TrainingEffectivenessStore::class)->recordOutcome($f['hod'], $f['companyId'], (int) $review->id,
+        effOutcomeDraft(['outcome' => EffectivenessOutcome::NotYetEffective]));
+
+    expect(fn () => app(TrainingEffectivenessStore::class)
+        ->openFollowUpAction($f['hod'], $f['companyId'], (int) $review->id, effFollowUpDraft($f)))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'no level to start from')
+        ->and(DevelopmentAction::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
+});
+
+test('a follow-up needs the criticality of the requirement it closes', function (): void {
+    $f = effFixture();
+    $review = effReviewed($f, EffectivenessOutcome::NotYetEffective);
+
+    expect(fn () => app(TrainingEffectivenessStore::class)->openFollowUpAction(
+        $f['hod'], $f['companyId'], (int) $review->id, effFollowUpDraft($f, ['criticality' => null]),
+    ))->toThrow(InvalidEffectivenessReviewException::class, 'criticality')
+        ->and(DevelopmentAction::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
+});
+
+/**
+ * A development action row belonging to somewhere else.
+ *
+ * Written directly rather than through DevelopmentActionStore: the store would
+ * refuse to open one for a company whose workforce this test never built, and
+ * what is under test is whether the *link* refuses to reach across the company
+ * and tenant axes, not whether the other company could have opened it.
+ */
+function effForeignAction(int $tenantId, int $companyId, int $employeeId, int $skillId): DevelopmentAction
+{
+    return DevelopmentAction::query()->create([
+        'tenant_id' => $tenantId, 'company_entity_id' => $companyId,
+        'action_key' => (string) Str::uuid(), 'employee_entity_id' => $employeeId, 'skill_id' => $skillId,
+        'employee_name_snapshot' => 'Somebody else', 'starting_level' => 2, 'target_level' => 4,
+        'gap_at_start' => 2, 'criticality' => RequirementCriticality::Critical, 'mandatory_gate' => false,
+        'priority_score' => 10, 'priority_explanation' => 'Fixture row.',
+        'action_type' => DevelopmentActionType::Coaching, 'objective' => 'Their objective.',
+        'intervention' => 'Their intervention.', 'expected_evidence' => 'Their evidence.',
+        'owner_employee_entity_id' => $employeeId, 'hr_coordinator_employee_entity_id' => $employeeId,
+        'start_date' => '2027-04-01', 'due_date' => '2027-05-01',
+        'status' => DevelopmentActionStatus::NotStarted, 'closure_status' => DevelopmentActionClosure::Open,
+    ]);
+}
+
+test('a development action of the sibling company is never linked', function (): void {
+    $f = effFixture();
+    $sibling = Company::factory()->create(['tenant_id' => $f['tenant']->id]);
+    $theirs = Employee::factory()->create([
+        'company_id' => $sibling->id, 'full_name' => 'Sibling learner',
+        'status' => 'active', 'employee_type' => 'full_time',
+    ]);
+    $action = effForeignAction($f['tenantId'], (int) $sibling->id, (int) $theirs->id, (int) $f['skill']->id);
+    $review = effReviewed($f, EffectivenessOutcome::NotYetEffective);
+
+    expect(fn () => app(TrainingEffectivenessStore::class)
+        ->openFollowUpAction($f['hod'], $f['companyId'], (int) $review->id, (int) $action->id))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'was not found in this company')
+        ->and(TrainingEffectivenessReview::query()->forCompany($f['tenantId'], $f['companyId'])
+            ->sole()->development_action_id)->toBeNull();
+});
+
+test('another tenant development action is never loaded', function (): void {
+    $f = effFixture();
+    [$otherTenant, $otherCompany] = createTenantWithCompany();
+    app(TenantContext::class)->set((int) $otherTenant->id);
+    $catalog = app(SkillCatalogStore::class);
+    $otherSkill = $catalog->defineSkill((int) $otherCompany->id, new SkillDraft(
+        code: 'isolation.energy', name: 'Energy isolation',
+        definition: 'Isolate stored energy before maintenance.',
+        categoryId: (int) $catalog->defineCategory((int) $otherCompany->id, 'safety', 'Safety')->id,
+        defaultAssessmentMethod: AssessmentMethod::DirectObservation,
+    ));
+    $otherEmployee = Employee::factory()->create([
+        'company_id' => $otherCompany->id, 'full_name' => 'Other tenant learner',
+        'status' => 'active', 'employee_type' => 'full_time',
+    ]);
+    $action = effForeignAction((int) $otherTenant->id, (int) $otherCompany->id,
+        (int) $otherEmployee->id, (int) $otherSkill->id);
+    app(TenantContext::class)->set($f['tenantId']);
+    $review = effReviewed($f, EffectivenessOutcome::NotYetEffective);
+
+    expect(fn () => app(TrainingEffectivenessStore::class)
+        ->openFollowUpAction($f['hod'], $f['companyId'], (int) $review->id, (int) $action->id))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'was not found in this company')
+        ->and(TrainingEffectivenessReview::query()->forCompany($f['tenantId'], $f['companyId'])
+            ->sole()->development_action_id)->toBeNull();
+});
+
+test('a course covering more than one skill makes the caller name the one the follow-up addresses', function (): void {
+    $f = effFixture();
+    $catalog = app(SkillCatalogStore::class);
+    $second = $catalog->defineSkill($f['companyId'], new SkillDraft(
+        code: 'permit.writing', name: 'Permit writing',
+        definition: 'Write a compliant work permit.',
+        categoryId: (int) $catalog->defineCategory($f['companyId'], 'permits', 'Permits')->id,
+        defaultAssessmentMethod: AssessmentMethod::DirectObservation,
+    ));
+    $course = app(TrainingCatalogStore::class)->defineCourse($f['companyId'], new TrainingCourseDraft(
+        code: 'isolation.refresher', title: 'Isolation refresher',
+        deliveryMode: DeliveryMode::InternalClassroom,
+        skillIds: [(int) $f['skill']->id, (int) $second->id],
+        internalTrainerEmployeeEntityId: (int) $f['head']->id,
+    ));
+    $event = app(TrainingEventStore::class)->schedule($f['companyId'], new TrainingEventDraft(
+        courseId: (int) $course->id,
+        startsAt: new DateTimeImmutable('2027-06-01T09:00:00+00:00'),
+        endsAt: new DateTimeImmutable('2027-06-01T17:00:00+00:00'),
+        capacity: 10, organizerEmployeeEntityId: (int) $f['head']->id,
+        targetDepartmentEntityId: (int) $f['entry']->id,
+    ));
+    $participant = TrainingParticipant::query()->create([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'], 'event_id' => $event->id,
+        'provider_id' => 'native', 'employee_subject_id' => (string) $f['learner']->id,
+        'workforce_observed_at' => now(),
+    ]);
+    $store = app(TrainingEffectivenessStore::class);
+    $review = $store->recordOutcome($f['hod'], $f['companyId'],
+        (int) effOpen($f, ['participantId' => (int) $participant->id])->id,
+        effOutcomeDraft(['outcome' => EffectivenessOutcome::NotYetEffective]));
+
+    expect(fn () => $store->openFollowUpAction($f['hod'], $f['companyId'], (int) $review->id, effFollowUpDraft($f)))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'name the one this follow-up addresses');
+
+    $store->openFollowUpAction($f['hod'], $f['companyId'], (int) $review->id,
+        effFollowUpDraft($f, ['skillId' => (int) $second->id]));
+
+    expect((int) DevelopmentAction::query()->forCompany($f['tenantId'], $f['companyId'])->sole()->skill_id)
+        ->toBe((int) $second->id);
+});
+
+test('a HOD cannot open a follow-up action on their own training', function (): void {
+    $f = effFixture();
+    $own = effReviewRow($f, effParticipantFor($f, (int) $f['head']->id), (int) $f['learner']->id, [
+        'state' => EffectivenessReviewState::OutcomeRecorded,
+        'outcome' => EffectivenessOutcome::NotYetEffective,
+        'baseline_level' => 2, 'target_level' => 4,
+    ]);
+
+    expect(fn () => app(TrainingEffectivenessStore::class)
+        ->openFollowUpAction($f['hod'], $f['companyId'], (int) $own->id, effFollowUpDraft($f)))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'your own training')
+        ->and(DevelopmentAction::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
 });
