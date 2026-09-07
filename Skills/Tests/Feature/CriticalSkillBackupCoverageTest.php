@@ -48,8 +48,13 @@ function backupFixture(): array
     $department = Department::query()->create([
         'company_id' => $companyId, 'department_type_id' => $type->id, 'status' => 'active',
     ]);
+    // A company may hold each department type once, so a second department
+    // needs a second type.
+    $otherType = DepartmentType::query()->create([
+        'code' => 'maint-backup', 'name' => 'Maintenance', 'category' => 'operational', 'is_active' => true,
+    ]);
     $otherDepartment = Department::query()->create([
-        'company_id' => $companyId, 'department_type_id' => $type->id, 'status' => 'active',
+        'company_id' => $companyId, 'department_type_id' => $otherType->id, 'status' => 'active',
     ]);
     $sibling = Company::factory()->create(['tenant_id' => $tenantId, 'name' => 'Sibling Co', 'status' => 'active']);
 
@@ -171,7 +176,7 @@ test('a holder below the required level does not cover the skill', function (): 
 
 test('a non-critical skill never appears', function (): void {
     $f = backupFixture();
-    backupScore($f, backupEmployee($f, 'Holder'), current: 4, criticality: RequirementCriticality::Important);
+    backupScore($f, backupEmployee($f, 'Holder'), current: 4, criticality: RequirementCriticality::Essential);
 
     expect(backupRow($f, $f['department']))->toBeNull();
 });
