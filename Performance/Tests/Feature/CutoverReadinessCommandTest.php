@@ -70,8 +70,10 @@ function cutoverFixture(string $label = 'Cutover'): array
         'status' => 'active', 'employee_type' => 'full_time',
         'supervisor_id' => $managerEmployee->id,
     ]);
-    // The manager needs a manager too, or the company is never compliant.
-    $managerEmployee->update(['supervisor_id' => $managerEmployee->id]);
+    // The manager is the top of the tree and has no supervisor, which is what
+    // a real company looks like. An earlier version of this fixture gave them
+    // themselves as a supervisor to reach green; that cycle was hiding a
+    // defect rather than modelling anything.
 
     $manager = cutoverUser($companyId, 'people_hod', (int) $managerEmployee->id);
     $hr = cutoverUser($companyId, 'people_hr');
@@ -284,4 +286,25 @@ test('an escalation is closed once its review is finalized', function (): void {
     // escalation row still says.
     expect(cutoverCounts($f)['open_escalations'])->toBe(0)
         ->and(cutoverRun($f))->toBe(0);
+});
+
+test('a top-level manager with no supervisor does not block cutover', function (): void {
+    $f = cutoverFixture();
+    $f['managerEmployee']->update(['supervisor_id' => null]);
+
+    expect(cutoverCounts($f)['reporting_line'])->toBe(0)
+        ->and(cutoverRun($f))->toBe(0);
+});
+
+test('an employee with no manager and no reports is still a gap', function (): void {
+    $f = cutoverFixture();
+    Employee::factory()->create([
+        'company_id' => $f['companyId'], 'full_name' => 'Unmanaged Leaf',
+        'status' => 'active', 'employee_type' => 'full_time', 'supervisor_id' => null,
+    ]);
+
+    // Distinct from the head above: this person manages nobody, so the tree
+    // implies no reviewer for them at all.
+    expect(cutoverCounts($f)['reporting_line'])->toBe(1)
+        ->and(cutoverRun($f))->toBe(1);
 });

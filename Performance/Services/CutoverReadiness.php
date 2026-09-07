@@ -75,15 +75,38 @@ final class CutoverReadiness
     }
 
     /**
-     * Only active employees: cutover is about the people the process will run
-     * for, and a departed employee with no manager is not a reason to wait.
+     * Active employees nobody will review: no manager, and not a manager
+     * themselves.
+     *
+     * The top of a reporting tree has no supervisor by construction, and that
+     * is not a gap — 0009-d already answers it, routing a manager's own
+     * overdue reviews to HR because "no manager above this one does not mean
+     * nobody hears about it". A readiness check that called every company's
+     * head a blocker could never go green for any real company, and a gate
+     * that cannot open is not a gate.
+     *
+     * What remains a genuine gap is a leaf: somebody with no manager who
+     * manages no one, so no reviewer is implied by the tree at all.
+     *
+     * Only active employees, because cutover is about the people the process
+     * will run for.
      */
     private function employeesWithoutManager(int $companyEntityId): int
     {
+        $managerIds = Employee::query()
+            ->where('company_id', $companyEntityId)
+            ->where('status', 'active')
+            ->whereNotNull('supervisor_id')
+            ->distinct()
+            ->pluck('supervisor_id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->all();
+
         return Employee::query()
             ->where('company_id', $companyEntityId)
             ->where('status', 'active')
             ->whereNull('supervisor_id')
+            ->when($managerIds !== [], static fn ($query) => $query->whereNotIn('id', $managerIds))
             ->count();
     }
 
