@@ -287,11 +287,18 @@ test('the database refuses to update or delete a policy row', function (): void 
     $id = (int) TrainingEffectivenessCheckpointPolicy::query()
         ->forCompany($f['tenantId'], $f['companyId'])->value('id');
 
+    // Each attempt runs in its own DB::transaction() so the trigger's abort is
+    // confined to a savepoint. Pest already wraps the test in a transaction,
+    // and on PostgreSQL a raised exception poisons the whole one: the first
+    // refusal would leave the second reporting 25P02 "current transaction is
+    // aborted" instead of the trigger's message. SQLite does not care, which
+    // is exactly why this only shows up in the postgres mirror.
     foreach ([
         fn () => DB::table('people_training_effectiveness_policies')->where('id', $id)->update(['day_30_offset' => 5]),
         fn () => DB::table('people_training_effectiveness_policies')->where('id', $id)->delete(),
     ] as $attempt) {
-        expect($attempt)->toThrow(QueryException::class, 'training effectiveness policy rows are append-only');
+        expect(fn () => DB::transaction($attempt))
+            ->toThrow(QueryException::class, 'training effectiveness policy rows are append-only');
     }
 
     expect(TrainingEffectivenessCheckpointPolicy::query()
