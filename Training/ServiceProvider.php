@@ -9,7 +9,7 @@ use App\Domains\People\Training\Console\Commands\EffectivenessDueCommand;
 use App\Domains\People\Training\Console\Commands\EvaluationsDueCommand;
 use App\Domains\People\Training\Console\Commands\PurgeTrainingPassportDocumentsCommand;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
-use App\Domains\People\Training\Services\UnavailableTrainingParticipationSummary;
+use App\Domains\People\Training\Services\DatabaseTrainingParticipationSummary;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
 
@@ -17,9 +17,12 @@ class ServiceProvider extends BaseServiceProvider
 {
     public function register(): void
     {
+        // Counts come from participant records (0011-e). The unavailable
+        // implementation stays for the provider-outage path: a summary that
+        // cannot be read is unavailable, never zero.
         $this->app->singleton(
             SummarizesTrainingParticipation::class,
-            UnavailableTrainingParticipationSummary::class,
+            DatabaseTrainingParticipationSummary::class,
         );
 
         if ($this->app->runningInConsole()) {
