@@ -71,6 +71,7 @@ final class TrainingPassportReader
             ->keyBy('id');
         $facts = TrainingParticipationFact::query()
             ->forCompany($tenantId, (int) $subject->companyId)
+            ->current()
             ->whereIn('participant_id', $participantIds)
             ->orderBy('id')
             ->get([

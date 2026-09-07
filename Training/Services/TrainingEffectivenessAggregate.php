@@ -60,7 +60,7 @@ final class TrainingEffectivenessAggregate
             return [];
         }
 
-        $facts = TrainingParticipationFact::query()->forCompany($tenantId, $companyEntityId)
+        $facts = TrainingParticipationFact::query()->forCompany($tenantId, $companyEntityId)->current()
             ->where('attendance', AttendanceStatus::Present)
             ->whereIn('event_id', $events->modelKeys())
             ->get();
