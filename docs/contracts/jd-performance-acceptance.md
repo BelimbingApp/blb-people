@@ -19,6 +19,8 @@ One honest boundary: JP-A12's run-twice JD/KPI import execution is unbuilt
 the downstream-write invariants and explicit-unknown rules — and says so in
 the observable cell rather than naming a file that does not prove it.
 
+Declared `missing` path cells: 22
+
 | Scenario | Observable result | Test file(s) | Direct path | Explorer path | Export path |
 |---|---|---|---|---|---|
 | JP-A01 | Existing assignment/history resolves its exact applicable version; future content does not replace today's JD; structured fields and competency links survive across published versions. | `Performance/Tests/Feature/JobDescriptionStoreTest.php`<br>`Performance/Tests/Feature/PositionVersionLinkageTest.php` | `class:App\Domains\People\Performance\Services\JobDescriptionStore` | `class:App\Domains\People\Performance\Services\OrganisationPerformanceDetail` | missing |
