@@ -2,15 +2,21 @@
 
 namespace App\Domains\People\Training\Livewire\Evaluations;
 
+use App\Base\Authz\Contracts\AuthorizationService;
+use App\Base\Authz\DTO\Actor;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Employee\Models\Employee;
+use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Enums\AttendanceStatus;
+use App\Domains\People\Training\Exceptions\InvalidTrainingEvaluationException;
 use App\Domains\People\Training\Models\TrainingEvaluation;
+use App\Domains\People\Training\Models\TrainingEvaluationFollowup;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Models\TrainingParticipationFact;
+use App\Domains\People\Training\Services\TrainingEvaluationFollowupStore;
 use App\Domains\People\Training\Services\TrainingEvaluationReader;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
@@ -43,24 +49,61 @@ final class Index extends Component
         'practical_usefulness',
     ];
 
+    /** @var array<int, string> action notes keyed by follow-up id */
+    public array $followupNotes = [];
+
     public function mount(): void
     {
         $this->authorizeView();
     }
 
+    public function openFollowup(int $evaluationId, string $kind): void
+    {
+        $this->authorizeFollowup();
+        try {
+            app(TrainingEvaluationFollowupStore::class)->open($this->user(), $this->companyId(), $evaluationId, $kind);
+        } catch (InvalidTrainingEvaluationException $refusal) {
+            $this->addError('followup', $refusal->getMessage());
+        }
+    }
+
+    public function progressFollowup(int $followupId): void
+    {
+        $this->authorizeFollowup();
+        try {
+            app(TrainingEvaluationFollowupStore::class)->progress(
+                $this->user(), $this->companyId(), $followupId, $this->followupNotes[$followupId] ?? null,
+            );
+        } catch (InvalidTrainingEvaluationException $refusal) {
+            $this->addError('followup', $refusal->getMessage());
+        }
+    }
+
+    public function closeFollowup(int $followupId): void
+    {
+        $this->authorizeFollowup();
+        try {
+            app(TrainingEvaluationFollowupStore::class)->close(
+                $this->user(), $this->companyId(), $followupId, $this->followupNotes[$followupId] ?? null,
+            );
+        } catch (InvalidTrainingEvaluationException $refusal) {
+            $this->addError('followup', $refusal->getMessage());
+        }
+    }
+
     public function render(TrainingEvaluationReader $reader): View
     {
         $this->authorizeView();
-        $actor = Auth::user();
-        $companyId = (int) $actor->company_id;
+        $companyId = $this->companyId();
 
         return view('people::livewire.evaluations.index', [
             'events' => $this->events($reader, $companyId),
+            'canManageFollowups' => $this->canManageFollowups(),
         ]);
     }
 
     /**
-     * @return list<array{event_id: int, title: string, attended: int, submitted: int, response_rate: int|null, means: array<string, float|null>, comments: list<array{participant: string, comment: string}>}>
+     * @return list<array{event_id: int, title: string, attended: int, submitted: int, response_rate: int|null, means: array<string, float|null>, comments: list<array{participant: string, comment: string}>, flagged: list<array{evaluation_id: int, participant: string, support: array{id: int, status: string}|null, provider: array{id: int, status: string}|null}>}>
      */
     private function events(TrainingEvaluationReader $reader, int $companyId): array
     {
@@ -74,8 +117,9 @@ final class Index extends Component
 
         $attended = $this->attendedCounts($this->tenantOf($reader), $companyId, $events->pluck('id')->all());
         $names = $this->participantNames($this->tenantOf($reader), $companyId, $events->pluck('id')->all());
+        $followups = $this->followupStates($this->tenantOf($reader), $companyId, $evaluations->flatten()->all());
 
-        return $events->map(function (TrainingEvent $event) use ($evaluations, $attended, $names): array {
+        return $events->map(function (TrainingEvent $event) use ($evaluations, $attended, $names, $followups): array {
             $rows = $evaluations->get($event->id, collect());
             $attendedCount = (int) ($attended[$event->id] ?? 0);
 
@@ -89,8 +133,78 @@ final class Index extends Component
                 'response_rate' => $attendedCount === 0 ? null : (int) round($rows->count() / $attendedCount * 100),
                 'means' => $this->means($rows),
                 'comments' => $this->comments($rows, $names),
+                'flagged' => $this->flagged($rows, $names, $followups),
             ];
         })->values()->all();
+    }
+
+    /**
+     * Evaluations the viewer can actually see carrying a support request or a
+     * provider concern. Redacted rows never selected the free-text columns,
+     * so they cannot flag: presence in the attributes is the visibility
+     * proof, and absence (a departmental reader) stays absent here too.
+     *
+     * @param  iterable<TrainingEvaluation>  $rows
+     * @param  array<string, string>  $names
+     * @param  array<int, array{support_request: array{id: int, status: string}|null, provider_concern: array{id: int, status: string}|null}>  $followups
+     * @return list<array{evaluation_id: int, participant: string, support: array{id: int, status: string}|null, provider: array{id: int, status: string}|null}>
+     */
+    private function flagged(iterable $rows, array $names, array $followups): array
+    {
+        $flagged = [];
+        foreach ($rows as $evaluation) {
+            $attributes = $evaluation->getAttributes();
+            $hasSupport = array_key_exists('support_needed', $attributes) && trim((string) $evaluation->support_needed) !== '';
+            $hasIssues = array_key_exists('issues_or_improvements', $attributes) && trim((string) $evaluation->issues_or_improvements) !== '';
+            if (! $hasSupport && ! $hasIssues) {
+                continue;
+            }
+
+            $states = $followups[(int) $evaluation->id] ?? [
+                'support_request' => null,
+                'provider_concern' => null,
+            ];
+
+            $flagged[] = [
+                'evaluation_id' => (int) $evaluation->id,
+                'participant' => (string) ($names[(string) $evaluation->employee_subject_id] ?? __('Unknown participant')),
+                'support' => $states['support_request'],
+                'provider' => $states['provider_concern'],
+            ];
+        }
+
+        return $flagged;
+    }
+
+    /**
+     * Latest follow-up per evaluation per kind: an open or in-progress row is
+     * the live state, otherwise the last closed row, otherwise nothing to act
+     * on yet.
+     *
+     * @param  list<TrainingEvaluation>  $evaluations
+     * @return array<int, array{support_request: array{id: int, status: string}|null, provider_concern: array{id: int, status: string}|null}>
+     */
+    private function followupStates(int $tenantId, int $companyId, array $evaluations): array
+    {
+        $ids = array_map(static fn (TrainingEvaluation $evaluation): int => (int) $evaluation->id, $evaluations);
+        if ($ids === []) {
+            return [];
+        }
+
+        $states = [];
+        foreach ($ids as $id) {
+            $states[$id] = ['support_request' => null, 'provider_concern' => null];
+        }
+        $rows = TrainingEvaluationFollowup::query()->forCompany($tenantId, $companyId)
+            ->whereIn('evaluation_id', $ids)->orderBy('id')->get();
+        foreach ($rows as $row) {
+            $states[(int) $row->evaluation_id][$row->kind->value] = [
+                'id' => (int) $row->id,
+                'status' => $row->status->value,
+            ];
+        }
+
+        return $states;
     }
 
     /** @return array<string, float|null> */
@@ -159,6 +273,43 @@ final class Index extends Component
     private function tenantOf(TrainingEvaluationReader $reader): int
     {
         return (int) app(TenantContext::class)->requireTenantId();
+    }
+
+    private function authorizeFollowup(): void
+    {
+        try {
+            app(AuthorizationService::class)->authorize(
+                Actor::forUser($this->user()), TrainingEvaluationFollowupStore::MANAGE,
+            );
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        }
+    }
+
+    private function canManageFollowups(): bool
+    {
+        try {
+            app(AuthorizationService::class)->authorize(
+                Actor::forUser($this->user()), TrainingEvaluationFollowupStore::MANAGE,
+            );
+
+            return true;
+        } catch (AuthorizationDeniedException) {
+            return false;
+        }
+    }
+
+    private function user(): User
+    {
+        $user = Auth::user();
+        abort_unless($user instanceof User, 403);
+
+        return $user;
+    }
+
+    private function companyId(): int
+    {
+        return (int) $this->user()->company_id;
     }
 
     private function authorizeView(): void
