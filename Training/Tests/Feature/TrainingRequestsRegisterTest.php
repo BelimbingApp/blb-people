@@ -219,3 +219,17 @@ test('holding the capability without the HR audience is still refused', function
 
     Livewire::actingAs($f['hod'])->test(Register::class)->assertForbidden();
 });
+
+test('setting the company property to another company is refused on render, and no sibling request is rendered', function (): void {
+    $f = reqRegisterFixture();
+
+    // The property is client-settable without selectCompany(); the render
+    // path's own guard is what stops HR of Alpha reading Beta. (An action
+    // after the refused request would replay the previous snapshot, so the
+    // export path is covered by the same requireCompany() call, not chained.)
+    $page = Livewire::actingAs($f['hr'])->test(Register::class)
+        ->set('companyEntityId', (int) $f['beta']->id)
+        ->assertNotFound();
+    expect($page->html())->not->toContain('Beta need')
+        ->and(AuditAction::query()->where('event', Register::EXPORT_EVENT)->count())->toBe(0);
+});
