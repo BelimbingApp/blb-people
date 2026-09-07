@@ -123,6 +123,9 @@
                                 @endif
                                 <div class="flex items-end gap-2"><x-ui.input id="training-event-{{ $event->id }}-reason" :label="__('Cancellation reason')" wire:model="reason.{{ $event->id }}" /><x-ui.button wire:click="cancel({{ $event->id }})">{{ __('Cancel event') }}</x-ui.button></div>
                             @endif
+                            @if ($canExport)
+                                <div><x-ui.button type="button" variant="secondary" wire:click="exportAttendance({{ $event->id }})">{{ __('Export attendance CSV') }}</x-ui.button></div>
+                            @endif
                             @if ($canManage)
                                 <div class="flex items-end gap-2"><x-ui.input id="training-event-{{ $event->id }}-comment" :label="__('Audit note')" wire:model="comment.{{ $event->id }}" /><x-ui.button wire:click="addComment({{ $event->id }})">{{ __('Add note') }}</x-ui.button></div>
                             @endif
