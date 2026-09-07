@@ -53,6 +53,24 @@ no-shows, and cancellation remain intelligible.
 | Evidence | Opaque references to attendance, result, certificate, or completion evidence. Attachments remain governed documents; filenames, links, and contents are not embedded into broadly readable summaries or logs. |
 | Provenance and confirmation | Source, accountable actor and capability, recorded time, confirmation state, confirmer and confirmation time. Imported or paper-captured facts also retain source provenance and duplicate-prevention identity. |
 
+## Event aggregates (0011-e)
+
+The event register's per-event counts are derived from participant records by
+`DatabaseTrainingParticipationSummary`, never entered:
+
+| Count | Definition |
+|---|---|
+| enrolled | participant rows of the event without `withdrawn_at` |
+| attended | enrolled participants with at least one session fact whose attendance is `present` |
+| completed | attended participants whose latest recorded fact carries an applicable post-test with a score; a missing or not-applicable post-test is not a completion |
+| passed | completed participants whose post-test score is at or above its pass mark |
+
+The pass rate is `passed / completed`; with zero completions it is null and
+the register shows "n/a", never 0%. A summary that cannot be read (the
+provider-outage path, `UnavailableTrainingParticipationSummary`) is
+unavailable and shown as such, never as zeros. Counts are pinned to the
+tenant and company; an event the company does not own yields no summary.
+
 Workbook helper values, dashboard totals, passport rows, and printable forms are
 projections over these canonical facts. They are not editable participant
 records. Imports preserve source identity and evidence and quarantine ambiguous
