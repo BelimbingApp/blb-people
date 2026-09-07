@@ -32,6 +32,15 @@ return [
          * 'confirm' is not declared there.
          */
         'people.training.participation.evidence.verify',
+
+        /*
+         * The event attendance register as a CSV (0011-f). HR only: the file
+         * carries every participant's scores and certificates for an event,
+         * which is wider than the single-session recording a trainer holds
+         * through participation.manage, so teaching the event grants nothing
+         * here. `export` is a declared platform verb.
+         */
+        'people.training.participation.export',
         'people.training.passport.view',
         'people.training.passport.view-team',
         'people.training.effectiveness.review',
@@ -125,6 +134,7 @@ return [
                 'people.training.participation.rework',
                 'people.training.participation.evidence.assign',
                 'people.training.participation.evidence.verify',
+                'people.training.participation.export',
                 'people.training.passport.view',
                 'people.training.effectiveness.close',
                 'people.training.evaluation-aggregate.view',

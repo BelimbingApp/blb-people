@@ -2,6 +2,7 @@
 
 namespace App\Domains\People\Training\Livewire\Event;
 
+use App\Base\Foundation\Contracts\SemanticActionRecorder;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
@@ -14,9 +15,11 @@ use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEventException;
 use App\Domains\People\Training\Exceptions\InvalidTrainingParticipationException;
 use App\Domains\People\Training\Models\TrainingCourse;
+use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingEventAuditEvent;
 use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Models\TrainingParticipationFact;
+use App\Domains\People\Training\Models\TrainingSession;
 use App\Domains\People\Training\Services\TrainingAudience;
 use App\Domains\People\Training\Services\TrainingEventStore;
 use App\Domains\People\Training\Services\TrainingParticipationStore;
@@ -25,9 +28,21 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class Index extends Component
 {
+    /** One audit action per attendance register download (0011-f). */
+    public const EXPORT_EVENT = 'people.training.participation.exported';
+
+    /**
+     * The `11 Training Attendance` sheet order, so the file round-trips into
+     * the attendance-sheet import (0011-c).
+     */
+    public const EXPORT_COLUMNS = ['employee_subject_id', 'employee_name', 'session_reference', 'attendance', 'actual_minutes',
+        'pre_test_score', 'post_test_score', 'improvement', 'pass_result', 'certificate_reference', 'certificate_valid_from',
+        'certificate_valid_until', 'confirmed_at', 'source', 'corrected'];
+
     public ?int $companyEntityId = null;
 
     public ?int $editingEventId = null;
@@ -208,10 +223,12 @@ final class Index extends Component
         $history = collect();
         $summaries = [];
         $canManage = false;
+        $canExport = false;
 
         if ($company !== null && array_key_exists($company, $companies)) {
             $events = $audience->visibleEvents(Auth::user(), $company)->orderByDesc('starts_at')->get();
             $canManage = $audience->canManage(Auth::user(), $company);
+            $canExport = $audience->canExport(Auth::user(), $company);
             $tenant = app(TenantContext::class)->requireTenantId();
             $departments = $this->departmentOptions($company);
             $employees = $this->employeeOptions($company);
@@ -243,8 +260,136 @@ final class Index extends Component
             : collect();
 
         return view('people::livewire.event.index', compact(
-            'companies', 'events', 'courses', 'departments', 'employees', 'history', 'summaries', 'canManage', 'facts',
+            'companies', 'events', 'courses', 'departments', 'employees', 'history', 'summaries', 'canManage', 'canExport', 'facts',
         ));
+    }
+
+    /**
+     * The event's attendance register as CSV: its current participation
+     * facts, one row per participant and session, in the `11 Training
+     * Attendance` column order; one audit action per download (0011-f).
+     *
+     * The event is read under the selected company's scope, so an id from a
+     * sibling company or another tenant is a 404 rather than a refusal that
+     * confirms the row exists. Nothing is written except the audit action.
+     */
+    public function exportAttendance(int $eventId, TrainingAudience $audience): StreamedResponse
+    {
+        $companyId = $this->companyEntityId;
+        abort_unless($companyId !== null, 404);
+        $audience->authorizeExport(Auth::user(), $companyId);
+
+        $event = TrainingEvent::query()
+            ->forCompany(app(TenantContext::class)->requireTenantId(), $companyId)
+            ->whereKey($eventId)
+            ->firstOrFail();
+        $rows = $this->attendanceRows($companyId, $event);
+        $factIds = $rows->pluck('fact_id')->filter()->map(intval(...))->values()->all();
+        $filename = sprintf('training-attendance-%d-%d.csv', $companyId, (int) $event->id);
+
+        app(SemanticActionRecorder::class)->record(
+            event: self::EXPORT_EVENT,
+            summary: __('Exported :count attendance rows of training event :event to CSV', ['count' => $rows->count(), 'event' => $event->id]),
+            source: __('Training'),
+            subject: ['name' => 'training-attendance', 'identifier' => $filename],
+            surface: 'people.training.events.index',
+            uiElement: 'export-attendance',
+            context: [
+                'company_entity_id' => $companyId,
+                'training_event_id' => (int) $event->id,
+                'rows' => $rows->count(),
+                'fact_ids' => $factIds,
+            ],
+        );
+
+        return response()->streamDownload(function () use ($rows): void {
+            $out = fopen('php://output', 'wb');
+            fputcsv($out, self::EXPORT_COLUMNS);
+            foreach ($rows as $row) {
+                fputcsv($out, array_map(static fn (string $column): string => (string) $row[$column], self::EXPORT_COLUMNS));
+            }
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * What the event's register currently says, participant by participant.
+     *
+     * current() is the same answer the participation summary and the facts
+     * table give: a corrected fact is represented by its correction, never by
+     * both rows. A participant with no current fact is still a row: withdrawn
+     * ones as `cancelled`, the rest as `nominated`, with the fact columns
+     * empty. Dates come from the model casts so the file never carries the
+     * time part a raw date column may store.
+     *
+     * @return Collection<int, array<string, int|string|null>>
+     */
+    private function attendanceRows(int $companyId, TrainingEvent $event): Collection
+    {
+        $tenant = app(TenantContext::class)->requireTenantId();
+        $names = $this->employeeOptions($companyId)->pluck('display_name', 'workforce_entity_id');
+        $participants = TrainingParticipant::query()->forCompany($tenant, $companyId)
+            ->where('event_id', (int) $event->id)->orderBy('id')->get();
+        $sessions = TrainingSession::query()->forCompany($tenant, $companyId)
+            ->where('event_id', (int) $event->id)->get()->keyBy('id');
+        $facts = $participants->isEmpty() ? collect() : TrainingParticipationFact::query()->forCompany($tenant, $companyId)
+            ->current()
+            ->where('event_id', (int) $event->id)
+            ->whereIn('participant_id', $participants->modelKeys())
+            ->orderBy('session_id')->orderBy('id')
+            ->get()->groupBy('participant_id');
+
+        $rows = collect();
+        foreach ($participants as $participant) {
+            $subjectId = (string) $participant->employee_subject_id;
+            $base = [
+                'fact_id' => null,
+                'employee_subject_id' => $subjectId,
+                'employee_name' => (string) ($names[(int) $subjectId] ?? __('Unknown participant')),
+                'session_reference' => '', 'attendance' => '', 'actual_minutes' => '',
+                'pre_test_score' => '', 'post_test_score' => '', 'improvement' => '', 'pass_result' => '',
+                'certificate_reference' => '', 'certificate_valid_from' => '', 'certificate_valid_until' => '',
+                'confirmed_at' => '', 'source' => '', 'corrected' => '',
+            ];
+            $own = $facts->get($participant->id, collect());
+            if ($own->isEmpty()) {
+                $rows->push(['attendance' => $participant->withdrawn_at === null ? 'nominated' : AttendanceStatus::Cancelled->value] + $base);
+
+                continue;
+            }
+            foreach ($own as $fact) {
+                $pre = self::testScore($fact->pre_test);
+                $post = self::testScore($fact->post_test);
+                $rows->push([
+                    'fact_id' => (int) $fact->id,
+                    'session_reference' => (string) ($sessions->get($fact->session_id)?->session_reference ?? ''),
+                    'attendance' => $fact->attendance->value,
+                    'actual_minutes' => (int) $fact->actual_minutes,
+                    'pre_test_score' => $pre === null ? '' : (string) $pre,
+                    'post_test_score' => $post === null ? '' : (string) $post,
+                    'improvement' => $pre === null || $post === null ? '' : (string) ($post - $pre),
+                    'pass_result' => match ($fact->post_test['passed'] ?? null) { true => 'pass', false => 'fail', default => '' },
+                    'certificate_reference' => (string) ($fact->certificate_reference ?? ''),
+                    'certificate_valid_from' => $fact->certificate_valid_from?->format('Y-m-d') ?? '',
+                    'certificate_valid_until' => $fact->certificate_valid_until?->format('Y-m-d') ?? '',
+                    'confirmed_at' => $fact->confirmed_at?->format('Y-m-d H:i:s') ?? '',
+                    'source' => (string) $fact->source,
+                    'corrected' => (int) $fact->supersedes_fact_id > 0 ? 'yes' : 'no',
+                ] + $base);
+            }
+        }
+
+        return $rows;
+    }
+
+    /** The recorded score of an applicable test, or null when absent or not applicable. */
+    private static function testScore(mixed $result): ?float
+    {
+        if (! is_array($result) || ($result['applicable'] ?? false) !== true || ! isset($result['score'])) {
+            return null;
+        }
+
+        return (float) $result['score'];
     }
 
     /**
