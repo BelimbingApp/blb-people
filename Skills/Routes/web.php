@@ -4,6 +4,7 @@ use App\Domains\People\Skills\Livewire\Assessment\Matrix;
 use App\Domains\People\Skills\Livewire\BackupCoverage\Index as BackupCoverageIndex;
 use App\Domains\People\Skills\Livewire\Catalog\Index;
 use App\Domains\People\Skills\Livewire\DevelopmentAction\Index as DevelopmentActionIndex;
+use App\Domains\People\Skills\Livewire\MyHistory\Index as MyHistoryIndex;
 use App\Domains\People\Skills\Livewire\Planning\Index as HodPlanningIndex;
 use App\Domains\People\Skills\Livewire\RequirementProfile\Show as RequirementProfileShow;
 use App\Domains\People\Skills\Livewire\TeamGaps\Index as TeamGapsIndex;
@@ -21,6 +22,10 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/skills/team-gaps', TeamGapsIndex::class)
         ->middleware('authz:'.TeamGapsIndex::VIEW_CAPABILITY)
         ->name('people.skill.team-gaps.index');
+
+    Route::get('people/skills/my-history', MyHistoryIndex::class)
+        ->middleware('authz:'.MyHistoryIndex::VIEW_CAPABILITY)
+        ->name('people.skill.my-history.index');
 
     Route::get('people/skill-requirements/{profileId}', RequirementProfileShow::class)
         ->middleware('authz:people.skill.catalog.view')
