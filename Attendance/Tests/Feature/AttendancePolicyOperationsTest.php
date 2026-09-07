@@ -169,6 +169,7 @@ it('emits validation findings as JSON from the attendance policy validate comman
 
     $exitCode = Artisan::call('blb:attendance:policy:validate', [
         'policy' => 'STD',
+        '--tenant' => $company->tenant_id,
         '--company' => $company->id,
         '--json' => true,
     ]);
@@ -293,6 +294,7 @@ it('emits simulation results as JSON from the attendance policy simulate command
 
     $exitCode = Artisan::call('blb:attendance:policy:simulate', [
         'policy' => 'STD',
+        '--tenant' => $company->tenant_id,
         '--company' => $company->id,
         '--shift' => 'DAY',
         '--date' => '2026-05-14',
@@ -1116,6 +1118,7 @@ it('emits stable roster operator JSON from the attendance roster command', funct
 
     Artisan::call('blb:attendance:roster', [
         'action' => 'publish-dry-run',
+        '--tenant' => $company->tenant_id,
         '--company' => $company->id,
         '--from' => '2026-09-01',
         '--to' => '2026-09-01',
@@ -1129,8 +1132,11 @@ it('emits stable roster operator JSON from the attendance roster command', funct
 });
 
 it('returns roster command validation errors as stable JSON', function (): void {
+    // The tenant is the base class's question and is answered here so the
+    // findings below are the command's own input validation (#316).
     $exitCode = Artisan::call('blb:attendance:roster', [
         'action' => 'publish-dry-run',
+        '--tenant' => createTenant()->id,
     ]);
 
     $payload = json_decode(Artisan::output(), true);

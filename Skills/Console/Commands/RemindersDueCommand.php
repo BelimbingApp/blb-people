@@ -2,10 +2,10 @@
 
 namespace App\Domains\People\Skills\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Enums\ReminderRule;
 use App\Domains\People\Skills\Services\ReminderRules;
-use Illuminate\Console\Command;
 
 /**
  * Report how many reminders are due, and send none.
@@ -14,10 +14,9 @@ use Illuminate\Console\Command;
  * the rules run on real data and be argued about before anybody's inbox is
  * involved, and a rule that is wrong is much cheaper to find here.
  */
-final class RemindersDueCommand extends Command
+final class RemindersDueCommand extends TenantScopedCommand
 {
     protected $signature = 'people:reminders-due
-                            {--tenant= : Tenant to report on; defaults to the current tenant context}
                             {--company= : Company workforce entity to report on}
                             {--days= : Days ahead to treat a certificate as expiring}';
 
@@ -25,11 +24,6 @@ final class RemindersDueCommand extends Command
 
     public function handle(TenantContext $tenants, ReminderRules $rules): int
     {
-        $tenantOption = $this->option('tenant');
-
-        if ($tenantOption !== null && $tenantOption !== '') {
-            $tenants->set((int) $tenantOption);
-        }
 
         $company = $this->option('company');
 
