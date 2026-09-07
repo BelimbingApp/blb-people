@@ -247,7 +247,7 @@ test('HR sees the comment with the participant name', function (): void {
 
     $row = collect(dashRows($f))->firstWhere('event_id', $eventId);
 
-    expect($row['comments'])->toBe([['participant' => 'Alice', 'comment' => 'The room was too cold.']]);
+    expect($row['comments'])->toBe([['participant' => 'Alice', 'comment' => 'The room was too cold.', 'from_paper' => false]]);
 });
 
 test('a HOD without the HR audience does not read the free text', function (): void {
