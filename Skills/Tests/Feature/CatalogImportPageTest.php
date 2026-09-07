@@ -229,3 +229,21 @@ test('a user without the import capability is refused by the component and the r
         ->call('import')->assertStatus(404);
     expect(catImportCounts($f['tenantId'], $f['alpha']))->toBe(['skills' => 0, 'items' => 0, 'profiles' => 0]);
 });
+
+test('a six-skill role imports without tripping the weight total', function (): void {
+    $f = catImportFixture();
+    $rows = [];
+    foreach (['Cutting', 'Welding', 'Grinding', 'Polishing', 'Drilling', 'Milling'] as $skill) {
+        $rows[] = ['Operations', 'Line Operator', $skill, '3', 'critical'];
+    }
+
+    // Reviewer finding (muse-spark): 16.6667 x 6 = 100.0002, outside the
+    // store's tolerance; the remainder now lands on the last item.
+    Livewire::actingAs($f['hr'])
+        ->test(Import::class, ['companyId' => (int) $f['alpha']->id])
+        ->set('workbook', catImportCsv($rows))
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(catImportCounts($f['tenantId'], $f['alpha'])['profiles'])->toBe(1);
+});

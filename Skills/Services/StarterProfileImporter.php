@@ -216,15 +216,20 @@ final class StarterProfileImporter
             if (RequirementProfile::query()->forCompany($tenantId, $companyEntityId)->where('code', $code)->exists()) {
                 continue;
             }
-            $weight = round(100 / count($group), 4);
+            // Equal weights, with the rounding remainder on the last item so
+            // the total is exactly 100: six items at 16.6667 sum to 100.0002,
+            // which the store's tolerance rightly refuses.
+            $count = count($group);
+            $weight = round(100 / $count, 4);
+            $last = round(100 - $weight * ($count - 1), 4);
             $items = [];
-            foreach ($group as $index => $row) {
+            foreach (array_values($group) as $index => $row) {
                 $items[] = new RequirementItemDraft(
                     skillId: $skillIds[$this->skillCode($row['skill'])],
                     sequence: $index + 1,
                     requiredLevel: (int) $row['level'],
                     criticality: RequirementCriticality::from(strtolower($row['criticality'])),
-                    weightPercent: $weight,
+                    weightPercent: $index === $count - 1 ? $last : $weight,
                 );
             }
             $this->profiles->draft($companyEntityId, new RequirementProfileDraft(
