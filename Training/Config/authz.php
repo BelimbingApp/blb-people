@@ -22,6 +22,7 @@ return [
         'people.training.request.approve',
         'people.training.participation.manage',
         'people.training.participation.verify',
+        'people.training.participation.rework',
         'people.training.participation.evidence.assign',
         'people.training.participation.evidence.submit',
 
@@ -130,6 +131,7 @@ return [
                 'people.training.request.review',
                 'people.training.participation.manage',
                 'people.training.participation.verify',
+                'people.training.participation.rework',
                 'people.training.participation.evidence.assign',
                 'people.training.participation.evidence.verify',
                 'people.training.passport.view',

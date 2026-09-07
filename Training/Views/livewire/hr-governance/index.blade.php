@@ -310,6 +310,45 @@
             @endif
         </section>
 
+        <section class="space-y-4" data-failed-deliveries-section>
+            <h2 class="text-lg font-semibold">{{ __('Failed reminder deliveries') }}</h2>
+            @if ($failedDeliveries->isEmpty())
+                <p class="text-sm text-muted">{{ __('Every skill reminder claimed this period reached its recipient.') }}</p>
+            @else
+                {{-- Read-only: the retry is people:reminders-send --retry, run by
+                     an operator, so a failure is visible here without giving the
+                     page a way to resend. --}}
+                <x-ui.table :caption="__('Skill reminder deliveries that failed')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Rule') }}</x-ui.th>
+                            <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                            <x-ui.th>{{ __('Skill') }}</x-ui.th>
+                            <x-ui.th>{{ __('Recipient') }}</x-ui.th>
+                            <x-ui.th>{{ __('Period') }}</x-ui.th>
+                            <x-ui.th>{{ __('Failure') }}</x-ui.th>
+                            <x-ui.th>{{ __('Attempted') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($failedDeliveries as $delivery)
+                            <tr wire:key="failed-delivery-{{ $delivery->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $delivery->rule->value }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">#{{ $delivery->employee_entity_id }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">#{{ $delivery->skill_id }}@if ($delivery->developmentActionId() !== null) <span class="text-muted">{{ __('action') }} #{{ $delivery->developmentActionId() }}</span>@endif</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">#{{ $delivery->recipient_user_id }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted tabular-nums">{{ $delivery->period_key }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $delivery->failure }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted">
+                                    <x-ui.datetime :value="$delivery->attempted_at" />
+                                </td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </section>
+
         <section class="space-y-4" data-passport-section>
             <h2 class="text-lg font-semibold">{{ __('Training passports') }}</h2>
             <p class="text-sm text-muted">{{ __('Generate a stored, watermarked PDF of an employee\'s completed events, certificates and current skill levels. Copies are kept for :days days and every generation and download is recorded.', ['days' => \App\Domains\People\Training\Services\TrainingPassportDocumentStore::RETENTION_DAYS]) }}</p>
