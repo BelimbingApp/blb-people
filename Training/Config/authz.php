@@ -65,6 +65,14 @@ return [
         'people.training.evaluation-aggregate.view',
 
         /*
+         * HR follow-up on evaluation support requests and provider concerns
+         * (0012-c). HR-only on purpose: HOD keeps read-only visibility through
+         * evaluation.view, and the participant's answers are never editable
+         * through a follow-up, so no other role needs this.
+         */
+        'people.training.evaluation.followup.manage',
+
+        /*
          * The department budget (0010-a). Viewing is separate from changing
          * because a HOD is meant to see what their department has left without
          * being able to award themselves more: the roll-up answers "can we
@@ -106,6 +114,7 @@ return [
                 'people.training.calendar.view',
                 'people.training.event.view',
                 'people.training.evaluation.view',
+                'people.training.evaluation.followup.manage',
                 'people.training.event.manage',
                 'people.training.plan.approve',
                 'people.training.request.submit',
