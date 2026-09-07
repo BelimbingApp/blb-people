@@ -37,6 +37,9 @@ return new class extends Migration
             $table->unsignedBigInteger('requested_by_user_id');
             $table->date('due_at');
             $table->string('status', 24)->default('pending');
+            $table->unsignedBigInteger('performed_by_user_id')->nullable();
+            $table->timestamp('performed_at')->nullable();
+            $table->string('outcome', 1000)->nullable();
             $table->unique(['id', 'tenant_id'], 'pcr_req_id_tenant_uq');
             $table->index(['tenant_id', 'company_entity_id', 'status', 'due_at'], 'pcr_req_ops_idx');
             $table->index(['tenant_id', 'employee_entity_id', 'skill_id'], 'pcr_req_employee_skill_idx');

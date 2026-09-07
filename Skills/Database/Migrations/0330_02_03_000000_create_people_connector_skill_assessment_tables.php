@@ -49,6 +49,7 @@ return new class extends Migration
             $table->unsignedBigInteger('skill_id');
             $table->string('requirement_reference', 100);
             $table->unsignedInteger('requirement_version');
+            $table->unsignedBigInteger('requirement_profile_id')->nullable();
             $table->unsignedTinyInteger('required_level');
             $table->string('criticality', 24);
             $table->decimal('weight_percent', 5, 2)->nullable();
@@ -71,6 +72,7 @@ return new class extends Migration
             $table->string('hod_verification', 24)->default('pending');
             $table->unsignedBigInteger('hod_verifier_user_id')->nullable();
             $table->timestamp('hod_verified_at')->nullable();
+            $table->text('hod_decision_notes')->nullable();
             $table->string('certificate_number', 100)->nullable();
             $table->date('valid_until')->nullable();
             $table->date('next_assessment_due')->nullable();
@@ -84,6 +86,7 @@ return new class extends Migration
             $table->index(['tenant_id', 'company_entity_id'], 'pcs_assess_company_idx');
             $table->index(['tenant_id', 'employee_entity_id', 'skill_id', 'status'], 'pcs_assess_employee_skill_status_idx');
             $table->index(['tenant_id', 'skill_id'], 'pcs_assess_skill_idx');
+            $table->index(['tenant_id', 'requirement_profile_id'], 'pcs_assessment_req_profile_idx');
 
             $table->foreign('tenant_id', 'pcs_assess_tenant_fk')
                 ->references('id')->on('tenants')->restrictOnDelete();
