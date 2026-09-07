@@ -3,6 +3,7 @@
 use App\Base\Audit\Models\AuditAction;
 use App\Base\Audit\Services\AuditBuffer;
 use App\Base\Authz\Enums\PrincipalType;
+use App\Base\Authz\Models\PrincipalCapability;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
@@ -198,4 +199,23 @@ test('a HOD without the capability is refused by the component and the route, an
     $beta = Livewire::actingAs($f['betaHr'])->test(Register::class)->assertOk();
     expect($beta->viewData('rows')->pluck('id')->all())->toBe([$f['foreign']->id]);
     $beta->call('selectCompany', $f['alpha']->id)->assertNotFound();
+});
+
+test('a request from another year stays out of the register and the export', function (): void {
+    $f = reqRegisterFixture();
+    TrainingRequest::query()->forCompany($f['tenantId'], (int) $f['alpha']->id)->whereKey($f['pending']->id)
+        ->update(['created_at' => (now()->year - 1).'-06-01 09:00:00']);
+
+    $page = Livewire::actingAs($f['hr'])->test(Register::class);
+    expect($page->viewData('rows')->pluck('id')->all())->toBe([$f['rejected']->id, $f['approved']->id]);
+});
+
+test('holding the capability without the HR audience is still refused', function (): void {
+    $f = reqRegisterFixture();
+    PrincipalCapability::query()->create([
+        'company_id' => $f['alpha']->id, 'principal_type' => PrincipalType::USER->value, 'principal_id' => $f['hod']->id,
+        'capability_key' => Register::VIEW_CAPABILITY, 'is_allowed' => true,
+    ]);
+
+    Livewire::actingAs($f['hod'])->test(Register::class)->assertForbidden();
 });
