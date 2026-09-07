@@ -328,3 +328,30 @@ test('an employee whose only report is inactive is not a manager', function (): 
         ->and(cutoverCounts($f)['manager_capability'])->toBe(0)
         ->and(cutoverRun($f))->toBe(1);
 });
+
+test('running without --tenant is refused before handle() runs', function (): void {
+    $f = cutoverFixture();
+    app(TenantContext::class)->clear();
+
+    $exit = Artisan::call('people:performance:cutover-check', ['--company' => $f['companyId']]);
+    $output = Artisan::output();
+
+    // Refused by the TenantScopedCommand base, not by handle(): no report
+    // line, only the base's option-required message.
+    expect($exit)->not->toBe(0)
+        ->and($output)->toContain('A --tenant=<id> option is required')
+        ->and($output)->not->toContain('Ready:')
+        ->and($output)->not->toContain('Not ready:');
+});
+
+test('an unknown tenant id is refused with the base message', function (): void {
+    $f = cutoverFixture();
+
+    $exit = cutoverRun($f, ['--tenant' => 999999]);
+    $output = Artisan::output();
+
+    expect($exit)->not->toBe(0)
+        ->and($output)->toContain('Tenant [999999] is unknown or not available.')
+        ->and($output)->not->toContain('Ready:')
+        ->and($output)->not->toContain('Not ready:');
+});

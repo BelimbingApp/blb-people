@@ -61,7 +61,7 @@
             @if ($requests->isEmpty())
                 <p class="text-sm text-muted">{{ __('No training request yet.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Your training requests')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Need') }}</x-ui.th>
