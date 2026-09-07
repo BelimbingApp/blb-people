@@ -11,6 +11,7 @@ use App\Domains\People\Training\Data\TrainingMigrationSourceDraft;
 use App\Domains\People\Training\Enums\MigrationSourceKind;
 use App\Domains\People\Training\Exceptions\InvalidTrainingMigrationSourceException;
 use App\Domains\People\Training\Models\TrainingMigrationSource;
+use App\Domains\People\Training\Services\MigrationLedger;
 use App\Domains\People\Training\Services\TrainingMigrationSourceStore;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -71,7 +72,7 @@ final class Index extends Component
         $this->resetForm();
     }
 
-    public function render(TrainingMigrationSourceStore $store, AuthorizationService $authorization): View
+    public function render(TrainingMigrationSourceStore $store, MigrationLedger $ledger, AuthorizationService $authorization): View
     {
         $this->authorizeView();
         $companies = $this->allowedCompanies();
@@ -80,6 +81,7 @@ final class Index extends Component
         return view('people::livewire.migration.index', [
             'companies' => $companies,
             'sources' => $companyEntityId === null ? collect() : $store->inventory($this->user(), $companyEntityId),
+            'rejected' => $companyEntityId === null ? collect() : $ledger->listRejected($companyEntityId),
             'kinds' => MigrationSourceKind::cases(),
             'mayManage' => $authorization->can(Actor::forUser($this->user()), TrainingMigrationSourceStore::MANAGE)->allowed,
             'signed' => $companyEntityId !== null && $store->signedInventory($companyEntityId),

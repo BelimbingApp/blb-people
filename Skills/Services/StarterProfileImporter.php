@@ -14,6 +14,7 @@ use App\Domains\People\Skills\Enums\SelectorType;
 use App\Domains\People\Skills\Models\RequirementProfile;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillCategory;
+use App\Domains\People\Training\Services\MigrationLedger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -41,6 +42,9 @@ final class StarterProfileImporter
 
     public const CATEGORY_CODE = 'imported';
 
+    /** Inventory source_key this importer writes under (0015-a / 0015-d). */
+    public const SOURCE_KEY = 'starter-profiles';
+
     private const MAX_ROWS = 2000;
 
     public function __construct(
@@ -48,13 +52,19 @@ final class StarterProfileImporter
         private readonly SkillCatalogStore $catalog,
         private readonly RequirementProfileStore $profiles,
         private readonly WorkforceSubjects $workforce,
+        private readonly MigrationLedger $ledger,
     ) {}
 
     /**
      * @return array{errors: list<array{row: int, message: string}>, rows: int, skills: int, requirements: int, profiles: int}
      */
-    public function import(int $companyEntityId, string $path, string $filename): array
-    {
+    public function import(
+        int $companyEntityId,
+        string $path,
+        string $filename,
+        string $sourceKey = self::SOURCE_KEY,
+        ?int $recordedByUserId = null,
+    ): array {
         [$rows, $errors] = $this->parse($path);
         if ($errors === []) {
             $errors = $this->validate($companyEntityId, $rows);
@@ -64,7 +74,13 @@ final class StarterProfileImporter
             return ['errors' => $errors, 'rows' => count($rows), 'skills' => 0, 'requirements' => 0, 'profiles' => 0];
         }
 
-        $written = DB::transaction(fn (): array => $this->write($companyEntityId, $rows, $filename));
+        $sha256 = hash_file('sha256', $path);
+        if ($sha256 === false) {
+            return ['errors' => [['row' => 0, 'message' => __('The workbook could not be read.')]], 'rows' => count($rows), 'skills' => 0, 'requirements' => 0, 'profiles' => 0];
+        }
+
+        $recordedBy = $recordedByUserId ?? 0;
+        $written = DB::transaction(fn (): array => $this->write($companyEntityId, $rows, $filename, $sourceKey, $sha256, $recordedBy));
 
         app(SemanticActionRecorder::class)->record(
             event: self::EVENT,
@@ -179,8 +195,14 @@ final class StarterProfileImporter
      * @param  list<array{row: int, department: string, role: string, skill: string, level: string, criticality: string}>  $rows
      * @return array{skills: int, requirements: int, profiles: int}
      */
-    private function write(int $companyEntityId, array $rows, string $filename): array
-    {
+    private function write(
+        int $companyEntityId,
+        array $rows,
+        string $filename,
+        string $sourceKey,
+        string $sourceSha256,
+        int $recordedBy,
+    ): array {
         $tenantId = $this->tenantContext->requireTenantId();
         $departments = $this->departments($companyEntityId);
         $categoryId = $this->categoryId($tenantId, $companyEntityId);
@@ -232,12 +254,21 @@ final class StarterProfileImporter
                     weightPercent: $index === $count - 1 ? $last : $weight,
                 );
             }
-            $this->profiles->draft($companyEntityId, new RequirementProfileDraft(
+            $profile = $this->profiles->draft($companyEntityId, new RequirementProfileDraft(
                 code: $code,
                 name: $first['role'].' ('.$first['department'].')',
                 selectors: [new RequirementSelectorDraft(SelectorType::Department, null, $departments[mb_strtolower($first['department'])])],
                 items: $items,
             ));
+            $this->ledger->recordMigrated(
+                $companyEntityId,
+                $sourceKey,
+                $sourceSha256,
+                (int) $first['row'],
+                $profile->getTable(),
+                (int) $profile->getKey(),
+                $recordedBy,
+            );
             $profiles++;
             $requirements += count($items);
         }

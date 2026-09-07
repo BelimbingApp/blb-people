@@ -87,6 +87,35 @@
             @endif
         </x-ui.card>
 
+        <x-ui.card>
+            @if ($rejected->isEmpty())
+                <p class="text-sm text-muted">{{ __('No rejected migration rows are quarantined for this company.') }}</p>
+            @else
+                <x-ui.table :caption="__('Rejected migration rows')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Source') }}</x-ui.th>
+                            <x-ui.th>{{ __('Row') }}</x-ui.th>
+                            <x-ui.th>{{ __('Reason') }}</x-ui.th>
+                            <x-ui.th>{{ __('Excerpt') }}</x-ui.th>
+                            <x-ui.th>{{ __('Recorded') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($rejected as $row)
+                            <tr wire:key="migration-rejected-{{ $row->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink font-mono">{{ $row->source_key }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $row->source_row }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row->reason }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted font-mono">{{ json_encode($row->payload_excerpt) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted"><x-ui.datetime :value="$row->recorded_at" /></td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </x-ui.card>
+
         @if ($mayManage)
             <x-ui.card>
                 <h2 class="text-lg font-semibold">{{ $editingId === null ? __('Record a source') : __('Edit source #:id', ['id' => $editingId]) }}</h2>
