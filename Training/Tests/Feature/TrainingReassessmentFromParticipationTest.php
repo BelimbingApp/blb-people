@@ -249,13 +249,15 @@ test('a passed post-test without a certificate also opens the requests', functio
 
 test('absence, cancellation and attendance without a pass or certificate open nothing', function (array $overrides): void {
     $f = trqFixture();
-    trqConfirm($f, trqDraft($overrides + ['certificateReference' => null, 'certificateValidFrom' => null, 'certificateValidUntil' => null]));
+    // Absent and cancelled rows keep the pass and the certificate so only the
+    // attendance gate can stop them; the attended rows drop both.
+    trqConfirm($f, trqDraft($overrides));
     expect(trqRequests($f)->count())->toBe(0)->and(trqAudits($f)->count())->toBe(0);
 })->with([
-    'absent' => [['attendance' => AttendanceStatus::Absent, 'actualMinutes' => 0, 'postTest' => null]],
-    'cancelled' => [['attendance' => AttendanceStatus::Cancelled, 'actualMinutes' => 0, 'postTest' => null]],
-    'attended, failed post-test' => [['postTest' => new LearningTestResult(true, 40, 100, 70)]],
-    'attended, no post-test' => [['postTest' => new LearningTestResult(false)]],
+    'absent' => [['attendance' => AttendanceStatus::Absent, 'actualMinutes' => 0]],
+    'cancelled' => [['attendance' => AttendanceStatus::Cancelled, 'actualMinutes' => 0]],
+    'attended, failed post-test' => [['postTest' => new LearningTestResult(true, 40, 100, 70), 'certificateReference' => null, 'certificateValidFrom' => null, 'certificateValidUntil' => null]],
+    'attended, no post-test' => [['postTest' => new LearningTestResult(false), 'certificateReference' => null, 'certificateValidFrom' => null, 'certificateValidUntil' => null]],
 ]);
 
 test('a course covering no skills opens nothing', function (): void {
