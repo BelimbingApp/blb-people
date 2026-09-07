@@ -151,7 +151,9 @@ test('a request that is not approved cannot be linked by the store, and a raw up
 
     expect(fn () => app(TrainingRequestStore::class)->linkEvent($a['hr'], (int) $a['company']->id, (int) $request->id, (int) $a['event']->id))
         ->toThrow(InvalidTrainingRequestException::class, 'Only an approved training request');
-    expect(fn () => DB::table('people_training_requests')->where('id', $request->id)->update(['training_event_id' => $a['event']->id]))
+    // In its own transaction (a savepoint under the test transaction): on
+    // PostgreSQL a refused statement poisons the transaction it ran in.
+    expect(fn () => DB::transaction(fn () => DB::table('people_training_requests')->where('id', $request->id)->update(['training_event_id' => $a['event']->id])))
         ->toThrow(QueryException::class, 'only an approved training request');
     expect($request->fresh()->training_event_id)->toBeNull();
 })->with([TrainingRequestStatus::PendingApproval, TrainingRequestStatus::Rejected, TrainingRequestStatus::Cancelled]);
@@ -170,7 +172,7 @@ test('a completed or cancelled event, and a sibling company event, cannot satisf
     // The sibling company's event exists by id in the same tenant and is scheduled.
     expect(fn () => $store->linkEvent($a['hr'], (int) $a['company']->id, (int) $request->id, (int) $f['beta']['event']->id))
         ->toThrow(InvalidTrainingRequestException::class, 'not found in this company');
-    expect(fn () => DB::table('people_training_requests')->where('id', $request->id)->update(['training_event_id' => $f['beta']['event']->id]))
+    expect(fn () => DB::transaction(fn () => DB::table('people_training_requests')->where('id', $request->id)->update(['training_event_id' => $f['beta']['event']->id])))
         ->toThrow(QueryException::class);
     expect($request->fresh()->training_event_id)->toBeNull();
 });
