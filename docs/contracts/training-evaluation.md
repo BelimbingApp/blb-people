@@ -1,6 +1,6 @@
 # Participant training evaluation contract
 
-**Status:** Documentation for [issue #163](https://github.com/BelimbingApp/blb-people/issues/163); not a delivered form, API or workflow.
+**Status:** Record and visibility contract from [issue #163](https://github.com/BelimbingApp/blb-people/issues/163); employee self-service criteria version `0012-a.v1` delivered by issue #273.
 **Owner:** People Training.
 **Sources:** [0003 training planning and delivery](../plans/0003-people-training-planning-and-delivery.md), [0008 retained 0012 scope](../plans/0008-people-existing-work-and-backlog-reconciliation.md), [0006 workbook parity](../plans/0006-people-data-migration-and-workbook-parity.md), and [issue #35](https://github.com/BelimbingApp/blb-people/issues/35).
 
@@ -25,6 +25,8 @@ Preserve all eight workbook/0012 criteria, with 1–5 ratings:
 | Practical usefulness | Usefulness in practice |
 | Overall satisfaction | Overall satisfaction with the training |
 
+The first employee self-service form pins criteria version `0012-a.v1`: relevance, trainer effectiveness, materials/exercises, pace/duration and practical usefulness are its five mandatory 1–5 responses, and `issues_or_improvements` is its one optional comment. The other retained workbook criteria and free-text columns remain explicitly unanswered for this version rather than being filled with invented defaults. A later criteria version may expose more retained questions without reinterpreting these submissions.
+
 Do not invent verbal rating anchors, weights or a pass threshold from these labels. Retain unanswered questions explicitly; zero is outside the 1–5 response scale and is not a replacement for missing input. A not-applicable response, if permitted by the approved form, is distinct from an unanswered question and requires defined calculation treatment.
 
 Calculate the average without hiding unanswered criteria. Reports retain the criteria version, calculation basis, answered count and applicable/required-question context so that partial response cannot masquerade as a fully completed evaluation. Whether optional or not-applicable answers affect the denominator, and any rounding or weighting, must be explicit in the approved calculation policy rather than inferred at display time.
@@ -34,6 +36,8 @@ Keep the participant's most useful learning, job-application commitment, support
 ## Due date, completion and provenance
 
 An attended participant record can make an evaluation due. Retained issue #35 describes completion normally within three days. This is a source/company default, not a universal standard requirement. The governed trigger, calendar, exceptions and mandatory questions must be confirmed; do not silently assign a deadline from event scheduling alone when attendance has not occurred.
+
+For self-service criteria version `0012-a.v1`, issue #273 confirms an evaluation window ending 14 days after the event ends. An attended participant may create or revise the same evaluation through that instant; the form refuses later writes visibly. The participant/event uniqueness constraint and update-in-place submission preserve one canonical response rather than an edit history made of duplicate rows.
 
 Draft and completed are distinct states. Completion requires the configured mandatory questions for the pinned criteria version. An average, a due date passing, HR reading a form, or an event becoming complete does not mark the evaluation completed. Keep due/overdue, completed-at and submission attribution visible where authorized; overdue is not a negative training outcome.
 
@@ -74,7 +78,7 @@ Workbook sheet 12 and Form 2 in sheet 16 use the same canonical evaluation recor
 
 ## Implementation boundary and acceptance
 
-Training currently provides catalogue/events and binds SummarizesTrainingParticipation to the unavailable summary implementation. No participant-evaluation model, completed-form workflow or feedback disclosure API is claimed delivered. The contract does not change that state.
+Training provides the participant-evaluation model and visibility reader. Criteria version `0012-a.v1` also provides an authenticated employee Livewire form for five fixed ratings and one comment on the employee's own attended event, with update-in-place behavior until the 14-day window closes. Assisted entry, HR follow-up, aggregate reporting, broader criteria versions and correction/reopening after closure remain undelivered.
 
 Implementation must prove all eight criteria, rating bounds, missing/optional responses and mandatory completion; criteria-version retention; due/overdue behavior; self and assisted submission provenance; HR follow-up without answer replacement; employee/HOD/HR/trainer disclosure limits; tenant/company denials; and authorized aggregate/drill-through behavior. Prove that evaluation completion cannot close effectiveness or change competence.
 

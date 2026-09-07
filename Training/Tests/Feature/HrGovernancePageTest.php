@@ -10,6 +10,12 @@ use App\Core\Company\Models\Department;
 use App\Core\Company\Models\DepartmentType;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
+use App\Domains\People\Performance\Data\ObservationDraft;
+use App\Domains\People\Performance\Data\ReviewDraft;
+use App\Domains\People\Performance\Enums\EscalationAudience;
+use App\Domains\People\Performance\Enums\PerformanceOutcome;
+use App\Domains\People\Performance\Models\PerformanceReviewEscalation;
+use App\Domains\People\Performance\Services\PerformanceReviewStore;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
@@ -299,4 +305,48 @@ test('the route refuses a HOD, a stranger and a platform admin', function (): vo
     $this->actingAs($a['hod'])->get(route('people.hr-governance.index'))->assertForbidden();
     $this->actingAs(User::factory()->create(['company_id' => $a['company']->id]))->get(route('people.hr-governance.index'))->assertForbidden();
     $this->actingAs(hrGovUser($a['company'], 'core_admin'))->get(route('people.hr-governance.index'))->assertForbidden();
+});
+
+test('the queue lists escalated performance reviews, and not a sibling company\'s', function (): void {
+    $f = hrGovFixture();
+    $a = $f['alpha'];
+    $b = $f['beta'];
+
+    $escalate = function (array $side) use ($f): PerformanceReviewEscalation {
+        $store = app(PerformanceReviewStore::class);
+        $observation = $store->recordObservation($side['hod'], (int) $side['company']->id, new ObservationDraft(
+            employeeEntityId: (int) $side['hod']->employee_id,
+            windowStart: new DateTimeImmutable('2026-01-01'),
+            windowEnd: new DateTimeImmutable('2026-03-31'),
+            evidence: 'Observed the changeover.',
+        ));
+        $review = $store->draftReview($side['hod'], (int) $side['company']->id, new ReviewDraft(
+            employeeEntityId: (int) $side['hod']->employee_id,
+            periodStart: new DateTimeImmutable('2026-01-01'),
+            periodEnd: new DateTimeImmutable('2026-03-31'),
+            cutoffAt: new DateTimeImmutable('2026-04-07T00:00:00+00:00'),
+            observationIds: [(int) $observation->id],
+            outcome: PerformanceOutcome::Met,
+            rationale: 'Met the agreed expectation with attributable evidence.',
+        ));
+
+        return PerformanceReviewEscalation::query()->create([
+            'tenant_id' => $f['tenantId'], 'company_entity_id' => (int) $side['company']->id,
+            'review_id' => (int) $review->id, 'manager_user_id' => (int) $side['hod']->id,
+            'escalated_to_user_id' => null, 'audience' => EscalationAudience::Hr,
+            'fortnight_key' => '2026-F18', 'notified_at' => now(),
+        ]);
+    };
+
+    $mine = $escalate($a);
+    $theirs = $escalate($b);
+
+    $page = Livewire::actingAs($a['hr'])->test(Index::class)->assertOk();
+
+    // The section reports that a review went unanswered, never what the review
+    // said: ids and a timestamp, no outcome and no rationale.
+    expect($page->viewData('escalations')->pluck('id')->all())->toBe([$mine->id])
+        ->and($page->viewData('escalations')->pluck('id')->all())->not->toContain($theirs->id);
+    $page->assertSee('Escalated reviews')
+        ->assertDontSee('Met the agreed expectation with attributable evidence.');
 });

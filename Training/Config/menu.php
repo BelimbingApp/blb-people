@@ -2,6 +2,41 @@
 
 return [
     'items' => [[
+        'id' => 'people.training-effectiveness',
+        'label' => 'Training effectiveness',
+        'icon' => 'heroicon-o-clipboard-document-check',
+        'route' => 'people.training.effectiveness.index',
+        'permission' => 'people.training.effectiveness.review',
+        'parent' => 'people',
+    ], [
+        'id' => 'people.training-budget',
+        'label' => 'Training budget',
+        'icon' => 'heroicon-o-banknotes',
+        'route' => 'people.training.budget.index',
+        'permission' => 'people.training.budget.view',
+        'parent' => 'people',
+    ], [
+        'id' => 'people.training-evaluations',
+        'label' => 'Training evaluations',
+        'icon' => 'heroicon-o-chat-bubble-left-right',
+        'route' => 'people.training.evaluations.index',
+        'permission' => 'people.training.evaluation.submit',
+        'parent' => 'people',
+    ], [
+        'id' => 'people.training-evidence',
+        'label' => 'Training evidence',
+        'icon' => 'heroicon-o-document-arrow-up',
+        'route' => 'people.training.evidence.index',
+        'permission' => 'people.training.participation.evidence.submit',
+        'parent' => 'people',
+    ], [
+        'id' => 'people.team-training-passports',
+        'label' => 'Team training passports',
+        'icon' => 'heroicon-o-identification',
+        'route' => 'people.training.team-passports',
+        'permission' => 'people.training.passport.view-team',
+        'parent' => 'people',
+    ], [
         'id' => 'people.training-catalog',
         'label' => 'Training catalog',
         'icon' => 'heroicon-o-academic-cap',

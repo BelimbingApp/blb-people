@@ -1,13 +1,23 @@
 <?php
 
 use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingAudience;
+use App\Domains\People\Training\Livewire\Budget\Index as BudgetIndex;
 use App\Domains\People\Training\Livewire\Calendar\Index as CalendarIndex;
 use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
+use App\Domains\People\Training\Livewire\Effectiveness\Index as EffectivenessIndex;
+use App\Domains\People\Training\Livewire\Evaluation\Index as EvaluationIndex;
 use App\Domains\People\Training\Livewire\Event\Index;
+use App\Domains\People\Training\Livewire\Evidence\Index as EvidenceIndex;
 use App\Domains\People\Training\Livewire\HrGovernance\Index as HrGovernanceIndex;
+use App\Domains\People\Training\Livewire\Request\Index as RequestIndex;
+use App\Domains\People\Training\Livewire\TeamPassports;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function (): void {
+    Route::get('people/training/team-passports/{employeeId?}', TeamPassports::class)
+        ->middleware('authz:'.TeamPassports::VIEW_CAPABILITY)
+        ->name('people.training.team-passports');
+
     Route::get('people/training-catalog', CatalogIndex::class)
         ->middleware('authz:people.training.event.view', AuthorizeTrainingAudience::class)
         ->name('people.training.catalog.index');
@@ -25,4 +35,31 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/hr-governance', HrGovernanceIndex::class)
         ->middleware('authz:'.HrGovernanceIndex::VIEW_CAPABILITY)
         ->name('people.hr-governance.index');
+
+    // Employee (self) and HOD (department) request page; the audience and
+    // the requestor are asserted inside the component (SkillAudience).
+    Route::get('people/training-requests', RequestIndex::class)
+        ->middleware('authz:'.RequestIndex::CAPABILITY)
+        ->name('people.training.requests.index');
+
+    Route::get('people/training-evidence', EvidenceIndex::class)
+        ->middleware('authz:'.EvidenceIndex::CAPABILITY)
+        ->name('people.training.evidence.index');
+
+    // HR sets the allocation; a HOD reads their own department's position.
+    // Both are the same page and the same capability to reach it — only
+    // people.training.budget.manage decides who may change an amount.
+    Route::get('people/training/budget', BudgetIndex::class)
+        ->middleware('authz:'.BudgetIndex::VIEW_CAPABILITY)
+        ->name('people.training.budget.index');
+
+    // The HOD's own 30/60/90-day questions. The department check lives in the
+    // service, so this capability opens the page, not the answers on it.
+    Route::get('people/training-effectiveness', EffectivenessIndex::class)
+        ->middleware('authz:'.EffectivenessIndex::VIEW_CAPABILITY)
+        ->name('people.training.effectiveness.index');
+
+    Route::get('people/training-evaluations', EvaluationIndex::class)
+        ->middleware('authz:'.EvaluationIndex::CAPABILITY)
+        ->name('people.training.evaluations.index');
 });

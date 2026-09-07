@@ -37,6 +37,7 @@ final readonly class TrainingRequestStore
         private AuthorizationService $authorization,
         private CompanyAttribution $companies,
         private ResolvesWorkforceSubjects $subjects,
+        private TrainingBudgetStore $budgets,
     ) {}
 
     public function create(User $actor, int $companyId, TrainingRequestDraft $draft): TrainingRequest
@@ -55,6 +56,7 @@ final readonly class TrainingRequestStore
                 'need_source' => $draft->needSource, 'need' => trim($draft->need),
                 'learning_objective' => trim($draft->learningObjective),
                 'expected_result' => trim($draft->expectedResult), 'priority' => $draft->priority,
+                'estimated_cost' => $draft->estimatedCost,
                 'skill_gap_assessment_id' => $draft->skillGapAssessmentId,
                 'requirement_version' => $draft->requirementVersion,
                 'status' => TrainingRequestStatus::Draft, 'created_by_user_id' => $actor->getKey(),
@@ -83,8 +85,27 @@ final readonly class TrainingRequestStore
             TrainingRequestStatus::PendingApproval, 'hr_reviewed', self::HR_REVIEW, $notes);
     }
 
-    public function approve(User $actor, int $companyId, int $requestId, ?string $notes = null): TrainingRequest
-    {
+    /**
+     * Approve a reviewed request, subject to the department's training budget.
+     *
+     * The budget is only worth having if approving is where it bites. A page
+     * that reports an overspend afterwards reports a decision nobody was
+     * stopped from making, so the refusal lives here rather than in a report.
+     *
+     * $budgetOverrideReason is the stated case for spending past the
+     * allocation. It is worth nothing without people.training.budget.unlock,
+     * and the capability is worth nothing without it.
+     */
+    public function approve(
+        User $actor,
+        int $companyId,
+        int $requestId,
+        ?string $notes = null,
+        ?string $budgetOverrideReason = null,
+    ): TrainingRequest {
+        $tenantId = $this->authorize($actor, $companyId, self::APPROVE);
+        $this->assertWithinBudget($tenantId, $companyId, $requestId, $actor, $budgetOverrideReason);
+
         return $this->move($actor, $companyId, $requestId, TrainingRequestStatus::PendingApproval,
             TrainingRequestStatus::Approved, 'approved', self::APPROVE, $notes);
     }
@@ -122,6 +143,60 @@ final readonly class TrainingRequestStore
 
             return $this->finish($request, TrainingRequestStatus::Cancelled, 'cancelled', $actor, $notes);
         });
+    }
+
+    /**
+     * Refuse an approval that would take the department past its allocation,
+     * unless it is deliberately and accountably overridden.
+     *
+     * Three cases pass straight through, and each is a different kind of
+     * "there is nothing to compare": a request nobody has priced, a department
+     * with no allocation, and a cost that still fits.
+     */
+    private function assertWithinBudget(
+        int $tenantId,
+        int $companyId,
+        int $requestId,
+        User $actor,
+        ?string $overrideReason,
+    ): void {
+        $request = $this->find($tenantId, $companyId, $requestId);
+        $cost = $request->estimated_cost;
+
+        if ($cost === null) {
+            return;
+        }
+
+        $remaining = $this->budgets->remainingFor(
+            $tenantId, $companyId, (int) $request->department_subject_id, (int) now()->year,
+        );
+
+        // No allocation is not an allocation of nothing, here as on the page.
+        if ($remaining === null) {
+            return;
+        }
+
+        // Exactly to the limit is inside it: refusing at equality would make a
+        // budget of 1,000 mean 999.9999.
+        if (bccomp((string) $cost, $remaining, 4) <= 0) {
+            return;
+        }
+
+        $overage = bcsub((string) $cost, $remaining, 4);
+
+        if ($overrideReason === null || trim($overrideReason) === '') {
+            throw new InvalidTrainingRequestException(
+                "This approval would exceed the department training budget: remaining {$remaining}, requested {$cost}."
+                .' State a reason and hold '.TrainingBudgetStore::UNLOCK.' to approve it anyway.',
+            );
+        }
+
+        $this->authorization->authorize(Actor::forUser($actor), TrainingBudgetStore::UNLOCK);
+
+        $this->budgets->recordOverride(
+            $tenantId, $companyId, (int) $request->department_subject_id, (int) now()->year,
+            (string) $cost, $overage, $overrideReason, (int) $actor->getKey(),
+        );
     }
 
     private function move(User $actor, int $companyId, int $requestId, TrainingRequestStatus $from,

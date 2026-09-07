@@ -17,21 +17,23 @@ return [
         'people.training.participation.manage',
         'people.training.participation.verify',
         'people.training.participation.evidence.assign',
+        'people.training.participation.evidence.submit',
         'people.training.passport.view',
+        'people.training.passport.view-team',
         'people.training.effectiveness.review',
         'people.training.effectiveness.close',
 
         /*
-         * The participant evaluation read. A capability of its own rather than
+         * Participant evaluation access has capabilities of its own rather than
          * reusing event.view: granting employees the events capability to reach
          * their own evaluation would widen menu and route access as a side
          * effect, and docs/contracts/training-evaluation.md asks for explicit
          * self-record access rather than access inherited from somewhere else.
          *
-         * Deliberately not granted to people_training_trainer. That contract
-         * defines no automatic evaluation audience for the role and says
-         * teaching an event is insufficient; the refusal is the absence of this
-         * grant rather than a special case in the reader.
+         * Submit is employee-only. Neither capability is granted to the
+         * people_training_trainer role: the contract defines no automatic
+         * evaluation audience for it and says teaching an event is insufficient;
+         * the refusal is the absence of this grant rather than a special case.
          */
         'people.training.evaluation.view',
 
@@ -45,6 +47,31 @@ return [
          * cannot already see, and enrolment is always self-only.
          */
         'people.training.calendar.view',
+        'people.training.evaluation.submit',
+        'people.training.evaluation-aggregate.view',
+
+        /*
+         * The department budget (0010-a). Viewing is separate from changing
+         * because a HOD is meant to see what their department has left without
+         * being able to award themselves more: the roll-up answers "can we
+         * afford this request", and only HR answers "what is the allocation".
+         */
+        'people.training.budget.view',
+        'people.training.budget.manage',
+
+        /*
+         * Approving a request that takes a department past its allocation
+         * (0010-b). Declared here and granted to no role on purpose: an
+         * exception everybody in a role holds is not an exception, so it is
+         * given to a named principal who then has to state a reason, which the
+         * budget audit keeps.
+         *
+         * The verb is `unlock` rather than `override` because `override` is
+         * not in the platform's declared verb list, and an unknown verb is
+         * filtered rather than refused — the capability would silently cease
+         * to exist. `unlock` is declared and already means this in People.
+         */
+        'people.training.budget.unlock',
     ],
 
     'roles' => [
@@ -62,6 +89,9 @@ return [
                 'people.training.participation.evidence.assign',
                 'people.training.passport.view',
                 'people.training.effectiveness.close',
+                'people.training.evaluation-aggregate.view',
+                'people.training.budget.view',
+                'people.training.budget.manage',
             ],
         ],
         'people_training_trainer' => [
@@ -75,13 +105,26 @@ return [
                 'people.training.event.view',
                 'people.training.evaluation.view',
                 'people.training.plan.submit',
+                'people.training.request.submit',
                 'people.training.request.hod-approve',
                 'people.training.effectiveness.review',
+                'people.training.evaluation-aggregate.view',
                 'people.training.passport.view',
+                'people.training.passport.view-team',
+                'people.training.budget.view',
             ],
         ],
         'people_employee' => [
-            'capabilities' => ['people.training.calendar.view', 'people.training.evaluation.view', 'people.training.passport.view'],
+            // Submitting is drafting for oneself; the request page pins the
+            // requestor to the bound employee (0005-i).
+            'capabilities' => [
+                'people.training.calendar.view',
+                'people.training.evaluation.view',
+                'people.training.passport.view',
+                'people.training.request.submit',
+                'people.training.participation.evidence.submit',
+                'people.training.evaluation.submit',
+            ],
         ],
         'people_training_approver' => [
             'name' => 'People Training Approver',
