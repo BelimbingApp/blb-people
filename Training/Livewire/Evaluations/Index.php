@@ -10,6 +10,7 @@ use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Enums\AttendanceStatus;
+use App\Domains\People\Training\Enums\TrainingEvaluationStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEvaluationException;
 use App\Domains\People\Training\Models\TrainingEvaluation;
 use App\Domains\People\Training\Models\TrainingEvaluationFollowup;
@@ -35,6 +36,12 @@ use Livewire\Component;
  * The denominator is attended participants, not everyone invited. Somebody who
  * never turned up was never asked to evaluate, and counting them would read as
  * a failure to respond.
+ *
+ * Only completed evaluations count (0012-e): a draft is an unanswered form,
+ * so it is in neither the submitted count nor a mean, and the drill-down
+ * that opens a count or a mean lists exactly the rows that produced it. A
+ * departmental reader gets the same rows without the free-text columns,
+ * because the reader never selected them.
  */
 final class Index extends Component
 {
@@ -51,6 +58,20 @@ final class Index extends Component
 
     /** @var array<int, string> action notes keyed by follow-up id */
     public array $followupNotes = [];
+
+    /** @var list<string> the free-text columns, shown when the reader selected them */
+    private const COMMENT_COLUMNS = [
+        'most_useful_learning',
+        'application_commitment',
+        'support_needed',
+        'recommendation',
+        'issues_or_improvements',
+    ];
+
+    public ?int $openEventId = null;
+
+    /** One of the rating criteria, or null for the completion drill-down. */
+    public ?string $openCriterion = null;
 
     public function mount(): void
     {
@@ -91,6 +112,29 @@ final class Index extends Component
         }
     }
 
+    /** Open the evaluations behind an event's completion count. */
+    public function openCompletion(int $eventId): void
+    {
+        $this->authorizeView();
+        $this->openEventId = $eventId;
+        $this->openCriterion = null;
+    }
+
+    /** Open the evaluations behind one rating mean of an event. */
+    public function openMean(int $eventId, string $criterion): void
+    {
+        $this->authorizeView();
+        abort_unless(in_array($criterion, self::RATINGS, true), 404);
+        $this->openEventId = $eventId;
+        $this->openCriterion = $criterion;
+    }
+
+    public function closeDrillDown(): void
+    {
+        $this->openEventId = null;
+        $this->openCriterion = null;
+    }
+
     public function render(TrainingEvaluationReader $reader): View
     {
         $this->authorizeView();
@@ -99,7 +143,64 @@ final class Index extends Component
         return view('people::livewire.evaluations.index', [
             'events' => $this->events($reader, $companyId),
             'canManageFollowups' => $this->canManageFollowups(),
+            'drillDown' => $this->drillDown($reader, $companyId),
         ]);
+    }
+
+    /**
+     * The rows behind the open count or mean: the completed evaluations of
+     * that event, restricted to those with a value for the open criterion.
+     * The event is looked up inside the company; an id from elsewhere is a
+     * 404, not an empty list that reads as "nothing to show".
+     *
+     * @return array{event_id: int, title: string, criterion: string|null, rows: list<array<string, mixed>>, mean: float|null, comment_columns: list<string>}|null
+     */
+    private function drillDown(TrainingEvaluationReader $reader, int $companyId): ?array
+    {
+        if ($this->openEventId === null) {
+            return null;
+        }
+        $criterion = $this->openCriterion;
+        abort_unless($criterion === null || in_array($criterion, self::RATINGS, true), 404);
+        $event = TrainingEvent::query()->forCompany($this->tenantOf($reader), $companyId)->whereKey($this->openEventId)->first();
+        abort_if($event === null, 404);
+
+        $rows = $this->completed($reader->visibleTo(Auth::user(), $companyId)->where('event_id', $event->id)->orderBy('completed_at')->get());
+        if ($criterion !== null) {
+            $rows = $rows->filter(static fn (TrainingEvaluation $e): bool => $e->{$criterion} !== null)->values();
+        }
+        $names = $this->participantNames($this->tenantOf($reader), $companyId, [(int) $event->id]);
+        $commentColumns = $rows->isEmpty() ? [] : array_values(array_filter(self::COMMENT_COLUMNS, static fn (string $c): bool => array_key_exists($c, $rows->first()->getAttributes())));
+
+        return [
+            'event_id' => (int) $event->id,
+            'title' => (string) $event->course_title_snapshot,
+            'criterion' => $criterion,
+            'mean' => $criterion === null ? null : $this->means($rows)[$criterion],
+            'comment_columns' => $commentColumns,
+            'rows' => $rows->map(function (TrainingEvaluation $e) use ($names, $commentColumns): array {
+                $row = [
+                    'id' => (int) $e->id,
+                    'participant' => (string) ($names[(string) $e->employee_subject_id] ?? __('Unknown participant')),
+                    'submitted_on' => (string) $e->completed_at?->toDateString(),
+                    'entry_source' => (string) $e->entry_source,
+                ];
+                foreach (self::RATINGS as $rating) {
+                    $row[$rating] = $e->{$rating} === null ? null : (int) $e->{$rating};
+                }
+                foreach ($commentColumns as $column) {
+                    $row[$column] = trim((string) $e->{$column});
+                }
+
+                return $row;
+            })->values()->all(),
+        ];
+    }
+
+    /** A draft is an unanswered form: it is in no count, no mean and no drill-down. */
+    private function completed(Collection $rows): Collection
+    {
+        return $rows->filter(static fn (TrainingEvaluation $e): bool => $e->status === TrainingEvaluationStatus::Completed)->values();
     }
 
     /**
@@ -107,7 +208,7 @@ final class Index extends Component
      */
     private function events(TrainingEvaluationReader $reader, int $companyId): array
     {
-        $evaluations = $reader->visibleTo(Auth::user(), $companyId)->get()->groupBy('event_id');
+        $evaluations = $this->completed($reader->visibleTo(Auth::user(), $companyId)->get())->groupBy('event_id');
         $events = TrainingEvent::query()->forCompany($this->tenantOf($reader), $companyId)
             ->orderByDesc('starts_at')->get();
 

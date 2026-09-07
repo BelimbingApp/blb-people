@@ -7,6 +7,8 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Performance\Models\PerformanceReviewEscalation;
+use App\Domains\People\Provider\Data\WorkforceSubject;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Exceptions\InvalidReassessmentRequestException;
 use App\Domains\People\Skills\Models\RequirementProfile;
@@ -15,14 +17,20 @@ use App\Domains\People\Skills\Models\SkillReassessmentRequest;
 use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillReassessmentStore;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
+use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingPlanStatus;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEvidenceSubmissionException;
+use App\Domains\People\Training\Exceptions\TrainingPassportDenied;
+use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingEvidenceSubmission;
 use App\Domains\People\Training\Models\TrainingParticipant;
+use App\Domains\People\Training\Models\TrainingPassportDocument;
 use App\Domains\People\Training\Models\TrainingPlan;
 use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Services\TrainingEvidenceSubmissionStore;
+use App\Domains\People\Training\Services\TrainingPassportDocumentStore;
 use App\Domains\People\Training\Services\TrainingPlanStore;
 use App\Domains\People\Training\Services\TrainingRequestStore;
 use Illuminate\Contracts\View\View;
@@ -109,6 +117,33 @@ final class Index extends Component
         });
     }
 
+    /** Event chosen per approved request, keyed by request id (0010-d). */
+    public array $linkEventId = [];
+
+    public function linkEvent(int $requestId): void
+    {
+        $companyEntityId = $this->requireCompany();
+        $eventId = (int) ($this->linkEventId[$requestId] ?? 0);
+        if ($eventId < 1) {
+            $this->addError('link.'.$requestId, __('Choose the event that satisfies this request.'));
+
+            return;
+        }
+        $this->denialIs403(function () use ($companyEntityId, $requestId, $eventId): void {
+            app(TrainingRequestStore::class)->linkEvent($this->user(), $companyEntityId, $requestId, $eventId);
+            unset($this->linkEventId[$requestId]);
+        });
+    }
+
+    public function unlinkEvent(int $requestId): void
+    {
+        $companyEntityId = $this->requireCompany();
+        $this->denialIs403(function () use ($companyEntityId, $requestId): void {
+            app(TrainingRequestStore::class)->unlinkEvent($this->user(), $companyEntityId, $requestId, $this->notes($requestId));
+            unset($this->requestNotes[$requestId]);
+        });
+    }
+
     public function reviewRequest(int $requestId): void
     {
         $companyEntityId = $this->requireCompany();
@@ -192,6 +227,31 @@ final class Index extends Component
         }
     }
 
+    /**
+     * Generate the printable training passport for an employee listed in the
+     * selected company's directory (0014-a). The id must be one this page
+     * lists: a request-supplied id outside the company is a 404 before the
+     * store is asked, and the store then applies its own HR check.
+     */
+    public function generatePassportPdf(int $employeeId): void
+    {
+        $companyEntityId = $this->requireCompany();
+        abort_unless(array_key_exists($employeeId, $this->passportEmployees($companyEntityId)), 404);
+
+        $subject = new WorkforceSubject(
+            $this->tenantId(),
+            $companyEntityId,
+            WorkforceResourceType::Employee,
+            (string) $employeeId,
+        );
+
+        try {
+            app(TrainingPassportDocumentStore::class)->generate($this->user(), $subject);
+        } catch (TrainingPassportDenied) {
+            abort(403);
+        }
+    }
+
     public function render(): View
     {
         $this->authorizeView();
@@ -208,6 +268,10 @@ final class Index extends Component
             'companies' => $companies,
             'profiles' => $companyEntityId === null ? collect() : $this->pendingProfiles($companyEntityId),
             'requests' => $companyEntityId === null ? collect() : $this->pendingRequests($companyEntityId),
+            'approvedUnlinked' => $companyEntityId === null ? collect() : app(TrainingRequestStore::class)->approvedUnlinkedQuery($this->tenantId(), $companyEntityId)->get(),
+            'approvedLinked' => $companyEntityId === null ? collect() : $this->approvedLinked($companyEntityId),
+            'linkableEvents' => $companyEntityId === null ? [] : $this->linkableEvents($companyEntityId),
+            'eventTitles' => $companyEntityId === null ? [] : $this->eventTitles($companyEntityId),
             'plans' => $companyEntityId === null ? collect() : $this->pendingPlans($companyEntityId),
             'reassessments' => $reassessments,
             'reassessmentSkills' => $this->reassessmentSkillNames($companyEntityId, $reassessments),
@@ -215,7 +279,42 @@ final class Index extends Component
             'evidenceSubmissions' => $evidence,
             'evidenceEmployees' => $this->evidenceEmployeeNames($companyEntityId, $evidence),
             'escalations' => $companyEntityId === null ? collect() : $this->escalatedReviews($companyEntityId),
+            'passportEmployees' => $companyEntityId === null ? [] : $this->passportEmployees($companyEntityId),
+            'passportDocuments' => $companyEntityId === null ? [] : $this->passportDocuments($companyEntityId),
         ]);
+    }
+
+    /**
+     * Employees of the selected company as the directory lists them, keyed by
+     * employee entity id: the set an HR user may generate a passport for.
+     *
+     * @return array<int, string>
+     */
+    private function passportEmployees(int $companyEntityId): array
+    {
+        return collect(app(WorkforceSubjects::class)->employees($companyEntityId))
+            ->filter(fn ($employee): bool => $employee->active)
+            ->sortBy(fn ($employee): string => $employee->displayName)
+            ->mapWithKeys(fn ($employee): array => [(int) $employee->reference->externalId => (string) $employee->displayName])
+            ->all();
+    }
+
+    /**
+     * Latest retained passport document per employee of the company.
+     *
+     * @return array<int, TrainingPassportDocument>
+     */
+    private function passportDocuments(int $companyEntityId): array
+    {
+        return TrainingPassportDocument::query()
+            ->forCompany($this->tenantId(), $companyEntityId)
+            ->whereNotNull('media_asset_id')
+            ->unexpired()
+            ->orderByDesc('id')
+            ->get()
+            ->unique('employee_entity_id')
+            ->keyBy('employee_entity_id')
+            ->all();
     }
 
     /**
@@ -261,6 +360,35 @@ final class Index extends Component
             ->where('status', TrainingRequestStatus::PendingHr->value)
             ->orderBy('id')
             ->get();
+    }
+
+    /** @return Collection<int, TrainingRequest> approved requests already linked, newest link first */
+    private function approvedLinked(int $companyEntityId): Collection
+    {
+        return TrainingRequest::query()->forCompany($this->tenantId(), $companyEntityId)
+            ->where('status', TrainingRequestStatus::Approved->value)
+            ->whereNotNull('training_event_id')
+            ->orderByDesc('linked_at')->orderByDesc('id')
+            ->get();
+    }
+
+    /** @return array<int, string> scheduled or in-progress events of the company, id => title and date */
+    private function linkableEvents(int $companyEntityId): array
+    {
+        return TrainingEvent::query()->forCompany($this->tenantId(), $companyEntityId)
+            ->whereIn('status', [TrainingEventStatus::Scheduled->value, TrainingEventStatus::InProgress->value])
+            ->orderBy('starts_at')->get()
+            ->mapWithKeys(static fn (TrainingEvent $e): array => [(int) $e->id => $e->course_title_snapshot.' · '.$e->starts_at?->format('Y-m-d')])
+            ->all();
+    }
+
+    /** @return array<int, string> every event of the company, id => title */
+    private function eventTitles(int $companyEntityId): array
+    {
+        return TrainingEvent::query()->forCompany($this->tenantId(), $companyEntityId)
+            ->pluck('course_title_snapshot', 'id')
+            ->mapWithKeys(static fn (string $title, int $id): array => [$id => $title])
+            ->all();
     }
 
     /** @return Collection<int, TrainingPlan> */

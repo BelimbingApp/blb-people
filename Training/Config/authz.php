@@ -11,6 +11,12 @@ return [
         'people.training.plan.submit',
         'people.training.plan.approve',
         'people.training.request.submit',
+        /*
+         * HR register of every training request in the company (0010-c). The
+         * issue named it view-all; verbs are a closed platform vocabulary and
+         * 'list' is the one that means company-wide reading.
+         */
+        'people.training.request.list',
         'people.training.request.hod-approve',
         'people.training.request.review',
         'people.training.request.approve',
@@ -111,6 +117,7 @@ return [
                 'people.training.event.manage',
                 'people.training.plan.approve',
                 'people.training.request.submit',
+                'people.training.request.list',
                 'people.training.request.review',
                 'people.training.participation.manage',
                 'people.training.participation.verify',

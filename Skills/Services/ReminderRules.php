@@ -4,8 +4,12 @@ namespace App\Domains\People\Skills\Services;
 
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Data\DueReminder;
+use App\Domains\People\Skills\Enums\DevelopmentActionClosure;
+use App\Domains\People\Skills\Enums\DevelopmentActionStatus;
 use App\Domains\People\Skills\Enums\ReminderRule;
+use App\Domains\People\Skills\Models\DevelopmentAction;
 use App\Domains\People\Skills\Models\EmployeeSkillScore;
+use App\Domains\People\Skills\Models\SkillAssessment;
 
 /**
  * What is due for one company, and nothing else.
@@ -57,6 +61,32 @@ final class ReminderRules
             ->orderBy('id')
             ->get();
 
+        // An overdue action is one the monthly review must confront: open by the
+        // workbook's Open Actions definition, past its owner-accountable date.
+        // A proposal nobody approved and held work nobody is pursuing are not
+        // overdue — they are waiting — so status excludes them even when their
+        // closure is still open.
+        $actions = DevelopmentAction::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->whereIn('closure_status', [
+                DevelopmentActionClosure::Open->value,
+                DevelopmentActionClosure::PendingReassessment->value,
+                DevelopmentActionClosure::FurtherActionRequired->value,
+            ])
+            ->whereNotIn('status', [
+                DevelopmentActionStatus::Proposed->value,
+                DevelopmentActionStatus::OnHold->value,
+            ])
+            ->whereDate('due_date', '<', $asOf->format('Y-m-d'))
+            ->orderBy('id')
+            ->get();
+
+        $assessments = SkillAssessment::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->whereKey($actions->map(fn (DevelopmentAction $action): ?int => $action->source_assessment_id)->filter()->unique()->values()->all())
+            ->get()
+            ->keyBy(fn (SkillAssessment $assessment): int => (int) $assessment->getKey());
+
         $reminders = [];
 
         foreach ($overdue as $score) {
@@ -65,6 +95,10 @@ final class ReminderRules
 
         foreach ($expiring as $score) {
             $reminders[] = self::reminder($score, ReminderRule::ExpiringCertificate, $score->valid_until->toDateString());
+        }
+
+        foreach ($actions as $action) {
+            $reminders[] = self::actionReminder($action, $assessments->get((int) $action->source_assessment_id));
         }
 
         return $reminders;
@@ -80,6 +114,25 @@ final class ReminderRules
             dueOn: new \DateTimeImmutable($dueOn),
             requirementReference: (string) $score->requirement_reference,
             requirementVersion: (int) $score->requirement_version,
+        );
+    }
+
+    private static function actionReminder(DevelopmentAction $action, ?SkillAssessment $assessment): DueReminder
+    {
+        return new DueReminder(
+            companyEntityId: (int) $action->company_entity_id,
+            employeeEntityId: (int) $action->employee_entity_id,
+            skillId: (int) $action->skill_id,
+            rule: ReminderRule::OverdueDevelopmentAction,
+            dueOn: new \DateTimeImmutable($action->due_date->toDateString()),
+            requirementReference: $assessment === null
+                ? (string) $action->action_key
+                : (string) $assessment->requirement_reference,
+            // A manual action is measured against no versioned requirement; 1
+            // marks the unversioned baseline the record type requires.
+            requirementVersion: $assessment === null ? 1 : (int) $assessment->requirement_version,
+            developmentActionId: (int) $action->getKey(),
+            ownerEmployeeEntityId: (int) $action->owner_employee_entity_id,
         );
     }
 }
