@@ -17,7 +17,9 @@
                 "people/provider": "*",
                 "people/skills": "*"
             },
-            "optional-modules": {},
+            "optional-modules": {
+                "people-connector/connector": "*"
+            },
             "publishes-events": [
                 "App\\Domains\\People\\Training\\Events\\TrainingCourseDefined",
                 "App\\Domains\\People\\Training\\Events\\TrainingCourseDeactivated",

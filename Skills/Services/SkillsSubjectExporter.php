@@ -1,0 +1,91 @@
+<?php
+
+namespace App\Domains\People\Skills\Services;
+
+use App\Domains\People\Provider\Data\WorkforceSubject;
+use App\Domains\PeopleConnector\Connector\Contracts\ExportsSupplementalSubjectRecords;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+/**
+ * Skills rows for one workforce subject on the connector data-subject export
+ * (#410 / connector #308). The connector tags this class; it never names us.
+ *
+ * Keys match the connector's vocabulary: tenant id, owning company entity id,
+ * and subject stable id as the employee entity id Skills stores. Catalog
+ * tables are omitted — they are not about one person. Restorable is false:
+ * Skills owns restore; the connector records the block as not_restored.
+ */
+final class SkillsSubjectExporter implements ExportsSupplementalSubjectRecords
+{
+    /** @var list<string> subject-keyed tables with employee_entity_id */
+    private const EMPLOYEE_TABLES = [
+        'people_connector_skill_assessments',
+        'people_connector_skill_employee_scores',
+        'people_connector_skill_reassessment_requests',
+        'people_connector_skill_development_actions',
+        'people_connector_skill_assessment_decisions',
+    ];
+
+    public function name(): string
+    {
+        return 'people.skills';
+    }
+
+    public function restorable(): bool
+    {
+        return false;
+    }
+
+    public function sections(WorkforceSubject $subject, int $tenantId, int $companyEntityId): array
+    {
+        if ($subject->tenantId !== null && $subject->tenantId !== $tenantId) {
+            return [];
+        }
+        if ($subject->companyId !== null && $subject->companyId !== $companyEntityId) {
+            return [];
+        }
+        if (! ctype_digit($subject->stableId)) {
+            return [];
+        }
+
+        $employeeEntityId = (int) $subject->stableId;
+        $sections = [];
+
+        foreach (self::EMPLOYEE_TABLES as $table) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+            $rows = DB::table($table)
+                ->where('tenant_id', $tenantId)
+                ->where('company_entity_id', $companyEntityId)
+                ->where('employee_entity_id', $employeeEntityId)
+                ->orderBy('id')
+                ->get()
+                ->map(static fn (object $row): array => (array) $row)
+                ->all();
+            if ($rows !== []) {
+                $sections[$table] = $rows;
+            }
+        }
+
+        if (Schema::hasTable('people_connector_skill_development_action_events') && isset($sections['people_connector_skill_development_actions'])) {
+            $actionIds = array_column($sections['people_connector_skill_development_actions'], 'id');
+            $rows = DB::table('people_connector_skill_development_action_events')
+                ->where('tenant_id', $tenantId)
+                ->where('company_entity_id', $companyEntityId)
+                ->whereIn('development_action_id', $actionIds)
+                ->orderBy('id')
+                ->get()
+                ->map(static fn (object $row): array => (array) $row)
+                ->all();
+            if ($rows !== []) {
+                $sections['people_connector_skill_development_action_events'] = $rows;
+            }
+        }
+
+        ksort($sections);
+
+        return $sections;
+    }
+}

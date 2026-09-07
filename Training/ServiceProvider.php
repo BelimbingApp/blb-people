@@ -11,6 +11,8 @@ use App\Domains\People\Training\Console\Commands\PurgeTrainingPassportDocumentsC
 use App\Domains\People\Training\Console\Commands\RequestsDueCommand;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
 use App\Domains\People\Training\Services\DatabaseTrainingParticipationSummary;
+use App\Domains\People\Training\Services\TrainingSubjectExporter;
+use App\Domains\PeopleConnector\Connector\Contracts\ExportsSupplementalSubjectRecords;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
 
@@ -27,6 +29,11 @@ class ServiceProvider extends BaseServiceProvider
             SummarizesTrainingParticipation::class,
             DatabaseTrainingParticipationSummary::class,
         );
+        // Connector #308: tag only when the connector contract is mounted.
+        if (interface_exists(ExportsSupplementalSubjectRecords::class)) {
+            $this->app->singleton(TrainingSubjectExporter::class);
+            $this->app->tag([TrainingSubjectExporter::class], ExportsSupplementalSubjectRecords::class);
+        }
 
         if ($this->app->runningInConsole()) {
             $this->commands([
