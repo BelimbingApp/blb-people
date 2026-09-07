@@ -1,5 +1,6 @@
 <?php
 
+use App\Base\Database\Concerns\IncubatingSchema;
 use App\Base\Database\Concerns\RegistersTables;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -15,10 +16,17 @@ use Illuminate\Support\Facades\Schema;
  * table), and a row may carry an event only while its status is
  * `approved` (a trigger on both drivers), so a raw update cannot link an
  * unapproved request either.
+ *
+ * Declares IncubatingSchema because it alters people_training_requests, which
+ * 0330_03_05 creates as incubating. A stable forward onto an incubating table
+ * is what IncubatingSchemaConflictException refuses: rebuilding the create
+ * alone would drop this column and its guards while the ledger still claimed
+ * they were applied. Joining the replay chain means they are dropped and
+ * recreated with the table they belong to.
  */
 return new class extends Migration
 {
-    use RegistersTables;
+    use IncubatingSchema, RegistersTables;
 
     public function up(): void
     {
