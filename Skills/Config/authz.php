@@ -42,6 +42,14 @@ return [
          * declared there.
          */
         'people.skill.reassessment.execute',
+
+        /*
+         * Reading your own released score history (0006-a). Employee-only:
+         * the page binds the authenticated employee, never request input.
+         * Uses the platform 'view' verb: verbs are a closed platform
+         * vocabulary, and the employee boundary lives in the audience.
+         */
+        'people.skill.history.view',
     ],
 
     // Audience capabilities identify why a principal may see People-owned
@@ -105,6 +113,7 @@ return [
                 'people.skill.catalog.view',
                 'people.skill.assessment.view',
                 'people.skill.employee.view',
+                'people.skill.history.view',
             ],
         ],
     ],
