@@ -48,6 +48,9 @@
                                 @else
                                     <x-ui.badge variant="neutral">{{ __('Closed') }}</x-ui.badge>
                                 @endif
+                                @if ($event['evaluation']?->enteredFromPaper())
+                                    <x-ui.badge variant="neutral">{{ __('Entered from paper by HR') }}</x-ui.badge>
+                                @endif
                             </td>
                             <td class="px-4 py-3 text-right">
                                 <x-ui.button type="button" wire:click="selectEvent({{ $event['event_id'] }})" :variant="$selectedEventId === $event['event_id'] ? 'primary' : 'secondary'">

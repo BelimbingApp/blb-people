@@ -14,11 +14,15 @@ use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Services\CompanyAttribution;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Skills\Services\SkillReassessmentStore;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\ParticipationFactDraft;
 use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingParticipationException;
+use App\Domains\People\Training\Models\TrainingCourseSkill;
 use App\Domains\People\Training\Models\TrainingEvent;
+use App\Domains\People\Training\Models\TrainingEventAuditEvent;
 use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Models\TrainingSession;
@@ -42,6 +46,9 @@ final class TrainingParticipationStore
 
     public const EVIDENCE = 'people.training.participation.evidence.assign';
 
+    /** Audit row written once per confirmed fact that opened reassessment requests (0006-e). */
+    public const AUDIT_REASSESSMENT_REQUESTED = 'reassessment_requested';
+
     public function __construct(
         private readonly TenantContext $tenancy,
         private readonly ReadsWorkforceDirectory $directory,
@@ -49,6 +56,8 @@ final class TrainingParticipationStore
         private readonly AuthorizationService $authorization,
         private readonly SkillAudience $audiences,
         private readonly TrainingAudience $calendar,
+        private readonly WorkforceSubjects $subjects,
+        private readonly SkillReassessmentStore $reassessments,
     ) {}
 
     public function defineSession(User $actor, int $companyId, int $eventId, string $reference, DateTimeInterface $startsAt, DateTimeInterface $endsAt): TrainingSession
@@ -123,16 +132,75 @@ final class TrainingParticipationStore
         return DB::transaction(function () use ($actor, $companyId, $factId, $tenant): TrainingParticipationFact {
             $fact = $this->fact($tenant, $companyId, $factId);
             $session = $this->session($tenant, $companyId, (int) $fact->session_id);
-            $this->authorizeEvent($actor, $this->event($tenant, $companyId, (int) $session->event_id), true);
+            $event = $this->event($tenant, $companyId, (int) $session->event_id);
+            $this->authorizeEvent($actor, $event, true);
             $this->requireUnconfirmed($fact);
             $this->authorizeEvidence($actor, $fact);
             $fact->update([
                 'confirmed_by_user_id' => $actor->getKey(), 'confirmed_capability' => self::CONFIRM,
                 'confirmed_at' => now(),
             ]);
+            $fact->refresh();
+            $this->openReassessments($actor, $tenant, $companyId, $event, $fact);
 
-            return $fact->refresh();
+            return $fact;
         });
+    }
+
+    /**
+     * A confirmed, attended fact with a passed post-test or a certificate
+     * opens one reassessment request per skill the event's course covers
+     * (0006-e). The request is the only thing that changes: attendance is
+     * never proof of competence, so no score moves here. An open request for
+     * the same employee and skill is skipped and counted, and one audit row
+     * per fact records what was opened and what was already open.
+     */
+    private function openReassessments(User $actor, int $tenant, int $companyId, TrainingEvent $event, TrainingParticipationFact $fact): void
+    {
+        $passed = ($fact->post_test['passed'] ?? null) === true;
+        if ($fact->attendance !== AttendanceStatus::Present || (! $passed && $fact->certificate_reference === null)) {
+            return;
+        }
+        // The course is pinned to the company through the event; the mapping
+        // inherits that ownership from course_id.
+        $skillIds = TrainingCourseSkill::query()->forTenant($tenant)
+            ->where('course_id', $event->course_id)->orderBy('skill_id')->pluck('skill_id')->map(intval(...))->all();
+        if ($skillIds === []) {
+            return;
+        }
+        $participant = TrainingParticipant::query()->forCompany($tenant, $companyId)->find($fact->participant_id);
+        if ($participant === null || $participant->provider_id !== ExternalReference::PROVIDER_ID
+            || ! ctype_digit((string) $participant->employee_subject_id)) {
+            return;
+        }
+        $employee = $this->subjects->resolve($tenant, $companyId, WorkforceResourceType::Employee, (int) $participant->employee_subject_id);
+        if (! $employee instanceof WorkforceEmployee || $employee->companyReference->externalId !== (string) $companyId) {
+            return;
+        }
+        $employeeEntityId = (int) $employee->reference->externalId;
+
+        $requested = $skipped = [];
+        foreach ($skillIds as $skillId) {
+            $request = $this->reassessments->requestFromTraining(
+                $actor, $companyId, $employeeEntityId, $skillId, (int) $fact->id, $fact->confirmed_at,
+            );
+            if ($request === null) {
+                $skipped[] = $skillId;
+            } else {
+                $requested[] = $skillId;
+            }
+        }
+
+        TrainingEventAuditEvent::query()->create([
+            'tenant_id' => $tenant, 'company_entity_id' => $companyId,
+            'training_event_id' => $event->id, 'event_type' => self::AUDIT_REASSESSMENT_REQUESTED,
+            'actor_user_id' => $actor->getKey(), 'actor_employee_entity_id' => $employeeEntityId,
+            'metadata' => [
+                'participation_fact_id' => (int) $fact->id, 'employee_entity_id' => $employeeEntityId,
+                'requested_skill_ids' => $requested, 'skipped_open_skill_ids' => $skipped,
+            ],
+            'occurred_at' => now(),
+        ]);
     }
 
     /**

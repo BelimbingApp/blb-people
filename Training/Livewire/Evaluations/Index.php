@@ -22,6 +22,7 @@ use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Services\TrainingEvaluationFollowupStore;
 use App\Domains\People\Training\Services\TrainingEvaluationReader;
 use App\Domains\People\Training\Services\TrainingEvaluationReminders;
+use App\Domains\People\Training\Services\TrainingEvaluationSubmissionStore;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -45,10 +46,27 @@ use Livewire\Component;
  * that opens a count or a mean lists exactly the rows that produced it. A
  * departmental reader gets the same rows without the free-text columns,
  * because the reader never selected them.
+ *
+ * HR can also key in a completed paper form for an attended participant
+ * (0012-f). The form only lists participants without a completed evaluation:
+ * the store refuses the rest anyway, and the page should not offer what it
+ * knows will be refused. The row it writes names HR as the entering actor and
+ * says the answers arrived on paper, which both this page and the employee's
+ * own view show.
  */
 final class Index extends Component
 {
     public const VIEW_CAPABILITY = 'people.training.evaluation-aggregate.view';
+
+    public mixed $paperParticipantId = null;
+
+    /** @var array<string, mixed> rating column => 1-5, the current criteria version's ratings */
+    public array $paperRatings = [];
+
+    /** @var array<string, mixed> free-text column => answer, the current criteria version's free text */
+    public array $paperText = [];
+
+    public string $paperReference = '';
 
     /** @var array<int, string> action notes keyed by follow-up id */
     public array $followupNotes = [];
@@ -143,11 +161,123 @@ final class Index extends Component
 
         return view('people::livewire.evaluations.index', [
             'events' => $this->events($reader, $companyId),
+            'paperCandidates' => $this->paperCandidates($this->tenantOf($reader), $companyId),
+            'paperCriteria' => self::paperCriteria(),
             'canManageFollowups' => $this->canManageFollowups(),
             'drillDown' => $this->drillDown($reader, $companyId),
             'departments' => $departments,
             'overdue' => $this->overdue($reminders, $subjects, $companyId, $departments),
         ]);
+    }
+
+    /**
+     * Enter a completed paper evaluation for one attended participant.
+     *
+     * The questions are the current criteria version's, read from the store
+     * so the form and the row it writes never disagree. The rating rules are
+     * the store's; the component validates the same bounds first only so the
+     * form shows a field-level message rather than a page-level refusal for a
+     * blank select. Every mandatory question of the version is required
+     * here for the same reason.
+     */
+    public function enterPaperEvaluation(): void
+    {
+        $this->authorizeView();
+        $criteria = self::paperCriteria();
+        $rules = [
+            'paperParticipantId' => ['required', 'integer'],
+            'paperReference' => ['required', 'string', 'max:160'],
+        ];
+        foreach ($criteria['ratings'] as $column) {
+            $rules['paperRatings.'.$column] = [in_array($column, $criteria['mandatory'], true) ? 'required' : 'nullable', 'integer', 'between:1,5'];
+        }
+        foreach ($criteria['free_text'] as $column) {
+            $rules['paperText.'.$column] = [in_array($column, $criteria['mandatory'], true) ? 'required' : 'nullable', 'string', 'max:2000'];
+        }
+        $validated = $this->validate($rules);
+
+        $answers = [];
+        foreach ($criteria['ratings'] as $column) {
+            $value = $validated['paperRatings'][$column] ?? null;
+            $answers[$column] = $value === null || $value === '' ? null : (int) $value;
+        }
+        foreach ($criteria['free_text'] as $column) {
+            $answers[$column] = $validated['paperText'][$column] ?? null;
+        }
+
+        try {
+            app(TrainingEvaluationSubmissionStore::class)->submitAssisted(
+                $this->user(),
+                $this->companyId(),
+                (int) $validated['paperParticipantId'],
+                $answers,
+                $validated['paperReference'],
+            );
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        } catch (InvalidTrainingEvaluationException $refusal) {
+            $this->addError('paper', $refusal->getMessage());
+
+            return;
+        }
+
+        $this->reset('paperParticipantId', 'paperRatings', 'paperText', 'paperReference');
+        session()->flash('training-evaluations-status', __('Paper evaluation entered. The record names you as the entering actor.'));
+    }
+
+    /**
+     * The current criteria version's questions, as the paper form presents them.
+     *
+     * @return array{version: string, ratings: list<string>, free_text: list<string>, mandatory: list<string>}
+     */
+    private static function paperCriteria(): array
+    {
+        $version = TrainingEvaluationSubmissionStore::currentCriteriaVersion();
+
+        return ['version' => $version, ...TrainingEvaluationSubmissionStore::criteria($version)];
+    }
+
+    /**
+     * Attended participants of ended events, still inside the 14-day window,
+     * without a completed evaluation — the only rows assisted entry may write.
+     *
+     * @return list<array{participant_id: int, label: string}>
+     */
+    private function paperCandidates(int $tenantId, int $companyId): array
+    {
+        if (! app(SkillAudience::class)->mayAccess($this->user(), TrainingEvaluationSubmissionStore::ASSIGN)) {
+            return [];
+        }
+
+        $events = TrainingEvent::query()->forCompany($tenantId, $companyId)
+            ->where('ends_at', '<=', now())
+            ->where('ends_at', '>=', now()->subDays(14))
+            ->get()->keyBy('id');
+        if ($events->isEmpty()) {
+            return [];
+        }
+
+        $attended = TrainingParticipationFact::query()->forCompany($tenantId, $companyId)
+            ->whereIn('event_id', $events->keys()->all())
+            ->where('attendance', AttendanceStatus::Present->value)
+            ->pluck('participant_id')->map(static fn ($id): int => (int) $id)->unique();
+        $completed = TrainingEvaluation::query()->forCompany($tenantId, $companyId)
+            ->whereIn('participant_id', $attended->all())
+            ->where('status', TrainingEvaluationStatus::Completed->value)
+            ->pluck('participant_id')->map(static fn ($id): int => (int) $id);
+        $names = $this->participantNames($tenantId, $companyId, $events->keys()->all());
+
+        return TrainingParticipant::query()->forCompany($tenantId, $companyId)
+            ->whereIn('id', $attended->diff($completed)->all())
+            ->orderBy('id')->get()
+            ->map(static fn (TrainingParticipant $participant): array => [
+                'participant_id' => (int) $participant->id,
+                'label' => sprintf(
+                    '%s — %s',
+                    $names[(string) $participant->employee_subject_id] ?? __('Unknown participant'),
+                    $events->get($participant->event_id)?->course_title_snapshot ?? __('Training event'),
+                ),
+            ])->values()->all();
     }
 
     /**
@@ -265,7 +395,7 @@ final class Index extends Component
     }
 
     /**
-     * @return list<array{event_id: int, title: string, attended: int, submitted: int, response_rate: int|null, means: array<string, float|null>, answered: array<string, int>, comments: list<array{participant: string, comment: string}>, flagged: list<array{evaluation_id: int, participant: string, support: array{id: int, status: string}|null, provider: array{id: int, status: string}|null}>}>
+     * @return list<array{event_id: int, title: string, attended: int, submitted: int, response_rate: int|null, means: array<string, float|null>, answered: array<string, int>, paper_entries: int, comments: list<array{participant: string, comment: string, from_paper: bool}>, flagged: list<array{evaluation_id: int, participant: string, support: array{id: int, status: string}|null, provider: array{id: int, status: string}|null}>}>
      */
     private function events(TrainingEvaluationReader $reader, int $companyId): array
     {
@@ -295,6 +425,7 @@ final class Index extends Component
                 'response_rate' => $attendedCount === 0 ? null : (int) round($rows->count() / $attendedCount * 100),
                 'means' => array_map(static fn (array $criterion): ?float => $criterion['mean'], $means = $reader->means($rows)),
                 'answered' => array_map(static fn (array $criterion): int => $criterion['answered_count'], $means),
+                'paper_entries' => $rows->filter(static fn (TrainingEvaluation $evaluation): bool => $evaluation->enteredFromPaper())->count(),
                 'comments' => $this->comments($rows, $names),
                 'flagged' => $this->flagged($rows, $names, $followups),
             ];
@@ -372,7 +503,7 @@ final class Index extends Component
 
     /**
      * @param  array<string, string>  $names
-     * @return list<array{participant: string, comment: string}>
+     * @return list<array{participant: string, comment: string, from_paper: bool}>
      */
     private function comments(Collection $rows, array $names): array
     {
@@ -385,6 +516,7 @@ final class Index extends Component
             ->map(static fn (TrainingEvaluation $evaluation): array => [
                 'participant' => (string) ($names[(string) $evaluation->employee_subject_id] ?? __('Unknown participant')),
                 'comment' => trim((string) $evaluation->issues_or_improvements),
+                'from_paper' => $evaluation->enteredFromPaper(),
             ])
             ->values()
             ->all();

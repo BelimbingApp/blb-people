@@ -197,6 +197,63 @@ test('one score that is both overdue and expiring produces one reminder per reas
         ->toBe([ReminderRule::OverdueReassessment, ReminderRule::ExpiringCertificate]);
 });
 
+/*
+ * Boundary days, seeded the way production writes them: a Carbon instance
+ * through the 'date' cast, which SQLite stores as 'Y-m-d 00:00:00'. A bare
+ * string compare against 'Y-m-d' then never matches the boundary day, while
+ * Postgres truncates and does. whereDate() agrees on both.
+ */
+
+test('a certificate expiring exactly on the horizon day is listed', function (): void {
+    $f = reminderFixture('Reminder Horizon Day Tenant');
+    $asOf = now()->startOfDay()->toImmutable();
+    reminderScore($f, $f['companyId'], $f['employeeId'], ['valid_until' => now()->startOfDay()->addDays(30)]);
+
+    $due = app(ReminderRules::class)->due($f['companyId'], $asOf, expiringWithinDays: 30);
+
+    expect($due)->toHaveCount(1)
+        ->and($due[0]->rule)->toBe(ReminderRule::ExpiringCertificate)
+        ->and($due[0]->dueOn->format('Y-m-d'))->toBe($asOf->modify('+30 days')->format('Y-m-d'));
+});
+
+test('a certificate expiring the day after the horizon is still not listed', function (): void {
+    $f = reminderFixture('Reminder Horizon Plus One Tenant');
+    reminderScore($f, $f['companyId'], $f['employeeId'], ['valid_until' => now()->startOfDay()->addDays(31)]);
+
+    expect(app(ReminderRules::class)->due($f['companyId'], now()->startOfDay()->toImmutable(), expiringWithinDays: 30))->toBe([]);
+});
+
+test('a reassessment due exactly today is listed as overdue', function (): void {
+    $f = reminderFixture('Reminder Due Today Tenant');
+    $asOf = now()->startOfDay()->toImmutable();
+    reminderScore($f, $f['companyId'], $f['employeeId'], ['next_assessment_due' => now()->startOfDay()]);
+
+    $due = app(ReminderRules::class)->due($f['companyId'], $asOf);
+
+    expect($due)->toHaveCount(1)
+        ->and($due[0]->rule)->toBe(ReminderRule::OverdueReassessment)
+        ->and($due[0]->dueOn->format('Y-m-d'))->toBe($asOf->format('Y-m-d'));
+});
+
+test('a sibling company or sibling tenant boundary-day score is not listed', function (): void {
+    $f = reminderFixture('Reminder Boundary Isolation Tenant');
+    reminderScore($f, $f['otherCompanyId'], $f['otherEmployeeId'], [
+        'next_assessment_due' => now()->startOfDay(),
+        'valid_until' => now()->startOfDay()->addDays(30),
+    ]);
+
+    $other = reminderFixture('Reminder Boundary Sibling Tenant');
+    reminderScore($other, $other['companyId'], $other['employeeId'], [
+        'next_assessment_due' => now()->startOfDay(),
+        'valid_until' => now()->startOfDay()->addDays(30),
+    ]);
+
+    // Back on the first tenant: its company sees neither the sibling company's
+    // row nor the sibling tenant's, even though both sit exactly on the boundary.
+    app(TenantContext::class)->set($f['tenantId']);
+    expect(app(ReminderRules::class)->due($f['companyId'], now()->startOfDay()->toImmutable(), expiringWithinDays: 30))->toBe([]);
+});
+
 test('the command reports counts and sends nothing', function (): void {
     $f = reminderFixture('Reminder Command Tenant');
     reminderScore($f, $f['companyId'], $f['employeeId'], ['next_assessment_due' => now()->subDays(3)->toDateString()]);

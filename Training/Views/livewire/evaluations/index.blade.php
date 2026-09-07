@@ -4,6 +4,64 @@
         :subtitle="__('Response rate and rating means per event. Comments are shown to HR only.')"
     />
 
+    @if (session('training-evaluations-status'))
+        <x-ui.alert variant="success">{{ session('training-evaluations-status') }}</x-ui.alert>
+    @endif
+
+    @if ($paperCandidates !== [])
+        <x-ui.card>
+            <div class="space-y-4 p-card-p">
+                <div>
+                    <h3 class="text-sm font-medium text-ink">{{ __('Enter paper evaluation') }}</h3>
+                    <p class="mt-1 max-w-prose text-sm text-muted">{{ __('Key in a completed paper form for an attended participant who has not evaluated the event yet. The record keeps the participant as subject and names you as the entering actor.') }}</p>
+                </div>
+                @error('paper')
+                    <x-ui.alert variant="danger">{{ $message }}</x-ui.alert>
+                @enderror
+
+                <x-ui.select id="paper-participant" wire:model="paperParticipantId" :label="__('Participant')" :error="$errors->first('paperParticipantId')" required>
+                    <option value="">{{ __('Choose a participant') }}</option>
+                    @foreach ($paperCandidates as $candidate)
+                        <option value="{{ $candidate['participant_id'] }}">{{ $candidate['label'] }}</option>
+                    @endforeach
+                </x-ui.select>
+
+                <p class="text-xs text-muted" data-paper-criteria-version="{{ $paperCriteria['version'] }}">{{ __('Criteria version :version', ['version' => $paperCriteria['version']]) }}</p>
+
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    @foreach ($paperCriteria['ratings'] as $column)
+                        <x-ui.select id="paper-{{ str($column)->kebab() }}" wire:model="paperRatings.{{ $column }}" :label="__(ucfirst(str_replace('_', ' ', $column)))" :error="$errors->first('paperRatings.'.$column)" :required="in_array($column, $paperCriteria['mandatory'], true)">
+                            <option value="">{{ __('Choose 1–5') }}</option>
+                            @foreach (range(1, 5) as $rating)
+                                <option value="{{ $rating }}">{{ $rating }}</option>
+                            @endforeach
+                        </x-ui.select>
+                    @endforeach
+                </div>
+
+                <x-ui.input type="text" wire:model="paperReference" :label="__('Paper form reference')" :error="$errors->first('paperReference')" maxlength="160" required />
+
+                @foreach ($paperCriteria['free_text'] as $column)
+                    <div>
+                        <label for="paper-{{ str($column)->kebab() }}" class="block text-sm font-medium text-ink">
+                            {{ __(ucfirst(str_replace('_', ' ', $column))) }}
+                            @if (! in_array($column, $paperCriteria['mandatory'], true))
+                                <span class="text-muted">{{ __('(optional)') }}</span>
+                            @endif
+                        </label>
+                        <textarea id="paper-{{ str($column)->kebab() }}" wire:model="paperText.{{ $column }}" rows="3" maxlength="2000" class="mt-1 block w-full rounded border-border bg-surface text-ink shadow-sm focus:border-primary focus:ring-primary"></textarea>
+                        @error('paperText.'.$column)<p class="mt-1 text-sm text-danger">{{ $message }}</p>@enderror
+                    </div>
+                @endforeach
+
+                <x-ui.button wire:click="enterPaperEvaluation" wire:loading.attr="disabled" wire:target="enterPaperEvaluation">
+                    <span wire:loading.remove wire:target="enterPaperEvaluation">{{ __('Enter paper evaluation') }}</span>
+                    <span wire:loading wire:target="enterPaperEvaluation">{{ __('Saving…') }}</span>
+                </x-ui.button>
+            </div>
+        </x-ui.card>
+    @endif
+
     @if ($drillDown !== null)
         <x-ui.card wire:key="evaluation-drill-down">
             <div class="space-y-4 p-card-p" data-drill-down="{{ $drillDown['event_id'] }}:{{ $drillDown['criterion'] ?? 'completion' }}">
@@ -69,6 +127,9 @@
                             <button type="button" class="underline decoration-dotted" wire:click="openCompletion({{ $event['event_id'] }})" data-drill="completion-{{ $event['event_id'] }}">{{ $event['submitted'] }}</button> / {{ $event['attended'] }} {{ __('attended') }}
                             · {{ $event['response_rate'] }}%
                         @endif
+                        @if ($event['paper_entries'] > 0)
+                            · {{ $event['paper_entries'] }} {{ __('entered from paper by HR') }}
+                        @endif
                     </span>
                 </div>
 
@@ -93,6 +154,9 @@
                             <li class="text-sm text-ink">
                                 <span class="text-muted">{{ $comment['participant'] }}:</span>
                                 {{ $comment['comment'] }}
+                                @if ($comment['from_paper'])
+                                    <x-ui.badge variant="neutral">{{ __('Entered from paper by HR') }}</x-ui.badge>
+                                @endif
                             </li>
                         @endforeach
                     </ul>
