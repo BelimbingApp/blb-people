@@ -11,10 +11,10 @@ use App\Domains\People\Organisation\Services\PositionDirectory;
 use App\Domains\People\Performance\Data\JobDescriptionDraft;
 use App\Domains\People\Performance\Exceptions\JobDescriptionException;
 use App\Domains\People\Performance\Services\JobDescriptionStore;
-use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Models\RequirementProfile;
+use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Workflow\RequirementProfileTransitionAuthority;
 use Illuminate\Support\Facades\DB;
 
