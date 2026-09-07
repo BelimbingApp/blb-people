@@ -13,7 +13,9 @@ use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Enums\AssessmentStatus;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\CompanyAttribution;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
+use App\Domains\People\Training\Data\TrainingRequestSubjectsDraft;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
@@ -21,6 +23,7 @@ use App\Domains\People\Training\Exceptions\InvalidTrainingRequestException;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Models\TrainingRequestDecision;
+use App\Domains\People\Training\Models\TrainingRequestSubject;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -43,12 +46,20 @@ final readonly class TrainingRequestStore
         private TrainingBudgetStore $budgets,
     ) {}
 
-    public function create(User $actor, int $companyId, TrainingRequestDraft $draft): TrainingRequest
+    /**
+     * @param  TrainingRequestSubjectsDraft|null  $subjects  who the request is
+     *                                                       for; null means the requestor themselves, which is what a request has
+     *                                                       always meant here. An explicitly empty list is refused rather than
+     *                                                       silently treated the same way.
+     */
+    public function create(User $actor, int $companyId, TrainingRequestDraft $draft, ?TrainingRequestSubjectsDraft $subjects = null): TrainingRequest
     {
         $tenantId = $this->authorize($actor, $companyId, self::SUBMIT);
         $this->validate($tenantId, $companyId, $draft);
+        $resolved = $this->resolveSubjects($tenantId, $companyId, $draft,
+            $subjects ?? TrainingRequestSubjectsDraft::forSubjects([$draft->requestor]));
 
-        return DB::transaction(function () use ($actor, $companyId, $draft, $tenantId): TrainingRequest {
+        return DB::transaction(function () use ($actor, $companyId, $draft, $tenantId, $resolved): TrainingRequest {
             $request = TrainingRequest::query()->forCompany($tenantId, $companyId)->create([
                 'tenant_id' => $tenantId, 'company_entity_id' => $companyId,
                 'request_key' => (string) Str::uuid(),
@@ -64,6 +75,17 @@ final readonly class TrainingRequestStore
                 'requirement_version' => $draft->requirementVersion,
                 'status' => TrainingRequestStatus::Draft, 'created_by_user_id' => $actor->getKey(),
             ]);
+            foreach ($resolved as $subject) {
+                TrainingRequestSubject::query()->forCompany($tenantId, $companyId)->create([
+                    'tenant_id' => $tenantId, 'company_entity_id' => $companyId,
+                    'training_request_id' => $request->id,
+                    'provider_id' => $subject['provider_id'],
+                    'employee_subject_id' => $subject['employee_subject_id'],
+                    'workforce_observed_at' => $subject['workforce_observed_at'],
+                    'source' => $subject['source'],
+                    'cohort_reference' => $subject['cohort_reference'],
+                ]);
+            }
             $this->record($request, 'created', $actor);
 
             return $request;
@@ -296,6 +318,86 @@ final readonly class TrainingRequestStore
         }
 
         return $tenantId;
+    }
+
+    /**
+     * The people a request is for, as rows ready to store.
+     *
+     * Resolved now and frozen: an approval months later enrols the roster the
+     * approver saw. A request that resolves to nobody is refused rather than
+     * stored empty, because an empty request is one nobody can act on and
+     * everybody has to read twice.
+     *
+     * @return list<array{provider_id: string, employee_subject_id: string, workforce_observed_at: string, source: string, cohort_reference: string|null}>
+     */
+    private function resolveSubjects(int $tenantId, int $companyId, TrainingRequestDraft $draft, TrainingRequestSubjectsDraft $subjects): array
+    {
+        $rows = $subjects->cohort
+            ? $this->cohortRows($companyId, $draft)
+            : $this->namedRows($tenantId, $companyId, $subjects->subjects);
+
+        if ($rows === []) {
+            throw new InvalidTrainingRequestException('A training request names at least one person who will attend.');
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  list<WorkforceSubject>  $subjects
+     * @return list<array{provider_id: string, employee_subject_id: string, workforce_observed_at: string, source: string, cohort_reference: string|null}>
+     */
+    private function namedRows(int $tenantId, int $companyId, array $subjects): array
+    {
+        $rows = [];
+
+        foreach ($subjects as $subject) {
+            if ($subject->tenantId !== $tenantId || $subject->companyId !== $companyId
+                || $subject->type !== WorkforceResourceType::Employee
+                || $this->subjects->resolve($subject)->record === null) {
+                throw new InvalidTrainingRequestException('Every named subject must be an active employee of this company.');
+            }
+
+            $rows[] = [
+                'provider_id' => $this->provider($subject),
+                'employee_subject_id' => $subject->stableId,
+                'workforce_observed_at' => now()->toDateTimeString(),
+                'source' => TrainingRequestSubject::SOURCE_INDIVIDUAL,
+                'cohort_reference' => null,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The request's own department, as it stands right now.
+     *
+     * Inactive employees are left out: a cohort is who would attend, and
+     * somebody who has left the company would not.
+     *
+     * @return list<array{provider_id: string, employee_subject_id: string, workforce_observed_at: string, source: string, cohort_reference: string|null}>
+     */
+    private function cohortRows(int $companyId, TrainingRequestDraft $draft): array
+    {
+        $department = $draft->department->stableId;
+        $rows = [];
+
+        foreach (app(WorkforceSubjects::class)->employees($companyId) as $employee) {
+            if (! $employee->active || $employee->organizationReference?->externalId !== $department) {
+                continue;
+            }
+
+            $rows[] = [
+                'provider_id' => $employee->reference->providerId,
+                'employee_subject_id' => (string) $employee->reference->externalId,
+                'workforce_observed_at' => now()->toDateTimeString(),
+                'source' => TrainingRequestSubject::SOURCE_COHORT,
+                'cohort_reference' => $department,
+            ];
+        }
+
+        return $rows;
     }
 
     private function validate(int $tenantId, int $companyId, TrainingRequestDraft $draft): void
