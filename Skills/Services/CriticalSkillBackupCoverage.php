@@ -41,9 +41,12 @@ final class CriticalSkillBackupCoverage
      *
      * @param  int|null  $departmentId  one department (a head of department's
      *                                  view), or null for every department
+     * @param  \DateTimeInterface|null  $asOf  the day cover is measured on: a
+     *                                         certificate lapsed before it is
+     *                                         not cover (0009-i asks per run)
      * @return list<array{department_id: int|null, department: string, skill_id: int, skill: string, required_level: int, holders: int, minimum: int, covered: bool}>
      */
-    public function rows(int $tenantId, int $companyEntityId, ?int $departmentId = null): array
+    public function rows(int $tenantId, int $companyEntityId, ?int $departmentId = null, ?\DateTimeInterface $asOf = null): array
     {
         $scores = EmployeeSkillScore::query()->forCompany($tenantId, $companyEntityId)
             ->where('criticality', RequirementCriticality::Critical->value)
@@ -57,7 +60,7 @@ final class CriticalSkillBackupCoverage
         $skillNames = $this->skillNames($tenantId, $companyEntityId, $scores);
         $departmentNames = $this->departmentNames($departmentOf);
         $minimum = $this->minimum($tenantId);
-        $today = now()->toDateString();
+        $today = ($asOf ?? now())->format('Y-m-d');
         $rows = [];
 
         $groups = $scores->groupBy(fn (EmployeeSkillScore $score): string => ($departmentOf[(int) $score->employee_entity_id] ?? 'none').':'.$score->skill_id);

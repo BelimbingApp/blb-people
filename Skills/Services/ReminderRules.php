@@ -22,7 +22,10 @@ final class ReminderRules
 {
     public const DEFAULT_EXPIRING_WITHIN_DAYS = 30;
 
-    public function __construct(private readonly TenantContext $tenantContext) {}
+    public function __construct(
+        private readonly TenantContext $tenantContext,
+        private readonly CriticalSkillBackupCoverage $coverage,
+    ) {}
 
     /** @return list<DueReminder> */
     public function due(
@@ -99,6 +102,44 @@ final class ReminderRules
 
         foreach ($actions as $action) {
             $reminders[] = self::actionReminder($action, $assessments->get((int) $action->source_assessment_id));
+        }
+
+        return array_merge($reminders, $this->coverageGaps($companyEntityId, $asOf));
+    }
+
+    /**
+     * One reminder per department and critical skill whose cover is under the
+     * tenant's minimum as of the day given (0009-i). Reads the same rows the
+     * backup coverage page shows, so what the page paints red is exactly what
+     * gets escalated: a holder at level with a lapsed certificate is not cover
+     * here either. A row without a department is still a gap — HR hears it,
+     * and there is no head to address.
+     *
+     * @return list<DueReminder>
+     */
+    public function coverageGaps(int $companyEntityId, \DateTimeImmutable $asOf): array
+    {
+        $tenantId = $this->tenantContext->requireTenantId();
+        $reminders = [];
+
+        foreach ($this->coverage->rows($tenantId, $companyEntityId, null, $asOf) as $row) {
+            if ($row['covered']) {
+                continue;
+            }
+
+            $reminders[] = new DueReminder(
+                companyEntityId: $companyEntityId,
+                employeeEntityId: 0,
+                skillId: $row['skill_id'],
+                rule: ReminderRule::CriticalCoverageGap,
+                dueOn: $asOf,
+                requirementReference: '',
+                requirementVersion: 0,
+                departmentId: $row['department_id'],
+                holders: $row['holders'],
+                minimum: $row['minimum'],
+                requiredLevel: $row['required_level'],
+            );
         }
 
         return $reminders;
