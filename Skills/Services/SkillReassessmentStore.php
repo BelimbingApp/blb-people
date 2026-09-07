@@ -4,10 +4,17 @@ namespace App\Domains\People\Skills\Services;
 
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
+use App\Domains\People\Skills\Data\AssessmentDraft;
+use App\Domains\People\Skills\Enums\AssessmentCycle;
+use App\Domains\People\Skills\Enums\AssessmentMethod;
 use App\Domains\People\Skills\Enums\ReassessmentRequestStatus;
 use App\Domains\People\Skills\Exceptions\InvalidReassessmentRequestException;
 use App\Domains\People\Skills\Livewire\TeamGaps\Index as TeamGapsIndex;
+use App\Domains\People\Skills\Models\EmployeeSkillScore;
+use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Models\SkillReassessmentRequest;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -23,10 +30,13 @@ final class SkillReassessmentStore
 {
     public const REQUEST = 'people.skill.reassessment.submit';
 
+    public const EXECUTE = 'people.skill.reassessment.execute';
+
     public function __construct(
         private readonly TenantContext $tenantContext,
         private readonly SkillAudience $audiences,
         private readonly CompanyAttribution $companies,
+        private readonly AssessmentStore $assessments,
     ) {}
 
     public function request(User $actor, int $companyId, int $employeeEntityId, int $skillId, string $reason): SkillReassessmentRequest
@@ -71,6 +81,128 @@ final class SkillReassessmentStore
                 'due_at' => today()->addDays(30)->toDateString(),
                 'status' => ReassessmentRequestStatus::Pending->value,
             ]);
+        });
+    }
+
+    /**
+     * Pending reassessment requests for one company, oldest first.
+     *
+     * The company boundary is the listing contract: a sibling company's
+     * requests never appear here, and perform() re-checks it per row.
+     *
+     * @return Collection<int, SkillReassessmentRequest>
+     */
+    public function pendingQueue(User $actor, int $companyId): Collection
+    {
+        $this->audiences->authorizeAudience($actor, self::EXECUTE);
+        if (! $this->companies->mayActFor($actor, $companyId)) {
+            $this->deny();
+        }
+        $tenant = $this->tenantContext->requireTenantId();
+
+        return SkillReassessmentRequest::query()->forCompany($tenant, $companyId)
+            ->where('status', ReassessmentRequestStatus::Pending->value)
+            ->orderBy('due_at')->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * Perform a pending reassessment request (0006-c).
+     *
+     * Walks the assessment lifecycle with the two parties already on the
+     * request instead of writing assessment rows directly: HR submits as
+     * assessor, the requesting HOD verifies and finalizes, and the
+     * finalization repoints the score projection at the new row. History
+     * is never rewritten: the previous assessment row is untouched, and a
+     * closed request cannot be performed again. Verifier and finalizer are
+     * the HOD who opened the request — self-approval of their own request,
+     * never another person's decision — while the recorder (HR) stays a
+     * different user, so assessment duties stay separated.
+     */
+    public function perform(
+        User $actor,
+        int $companyId,
+        int $requestId,
+        int $newLevel,
+        string $assessedAt,
+        string $note,
+    ): SkillReassessmentRequest {
+        $this->audiences->authorizeAudience($actor, self::EXECUTE);
+        if (! $this->companies->mayActFor($actor, $companyId)) {
+            $this->deny();
+        }
+        $tenant = $this->tenantContext->requireTenantId();
+
+        if ($newLevel < 0 || $newLevel > 5) {
+            throw new InvalidReassessmentRequestException('The reassessed level must be between 0 and 5.');
+        }
+        try {
+            $assessed = CarbonImmutable::parse($assessedAt)->startOfDay();
+        } catch (\Throwable) {
+            throw new InvalidReassessmentRequestException('The assessment date is not a valid date.');
+        }
+        if ($assessed->greaterThan(CarbonImmutable::today())) {
+            throw new InvalidReassessmentRequestException('The assessment date cannot be in the future.');
+        }
+        $note = trim($note);
+        if ($note === '' || mb_strlen($note) > 1000) {
+            throw new InvalidReassessmentRequestException('An assessor note of up to 1000 characters is required.');
+        }
+
+        return DB::transaction(function () use ($actor, $companyId, $requestId, $newLevel, $assessed, $note, $tenant): SkillReassessmentRequest {
+            $request = SkillReassessmentRequest::query()->forCompany($tenant, $companyId)
+                ->whereKey($requestId)
+                ->lockForUpdate()
+                ->first();
+            if ($request === null || ! $request->isOpen()) {
+                throw new InvalidReassessmentRequestException('The reassessment request is no longer open.');
+            }
+
+            $score = EmployeeSkillScore::query()->forCompany($tenant, $companyId)
+                ->where('employee_entity_id', $request->employee_entity_id)
+                ->where('skill_id', $request->skill_id)
+                ->lockForUpdate()
+                ->first();
+            if ($score === null) {
+                throw new InvalidReassessmentRequestException('The employee has no released score for this skill.');
+            }
+
+            $verifier = User::query()->findOrFail((int) $request->requested_by_user_id);
+
+            $previous = SkillAssessment::query()->forCompany($tenant, $companyId)
+                ->whereKey((int) $score->source_assessment_id)
+                ->firstOrFail();
+
+            $submitted = $this->assessments->submit(
+                $actor,
+                $companyId,
+                new AssessmentDraft(
+                    employeeEntityId: (int) $request->employee_entity_id,
+                    skillId: (int) $request->skill_id,
+                    assessedLevel: $newLevel,
+                    method: $previous->method ?? AssessmentMethod::DirectObservation,
+                    cycle: $previous->cycle ?? AssessmentCycle::Annual,
+                    assessedAt: $assessed,
+                    evidence: $note,
+                    notes: 'Reassessment performed for request #'.$request->id.'.',
+                ),
+                supersedesAssessmentId: (int) $previous->id,
+            );
+            $this->assessments->requestHodVerification($actor, $companyId, (int) $submitted->id);
+            $this->assessments->verifyHod(
+                $verifier, $companyId, (int) $submitted->id,
+                'Verified against reassessment request #'.$request->id.'.',
+            );
+            $this->assessments->finalizeVerified($verifier, $companyId, (int) $submitted->id);
+
+            $request->update([
+                'status' => ReassessmentRequestStatus::Resolved->value,
+                'performed_by_user_id' => $actor->getKey(),
+                'performed_at' => now(),
+                'outcome' => $note,
+            ]);
+
+            return $request->refresh();
         });
     }
 

@@ -33,6 +33,15 @@ return [
          * requesting never confers a wider skill audience.
          */
         'people.skill.reassessment.submit',
+
+        /*
+         * Performing a requested reassessment (0006-c). HR-only: recording
+         * the new released level closes the request and never rewrites
+         * the previous assessment row. Uses the platform 'execute' verb:
+         * verbs are a closed platform vocabulary and 'perform' is not
+         * declared there.
+         */
+        'people.skill.reassessment.execute',
     ],
 
     // Audience capabilities identify why a principal may see People-owned
@@ -57,6 +66,7 @@ return [
                 'people.skill.development-action.manage',
                 'people.skill.assessment.submit',
                 'people.skill.hr.view',
+                'people.skill.reassessment.execute',
             ],
         ],
         'people_hod' => [
