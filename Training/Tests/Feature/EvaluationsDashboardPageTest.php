@@ -397,3 +397,35 @@ test('another company\'s event cannot be opened and its evaluations never appear
     $page = Livewire::actingAs($f['hr'])->test(Index::class)->call('openCompletion', $event);
     expect(array_column($page->viewData('drillDown')['rows'], 'participant'))->toBe(['Own One']);
 });
+
+test('a completion drill-down holds only the opened event\'s rows when a sibling event has its own', function (): void {
+    $f = dashFixture();
+    $event = dashEvent($f);
+    $sibling = (int) app(TrainingEventStore::class)->schedule($f['companyId'], new TrainingEventDraft(
+        courseId: (int) $f['course']->id, startsAt: now()->addDays(10), endsAt: now()->addDays(11),
+        capacity: 10, organizerEmployeeEntityId: (int) $f['head']->id, targetDepartmentEntityId: (int) $f['unit']->id,
+    ))->id;
+    dashEvaluation($f, $event, dashParticipant($f, $event, 'Opened One'), 4);
+    dashEvaluation($f, $sibling, dashParticipant($f, $sibling, 'Sibling One'), 2);
+
+    $page = Livewire::actingAs($f['hr'])->test(Index::class)->call('openCompletion', $event);
+    $drill = $page->viewData('drillDown');
+    $shown = collect($page->viewData('events'))->firstWhere('event_id', $event);
+    expect(array_column($drill['rows'], 'participant'))->toBe(['Opened One'])
+        ->and(count($drill['rows']))->toBe($shown['submitted']);
+    $page->assertDontSee('Sibling One');
+});
+
+test('opening a completion count after a mean clears the criterion', function (): void {
+    $f = dashFixture();
+    $event = dashEvent($f);
+    dashEvaluation($f, $event, dashParticipant($f, $event, 'Seq One'), 4);
+    $partial = dashEvaluation($f, $event, dashParticipant($f, $event, 'Seq Partial'), 2);
+    $partial->update(['relevance' => null]);
+
+    $page = Livewire::actingAs($f['hr'])->test(Index::class)->call('openMean', $event, 'relevance');
+    expect(count($page->viewData('drillDown')['rows']))->toBe(1);
+    $page->call('openCompletion', $event);
+    $drill = $page->viewData('drillDown');
+    expect($drill['criterion'])->toBeNull()->and(count($drill['rows']))->toBe(2);
+});
