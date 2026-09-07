@@ -38,6 +38,15 @@ return [
         'people.training.effectiveness.close',
 
         /*
+         * Setting the per-company 30/60/90-day checkpoint offsets (0013-e).
+         * Separate from effectiveness.review on purpose: a HOD who answers the
+         * questions must not be able to move the day they are asked, which is
+         * the governance the contract asks for. HR holds it; the reviewer
+         * capability does not imply it.
+         */
+        'people.training.effectiveness-policy.manage',
+
+        /*
          * Participant evaluation access has capabilities of its own rather than
          * reusing event.view: granting employees the events capability to reach
          * their own evaluation would widen menu and route access as a side
@@ -127,6 +136,7 @@ return [
                 'people.training.participation.evidence.verify',
                 'people.training.passport.view',
                 'people.training.effectiveness.close',
+                'people.training.effectiveness-policy.manage',
                 'people.training.evaluation-aggregate.view',
                 'people.training.budget.view',
                 'people.training.budget.manage',
