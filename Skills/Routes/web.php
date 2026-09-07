@@ -2,6 +2,7 @@
 
 use App\Domains\People\Skills\Livewire\Assessment\Matrix;
 use App\Domains\People\Skills\Livewire\BackupCoverage\Index as BackupCoverageIndex;
+use App\Domains\People\Skills\Livewire\Catalog\Import as CatalogImport;
 use App\Domains\People\Skills\Livewire\Catalog\Index;
 use App\Domains\People\Skills\Livewire\DevelopmentAction\Index as DevelopmentActionIndex;
 use App\Domains\People\Skills\Livewire\MyHistory\Index as MyHistoryIndex;
@@ -14,6 +15,10 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/skills', Index::class)
         ->middleware('authz:people.skill.catalog.view')
         ->name('people.skill.catalog.index');
+
+    Route::get('people/skills/import', CatalogImport::class)
+        ->middleware('authz:'.CatalogImport::CAPABILITY)
+        ->name('people.skill.catalog.import');
 
     Route::get('people/skills/backup-coverage', BackupCoverageIndex::class)
         ->middleware('authz:'.BackupCoverageIndex::VIEW_CAPABILITY)
