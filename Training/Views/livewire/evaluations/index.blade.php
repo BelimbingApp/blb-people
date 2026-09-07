@@ -215,4 +215,47 @@
             </p>
         </x-ui.card>
     @endforelse
+    <x-ui.card>
+        <div class="space-y-4 p-card-p">
+            <div class="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-medium tracking-tight text-ink">{{ __('Overdue evaluations') }}</h2>
+                    <p class="text-sm text-muted" data-overdue-count="{{ $overdue['count'] }}">
+                        {{ trans_choice(':count participant past the evaluation window|:count participants past the evaluation window', $overdue['count'], ['count' => $overdue['count']]) }}
+                    </p>
+                </div>
+                <x-ui.select wire:model.live="department" :label="__('Department')">
+                    <option value="">{{ __('All departments') }}</option>
+                    @foreach ($departments as $unitId => $name)
+                        <option value="{{ $unitId }}">{{ $name }}</option>
+                    @endforeach
+                </x-ui.select>
+            </div>
+
+            @if ($overdue['rows'] !== [])
+                <x-ui.table container="flush" :caption="__('Overdue evaluations')">
+                    <x-slot name="head">
+                        <tr>
+                            <x-ui.th>{{ __('Participant') }}</x-ui.th>
+                            <x-ui.th>{{ __('Department') }}</x-ui.th>
+                            <x-ui.th>{{ __('Event') }}</x-ui.th>
+                            <x-ui.th>{{ __('Due') }}</x-ui.th>
+                            <x-ui.th>{{ __('Days overdue') }}</x-ui.th>
+                        </tr>
+                    </x-slot>
+                    @foreach ($overdue['rows'] as $row)
+                        <tr wire:key="overdue-{{ $loop->index }}">
+                            <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['participant'] }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['department'] }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['event'] }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm tabular-nums text-ink">{{ $row['due_on'] }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm tabular-nums text-ink">{{ $row['days_overdue'] }}</td>
+                        </tr>
+                    @endforeach
+                </x-ui.table>
+            @else
+                <p class="text-sm text-muted">{{ __('Nobody is past their evaluation window.') }}</p>
+            @endif
+        </div>
+    </x-ui.card>
 </div>

@@ -29,6 +29,7 @@ use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Models\TrainingSession;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
+use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
 /**
@@ -113,13 +114,13 @@ function dashEvent(array $f, ?int $companyId = null, ?int $courseId = null): int
     ))->id;
 }
 
-function dashParticipant(array $f, int $eventId, string $name, bool $attended = true): TrainingParticipant
+function dashParticipant(array $f, int $eventId, string $name, bool $attended = true, ?int $unitId = null): TrainingParticipant
 {
     $employee = Employee::factory()->create([
         'company_id' => $f['companyId'], 'department_id' => $f['department']->id,
         'full_name' => $name, 'status' => 'active', 'employee_type' => 'full_time',
     ]);
-    EmployeeWorkProfile::query()->create(['employee_id' => $employee->id, 'organization_unit_id' => $f['unit']->id]);
+    EmployeeWorkProfile::query()->create(['employee_id' => $employee->id, 'organization_unit_id' => $unitId ?? $f['unit']->id]);
     $participant = TrainingParticipant::query()->create([
         'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'], 'event_id' => $eventId,
         'provider_id' => 'native', 'employee_subject_id' => (string) $employee->id,
@@ -428,4 +429,64 @@ test('opening a completion count after a mean clears the criterion', function ()
     $page->call('openCompletion', $event);
     $drill = $page->viewData('drillDown');
     expect($drill['criterion'])->toBeNull()->and(count($drill['rows']))->toBe(2);
+});
+
+afterEach(function (): void {
+    Carbon::setTestNow();
+});
+
+/**
+ * 0012-d: the overdue drill-down. Two attended participants in different
+ * units, neither of whom evaluated, seen twenty days after the event: both are
+ * three days past the fourteen-day window.
+ *
+ * @return array{f: array<string, mixed>, maint: int, ops: TrainingParticipant, maintenance: TrainingParticipant}
+ */
+function dashOverdueSeed(): array
+{
+    $f = dashFixture();
+    $maint = PeopleReferenceEntry::query()->create([
+        'company_id' => $f['companyId'], 'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+        'code' => 'MAINT', 'name' => 'Maintenance', 'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+    ]);
+    $eventId = dashEvent($f);
+    $ops = dashParticipant($f, $eventId, 'Ops Overdue');
+    $maintenance = dashParticipant($f, $eventId, 'Maint Overdue', unitId: (int) $maint->id);
+    // A completed evaluation is not overdue however late it was.
+    dashEvaluation($f, $eventId, dashParticipant($f, $eventId, 'Done'), 4);
+    Carbon::setTestNow(now()->addDays(20));
+
+    return ['f' => $f, 'maint' => (int) $maint->id, 'ops' => $ops, 'maintenance' => $maintenance];
+}
+
+test('the overdue count equals the drill-down row count under the same department filter', function (): void {
+    $seed = dashOverdueSeed();
+    $f = $seed['f'];
+
+    $all = Livewire::actingAs($f['hr'])->test(Index::class)->viewData('overdue');
+
+    expect($all['count'])->toBe(2)
+        ->and($all['rows'])->toHaveCount(2)
+        ->and(collect($all['rows'])->pluck('participant')->all())->toBe(['Maint Overdue', 'Ops Overdue'])
+        ->and($all['rows'][0]['days_overdue'])->toBe(3);
+
+    $filtered = Livewire::actingAs($f['hr'])->test(Index::class)
+        ->set('department', (string) $seed['maint'])
+        ->viewData('overdue');
+
+    // The count is the number of rows shown, not a company total the filter
+    // leaves behind; otherwise the number and the list disagree on screen.
+    expect($filtered['count'])->toBe(1)
+        ->and($filtered['rows'])->toHaveCount(1)
+        ->and($filtered['rows'][0]['participant'])->toBe('Maint Overdue')
+        ->and($filtered['rows'][0]['department'])->toBe('Maintenance');
+});
+
+test('the overdue table carries a caption', function (): void {
+    $seed = dashOverdueSeed();
+
+    Livewire::actingAs($seed['f']['hr'])->test(Index::class)
+        ->assertSeeHtml('<caption')
+        ->assertSee('Overdue evaluations')
+        ->assertSee('Maint Overdue');
 });

@@ -9,6 +9,8 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
+use App\Domains\People\Training\Data\DueEvaluation;
 use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\TrainingEvaluationStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEvaluationException;
@@ -20,6 +22,7 @@ use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Services\TrainingEvaluationFollowupStore;
 use App\Domains\People\Training\Services\TrainingEvaluationReader;
 use App\Domains\People\Training\Services\TrainingEvaluationSubmissionStore;
+use App\Domains\People\Training\Services\TrainingEvaluationReminders;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -97,6 +100,9 @@ final class Index extends Component
     /** One of the rating criteria, or null for the completion drill-down. */
     public ?string $openCriterion = null;
 
+    /** Organization-unit stable id, or empty for the whole company (0012-d). */
+    public string $department = '';
+
     public function mount(): void
     {
         $this->authorizeView();
@@ -159,16 +165,22 @@ final class Index extends Component
         $this->openCriterion = null;
     }
 
-    public function render(TrainingEvaluationReader $reader): View
-    {
+    public function render(
+        TrainingEvaluationReader $reader,
+        TrainingEvaluationReminders $reminders,
+        WorkforceSubjects $subjects,
+    ): View {
         $this->authorizeView();
         $companyId = $this->companyId();
+        $departments = $this->departmentNames($subjects, $companyId);
 
         return view('people::livewire.evaluations.index', [
             'events' => $this->events($reader, $companyId),
             'paperCandidates' => $this->paperCandidates($this->tenantOf($reader), $companyId),
             'canManageFollowups' => $this->canManageFollowups(),
             'drillDown' => $this->drillDown($reader, $companyId),
+            'departments' => $departments,
+            'overdue' => $this->overdue($reminders, $subjects, $companyId, $departments),
         ]);
     }
 
@@ -261,6 +273,61 @@ final class Index extends Component
                     $events->get($participant->event_id)?->course_title_snapshot ?? __('Training event'),
                 ),
             ])->values()->all();
+     * The overdue drill-down (0012-d) is the same rule the reminder command
+     * runs, read through {@see TrainingEvaluationReminders::overdue()}, so the
+     * number on the dashboard and the participants the command chases cannot
+     * drift apart. The count is the number of rows shown under the same
+     * filter, never a company total the filter leaves behind.
+     *
+     * @param  array<string, string>  $departments
+     * @return array{count: int, rows: list<array{participant: string, department: string, event: string, due_on: string, days_overdue: int}>}
+     */
+    private function overdue(TrainingEvaluationReminders $reminders, WorkforceSubjects $subjects, int $companyId, array $departments): array
+    {
+        $tenantId = (int) app(TenantContext::class)->requireTenantId();
+        // Same audience the ratings use: a HOD with the aggregate capability
+        // sees their own people overdue, not the whole company's.
+        $visible = app(SkillAudience::class)->visibleEmployeeEntityIdsFor(Auth::user(), $companyId, self::VIEW_CAPABILITY);
+
+        $overdue = $reminders->overdue($tenantId, $companyId);
+
+        // Named the way the rest of this page names participants, from the
+        // employee record; the workforce seam is read only for the unit.
+        $names = Employee::query()->where('company_id', $companyId)
+            ->whereIn('id', array_map(static fn (DueEvaluation $row): int => $row->employeeEntityId, $overdue))
+            ->pluck('full_name', 'id')
+            ->all();
+        $units = [];
+        foreach ($subjects->employees($companyId) as $employee) {
+            $units[(int) $employee->reference->externalId] = $employee->organizationReference?->externalId ?? '';
+        }
+
+        $rows = collect($overdue)
+            ->filter(fn (DueEvaluation $row): bool => in_array($row->employeeEntityId, $visible, true)
+                && ($this->department === '' || ($units[$row->employeeEntityId] ?? '') === $this->department))
+            ->map(static fn (DueEvaluation $row): array => [
+                'participant' => (string) ($names[$row->employeeEntityId] ?? __('Unknown participant')),
+                'department' => $departments[$units[$row->employeeEntityId] ?? ''] ?? '',
+                'event' => $row->eventTitle,
+                'due_on' => $row->dueOn->toDateString(),
+                'days_overdue' => $row->daysOverdue,
+            ])
+            ->sortBy([['days_overdue', 'desc'], ['participant', 'asc']])
+            ->values()
+            ->all();
+
+        return ['count' => count($rows), 'rows' => $rows];
+    }
+
+    /** @return array<string, string> organization-unit stable id => name */
+    private function departmentNames(WorkforceSubjects $subjects, int $companyId): array
+    {
+        $names = [];
+        foreach ($subjects->organizationUnits($companyId) as $unit) {
+            $names[$unit->reference->externalId] = $unit->name;
+        }
+
+        return $names;
     }
 
     /**
