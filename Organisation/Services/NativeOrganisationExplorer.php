@@ -35,9 +35,14 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
 
     /**
      * Audience scope as a capability key: "view the organisation as this
-     * audience". The platform key grammar demands the action last, so the
-     * audience sits in the resource path — `people.organisation.audience.hod`
-     * reads well but the catalog drops it as an unknown verb.
+     * audience".
+     *
+     * The platform grammar is domain.resource.action with the action last, so
+     * the audience has to sit in the resource path and the verb has to end the
+     * key: `people.organisation.hod.view`. The spelling that reads better in
+     * English, `people.organisation.audience.hod`, ends on the audience name —
+     * not a declared verb — so CapabilityCatalog drops it and
+     * KnownCapabilityPolicy then denies it as unknown.
      */
     private static function audienceCapability(string $audience): string
     {
