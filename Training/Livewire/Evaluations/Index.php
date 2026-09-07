@@ -195,8 +195,8 @@ final class Index extends Component
 
         try {
             app(TrainingEvaluationSubmissionStore::class)->submitAssisted(
-                Auth::user(),
-                (int) Auth::user()->company_id,
+                $this->user(),
+                $this->companyId(),
                 (int) $validated['paperParticipantId'],
                 [
                     'relevance' => (int) $validated['paperRelevance'],
@@ -228,7 +228,7 @@ final class Index extends Component
      */
     private function paperCandidates(int $tenantId, int $companyId): array
     {
-        if (! app(SkillAudience::class)->mayAccess(Auth::user(), TrainingEvaluationSubmissionStore::ASSIGN)) {
+        if (! app(SkillAudience::class)->mayAccess($this->user(), TrainingEvaluationSubmissionStore::ASSIGN)) {
             return [];
         }
 
