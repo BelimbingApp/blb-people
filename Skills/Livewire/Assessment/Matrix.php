@@ -16,6 +16,7 @@ use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
@@ -40,6 +41,16 @@ class Matrix extends Component
     public string $method = 'direct_observation';
 
     public string $sharedEvidence = '';
+
+    /**
+     * Drill-down filters from the HR KPI dashboard (#363): comma-separated
+     * latest result bands, and one organisation unit id. Empty means all.
+     */
+    #[Url]
+    public string $band = '';
+
+    #[Url]
+    public string $department = '';
 
     /** @var array<int, string>|null */
     private ?array $allowedCompanies = null;
@@ -195,8 +206,13 @@ class Matrix extends Component
             manage: $this->canAssess(),
         );
 
+        $bandEmployeeIds = $this->employeeIdsWithLatestBand($companyEntityId);
+
         return collect(app(WorkforceSubjects::class)->employees($companyEntityId))
             ->filter(fn ($employee): bool => in_array((int) $employee->reference->externalId, $employeeEntityIds, true))
+            ->filter(fn ($employee): bool => $bandEmployeeIds === null || in_array((int) $employee->reference->externalId, $bandEmployeeIds, true))
+            ->filter(fn ($employee): bool => $this->department === ''
+                || ($employee->organizationReference !== null && $employee->organizationReference->externalId === $this->department))
             ->map(fn ($employee): object => (object) [
                 'workforce_entity_id' => (int) $employee->reference->externalId,
                 'display_name' => $employee->displayName,
@@ -208,6 +224,34 @@ class Matrix extends Component
             ->sortBy('display_name')
             ->take(50)
             ->values();
+    }
+
+    /**
+     * Employees holding a latest (finalized, not superseded) assessment in one
+     * of the requested bands, or null when no band filter is set.
+     *
+     * @return list<int>|null
+     */
+    private function employeeIdsWithLatestBand(int $companyEntityId): ?array
+    {
+        $bands = array_values(array_filter(explode(',', $this->band)));
+
+        if ($bands === []) {
+            return null;
+        }
+
+        $tenantId = app(TenantContext::class)->requireTenantId();
+
+        return SkillAssessment::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->where('status', 'finalized')
+            ->whereIn('result_band', $bands)
+            ->whereNotIn('id', SkillAssessment::query()->forCompany($tenantId, $companyEntityId)
+                ->whereNotNull('supersedes_assessment_id')->select('supersedes_assessment_id'))
+            ->distinct()
+            ->pluck('employee_entity_id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->all();
     }
 
     /**

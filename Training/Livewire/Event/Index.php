@@ -24,6 +24,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 final class Index extends Component
@@ -71,6 +72,16 @@ final class Index extends Component
 
     /** @var array<int, string> */
     public array $comment = [];
+
+    /**
+     * Drill-down filters from the HR skill KPI dashboard (#363): comma-separated
+     * event statuses, and one target department id. Empty means all.
+     */
+    #[Url]
+    public string $status = '';
+
+    #[Url]
+    public string $department = '';
 
     /** @var array<int, string>|null */
     private ?array $companies = null;
@@ -210,7 +221,11 @@ final class Index extends Component
         $canManage = false;
 
         if ($company !== null && array_key_exists($company, $companies)) {
-            $events = $audience->visibleEvents(Auth::user(), $company)->orderByDesc('starts_at')->get();
+            $statuses = array_values(array_filter(explode(',', $this->status)));
+            $events = $audience->visibleEvents(Auth::user(), $company)
+                ->when($statuses !== [], fn ($query) => $query->whereIn('status', $statuses))
+                ->when($this->department !== '', fn ($query) => $query->where('target_department_entity_id', $this->department))
+                ->orderByDesc('starts_at')->get();
             $canManage = $audience->canManage(Auth::user(), $company);
             $tenant = app(TenantContext::class)->requireTenantId();
             $departments = $this->departmentOptions($company);
