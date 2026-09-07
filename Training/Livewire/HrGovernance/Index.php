@@ -10,12 +10,14 @@ use App\Domains\People\Performance\Models\PerformanceReviewEscalation;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Enums\ReminderDeliveryState;
+use App\Domains\People\Skills\Enums\ReminderRule;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Exceptions\InvalidReassessmentRequestException;
 use App\Domains\People\Skills\Models\RequirementProfile;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillReassessmentRequest;
 use App\Domains\People\Skills\Models\SkillReminderDelivery;
+use App\Domains\People\Skills\Services\CriticalSkillBackupCoverage;
 use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillReassessmentStore;
@@ -282,9 +284,53 @@ final class Index extends Component
             'evidenceEmployees' => $this->evidenceEmployeeNames($companyEntityId, $evidence),
             'escalations' => $companyEntityId === null ? collect() : $this->escalatedReviews($companyEntityId),
             'failedDeliveries' => $companyEntityId === null ? collect() : $this->failedDeliveries($companyEntityId),
+            'coverageGaps' => $companyEntityId === null ? [] : $this->coverageGaps($companyEntityId),
             'passportEmployees' => $companyEntityId === null ? [] : $this->passportEmployees($companyEntityId),
             'passportDocuments' => $companyEntityId === null ? [] : $this->passportDocuments($companyEntityId),
         ]);
+    }
+
+    /**
+     * Departments short of cover for a critical skill (0009-i), worst first,
+     * with the last thing the delivery ledger did about each. Render-only:
+     * the remedy is the HOD's and HR's plan, and the drill-down is the
+     * backup coverage page pinned to the department.
+     *
+     * @return list<array{department_id: int|null, department: string, skill_id: int, skill: string, required_level: int, holders: int, minimum: int, last_delivery: string}>
+     */
+    private function coverageGaps(int $companyEntityId): array
+    {
+        $gaps = array_values(array_filter(
+            app(CriticalSkillBackupCoverage::class)->rows($this->tenantId(), $companyEntityId),
+            static fn (array $row): bool => ! $row['covered'],
+        ));
+
+        if ($gaps === []) {
+            return [];
+        }
+
+        // Latest attempt per department and skill, any recipient: the state
+        // HR wants is "was anybody told this month", not one row per head.
+        $latest = SkillReminderDelivery::query()
+            ->forCompany($this->tenantId(), $companyEntityId)
+            ->where('rule', ReminderRule::CriticalCoverageGap->value)
+            ->orderByDesc('attempted_at')
+            ->orderByDesc('id')
+            ->get()
+            ->unique(static fn (SkillReminderDelivery $row): string => $row->department_id.':'.$row->skill_id)
+            ->keyBy(static fn (SkillReminderDelivery $row): string => $row->department_id.':'.$row->skill_id);
+
+        return array_map(static function (array $row) use ($latest): array {
+            $delivery = $latest->get(($row['department_id'] ?? SkillReminderDelivery::NO_DEPARTMENT).':'.$row['skill_id']);
+            unset($row['covered']);
+            $row['last_delivery'] = match (true) {
+                $delivery === null => (string) __('never delivered'),
+                $delivery->state === ReminderDeliveryState::Sent => (string) __('sent :period', ['period' => $delivery->period_key]),
+                default => (string) __('failed :period: :failure', ['period' => $delivery->period_key, 'failure' => (string) $delivery->failure]),
+            };
+
+            return $row;
+        }, $gaps);
     }
 
     /**
