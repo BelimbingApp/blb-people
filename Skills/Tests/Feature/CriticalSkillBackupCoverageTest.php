@@ -187,5 +187,18 @@ test('holders in another department or another company do not cover this departm
     backupScore($f, backupEmployee($f, 'Other Department', department: $f['otherDepartment']), current: 4);
     backupScore($f, backupEmployee($f, 'Sibling Company', companyId: (int) $f['sibling']->id), current: 4, companyId: (int) $f['sibling']->id);
 
-    expect(backupRow($f, $f['department'])['holders'])->toBe(1);
+    // Asserted as whole row sets, not by picking the first row for the skill:
+    // each of these holders forms a row of its own, so a lookup by skill name
+    // would find a row reading "1 holder" whether or not the scoping works.
+    $ours = app(CriticalSkillBackupCoverage::class)->rows($f['tenantId'], $f['companyId'], (int) $f['department']->id);
+
+    expect($ours)->toHaveCount(1)
+        ->and($ours[0]['department_id'])->toBe((int) $f['department']->id)
+        ->and($ours[0]['holders'])->toBe(1);
+
+    $companyWide = app(CriticalSkillBackupCoverage::class)->rows($f['tenantId'], $f['companyId']);
+
+    expect($companyWide)->toHaveCount(2)
+        ->and(collect($companyWide)->pluck('department_id')->all())
+        ->toEqualCanonicalizing([(int) $f['department']->id, (int) $f['otherDepartment']->id]);
 });
