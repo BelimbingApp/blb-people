@@ -119,6 +119,19 @@ function cutoverDraft(array $f, int $daysAgo): void
     Carbon::setTestNow();
 }
 
+/** An escalation on the company's one draft review. */
+function cutoverEscalate(array $f, int $notifiedDaysAgo): void
+{
+    $review = PerformanceReview::query()
+        ->forCompany($f['tenantId'], $f['companyId'])->sole();
+    PerformanceReviewEscalation::query()->create([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'],
+        'review_id' => (int) $review->id, 'manager_user_id' => (int) $f['manager']->id,
+        'escalated_to_user_id' => null, 'audience' => EscalationAudience::Hr,
+        'fortnight_key' => '2026-F18', 'notified_at' => now()->subDays($notifiedDaysAgo),
+    ]);
+}
+
 test('a compliant company is green on every check and exits zero', function (): void {
     $f = cutoverFixture();
 
@@ -226,4 +239,49 @@ test('--json prints a machine-readable report', function (): void {
 
     expect($decoded['ready'])->toBeTrue()
         ->and($decoded['checks'])->toHaveKey('reporting_line');
+});
+
+test('a manager with no user account is counted as unable', function (): void {
+    $f = cutoverFixture();
+    $accountless = Employee::factory()->create([
+        'company_id' => $f['companyId'], 'full_name' => 'Accountless Manager',
+        'status' => 'active', 'employee_type' => 'full_time',
+        'supervisor_id' => $f['managerEmployee']->id,
+    ]);
+    Employee::factory()->create([
+        'company_id' => $f['companyId'], 'full_name' => 'Their Report',
+        'status' => 'active', 'employee_type' => 'full_time',
+        'supervisor_id' => $accountless->id,
+    ]);
+
+    // No account is not a milder problem than the wrong capability: either
+    // way nobody can write the review this person owes.
+    expect(cutoverCounts($f)['manager_capability'])->toBe(1)
+        ->and(cutoverRun($f))->toBe(1);
+});
+
+test('a recent escalation is inside the grace period and not counted', function (): void {
+    $f = cutoverFixture();
+    // A draft inside the stale threshold, so this test turns on the
+    // escalation grace alone and not on a second check going red.
+    cutoverDraft($f, 10);
+    cutoverEscalate($f, notifiedDaysAgo: 3);
+
+    // Escalating is not itself the failure; going unanswered is.
+    expect(cutoverCounts($f)['open_escalations'])->toBe(0)
+        ->and(cutoverRun($f))->toBe(0);
+});
+
+test('an escalation is closed once its review is finalized', function (): void {
+    $f = cutoverFixture();
+    cutoverDraft($f, 45);
+    $review = PerformanceReview::query()
+        ->forCompany($f['tenantId'], $f['companyId'])->sole();
+    cutoverEscalate($f, notifiedDaysAgo: 20);
+    app(PerformanceReviewStore::class)->finalize($f['manager'], $f['companyId'], (int) $review->id);
+
+    // Finalising is the act that answers the escalation, whatever the
+    // escalation row still says.
+    expect(cutoverCounts($f)['open_escalations'])->toBe(0)
+        ->and(cutoverRun($f))->toBe(0);
 });
