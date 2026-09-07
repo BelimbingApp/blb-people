@@ -266,7 +266,10 @@ test('the database refuses assisted_paper provenance without an entering actor',
         },
     };
 
-    expect($write)->toThrow(QueryException::class, 'entering actor');
+    // Own transaction (a savepoint under the test's): on PostgreSQL the
+    // trigger's raise aborts the enclosing transaction, and the count below
+    // would then fail for that reason instead of proving nothing landed.
+    expect(fn () => DB::transaction($write))->toThrow(QueryException::class, 'entering actor');
     expect(assistedRows($f)->where('entry_source', 'assisted_paper')->count())->toBe(0);
 })->with(['insert', 'update']);
 
