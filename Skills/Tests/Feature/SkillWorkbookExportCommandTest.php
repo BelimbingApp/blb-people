@@ -351,7 +351,7 @@ test('the dry run agrees with the export and neither command writes to the datab
     try {
         exportWorkbookFor($this, $fixture, $path)->assertSuccessful();
 
-        $this->artisan('people:skills-workbook-dry-run', ['workbook' => $path])
+        $this->artisan('people:skills-workbook-dry-run', ['workbook' => $path, '--tenant' => $fixture->tenantId])
             ->expectsOutputToContain('02 Skill Catalogue: skills=2, category occurrences=2')
             ->expectsOutputToContain('00 Guide: proficiency levels=6')
             ->expectsOutputToContain('Defects: 0 (blocking: 0)')

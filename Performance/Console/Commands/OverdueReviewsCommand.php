@@ -2,23 +2,22 @@
 
 namespace App\Domains\People\Performance\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Performance\Enums\OverdueReviewReason;
 use App\Domains\People\Performance\Services\OverdueReviewEscalations;
 use App\Domains\People\Performance\Services\OverdueReviewReminders;
-use Illuminate\Console\Command;
 
 /**
  * Record this week's reminders for reviews that have gone quiet.
  *
  * Per company, because a reminder is somebody's inbox and inboxes belong to a
- * company. Tenancy is taken from --tenant, or from the ambient context when
- * the command runs inside a request-shaped scope.
+ * company. The tenant comes from --tenant, resolved and bound by
+ * TenantScopedCommand before handle() runs (#316).
  */
-final class OverdueReviewsCommand extends Command
+final class OverdueReviewsCommand extends TenantScopedCommand
 {
     protected $signature = 'people:performance:overdue
-                            {--tenant= : Tenant to run for; defaults to the current tenant context}
                             {--company= : Company workforce entity to run for}
                             {--dry-run : Report what would be recorded and record nothing}';
 
@@ -29,11 +28,6 @@ final class OverdueReviewsCommand extends Command
         OverdueReviewReminders $reminders,
         OverdueReviewEscalations $escalations,
     ): int {
-        $tenantOption = $this->option('tenant');
-
-        if ($tenantOption !== null && $tenantOption !== '') {
-            $tenants->set((int) $tenantOption);
-        }
 
         $company = $this->option('company');
 

@@ -2,6 +2,7 @@
 
 namespace App\Domains\People\Leave\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Core\Company\Models\Company;
 use App\Domains\People\Leave\CountryPacks\Malaysia\MalaysiaStatutoryLeaveTypes;
 use App\Domains\People\Leave\Models\LeaveAssignment;
@@ -9,7 +10,6 @@ use App\Domains\People\Leave\Models\LeaveEntitlementPolicy;
 use App\Domains\People\Leave\Models\LeaveEntitlementPolicyBand;
 use App\Domains\People\Leave\Models\LeaveRequestPolicy;
 use App\Domains\People\Leave\Models\LeaveType;
-use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -26,7 +26,7 @@ use Symfony\Component\Console\Attribute\AsCommand;
  * duplicate rows.
  */
 #[AsCommand(name: 'blb:leave:seed-sbg-pack')]
-class SeedSbgLeavePackCommand extends Command
+class SeedSbgLeavePackCommand extends TenantScopedCommand
 {
     private const DEFAULT_EFFECTIVE_FROM = '2026-01-01';
 
