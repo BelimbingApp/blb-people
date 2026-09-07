@@ -239,7 +239,7 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
             self::AUDIENCES,
             fn (string $audience): bool => $this->explicitlyHas(
                 $actor,
-                'people.organisation.audience.'.$audience,
+                'people.organisation.audience.'.$audience.'.view',
             ),
         ));
 

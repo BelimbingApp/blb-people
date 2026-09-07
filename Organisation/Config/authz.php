@@ -9,11 +9,11 @@ return [
         'people.organisation.structure.view',
         'people.organisation.aggregate.view',
         'people.organisation.detail.view',
-        'people.organisation.audience.executive',
-        'people.organisation.audience.hod',
-        'people.organisation.audience.employee',
-        'people.organisation.audience.hr',
-        'people.organisation.audience.auditor',
+        'people.organisation.audience.executive.view',
+        'people.organisation.audience.hod.view',
+        'people.organisation.audience.employee.view',
+        'people.organisation.audience.hr.view',
+        'people.organisation.audience.auditor.view',
     ],
 
     // The authorization matrix expressly creates no default grant. Operators
