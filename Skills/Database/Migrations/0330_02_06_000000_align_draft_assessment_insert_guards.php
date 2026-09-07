@@ -1,7 +1,7 @@
 <?php
 
-use App\Domains\People\Skills\Exceptions\InvalidAssessmentException;
 use App\Base\Database\Concerns\IncubatingSchema;
+use App\Domains\People\Skills\Exceptions\InvalidAssessmentException;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;

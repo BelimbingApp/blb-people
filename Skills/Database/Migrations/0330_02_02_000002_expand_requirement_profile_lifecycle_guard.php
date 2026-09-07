@@ -1,7 +1,7 @@
 <?php
 
-use App\Base\Database\Concerns\RegistersTables;
 use App\Base\Database\Concerns\IncubatingSchema;
+use App\Base\Database\Concerns\RegistersTables;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
