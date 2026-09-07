@@ -178,21 +178,39 @@ final class MigrationLedger
             throw new InvalidMigrationLedgerException('source_sha256 must be a 64-character lowercase hex digest.');
         }
 
+        // Nested transaction → SAVEPOINT on Postgres. A unique hit aborts only
+        // the savepoint; the caller's outer transaction (tests, importers) stays
+        // usable. Without it, catching UniqueConstraintViolationException still
+        // leaves 25P02 "current transaction is aborted" on the next query.
         try {
-            return TrainingMigrationLedgerEntry::query()->create([
-                'tenant_id' => $tenantId,
-                'company_entity_id' => $companyEntityId,
-                'source_key' => $sourceKey,
-                'source_sha256' => $sourceSha256,
-                'source_row' => $sourceRow,
-                'target_table' => $targetTable,
-                'target_id' => $targetId,
-                'status' => $status,
-                'reason' => $reason,
-                'payload_excerpt' => $payloadExcerpt,
-                'recorded_by' => $recordedBy,
-                'recorded_at' => now(),
-            ]);
+            return DB::transaction(function () use (
+                $tenantId,
+                $companyEntityId,
+                $sourceKey,
+                $sourceSha256,
+                $sourceRow,
+                $targetTable,
+                $targetId,
+                $status,
+                $reason,
+                $payloadExcerpt,
+                $recordedBy,
+            ): TrainingMigrationLedgerEntry {
+                return TrainingMigrationLedgerEntry::query()->create([
+                    'tenant_id' => $tenantId,
+                    'company_entity_id' => $companyEntityId,
+                    'source_key' => $sourceKey,
+                    'source_sha256' => $sourceSha256,
+                    'source_row' => $sourceRow,
+                    'target_table' => $targetTable,
+                    'target_id' => $targetId,
+                    'status' => $status,
+                    'reason' => $reason,
+                    'payload_excerpt' => $payloadExcerpt,
+                    'recorded_by' => $recordedBy,
+                    'recorded_at' => now(),
+                ]);
+            });
         } catch (UniqueConstraintViolationException) {
             throw new InvalidMigrationLedgerException(
                 'A migration ledger row for this source, digest and row already exists.',
