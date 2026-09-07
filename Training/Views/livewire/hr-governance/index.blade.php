@@ -94,6 +94,73 @@
         </section>
 
         <section class="space-y-4">
+            <h2 class="text-lg font-semibold">{{ __('Approved requests not yet linked to an event') }}</h2>
+            @if ($approvedUnlinked->isEmpty())
+                <p class="text-sm text-muted">{{ __('Every approved training request is linked to an event.') }}</p>
+            @else
+                <x-ui.table :caption="__('Approved training requests awaiting an event')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Need') }}</x-ui.th>
+                            <x-ui.th>{{ __('Priority') }}</x-ui.th>
+                            <x-ui.th>{{ __('Event') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($approvedUnlinked as $request)
+                            <tr wire:key="hr-unlinked-{{ $request->id }}" data-approved-unlinked="{{ $request->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
+                                    <span class="font-medium">{{ $request->need }}</span>
+                                    <span class="block text-muted">{{ $request->learning_objective }}</span>
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $request->priority->value }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm space-y-2">
+                                    @if ($linkableEvents === [])
+                                        <span class="text-muted">{{ __('No scheduled event to link.') }}</span>
+                                    @else
+                                        <x-ui.select wire:model="linkEventId.{{ $request->id }}">
+                                            <option value="">{{ __('Choose an event') }}</option>
+                                            @foreach ($linkableEvents as $eventId => $label)
+                                                <option value="{{ $eventId }}">{{ $label }}</option>
+                                            @endforeach
+                                        </x-ui.select>
+                                        @error('link.'.$request->id)<p class="text-sm text-danger">{{ $message }}</p>@enderror
+                                        <x-ui.button type="button" variant="primary" wire:click="linkEvent({{ $request->id }})">{{ __('Link') }}</x-ui.button>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+            @if ($approvedLinked->isNotEmpty())
+                <x-ui.table :caption="__('Approved training requests linked to an event')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Need') }}</x-ui.th>
+                            <x-ui.th>{{ __('Event') }}</x-ui.th>
+                            <x-ui.th>{{ __('Linked') }}</x-ui.th>
+                            <x-ui.th>{{ __('Action') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($approvedLinked as $request)
+                            <tr wire:key="hr-linked-{{ $request->id }}" data-approved-linked="{{ $request->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $request->need }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $eventTitles[(int) $request->training_event_id] ?? __('Event :id', ['id' => $request->training_event_id]) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $request->linked_at?->toDateString() }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm space-y-2">
+                                    <x-ui.input type="text" wire:model="requestNotes.{{ $request->id }}" :placeholder="__('Reason (optional)')" />
+                                    <x-ui.button type="button" variant="secondary" wire:click="unlinkEvent({{ $request->id }})">{{ __('Unlink') }}</x-ui.button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </section>
+
+        <section class="space-y-4">
             <h2 class="text-lg font-semibold">{{ __('Training plans') }}</h2>
             @if ($plans->isEmpty())
                 <p class="text-sm text-muted">{{ __('No submitted training plan awaits approval.') }}</p>

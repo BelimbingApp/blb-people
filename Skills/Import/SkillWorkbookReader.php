@@ -14,7 +14,7 @@ final class SkillWorkbookReader
 
     private const string REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 
-    private const array TABLES = [
+    public const array TABLES = [
         '02 Skill Catalogue' => [5, null, ['Skill ID', 'Department / Shared', 'Category', 'Skill / Competency', 'Definition / Standard', 'Safety or Quality Critical?', 'Minimum Evidence Guide', 'Default Assessment Method', 'Default Reassessment (Months)', 'Skill Owner', 'Active?']],
         '00 Guide' => [24, 30, ['Level', 'Name', 'Observable Standard', 'Independent Work', 'Train Others', 'Normal Decision']],
     ];

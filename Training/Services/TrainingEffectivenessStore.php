@@ -4,6 +4,7 @@ namespace App\Domains\People\Training\Services;
 
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
+use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
 use App\Domains\People\Skills\Enums\AssessmentStatus;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\CompanyAttribution;
@@ -39,6 +40,7 @@ final class TrainingEffectivenessStore
         private readonly TenantContext $tenancy,
         private readonly CompanyAttribution $companies,
         private readonly SkillAudience $audiences,
+        private readonly ReadsWorkforceDirectory $directory,
     ) {}
 
     public function openStage(User $actor, int $companyEntityId, EffectivenessReviewDraft $draft): TrainingEffectivenessReview
@@ -55,6 +57,9 @@ final class TrainingEffectivenessStore
         $participant = TrainingParticipant::query()->forCompany($tenantId, $companyEntityId)
             ->find($draft->participantId)
             ?? throw new InvalidEffectivenessReviewException('The training participant was not found in this company.');
+        $this->assertReviewerIsNotParticipant($draft->reviewerEmployeeEntityId, $participant);
+        $this->assertActorIsNotParticipant($actor, $companyEntityId, $participant);
+        $this->assertReviewerBelongsToCompany($companyEntityId, $draft->reviewerEmployeeEntityId);
 
         return TrainingEffectivenessReview::query()->create([
             'tenant_id' => $tenantId,
@@ -98,6 +103,8 @@ final class TrainingEffectivenessStore
                     'A closed review is a historical fact; record another occurrence of the stage instead.',
                 );
             }
+            $this->assertActorIsNotParticipant($actor, $companyEntityId,
+                $this->participant($tenantId, $companyEntityId, (int) $review->training_participant_id));
             $review->update([
                 'outcome' => $draft->outcome,
                 'application_rating' => $draft->applicationRating,
@@ -127,6 +134,8 @@ final class TrainingEffectivenessStore
 
         return DB::transaction(function () use ($tenantId, $companyEntityId, $reviewId, $assessmentId, $actor): TrainingEffectivenessReview {
             $review = $this->closable($tenantId, $companyEntityId, $reviewId);
+            $participant = $this->participant($tenantId, $companyEntityId, (int) $review->training_participant_id);
+            $this->assertActorIsNotParticipant($actor, $companyEntityId, $participant);
             $assessment = SkillAssessment::query()->forCompany($tenantId, $companyEntityId)->find($assessmentId)
                 ?? throw new InvalidEffectivenessReviewException('The reassessment was not found in this company.');
             if ($assessment->status !== AssessmentStatus::Finalized) {
@@ -134,12 +143,15 @@ final class TrainingEffectivenessStore
                     'Closure needs a finalized reassessment; an unverified one is not evidence of competence.',
                 );
             }
-            $participant = TrainingParticipant::query()->forCompany($tenantId, $companyEntityId)
-                ->find($review->training_participant_id)
-                ?? throw new InvalidEffectivenessReviewException('The training participant was not found in this company.');
             if ((string) $assessment->employee_entity_id !== (string) $participant->employee_subject_id) {
                 throw new InvalidEffectivenessReviewException(
                     'The reassessment belongs to another employee than the reviewed participant.',
+                );
+            }
+            if ($assessment->assessor_employee_entity_id !== null
+                && (int) $assessment->assessor_employee_entity_id === (int) $review->reviewer_employee_entity_id) {
+                throw new InvalidEffectivenessReviewException(
+                    'The reassessment was made by this review\'s own reviewer; closure needs the assessor/HOD separation.',
                 );
             }
 
@@ -175,6 +187,8 @@ final class TrainingEffectivenessStore
 
         return DB::transaction(function () use ($tenantId, $companyEntityId, $reviewId, $reason, $actor): TrainingEffectivenessReview {
             $review = $this->closable($tenantId, $companyEntityId, $reviewId);
+            $this->assertActorIsNotParticipant($actor, $companyEntityId,
+                $this->participant($tenantId, $companyEntityId, (int) $review->training_participant_id));
             $review->update([
                 'state' => EffectivenessReviewState::Closed,
                 'closure_route' => EffectivenessClosureRoute::NonAssessable,
@@ -185,6 +199,62 @@ final class TrainingEffectivenessStore
 
             return $review->refresh();
         });
+    }
+
+    /**
+     * Conflicts of interest. A review that a person can steer onto themselves
+     * is not a control, so the three refusals below are enforced here and
+     * mirrored by a database guard on the reviewer/participant pair.
+     */
+    private function assertReviewerIsNotParticipant(int $reviewerEmployeeEntityId, TrainingParticipant $participant): void
+    {
+        if ((string) $reviewerEmployeeEntityId === (string) $participant->employee_subject_id) {
+            throw new InvalidEffectivenessReviewException(
+                'A reviewer cannot be the participant under review; name an independent reviewer.',
+            );
+        }
+    }
+
+    /**
+     * The acting user's own projected employee, resolved through the workforce
+     * seam rather than through `users.employee_id`: the seam is what decides
+     * whether a portal link is active in this company at all.
+     *
+     * Only the subject id is compared, not the participant's `provider_id`.
+     * Requiring both would make this control silently inert for any
+     * participant row written under a different provider label, and a
+     * conflict-of-interest guard that quietly stops firing is worse than one
+     * that refuses a same-id participant of another provider. It is also the
+     * comparison the reviewer rule and the database guard already make.
+     */
+    private function assertActorIsNotParticipant(User $actor, int $companyEntityId, TrainingParticipant $participant): void
+    {
+        $employee = $this->directory->employeeForUser((string) $companyEntityId, (int) $actor->getKey());
+        if ($employee === null) {
+            return;
+        }
+        if ($employee->reference->externalId === (string) $participant->employee_subject_id) {
+            throw new InvalidEffectivenessReviewException(
+                'You cannot act on your own training effectiveness review; an independent reviewer must.',
+            );
+        }
+    }
+
+    private function assertReviewerBelongsToCompany(int $companyEntityId, int $reviewerEmployeeEntityId): void
+    {
+        foreach ($this->directory->employees((string) $companyEntityId) as $employee) {
+            if ($employee->reference->externalId === (string) $reviewerEmployeeEntityId) {
+                return;
+            }
+        }
+
+        throw new InvalidEffectivenessReviewException('Choose an active reviewer from this company.');
+    }
+
+    private function participant(int $tenantId, int $companyEntityId, int $participantId): TrainingParticipant
+    {
+        return TrainingParticipant::query()->forCompany($tenantId, $companyEntityId)->find($participantId)
+            ?? throw new InvalidEffectivenessReviewException('The training participant was not found in this company.');
     }
 
     private function closable(int $tenantId, int $companyEntityId, int $reviewId): TrainingEffectivenessReview

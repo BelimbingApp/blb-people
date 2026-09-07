@@ -18,10 +18,12 @@ use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillReassessmentStore;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
+use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingPlanStatus;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEvidenceSubmissionException;
 use App\Domains\People\Training\Exceptions\TrainingPassportDenied;
+use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingEvidenceSubmission;
 use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Models\TrainingPassportDocument;
@@ -112,6 +114,33 @@ final class Index extends Component
         $companyEntityId = $this->requireCompany();
         $this->denialIs403(function () use ($companyEntityId, $profileId): void {
             app(RequirementProfileStore::class)->publishApproved($this->user(), $companyEntityId, $profileId);
+        });
+    }
+
+    /** Event chosen per approved request, keyed by request id (0010-d). */
+    public array $linkEventId = [];
+
+    public function linkEvent(int $requestId): void
+    {
+        $companyEntityId = $this->requireCompany();
+        $eventId = (int) ($this->linkEventId[$requestId] ?? 0);
+        if ($eventId < 1) {
+            $this->addError('link.'.$requestId, __('Choose the event that satisfies this request.'));
+
+            return;
+        }
+        $this->denialIs403(function () use ($companyEntityId, $requestId, $eventId): void {
+            app(TrainingRequestStore::class)->linkEvent($this->user(), $companyEntityId, $requestId, $eventId);
+            unset($this->linkEventId[$requestId]);
+        });
+    }
+
+    public function unlinkEvent(int $requestId): void
+    {
+        $companyEntityId = $this->requireCompany();
+        $this->denialIs403(function () use ($companyEntityId, $requestId): void {
+            app(TrainingRequestStore::class)->unlinkEvent($this->user(), $companyEntityId, $requestId, $this->notes($requestId));
+            unset($this->requestNotes[$requestId]);
         });
     }
 
@@ -239,6 +268,10 @@ final class Index extends Component
             'companies' => $companies,
             'profiles' => $companyEntityId === null ? collect() : $this->pendingProfiles($companyEntityId),
             'requests' => $companyEntityId === null ? collect() : $this->pendingRequests($companyEntityId),
+            'approvedUnlinked' => $companyEntityId === null ? collect() : app(TrainingRequestStore::class)->approvedUnlinkedQuery($this->tenantId(), $companyEntityId)->get(),
+            'approvedLinked' => $companyEntityId === null ? collect() : $this->approvedLinked($companyEntityId),
+            'linkableEvents' => $companyEntityId === null ? [] : $this->linkableEvents($companyEntityId),
+            'eventTitles' => $companyEntityId === null ? [] : $this->eventTitles($companyEntityId),
             'plans' => $companyEntityId === null ? collect() : $this->pendingPlans($companyEntityId),
             'reassessments' => $reassessments,
             'reassessmentSkills' => $this->reassessmentSkillNames($companyEntityId, $reassessments),
@@ -327,6 +360,35 @@ final class Index extends Component
             ->where('status', TrainingRequestStatus::PendingHr->value)
             ->orderBy('id')
             ->get();
+    }
+
+    /** @return Collection<int, TrainingRequest> approved requests already linked, newest link first */
+    private function approvedLinked(int $companyEntityId): Collection
+    {
+        return TrainingRequest::query()->forCompany($this->tenantId(), $companyEntityId)
+            ->where('status', TrainingRequestStatus::Approved->value)
+            ->whereNotNull('training_event_id')
+            ->orderByDesc('linked_at')->orderByDesc('id')
+            ->get();
+    }
+
+    /** @return array<int, string> scheduled or in-progress events of the company, id => title and date */
+    private function linkableEvents(int $companyEntityId): array
+    {
+        return TrainingEvent::query()->forCompany($this->tenantId(), $companyEntityId)
+            ->whereIn('status', [TrainingEventStatus::Scheduled->value, TrainingEventStatus::InProgress->value])
+            ->orderBy('starts_at')->get()
+            ->mapWithKeys(static fn (TrainingEvent $e): array => [(int) $e->id => $e->course_title_snapshot.' · '.$e->starts_at?->format('Y-m-d')])
+            ->all();
+    }
+
+    /** @return array<int, string> every event of the company, id => title */
+    private function eventTitles(int $companyEntityId): array
+    {
+        return TrainingEvent::query()->forCompany($this->tenantId(), $companyEntityId)
+            ->pluck('course_title_snapshot', 'id')
+            ->mapWithKeys(static fn (string $title, int $id): array => [$id => $title])
+            ->all();
     }
 
     /** @return Collection<int, TrainingPlan> */

@@ -284,3 +284,148 @@ test('the page is refused without the aggregate capability', function (): void {
 
     Livewire::actingAs($f['nobody'])->test(Index::class)->assertForbidden();
 });
+
+/** A draft evaluation: an unanswered form with provisional ratings. */
+function dashDraft(array $f, int $eventId, TrainingParticipant $participant, int $rating): TrainingEvaluation
+{
+    $draft = dashEvaluation($f, $eventId, $participant, $rating, 'draft words');
+    $draft->update(['status' => TrainingEvaluationStatus::Draft, 'completed_at' => null]);
+
+    return $draft->fresh();
+}
+
+test('the completion drill-down lists exactly the completed evaluations behind the count, drafts excluded from both', function (): void {
+    $f = dashFixture();
+    $event = dashEvent($f);
+    $one = dashEvaluation($f, $event, dashParticipant($f, $event, 'Drill One'), 5, 'Great.');
+    $two = dashEvaluation($f, $event, dashParticipant($f, $event, 'Drill Two'), 3);
+    $draft = dashDraft($f, $event, dashParticipant($f, $event, 'Drill Draft'), 1);
+
+    $page = Livewire::actingAs($f['hr'])->test(Index::class);
+    $shown = $page->viewData('events')[0];
+    expect($shown['submitted'])->toBe(2)
+        ->and($shown['means']['relevance'])->toBe(4.0);
+
+    $page->call('openCompletion', $event);
+    $drill = $page->viewData('drillDown');
+    expect($drill['event_id'])->toBe($event)
+        ->and($drill['criterion'])->toBeNull()
+        ->and(count($drill['rows']))->toBe($shown['submitted'])
+        ->and(array_column($drill['rows'], 'id'))->toBe([$one->id, $two->id])
+        ->and(array_column($drill['rows'], 'id'))->not->toContain($draft->id)
+        ->and($drill['rows'][0])->toMatchArray(['participant' => 'Drill One', 'submitted_on' => now()->toDateString(), 'entry_source' => 'self', 'relevance' => 5, 'practical_usefulness' => 5, 'issues_or_improvements' => 'Great.'])
+        ->and($drill['comment_columns'])->toContain('issues_or_improvements');
+    $page->assertSee('Drill One')->assertSee('Drill Two')->assertDontSee('Drill Draft')->assertDontSee('draft words')
+        ->assertSee('Evaluations contributing to Isolation induction');
+
+    $page->call('closeDrillDown');
+    expect($page->viewData('drillDown'))->toBeNull();
+});
+
+test('a rating mean drill-down lists the contributing evaluations and recomputes to the displayed mean', function (): void {
+    $f = dashFixture();
+    $event = dashEvent($f);
+    foreach ([5, 4, 2] as $i => $rating) {
+        dashEvaluation($f, $event, dashParticipant($f, $event, 'Mean '.$i), $rating);
+    }
+    // One completed row with no relevance answer contributes to other means, not this one.
+    $partial = dashEvaluation($f, $event, dashParticipant($f, $event, 'Mean Partial'), 1);
+    $partial->update(['relevance' => null]);
+    dashDraft($f, $event, dashParticipant($f, $event, 'Mean Draft'), 1);
+
+    $page = Livewire::actingAs($f['hr'])->test(Index::class);
+    $displayed = $page->viewData('events')[0]['means'];
+    expect($displayed['relevance'])->toBe(3.67)
+        ->and($displayed['trainer_effectiveness'])->toBe(3.0);
+
+    $page->call('openMean', $event, 'relevance');
+    $drill = $page->viewData('drillDown');
+    expect($drill['criterion'])->toBe('relevance')
+        ->and(count($drill['rows']))->toBe(3)
+        ->and(round(array_sum(array_column($drill['rows'], 'relevance')) / count($drill['rows']), 2))->toBe($displayed['relevance'])
+        ->and($drill['mean'])->toBe($displayed['relevance']);
+
+    $page->call('openMean', $event, 'trainer_effectiveness');
+    $drill = $page->viewData('drillDown');
+    expect(count($drill['rows']))->toBe(4)
+        ->and(round(array_sum(array_column($drill['rows'], 'trainer_effectiveness')) / count($drill['rows']), 2))->toBe($displayed['trainer_effectiveness']);
+
+    Livewire::actingAs($f['hr'])->test(Index::class)->call('openMean', $event, 'favourite_colour')->assertNotFound();
+});
+
+test('a HOD opens the same rows without the comment columns; HR sees them', function (): void {
+    $f = dashFixture();
+    $event = dashEvent($f);
+    dashEvaluation($f, $event, dashParticipant($f, $event, 'Boundary One'), 4, 'Only HR reads this.');
+
+    $hod = Livewire::actingAs($f['hod'])->test(Index::class)->call('openCompletion', $event);
+    $rows = $hod->viewData('drillDown')['rows'];
+    expect($rows)->toHaveCount(1)
+        ->and($rows[0])->toMatchArray(['participant' => 'Boundary One', 'relevance' => 4])
+        ->and($rows[0])->not->toHaveKey('issues_or_improvements')
+        ->and($hod->viewData('drillDown')['comment_columns'])->toBe([]);
+    $hod->assertDontSee('Only HR reads this.');
+
+    $hr = Livewire::actingAs($f['hr'])->test(Index::class)->call('openCompletion', $event);
+    expect($hr->viewData('drillDown')['rows'][0]['issues_or_improvements'])->toBe('Only HR reads this.');
+    $hr->assertSee('Only HR reads this.');
+});
+
+test('another company\'s event cannot be opened and its evaluations never appear in a drill-down', function (): void {
+    $f = dashFixture();
+    $event = dashEvent($f);
+    dashEvaluation($f, $event, dashParticipant($f, $event, 'Own One'), 4);
+    $other = Company::factory()->create(['tenant_id' => $f['tenantId'], 'name' => 'Other Drill Company', 'status' => 'active']);
+    $theirCategory = app(SkillCatalogStore::class)->defineCategory((int) $other->id, 'safety', 'Safety');
+    $theirSkill = app(SkillCatalogStore::class)->defineSkill((int) $other->id, new SkillDraft(
+        code: 'isolation.energy', name: 'Energy isolation', definition: 'Isolate.',
+        categoryId: (int) $theirCategory->id, defaultAssessmentMethod: AssessmentMethod::DirectObservation,
+    ));
+    $theirHead = Employee::factory()->create(['company_id' => $other->id, 'full_name' => 'Their Head', 'status' => 'active', 'employee_type' => 'full_time']);
+    $theirCourse = app(TrainingCatalogStore::class)->defineCourse((int) $other->id, new TrainingCourseDraft(
+        code: 'isolation.induction', title: 'Isolation induction', deliveryMode: DeliveryMode::InternalClassroom,
+        skillIds: [(int) $theirSkill->id], internalTrainerEmployeeEntityId: (int) $theirHead->id,
+    ));
+    $otherEvent = (int) app(TrainingEventStore::class)->schedule((int) $other->id, new TrainingEventDraft(
+        courseId: (int) $theirCourse->id, startsAt: now()->addDays(2), endsAt: now()->addDays(3),
+        capacity: 5, organizerEmployeeEntityId: (int) $theirHead->id,
+    ))->id;
+
+    Livewire::actingAs($f['hr'])->test(Index::class)->call('openCompletion', $otherEvent)->assertNotFound();
+    Livewire::actingAs($f['hr'])->test(Index::class)->call('openMean', $otherEvent, 'relevance')->assertNotFound();
+
+    $page = Livewire::actingAs($f['hr'])->test(Index::class)->call('openCompletion', $event);
+    expect(array_column($page->viewData('drillDown')['rows'], 'participant'))->toBe(['Own One']);
+});
+
+test('a completion drill-down holds only the opened event\'s rows when a sibling event has its own', function (): void {
+    $f = dashFixture();
+    $event = dashEvent($f);
+    $sibling = (int) app(TrainingEventStore::class)->schedule($f['companyId'], new TrainingEventDraft(
+        courseId: (int) $f['course']->id, startsAt: now()->addDays(10), endsAt: now()->addDays(11),
+        capacity: 10, organizerEmployeeEntityId: (int) $f['head']->id, targetDepartmentEntityId: (int) $f['unit']->id,
+    ))->id;
+    dashEvaluation($f, $event, dashParticipant($f, $event, 'Opened One'), 4);
+    dashEvaluation($f, $sibling, dashParticipant($f, $sibling, 'Sibling One'), 2);
+
+    $page = Livewire::actingAs($f['hr'])->test(Index::class)->call('openCompletion', $event);
+    $drill = $page->viewData('drillDown');
+    $shown = collect($page->viewData('events'))->firstWhere('event_id', $event);
+    expect(array_column($drill['rows'], 'participant'))->toBe(['Opened One'])
+        ->and(count($drill['rows']))->toBe($shown['submitted']);
+    $page->assertDontSee('Sibling One');
+});
+
+test('opening a completion count after a mean clears the criterion', function (): void {
+    $f = dashFixture();
+    $event = dashEvent($f);
+    dashEvaluation($f, $event, dashParticipant($f, $event, 'Seq One'), 4);
+    $partial = dashEvaluation($f, $event, dashParticipant($f, $event, 'Seq Partial'), 2);
+    $partial->update(['relevance' => null]);
+
+    $page = Livewire::actingAs($f['hr'])->test(Index::class)->call('openMean', $event, 'relevance');
+    expect(count($page->viewData('drillDown')['rows']))->toBe(1);
+    $page->call('openCompletion', $event);
+    $drill = $page->viewData('drillDown');
+    expect($drill['criterion'])->toBeNull()->and(count($drill['rows']))->toBe(2);
+});
