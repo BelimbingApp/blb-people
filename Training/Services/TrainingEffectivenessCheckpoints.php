@@ -35,6 +35,8 @@ final class TrainingEffectivenessCheckpoints
 
     private const MAX_RATING = 5;
 
+    public function __construct(private readonly TrainingEffectivenessPolicy $policies) {}
+
     /**
      * Every question due right now in this company, answered or not.
      *
@@ -66,6 +68,9 @@ final class TrainingEffectivenessCheckpoints
             ->keyBy(static fn (TrainingEffectivenessAnswer $answer): string => $answer->participant_id.':'.$answer->checkpoint->value);
 
         $rows = [];
+        // Resolved once per event, not per participant: every attendee of an
+        // event shares the policy that was in force when it ended.
+        $offsets = [];
 
         foreach ($facts as $fact) {
             $event = $events->get($fact->event_id);
@@ -75,7 +80,9 @@ final class TrainingEffectivenessCheckpoints
                 continue;
             }
 
-            $checkpoint = EffectivenessCheckpoint::openAt($event->ends_at, $now);
+            $checkpoint = EffectivenessCheckpoint::openAt(
+                $event->ends_at, $now, $this->offsetsFor($tenantId, $companyEntityId, $event, $offsets),
+            );
 
             if ($checkpoint === null) {
                 continue;
@@ -182,6 +189,18 @@ final class TrainingEffectivenessCheckpoints
         }
 
         return $written;
+    }
+
+    /**
+     * The governed offsets for this event, memoised across its participants.
+     *
+     * @param  array<int, array<string, int>>  $memo
+     * @return array<string, int>
+     */
+    private function offsetsFor(int $tenantId, int $companyEntityId, TrainingEvent $event, array &$memo): array
+    {
+        return $memo[(int) $event->id] ??= $this->policies
+            ->offsetsFor($tenantId, $companyEntityId, $event->ends_at);
     }
 
     private function openRowFor(int $tenantId, int $companyEntityId, int $participantId): OpenEffectivenessCheckpoint

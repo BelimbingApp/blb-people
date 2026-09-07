@@ -17,6 +17,8 @@ class ServiceProvider extends BaseServiceProvider
 {
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__.'/Config/training.php', 'people-training');
+
         $this->app->singleton(
             SummarizesTrainingParticipation::class,
             UnavailableTrainingParticipationSummary::class,
