@@ -67,7 +67,7 @@ test('the organisation read contract resolves to the native directory implementa
 test('executive scope does not cross the selected legal company', function (): void {
     $reader = organisationExplorer([
         'people.organisation.structure.view',
-        'people.organisation.audience.executive',
+        'people.organisation.executive.view',
     ]);
 
     expect($reader->structureNode(
@@ -80,7 +80,7 @@ test('executive scope does not cross the selected legal company', function (): v
 test('hod scope refuses a department not assigned to that head', function (): void {
     $reader = organisationExplorer([
         'people.organisation.structure.view',
-        'people.organisation.audience.hod',
+        'people.organisation.hod.view',
     ]);
 
     expect($reader->structureNode(
@@ -98,7 +98,7 @@ test('hod scope refuses a department not assigned to that head', function (): vo
 test('employee scope refuses a colleague record while permitting self', function (): void {
     $reader = organisationExplorer([
         'people.organisation.structure.view',
-        'people.organisation.audience.employee',
+        'people.organisation.employee.view',
     ]);
 
     expect($reader->structureNode(
@@ -116,7 +116,7 @@ test('employee scope refuses a colleague record while permitting self', function
 test('hr governance scope does not cross its attributed legal company', function (): void {
     $reader = organisationExplorer([
         'people.organisation.structure.view',
-        'people.organisation.audience.hr',
+        'people.organisation.hr.view',
     ]);
 
     expect($reader->structureNode(
@@ -129,7 +129,7 @@ test('hr governance scope does not cross its attributed legal company', function
 test('auditor scope refuses reads until an approved engagement and period exist', function (): void {
     $reader = organisationExplorer([
         'people.organisation.structure.view',
-        'people.organisation.audience.auditor',
+        'people.organisation.auditor.view',
     ]);
 
     expect($reader->structureNode(
@@ -142,7 +142,7 @@ test('auditor scope refuses reads until an approved engagement and period exist'
 test('aggregate permission is independent from structure and record access', function (): void {
     $reader = organisationExplorer([
         'people.organisation.aggregate.view',
-        'people.organisation.audience.hr',
+        'people.organisation.hr.view',
     ]);
     $company = organisationSubject(WorkforceResourceType::Company, 'company-a');
     $aggregate = $reader->aggregateIndicator(
@@ -174,7 +174,7 @@ test('aggregate permission is independent from structure and record access', fun
     $recordReader = organisationExplorer([
         'people.organisation.structure.view',
         'people.organisation.detail.view',
-        'people.organisation.audience.hr',
+        'people.organisation.hr.view',
     ]);
 
     expect($recordReader->aggregateIndicator(
@@ -189,7 +189,7 @@ test('aggregate indicators report vacancies and skill coverage without exposing 
     config()->set('people-organisation.aggregate_suppression_threshold', 4);
     $reader = organisationExplorer([
         'people.organisation.aggregate.view',
-        'people.organisation.audience.hr',
+        'people.organisation.hr.view',
     ]);
     $unit = organisationSubject(WorkforceResourceType::OrganizationUnit, 'unit-a');
 
@@ -219,7 +219,7 @@ test('aggregate indicators report vacancies and skill coverage without exposing 
 test('current-only directory refuses historical reads rather than inventing history', function (): void {
     $reader = organisationExplorer([
         'people.organisation.structure.view',
-        'people.organisation.audience.executive',
+        'people.organisation.executive.view',
     ]);
 
     expect($reader->structureNode(
@@ -232,7 +232,7 @@ test('current-only directory refuses historical reads rather than inventing hist
 test('drill-through re-resolves a supplied node instead of trusting caller data', function (): void {
     $reader = organisationExplorer([
         'people.organisation.structure.view',
-        'people.organisation.audience.executive',
+        'people.organisation.executive.view',
     ]);
     $forged = new OrganisationNode(
         organisationSubject(WorkforceResourceType::Company, 'not-a-company'),
@@ -253,7 +253,7 @@ test('the drill path reaches positions then occupants and carries canonical reco
     $reader = organisationExplorer([
         'people.organisation.structure.view',
         'people.organisation.detail.view',
-        'people.organisation.audience.hr',
+        'people.organisation.hr.view',
     ], new OrganisationTestRecordDetail);
     $unit = new OrganisationNode(
         organisationSubject(WorkforceResourceType::OrganizationUnit, 'unit-a'),
@@ -287,7 +287,7 @@ test('each audience row denies out-of-scope JD and KPI detail before any record 
     $contributor = new OrganisationTestRecordDetail;
     $reader = organisationExplorer([
         'people.organisation.detail.view',
-        'people.organisation.audience.'.$audience,
+        'people.organisation.'.$audience.'.view',
     ], $contributor);
     $node = new OrganisationNode(
         $subject,
@@ -316,7 +316,7 @@ test('each audience row denies out-of-scope JD and KPI detail before any record 
 test('revoking detail access invalidates a previously visible drill-through without a cached payload', function (): void {
     $authorization = new OrganisationRevocableAuthorization([
         'people.organisation.detail.view',
-        'people.organisation.audience.employee',
+        'people.organisation.employee.view',
     ]);
     $tenant = Mockery::mock(TenantContext::class);
     $tenant->shouldReceive('currentTenantId')->andReturn(1);
