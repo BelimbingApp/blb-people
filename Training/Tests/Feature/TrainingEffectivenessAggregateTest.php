@@ -138,10 +138,10 @@ function aggregateEvent(array $f, string $courseTitle, int $endedDaysAgo): objec
 }
 
 /** An attendee of the event, in the fixture's department. */
-function aggregateAttendee(array $f, object $event, string $name, AttendanceStatus $attendance = AttendanceStatus::Present): int
+function aggregateAttendee(array $f, object $event, string $name, AttendanceStatus $attendance = AttendanceStatus::Present, ?int $departmentId = null): int
 {
     $employee = Employee::factory()->create([
-        'company_id' => $f['companyId'], 'department_id' => $f['department']->id,
+        'company_id' => $f['companyId'], 'department_id' => $departmentId ?? $f['department']->id,
         'full_name' => $name, 'status' => 'active', 'employee_type' => 'full_time',
     ]);
     $store = app(TrainingParticipationStore::class);
@@ -399,11 +399,14 @@ test('one participant who repeated a stage owes both of its follow-ups', functio
     expect($ids)->toBe($expected);
 });
 
+/**
+ * Both attendees sat the same course, so the row survives either filter and the
+ * follow-up ids are actually observable. Filtering to a department whose
+ * checkpoints all fall away would skip the row entirely, and a leak would hide
+ * behind the skip rather than fail.
+ */
 test('the department filter narrows open follow-ups the way it narrows the rest of the row', function (): void {
     $f = aggregateFixture();
-    $event = aggregateEvent($f, 'Filtered follow-up', 31);
-    $participantId = aggregateAttendee($f, $event, 'Filtered Learner');
-    $actionId = aggregateFollowUp($f, $participantId, DevelopmentActionClosure::Open);
     $elsewhere = Department::query()->create([
         'company_id' => $f['companyId'], 'status' => 'active',
         // A company holds one department per type, so the second needs its own.
@@ -411,7 +414,20 @@ test('the department filter narrows open follow-ups the way it narrows the rest 
             'code' => 'agg-ops-elsewhere', 'name' => 'Elsewhere', 'category' => 'operational', 'is_active' => true,
         ])->id,
     ]);
+    $event = aggregateEvent($f, 'Filtered follow-up', 31);
+    $mine = aggregateFollowUp($f, aggregateAttendee($f, $event, 'Filtered Learner'), DevelopmentActionClosure::Open);
+    $theirs = aggregateFollowUp(
+        $f,
+        aggregateAttendee($f, $event, 'Other Department', AttendanceStatus::Present, (int) $elsewhere->id),
+        DevelopmentActionClosure::Open,
+    );
 
-    expect(aggregateRow($f, 'Filtered follow-up', (int) $f['department']->id)->openFollowUpActionIds)->toBe([$actionId])
-        ->and(aggregateRow($f, 'Filtered follow-up', (int) $elsewhere->id))->toBeNull();
+    $all = aggregateRow($f, 'Filtered follow-up')->openFollowUpActionIds;
+    sort($all);
+    $both = [$mine, $theirs];
+    sort($both);
+
+    expect(aggregateRow($f, 'Filtered follow-up', (int) $f['department']->id)->openFollowUpActionIds)->toBe([$mine])
+        ->and(aggregateRow($f, 'Filtered follow-up', (int) $elsewhere->id)->openFollowUpActionIds)->toBe([$theirs])
+        ->and($all)->toBe($both);
 });

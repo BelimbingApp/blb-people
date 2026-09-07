@@ -1019,3 +1019,46 @@ test('a HOD cannot open a follow-up action on their own training', function (): 
         ->toThrow(InvalidEffectivenessReviewException::class, 'your own training')
         ->and(DevelopmentAction::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
 });
+
+test('the database refuses a review linked to a development action of another company', function (): void {
+    $f = effFixture();
+    $sibling = Company::factory()->create(['tenant_id' => $f['tenant']->id]);
+    $theirs = Employee::factory()->create([
+        'company_id' => $sibling->id, 'full_name' => 'Sibling subject',
+        'status' => 'active', 'employee_type' => 'full_time',
+    ]);
+    $foreign = effForeignAction($f['tenantId'], (int) $sibling->id, (int) $theirs->id, (int) $f['skill']->id);
+    $mine = app(DevelopmentActionStore::class)->proposeManual($f['companyId'], effFollowUpDraft($f, [
+        'skillId' => (int) $f['skill']->id, 'startingLevel' => 2, 'targetLevel' => 4,
+        'manualReason' => 'Opened here.',
+    ]), (int) $f['hod']->id);
+
+    // The store is not the only write path. Each violating write gets its own
+    // transaction so an aborted statement cannot poison the surrounding one.
+    $insert = fn (int $actionId): bool => DB::transaction(fn (): bool => DB::table('people_training_effectiveness_reviews')->insert([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'],
+        'training_participant_id' => (int) $f['participant']->id,
+        'stage' => EffectivenessReviewStage::Day30->value,
+        'due_on' => '2027-03-31', 'due_date_policy' => 'raw insert',
+        'reviewer_employee_entity_id' => (int) $f['head']->id,
+        'state' => EffectivenessReviewState::OutcomeRecorded->value,
+        'outcome' => EffectivenessOutcome::NotYetEffective->value,
+        'development_action_id' => $actionId,
+        'created_at' => now(), 'updated_at' => now(),
+    ]));
+
+    expect(fn () => $insert((int) $foreign->id))
+        ->toThrow(QueryException::class, 'development action of its own tenant and company');
+
+    // Control: the same raw insert naming this company's own action is
+    // accepted, so the guard refuses the reach and not the write path.
+    expect($insert((int) $mine->id))->toBeTrue();
+
+    $stored = TrainingEffectivenessReview::query()->forCompany($f['tenantId'], $f['companyId'])
+        ->where('due_date_policy', 'raw insert')->sole();
+
+    expect(fn () => DB::transaction(fn () => DB::table('people_training_effectiveness_reviews')
+        ->where('id', $stored->id)
+        ->update(['development_action_id' => (int) $foreign->id])))
+        ->toThrow(QueryException::class, 'development action of its own tenant and company');
+});
