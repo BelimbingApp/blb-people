@@ -9,10 +9,18 @@
  * excluded from that project and the Domain repository has no analyser of its
  * own. This test is the guard that the composed domain-ci can run (#310).
  *
+ * Tag reading lives in Tests\Support\TableCaptionScan so the parsing is
+ * unit-testable (Tests/Feature/TableCaptionScanTest.php); this file only
+ * walks the repository. Raw <table> elements are out of the contract: only
+ * the <x-ui.table> component counts, because only it renders the sr-only
+ * caption slot the guard can rely on (blb-people#343).
+ *
  * A table that deliberately has no caption opts out with an explicit
  * `no-caption` attribute, so the choice is visible in the view itself.
  */
 
+use App\Domains\People\Tests\Support\TableCaptionScan;
+use Illuminate\Support\Facades\Blade;
 use Symfony\Component\Finder\Finder;
 
 it('gives every x-ui.table in a People view a caption or an explicit no-caption opt-out', function () {
@@ -28,30 +36,17 @@ it('gives every x-ui.table in a People view a caption or an explicit no-caption 
     $missing = [];
 
     foreach ($views as $view) {
-        $source = $view->getContents();
-        $offset = 0;
-
-        while (($start = strpos($source, '<x-ui.table', $offset)) !== false) {
-            // Skip <x-ui.table-something> variants; only the table component counts.
-            $after = $source[$start + strlen('<x-ui.table')] ?? '';
-            if (! in_array($after, [' ', "\n", "\r", "\t", '>', '/'], true)) {
-                $offset = $start + 1;
-
-                continue;
-            }
-
-            $end = strpos($source, '>', $start);
-            $tag = substr($source, $start, $end === false ? null : $end - $start + 1);
-            $offset = $end === false ? strlen($source) : $end + 1;
-
-            if (preg_match('/\s:?caption=/', $tag) || preg_match('/\sno-caption(\s|>|\/)/', $tag)) {
-                continue;
-            }
-
-            $line = substr_count($source, "\n", 0, $start) + 1;
-            $missing[] = $view->getRelativePathname().':'.$line;
-        }
+        array_push($missing, ...TableCaptionScan::missing($view->getContents(), $view->getRelativePathname()));
     }
 
     expect($missing)->toBe([], 'Tables without a caption (add :caption="__(...)" or an explicit no-caption attribute): '.implode(', ', $missing));
+});
+
+test('a no-caption table does not leak the opt-out into the wrapper', function (): void {
+    // no-caption is not a rendered option, it is the author's explicit
+    // captionless choice; the component must swallow it instead of letting
+    // it fall through $attributes onto the wrapper div (blb-people#343).
+    $html = Blade::render('<x-ui.table no-caption></x-ui.table>');
+
+    expect($html)->not->toContain('no-caption');
 });

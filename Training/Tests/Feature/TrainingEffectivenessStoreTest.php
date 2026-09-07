@@ -45,6 +45,7 @@ use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEffectivenessStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 afterEach(function (): void {
@@ -193,7 +194,7 @@ function effRestoreRealAudience(): void
     app()->forgetInstance(TrainingEffectivenessStore::class);
 }
 
-function effAssessmentDraft(array $f, int $employeeEntityId, int $level): AssessmentDraft
+function effAssessmentDraft(array $f, int $employeeEntityId, int $level, ?int $assessorEmployeeEntityId = null): AssessmentDraft
 {
     return new AssessmentDraft(
         employeeEntityId: $employeeEntityId,
@@ -204,18 +205,24 @@ function effAssessmentDraft(array $f, int $employeeEntityId, int $level): Assess
         assessedAt: now()->subDay(),
         evidence: 'Observed two compliant isolation cycles.',
         assessorUserId: 9,
+        assessorEmployeeEntityId: $assessorEmployeeEntityId,
         weightPercent: 100.0,
     );
 }
 
-function effFinalizedAssessment(array $f, int $employeeEntityId, int $level = 4): SkillAssessment
-{
+function effFinalizedAssessment(
+    array $f,
+    int $employeeEntityId,
+    int $level = 4,
+    ?int $assessorEmployeeEntityId = null,
+): SkillAssessment {
     effStubAssessmentAudience();
     $store = app(AssessmentStore::class);
     try {
         $actor = User::factory()->make(['id' => 9]);
         $verifier = User::factory()->make(['id' => 10]);
-        $submitted = $store->submit($actor, $f['companyId'], effAssessmentDraft($f, $employeeEntityId, $level));
+        $submitted = $store->submit($actor, $f['companyId'],
+            effAssessmentDraft($f, $employeeEntityId, $level, $assessorEmployeeEntityId));
         $pending = $store->requestHodVerification($actor, $f['companyId'], (int) $submitted->id);
         $store->verifyHod($verifier, $f['companyId'], (int) $pending->id, 'Verified against the submitted evidence.');
 
@@ -489,4 +496,163 @@ test('separation of duties survives a capability granted to the wrong role', fun
 
     expect(fn () => $store->closeAsNonAssessable($assessor, $f['companyId'], (int) $review->id, 'Not assessable.'))
         ->toThrow(InvalidEffectivenessReviewException::class, 'Only HR');
+});
+
+/**
+ * A participant row for an employee other than the fixture's learner, so a
+ * conflict case can put the acting HOD's own training under review.
+ */
+function effParticipantFor(array $f, int $employeeEntityId): TrainingParticipant
+{
+    return TrainingParticipant::query()->create([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'],
+        'event_id' => $f['event']->id, 'provider_id' => 'native',
+        'employee_subject_id' => (string) $employeeEntityId,
+        'workforce_observed_at' => now(),
+    ]);
+}
+
+/** @param array<string, mixed> $overrides */
+function effReviewRow(array $f, TrainingParticipant $participant, int $reviewerEmployeeEntityId, array $overrides = []): TrainingEffectivenessReview
+{
+    return TrainingEffectivenessReview::query()->create(array_replace([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'],
+        'training_participant_id' => (int) $participant->id,
+        'stage' => EffectivenessReviewStage::Day30,
+        'due_on' => '2027-03-31', 'due_date_policy' => 'policy:0013 thirty days after the recorded return to work',
+        'reviewer_employee_entity_id' => $reviewerEmployeeEntityId,
+        'state' => EffectivenessReviewState::Open,
+    ], $overrides));
+}
+
+test('a stage cannot name the reviewed participant as its own reviewer', function (): void {
+    $f = effFixture();
+
+    expect(fn () => effOpen($f, ['reviewerEmployeeEntityId' => (int) $f['learner']->id]))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'participant under review');
+});
+
+test('the database refuses a review row whose reviewer is the reviewed participant', function (): void {
+    $f = effFixture();
+
+    // The store is not the only write path. Each violating write gets its own
+    // transaction so an aborted statement cannot poison the surrounding one.
+    $insert = fn (int $reviewer): bool => DB::transaction(fn (): bool => DB::table('people_training_effectiveness_reviews')->insert([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'],
+        'training_participant_id' => (int) $f['participant']->id,
+        'stage' => EffectivenessReviewStage::Day30->value,
+        'due_on' => '2027-03-31', 'due_date_policy' => 'raw insert',
+        'reviewer_employee_entity_id' => $reviewer,
+        'state' => EffectivenessReviewState::Open->value,
+        'created_at' => now(), 'updated_at' => now(),
+    ]));
+
+    expect(fn () => $insert((int) $f['learner']->id))
+        ->toThrow(QueryException::class, 'reviewer cannot be the reviewed participant');
+
+    // Control: the same raw insert with an independent reviewer is accepted,
+    // so the guard refuses the conflict and not the write path.
+    expect($insert((int) $f['head']->id))->toBeTrue();
+
+    $stored = TrainingEffectivenessReview::query()->forCompany($f['tenantId'], $f['companyId'])
+        ->where('due_date_policy', 'raw insert')->sole();
+
+    expect(fn () => DB::transaction(fn () => DB::table('people_training_effectiveness_reviews')
+        ->where('id', $stored->id)
+        ->update(['reviewer_employee_entity_id' => (int) $f['learner']->id])))
+        ->toThrow(QueryException::class, 'reviewer cannot be the reviewed participant');
+});
+
+test('a HOD cannot open a stage on their own training', function (): void {
+    $f = effFixture();
+    $own = effParticipantFor($f, (int) $f['head']->id);
+
+    expect(fn () => effOpen($f, [
+        'participantId' => (int) $own->id,
+        'reviewerEmployeeEntityId' => (int) $f['learner']->id,
+    ]))->toThrow(InvalidEffectivenessReviewException::class, 'your own training');
+});
+
+test('a HOD cannot record an outcome on their own training but can on a direct report\'s', function (): void {
+    $f = effFixture();
+    $store = app(TrainingEffectivenessStore::class);
+    $own = effReviewRow($f, effParticipantFor($f, (int) $f['head']->id), (int) $f['learner']->id);
+
+    expect(fn () => $store->recordOutcome($f['hod'], $f['companyId'], (int) $own->id, effOutcomeDraft()))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'your own training');
+
+    $report = $store->recordOutcome($f['hod'], $f['companyId'], (int) effOpen($f)->id, effOutcomeDraft());
+
+    expect($report->state)->toBe(EffectivenessReviewState::OutcomeRecorded);
+});
+
+test('neither closure route lets an actor close their own training review', function (): void {
+    $f = effFixture();
+    $store = app(TrainingEffectivenessStore::class);
+    $hrEmployee = Employee::factory()->create([
+        'company_id' => $f['companyId'], 'status' => 'active', 'employee_type' => 'full_time',
+        'full_name' => 'Effectiveness HR',
+    ]);
+    EmployeePortalAccess::query()->create([
+        'employee_id' => $hrEmployee->id, 'user_id' => $f['hr']->id,
+        'display_name' => 'Effectiveness HR', 'status' => EmployeePortalAccess::STATUS_ACTIVE,
+    ]);
+    // The seam reads the projected link from both sides: an active portal
+    // access row and the user's own employee_id.
+    $f['hr']->forceFill(['employee_id' => $hrEmployee->id])->save();
+    $own = effReviewRow($f, effParticipantFor($f, (int) $hrEmployee->id), (int) $f['head']->id, [
+        'state' => EffectivenessReviewState::OutcomeRecorded,
+    ]);
+    $assessment = effFinalizedAssessment($f, (int) $hrEmployee->id);
+
+    expect(fn () => $store->closeAsNonAssessable($f['hr'], $f['companyId'], (int) $own->id, 'No assessable target.'))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'your own training');
+
+    expect(fn () => $store->closeWithReassessment($f['hr'], $f['companyId'], (int) $own->id, (int) $assessment->id))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'your own training');
+});
+
+test('closing refuses a reassessment made by the review\'s own reviewer and accepts an independent one', function (): void {
+    $f = effFixture();
+    $store = app(TrainingEffectivenessStore::class);
+    $conflicted = effOpen($f);
+    $store->recordOutcome($f['hod'], $f['companyId'], (int) $conflicted->id, effOutcomeDraft());
+    $byTheReviewer = effFinalizedAssessment($f, (int) $f['learner']->id, 4, (int) $f['head']->id);
+
+    expect(fn () => $store->closeWithReassessment($f['hr'], $f['companyId'], (int) $conflicted->id, (int) $byTheReviewer->id))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'assessor/HOD separation');
+
+    $independentAssessor = Employee::factory()->create([
+        'company_id' => $f['companyId'], 'status' => 'active', 'employee_type' => 'full_time',
+        'full_name' => 'Independent assessor',
+    ]);
+    $clean = effOpen($f);
+    $store->recordOutcome($f['hod'], $f['companyId'], (int) $clean->id, effOutcomeDraft());
+    $independent = effFinalizedAssessment($f, (int) $f['learner']->id, 4, (int) $independentAssessor->id);
+    $closed = $store->closeWithReassessment($f['hr'], $f['companyId'], (int) $clean->id, (int) $independent->id);
+
+    expect($closed->state)->toBe(EffectivenessReviewState::Closed)
+        ->and($closed->closure_route)->toBe(EffectivenessClosureRoute::Reassessment);
+});
+
+test('a reviewer from a sibling company in the same tenant is refused, and another tenant cannot reach the review', function (): void {
+    $f = effFixture();
+    $sibling = Company::factory()->create([
+        'tenant_id' => $f['tenantId'], 'name' => 'Sibling Works', 'status' => 'active',
+    ]);
+    $siblingEmployee = Employee::factory()->create([
+        'company_id' => $sibling->id, 'status' => 'active', 'employee_type' => 'full_time',
+        'full_name' => 'Sibling reviewer',
+    ]);
+
+    expect(fn () => effOpen($f, ['reviewerEmployeeEntityId' => (int) $siblingEmployee->id]))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'reviewer from this company');
+
+    $review = effOpen($f);
+    [, $foreignCompany] = createTenantWithCompany([], ['name' => 'Foreign Co', 'status' => 'active']);
+    $outsider = User::factory()->create(['company_id' => $foreignCompany->id]);
+
+    expect(fn () => app(TrainingEffectivenessStore::class)
+        ->recordOutcome($outsider, $f['companyId'], (int) $review->id, effOutcomeDraft()))
+        ->toThrow(InvalidEffectivenessReviewException::class, 'company scope');
 });
