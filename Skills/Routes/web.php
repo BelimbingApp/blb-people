@@ -5,8 +5,8 @@ use App\Domains\People\Skills\Livewire\BackupCoverage\Index as BackupCoverageInd
 use App\Domains\People\Skills\Livewire\Catalog\Import as CatalogImport;
 use App\Domains\People\Skills\Livewire\Catalog\Index;
 use App\Domains\People\Skills\Livewire\DevelopmentAction\Index as DevelopmentActionIndex;
-use App\Domains\People\Skills\Livewire\MyHistory\Index as MyHistoryIndex;
 use App\Domains\People\Skills\Livewire\HrDashboard\Index as HrDashboardIndex;
+use App\Domains\People\Skills\Livewire\MyHistory\Index as MyHistoryIndex;
 use App\Domains\People\Skills\Livewire\Planning\Index as HodPlanningIndex;
 use App\Domains\People\Skills\Livewire\RequirementProfile\Show as RequirementProfileShow;
 use App\Domains\People\Skills\Livewire\TeamGaps\Index as TeamGapsIndex;
