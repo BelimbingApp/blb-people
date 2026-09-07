@@ -438,6 +438,10 @@ final readonly class TrainingRequestStore
         $rows = [];
 
         foreach (app(WorkforceSubjects::class)->employees($companyId) as $employee) {
+            // The native directory only returns active employees, but the
+            // seam is provider-neutral and WorkforceEmployee carries the flag,
+            // so a connector that reports leavers is answered here rather than
+            // silently enrolling them.
             if (! $employee->active || $employee->organizationReference?->externalId !== $department) {
                 continue;
             }

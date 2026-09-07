@@ -14,6 +14,7 @@ use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Skills\Exceptions\MissingCompanyScopeException;
 use App\Domains\People\Skills\Services\CompanyAttribution;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
 use App\Domains\People\Training\Data\TrainingRequestSubjectsDraft;
@@ -235,4 +236,61 @@ test('a request naming nobody is refused', function (): void {
         ->toThrow(InvalidTrainingRequestException::class, 'at least one person');
 
     expect(TrainingRequest::query()->forCompany((int) $f['tenant']->id, $companyId)->count())->toBe($before);
+});
+
+test('a department cohort takes its active members and nobody else', function (): void {
+    $f = requestFixture();
+    $tenantId = (int) $f['tenant']->id;
+    $companyId = (int) $f['company']->id;
+    $otherUnit = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::OrganizationUnit, $companyId);
+
+    // NativeWorkforceFixture::create(OrganizationUnit) also creates one
+    // employee inside the unit, so the department is not empty to begin with.
+    $existing = collect(app(WorkforceSubjects::class)->employees($companyId))
+        ->filter(fn ($e): bool => $e->organizationReference?->externalId === (string) $f['department']->id)
+        ->map(fn ($e): string => (string) $e->reference->externalId)
+        ->values();
+
+    $ada = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, $companyId);
+    $grace = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, $companyId);
+    $departed = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, $companyId);
+    foreach ([$ada, $grace, $departed] as $member) {
+        requestPlaceInUnit($f, $member, $f['department']);
+    }
+    $departed->update(['status' => 'inactive']);
+    $elsewhere = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, $companyId);
+    requestPlaceInUnit($f, $elsewhere, $otherUnit);
+
+    $request = app(TrainingRequestStore::class)->create(
+        $f['actors']['hod'], $companyId, requestDraft($f), TrainingRequestSubjectsDraft::forDepartmentCohort(),
+    );
+
+    $rows = TrainingRequestSubject::query()->forCompany($tenantId, $companyId)
+        ->where('training_request_id', $request->id)->get();
+    $ids = $rows->pluck('employee_subject_id')->all();
+
+    expect($rows)->toHaveCount($existing->count() + 2)
+        ->and($ids)->toContain((string) $ada->id, (string) $grace->id)
+        ->and($ids)->not->toContain((string) $departed->id)
+        ->and($ids)->not->toContain((string) $elsewhere->id)
+        ->and($rows->pluck('source')->unique()->all())->toBe([TrainingRequestSubject::SOURCE_COHORT])
+        ->and($rows->first()->cohort_reference)->toBe((string) $f['department']->id)
+        ->and($rows->first()->workforce_observed_at)->not->toBeNull();
+});
+
+test('a head of department may not name somebody from another department', function (): void {
+    $f = requestFixture();
+    $tenantId = (int) $f['tenant']->id;
+    $companyId = (int) $f['company']->id;
+    $otherUnit = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::OrganizationUnit, $companyId);
+    $elsewhere = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, $companyId);
+    requestPlaceInUnit($f, $elsewhere, $otherUnit);
+    $before = TrainingRequest::query()->forCompany($tenantId, $companyId)->count();
+
+    expect(fn () => app(TrainingRequestStore::class)->create(
+        $f['actors']['hod'], $companyId, requestDraft($f),
+        TrainingRequestSubjectsDraft::forSubjects([$f['subject']($elsewhere, WorkforceResourceType::Employee)]),
+    ))->toThrow(InvalidTrainingRequestException::class, 'belong to the department');
+
+    expect(TrainingRequest::query()->forCompany($tenantId, $companyId)->count())->toBe($before);
 });
