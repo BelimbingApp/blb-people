@@ -11,6 +11,7 @@ use App\Domains\People\Organisation\Services\PositionDirectory;
 use App\Domains\People\Performance\Data\JobDescriptionDraft;
 use App\Domains\People\Performance\Exceptions\JobDescriptionException;
 use App\Domains\People\Performance\Services\JobDescriptionStore;
+use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Models\RequirementProfile;
@@ -153,9 +154,9 @@ function linkFixture(): array
     ];
 }
 
-function linkDraft(array $f, array $links): JobDescriptionDraft
+function linkDraft(array $f, array $links, int $version = 1): JobDescriptionDraft
 {
-    $base = linkBaseDraft($f);
+    $base = linkBaseDraft($f, $version);
 
     return new JobDescriptionDraft(
         reference: $base->reference,
@@ -218,6 +219,62 @@ test('a competency link missing either identifier is refused', function (): void
         expect(fn () => $store->draft($f['company'], linkDraft($f, [$link])))
             ->toThrow(JobDescriptionException::class);
     }
+});
+
+function linkRetireProfile(int $companyId, int $profileId): void
+{
+    // Through the governed lifecycle, not a direct update: the profile table
+    // carries an immutability trigger, so a raw status flip is refused and
+    // only retire() produces a retired row the application could hold.
+    app(RequirementProfileStore::class)->retire($companyId, $profileId);
+}
+
+test('publishing refuses a competency link whose version retired after the draft', function (): void {
+    $f = linkFixture();
+    $store = app(JobDescriptionStore::class);
+
+    $draft = $store->draft($f['company'], linkDraft($f, [
+        ['requirement_profile_id' => $f['published'], 'requirement_profile_version' => 3],
+    ]));
+
+    linkRetireProfile((int) $f['company'], (int) $f['published']);
+
+    // The publish-time check exists because the draft-time one cannot see the
+    // future. Deleting it lets a requirement nobody governs become policy.
+    expect(fn () => $store->publish($f['hr'], $f['company'], (int) $draft->id))
+        ->toThrow(JobDescriptionException::class);
+});
+
+test('superseding refuses a competency link whose version has since retired', function (): void {
+    $f = linkFixture();
+    $store = app(JobDescriptionStore::class);
+    $links = [
+        ['requirement_profile_id' => $f['published'], 'requirement_profile_version' => 3],
+    ];
+
+    $current = $store->draft($f['company'], linkDraft($f, $links));
+    $store->publish($f['hr'], $f['company'], (int) $current->id);
+    $replacement = $store->draft($f['company'], linkDraft($f, $links, 2));
+
+    linkRetireProfile((int) $f['company'], (int) $f['published']);
+
+    expect(fn () => $store->supersede($f['hr'], $f['company'], (int) $current->id, (int) $replacement->id))
+        ->toThrow(JobDescriptionException::class);
+});
+
+test('a competency link naming another company published version is refused', function (): void {
+    $f = linkFixture();
+    $sibling = Company::factory()->create(['tenant_id' => $f['tenant'], 'status' => 'active']);
+    $siblingProfile = linkProfileRow($f['tenant'], (int) $sibling->id, [
+        'id' => 9201, 'code' => 'sibling-engineer', 'version' => 3,
+    ]);
+
+    // Same tenant, published, exact version — only the company differs. The
+    // company check is what stops one company's requirements landing on
+    // another company's people while looking entirely valid.
+    expect(fn () => app(JobDescriptionStore::class)->draft($f['company'], linkDraft($f, [
+        ['requirement_profile_id' => $siblingProfile, 'requirement_profile_version' => 3],
+    ])))->toThrow(JobDescriptionException::class);
 });
 
 test('the stored link is the reference and nothing else', function (): void {
