@@ -1,7 +1,7 @@
 <div class="space-y-section-gap">
     <x-ui.page-header
         :title="__('HR governance')"
-        :subtitle="__('Everything awaiting HR in this company: requirement publication, training requests and plan approvals. Each action runs the owning workflow and its own checks.')"
+        :subtitle="__('Everything awaiting HR in this company: requirement publication, training requests, plan approvals and skill reassessments. Each action runs the owning workflow and its own checks.')"
     />
 
     @if ($companies === [])
@@ -116,6 +116,47 @@
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $plan->period_start->format('Y-m-d') }} – {{ $plan->period_end->format('Y-m-d') }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm">
                                     <x-ui.button type="button" variant="primary" wire:click="approvePlan({{ $plan->id }})">{{ __('Approve plan') }}</x-ui.button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </section>
+
+        <section class="space-y-4">
+            <h2 class="text-lg font-semibold">{{ __('Skill reassessments') }}</h2>
+            @if ($reassessments->isEmpty())
+                <p class="text-sm text-muted">{{ __('No skill reassessment awaits HR decision.') }}</p>
+            @else
+                <x-ui.table>
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                            <x-ui.th>{{ __('Skill') }}</x-ui.th>
+                            <x-ui.th>{{ __('Reason') }}</x-ui.th>
+                            <x-ui.th>{{ __('Record new level') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($reassessments as $reassessment)
+                            <tr wire:key="hr-reassessment-{{ $reassessment->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $reassessmentEmployees[$reassessment->employee_entity_id] ?? __('Unknown employee') }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $reassessmentSkills[$reassessment->skill_id] ?? __('Unknown skill') }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
+                                    <span class="font-medium">{{ $reassessment->reason }}</span>
+                                    <span class="block text-muted">{{ __('Due :date', ['date' => $reassessment->due_at->format('d M Y')]) }}</span>
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm space-y-2">
+                                    @error('reassessment.'.$reassessment->id)
+                                        <x-ui.alert variant="danger">{{ $message }}</x-ui.alert>
+                                    @enderror
+                                    <x-ui.input type="number" min="0" max="5" wire:model="reassessmentLevels.{{ $reassessment->id }}" :placeholder="__('New level 0–5')" />
+                                    <x-ui.input type="date" wire:model="reassessmentDates.{{ $reassessment->id }}" />
+                                    <x-ui.input type="text" wire:model="reassessmentNotes.{{ $reassessment->id }}" :placeholder="__('Assessor note (required)')" />
+                                    <div class="flex gap-2">
+                                        <x-ui.button type="button" variant="primary" wire:click="performReassessment({{ $reassessment->id }})">{{ __('Record and close') }}</x-ui.button>
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach

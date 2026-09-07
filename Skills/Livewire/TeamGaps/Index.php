@@ -5,10 +5,14 @@ namespace App\Domains\People\Skills\Livewire\TeamGaps;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Employee\Models\Employee;
+use App\Domains\People\Skills\Enums\ReassessmentRequestStatus;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
+use App\Domains\People\Skills\Exceptions\InvalidReassessmentRequestException;
 use App\Domains\People\Skills\Models\EmployeeSkillScore;
 use App\Domains\People\Skills\Models\Skill;
+use App\Domains\People\Skills\Models\SkillReassessmentRequest;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Skills\Services\SkillReassessmentStore;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Models\TrainingRequest;
 use Illuminate\Contracts\View\View;
@@ -29,9 +33,29 @@ final class Index extends Component
 {
     public const VIEW_CAPABILITY = 'people.skill.gaps.view-team';
 
+    /** @var array<int, array<int, string>> reason drafts keyed by employee then skill */
+    public array $reasons = [];
+
     public function mount(): void
     {
         $this->authorizeView();
+    }
+
+    public function requestReassessment(int $employeeEntityId, int $skillId, SkillReassessmentStore $requests): void
+    {
+        $this->authorizeView();
+
+        try {
+            $requests->request(
+                Auth::user(),
+                (int) Auth::user()->company_id,
+                $employeeEntityId,
+                $skillId,
+                (string) ($this->reasons[$employeeEntityId][$skillId] ?? ''),
+            );
+        } catch (InvalidReassessmentRequestException $exception) {
+            $this->addError('reassessment', $exception->getMessage());
+        }
     }
 
     public function render(SkillAudience $audience, TenantContext $tenants): View
@@ -64,7 +88,7 @@ final class Index extends Component
 
     /**
      * @param  list<int>  $visible
-     * @return list<array{employee: string, skill: string, required_level: int, current_level: int, assessed_at: mixed, planned: bool}>
+     * @return list<array{employee_entity_id: int, skill_id: int, employee: string, skill: string, required_level: int, current_level: int, assessed_at: mixed, planned: bool, reassessment_pending: bool}>
      */
     private function rows(int $tenantId, int $companyId, array $visible): array
     {
@@ -90,14 +114,24 @@ final class Index extends Component
             ->whereNotIn('status', [TrainingRequestStatus::Rejected->value, TrainingRequestStatus::Cancelled->value])
             ->pluck('skill_gap_assessment_id')
             ->all();
+        // Open reassessment requests by employee:skill pair. Only pending
+        // rows mark the gap; resolved history must not block the next loop.
+        $pending = SkillReassessmentRequest::query()->forCompany($tenantId, $companyId)
+            ->where('status', ReassessmentRequestStatus::Pending->value)
+            ->get(['employee_entity_id', 'skill_id'])
+            ->mapWithKeys(fn ($request): array => [(int) $request->employee_entity_id.':'.(int) $request->skill_id => true])
+            ->all();
 
         return $scores->map(fn (EmployeeSkillScore $score): array => [
+            'employee_entity_id' => (int) $score->employee_entity_id,
+            'skill_id' => (int) $score->skill_id,
             'employee' => (string) ($names[$score->employee_entity_id] ?? __('Unknown employee')),
             'skill' => (string) ($skills[$score->skill_id] ?? __('Unknown skill')),
             'required_level' => (int) $score->required_level,
             'current_level' => (int) $score->current_level,
             'assessed_at' => $score->assessed_at,
             'planned' => in_array((int) $score->source_assessment_id, array_map('intval', $targeted), true),
+            'reassessment_pending' => ($pending[(int) $score->employee_entity_id.':'.(int) $score->skill_id] ?? false) === true,
         ])->values()->all();
     }
 

@@ -4,12 +4,17 @@ namespace App\Domains\People\Training\Livewire\HrGovernance;
 
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Performance\Models\PerformanceReviewEscalation;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
+use App\Domains\People\Skills\Exceptions\InvalidReassessmentRequestException;
 use App\Domains\People\Skills\Models\RequirementProfile;
+use App\Domains\People\Skills\Models\Skill;
+use App\Domains\People\Skills\Models\SkillReassessmentRequest;
 use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Skills\Services\SkillReassessmentStore;
 use App\Domains\People\Training\Enums\TrainingPlanStatus;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Models\TrainingPlan;
@@ -22,9 +27,10 @@ use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 /**
- * HR governance queue (plan 0005, 0005-f): everything awaiting HR in the
- * acting user's company across Skills (requirement publication) and
- * Training (requests, plan approvals), with the approving actions.
+ * HR governance queue (plan 0005, 0005-f; 0006-c for reassessments):
+ * everything awaiting HR in the acting user's company across Skills
+ * (requirement publication, reassessment performance) and Training
+ * (requests, plan approvals), with the approving actions.
  *
  * The page lists; it never decides. Every action is the owning store's own
  * method with its own capability and company checks, so nothing here can
@@ -43,6 +49,15 @@ final class Index extends Component
 
     /** @var array<int, string> */
     public array $requestNotes = [];
+
+    /** @var array<int, int> */
+    public array $reassessmentLevels = [];
+
+    /** @var array<int, string> */
+    public array $reassessmentDates = [];
+
+    /** @var array<int, string> */
+    public array $reassessmentNotes = [];
 
     /** @var array<string, string>|null */
     private ?array $allowedCompanies = null;
@@ -113,6 +128,31 @@ final class Index extends Component
         });
     }
 
+    public function performReassessment(int $requestId): void
+    {
+        $companyEntityId = $this->requireCompany();
+
+        try {
+            app(SkillReassessmentStore::class)->perform(
+                $this->user(),
+                $companyEntityId,
+                $requestId,
+                (int) ($this->reassessmentLevels[$requestId] ?? -1),
+                (string) ($this->reassessmentDates[$requestId] ?? ''),
+                (string) ($this->reassessmentNotes[$requestId] ?? ''),
+            );
+            unset(
+                $this->reassessmentLevels[$requestId],
+                $this->reassessmentDates[$requestId],
+                $this->reassessmentNotes[$requestId]
+            );
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        } catch (InvalidReassessmentRequestException $exception) {
+            $this->addError('reassessment.'.$requestId, $exception->getMessage());
+        }
+    }
+
     public function render(): View
     {
         $this->authorizeView();
@@ -122,11 +162,16 @@ final class Index extends Component
         // not only when chosen through selectCompany().
         $companyEntityId = $this->companyEntityId === null ? null : $this->requireCompany();
 
+        $reassessments = $companyEntityId === null ? collect() : $this->pendingReassessments($companyEntityId);
+
         return view('people::livewire.hr-governance.index', [
             'companies' => $companies,
             'profiles' => $companyEntityId === null ? collect() : $this->pendingProfiles($companyEntityId),
             'requests' => $companyEntityId === null ? collect() : $this->pendingRequests($companyEntityId),
             'plans' => $companyEntityId === null ? collect() : $this->pendingPlans($companyEntityId),
+            'reassessments' => $reassessments,
+            'reassessmentSkills' => $this->reassessmentSkillNames($companyEntityId, $reassessments),
+            'reassessmentEmployees' => $this->reassessmentEmployeeNames($companyEntityId, $reassessments),
             'escalations' => $companyEntityId === null ? collect() : $this->escalatedReviews($companyEntityId),
         ]);
     }
@@ -184,6 +229,52 @@ final class Index extends Component
             ->where('status', TrainingPlanStatus::Submitted->value)
             ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * Pending skill reassessments for the HR queue (0006-c). The store's
+     * queue already pins the company; a refusal here is a 403, not an
+     * empty queue that hides a broken grant.
+     *
+     * @return Collection<int, SkillReassessmentRequest>
+     */
+    private function pendingReassessments(int $companyEntityId): Collection
+    {
+        try {
+            return app(SkillReassessmentStore::class)->pendingQueue($this->user(), $companyEntityId);
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        }
+    }
+
+    /** @return array<int, string> */
+    private function reassessmentSkillNames(?int $companyEntityId, Collection $reassessments): array
+    {
+        if ($companyEntityId === null || $reassessments->isEmpty()) {
+            return [];
+        }
+
+        return Skill::query()
+            ->forCompany($this->tenantId(), $companyEntityId)
+            ->whereIn('id', $reassessments->pluck('skill_id')->all())
+            ->pluck('name', 'id')
+            ->map(static fn ($name): string => (string) $name)
+            ->all();
+    }
+
+    /** @return array<int, string> */
+    private function reassessmentEmployeeNames(?int $companyEntityId, Collection $reassessments): array
+    {
+        if ($companyEntityId === null || $reassessments->isEmpty()) {
+            return [];
+        }
+
+        return Employee::query()
+            ->where('company_id', $companyEntityId)
+            ->whereIn('id', $reassessments->pluck('employee_entity_id')->all())
+            ->pluck('full_name', 'id')
+            ->map(static fn ($name): string => (string) $name)
+            ->all();
     }
 
     /**

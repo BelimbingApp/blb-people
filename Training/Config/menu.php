@@ -2,6 +2,13 @@
 
 return [
     'items' => [[
+        'id' => 'people.training-effectiveness-summary',
+        'label' => 'Training effectiveness summary',
+        'icon' => 'heroicon-o-presentation-chart-line',
+        'route' => 'people.training.effectiveness.summary',
+        'permission' => 'people.training.effectiveness-aggregate.view',
+        'parent' => 'people',
+    ], [
         'id' => 'people.training-effectiveness',
         'label' => 'Training effectiveness',
         'icon' => 'heroicon-o-clipboard-document-check',
@@ -51,6 +58,14 @@ return [
         'route' => 'people.training.events.index',
         'permission' => 'people.training.event.view',
         'condition' => 'people.training.event-audience',
+        'parent' => 'people',
+    ], [
+        'id' => 'people.training-calendar',
+        'label' => 'Training calendar',
+        'icon' => 'heroicon-o-calendar',
+        'route' => 'people.training.calendar',
+        'permission' => 'people.training.calendar.view',
+        'condition' => 'people.training.calendar-audience',
         'parent' => 'people',
     ], [
         'id' => 'people.hr-governance',

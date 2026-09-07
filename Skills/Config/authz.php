@@ -28,6 +28,22 @@ return [
         'people.skill.coverage.view',
 
         /*
+         * Requesting a reassessment for a direct report's skill (0006-b).
+         * HOD-only: HR sees the resulting queue but does not request, and
+         * requesting never confers a wider skill audience.
+         */
+        'people.skill.reassessment.submit',
+
+        /*
+         * Performing a requested reassessment (0006-c). HR-only: recording
+         * the new released level closes the request and never rewrites
+         * the previous assessment row. Uses the platform 'execute' verb:
+         * verbs are a closed platform vocabulary and 'perform' is not
+         * declared there.
+         */
+        'people.skill.reassessment.execute',
+
+        /*
          * Reading your own released score history (0006-a). Employee-only:
          * the page binds the authenticated employee, never request input.
          * Uses the platform 'view' verb: verbs are a closed platform
@@ -58,6 +74,7 @@ return [
                 'people.skill.development-action.manage',
                 'people.skill.assessment.submit',
                 'people.skill.hr.view',
+                'people.skill.reassessment.execute',
             ],
         ],
         'people_hod' => [
@@ -75,6 +92,7 @@ return [
                 'people.skill.gaps.view-team',
                 'people.skill.assessment.approve',
                 'people.skill.hod.view',
+                'people.skill.reassessment.submit',
             ],
         ],
         'people_assessor' => [

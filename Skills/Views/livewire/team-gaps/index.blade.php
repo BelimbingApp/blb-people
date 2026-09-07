@@ -4,6 +4,10 @@
         :subtitle="__('Direct reports below a critical requirement, and whether training already targets the gap.')"
     />
 
+    @error('reassessment')
+        <x-ui.alert variant="danger">{{ $message }}</x-ui.alert>
+    @enderror
+
     <x-ui.card>
         <x-ui.table container="flush" :caption="__('Critical-skill gaps for your direct reports')">
             <x-slot name="head">
@@ -14,6 +18,7 @@
                     <x-ui.th align="right">{{ __('Current') }}</x-ui.th>
                     <x-ui.th>{{ __('Last assessed') }}</x-ui.th>
                     <x-ui.th>{{ __('Targeted') }}</x-ui.th>
+                    <x-ui.th>{{ __('Reassessment') }}</x-ui.th>
                 </tr>
             </x-slot>
             @forelse ($rows as $row)
@@ -37,10 +42,22 @@
                             <span class="font-medium text-ink">{{ __('Not yet targeted') }}</span>
                         @endif
                     </td>
+                    <td class="px-table-cell-x py-table-cell-y text-sm">
+                        @if ($row['reassessment_pending'])
+                            <span class="font-medium text-ink">{{ __('Reassessment pending') }}</span>
+                        @else
+                            <div class="flex flex-wrap items-center gap-2">
+                                <x-ui.input type="text" :wire:model="'reasons.'.$row['employee_entity_id'].'.'.$row['skill_id']" :placeholder="__('Why reassess (required)')" />
+                                <x-ui.button type="button" wire:click="requestReassessment({{ $row['employee_entity_id'] }}, {{ $row['skill_id'] }})" variant="secondary">
+                                    {{ __('Request reassessment') }}
+                                </x-ui.button>
+                            </div>
+                        @endif
+                    </td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" class="px-table-cell-x py-10 text-center text-sm text-muted">
+                    <td colspan="7" class="px-table-cell-x py-10 text-center text-sm text-muted">
                         {{ __('No direct report is below a critical requirement.') }}
                     </td>
                 </tr>
