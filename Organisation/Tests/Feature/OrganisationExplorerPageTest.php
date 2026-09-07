@@ -204,6 +204,22 @@ test('a detail holder drills through to permitted employees', function (): void 
         ->assertSee($fixture['hod']->displayName());
 });
 
+test('a detail holder can hide an opened detail again', function (): void {
+    $fixture = explorerFixture();
+    $holder = explorerUser((int) $fixture['company']->id);
+    explorerGrant($holder, 'people.organisation.structure.view');
+    explorerGrant($holder, 'people.organisation.aggregate.view');
+    explorerGrant($holder, 'people.organisation.detail.view');
+    explorerGrant($holder, 'people.organisation.executive.view');
+
+    Livewire::actingAs($holder)
+        ->test(Index::class)
+        ->call('showDetail', WorkforceResourceType::Company->value, (string) $fixture['company']->id)
+        ->assertSee($fixture['hod']->displayName())
+        ->call('hideDetail', WorkforceResourceType::Company->value, (string) $fixture['company']->id)
+        ->assertDontSee($fixture['hod']->displayName());
+});
+
 test('a historical as-of date renders no nodes', function (): void {
     $fixture = explorerFixture();
     $holder = explorerUser((int) $fixture['company']->id);
