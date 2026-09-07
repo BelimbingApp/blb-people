@@ -315,3 +315,26 @@ test('a link that would exceed the event capacity enrols nobody', function (): v
     expect(reqLinkParticipants($a, $eventId))->toBe($before)
         ->and($request->fresh()->training_event_id)->toBeNull();
 });
+
+test('relinking a full event refuses nobody when the seats are held by this request own people', function (): void {
+    $f = reqLinkFixture();
+    $a = $f['alpha'];
+    $companyId = (int) $a['company']->id;
+    $eventId = (int) $a['event']->id;
+    $request = reqLinkRequest($a, 'Certification for the line.');
+    $store = app(TrainingRequestStore::class);
+
+    // One seat, and the request's own person takes it.
+    TrainingEvent::query()->forCompany($a['tenantId'], $companyId)->whereKey($eventId)->update(['capacity' => 1]);
+    $store->linkEvent($a['hr'], $companyId, (int) $request->id, $eventId);
+    $enrolled = reqLinkParticipants($a, $eventId);
+    expect($enrolled)->toHaveCount(1);
+
+    $store->unlinkEvent($a['hr'], $companyId, (int) $request->id);
+
+    // Relinking must not count the seat they already hold against them.
+    $store->linkEvent($a['hr'], $companyId, (int) $request->id, $eventId);
+
+    expect(reqLinkParticipants($a, $eventId))->toBe($enrolled)
+        ->and($request->fresh()->training_event_id)->toBe($eventId);
+});
