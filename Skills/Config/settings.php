@@ -18,5 +18,22 @@ return [
             'label' => 'Critical-skill backup minimum',
             'help' => 'Holders at or above the required level a department needs before a critical skill is covered.',
         ],
+
+        /*
+         * Days HR has to reassess a skill after confirmed training with a
+         * pass or certificate opened the request (0006-e). The request is
+         * due that many days after the confirmation date; the score never
+         * moves until the reassessment is performed.
+         */
+        'people-skills.reassessment_after_training_days' => [
+            'type' => 'integer',
+            'scopes' => ['global', 'tenant'],
+            'default' => 30,
+            'nullable' => false,
+            'encrypted' => false,
+            'rules' => ['integer', 'min:1'],
+            'label' => 'Reassessment due after training',
+            'help' => 'Days after a confirmed pass or certificate by which the opened skill reassessment is due.',
+        ],
     ],
 ];
