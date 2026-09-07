@@ -13,6 +13,7 @@ use App\Domains\People\Skills\Services\CriticalSkillBackupCoverage;
 use App\Domains\People\Skills\Services\SkillAudience;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
@@ -28,7 +29,12 @@ final class Index extends Component
 {
     public const VIEW_CAPABILITY = 'people.skill.coverage.view';
 
-    /** Department id to narrow the per-department table to, or empty for all. */
+    /**
+     * Department id to narrow the per-department table to, or empty for all.
+     * In the URL so a coverage-gap reminder can land on the department it
+     * names (0009-i).
+     */
+    #[Url(as: 'department')]
     public string $department = '';
 
     public function mount(): void
