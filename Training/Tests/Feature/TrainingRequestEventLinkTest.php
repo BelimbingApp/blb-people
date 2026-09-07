@@ -239,7 +239,7 @@ test('the register filter approved_unlinked matches approvedUnlinkedQuery and th
     $page = Livewire::actingAs($a['hr'])->test(Register::class)->set('status', Register::FILTER_APPROVED_UNLINKED);
     $expected = app(TrainingRequestStore::class)->approvedUnlinkedQuery($f['tenantId'], (int) $a['company']->id)->pluck('id')->all();
     expect($page->viewData('rows')->pluck('id')->all())->toBe($expected)->and($expected)->toBe([$unlinked->id]);
-    $page->assertSee('Training requests of '.now()->year);
+    $page->assertSee('Training requests register');
 
     $all = Livewire::actingAs($a['hr'])->test(Register::class);
     $rows = $all->viewData('rows')->keyBy('id');

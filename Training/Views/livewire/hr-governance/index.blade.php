@@ -22,7 +22,7 @@
             @if ($profiles->isEmpty())
                 <p class="text-sm text-muted">{{ __('No requirement profile awaits HR review or publication.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Requirement profiles awaiting HR review')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Profile') }}</x-ui.th>
@@ -63,7 +63,7 @@
             @if ($requests->isEmpty())
                 <p class="text-sm text-muted">{{ __('No training request awaits HR review.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Training requests awaiting HR review')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Need') }}</x-ui.th>
@@ -165,7 +165,7 @@
             @if ($plans->isEmpty())
                 <p class="text-sm text-muted">{{ __('No submitted training plan awaits approval.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Training plans awaiting approval')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Plan') }}</x-ui.th>
@@ -196,7 +196,7 @@
             @if ($reassessments->isEmpty())
                 <p class="text-sm text-muted">{{ __('No skill reassessment awaits HR decision.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Skill reassessments awaiting HR decision')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Employee') }}</x-ui.th>
@@ -237,7 +237,7 @@
             @if ($evidenceSubmissions->isEmpty())
                 <p class="text-sm text-muted">{{ __('No evidence submission awaits HR decision.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Evidence submissions awaiting HR decision')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Employee') }}</x-ui.th>
@@ -279,7 +279,7 @@
             @else
                 {{-- Listed, not actioned: the review stays the manager's to
                      finish, and HR reading it is the whole point. --}}
-                <x-ui.table>
+                <x-ui.table :caption="__('Escalated performance reviews')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Review') }}</x-ui.th>

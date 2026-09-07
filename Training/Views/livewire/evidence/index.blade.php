@@ -58,7 +58,7 @@
 
             <section class="space-y-4">
                 <h2 class="text-lg font-semibold text-ink">{{ __('Attended training') }}</h2>
-                <x-ui.table>
+                <x-ui.table :caption="__('Attended training for evidence submission')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Training') }}</x-ui.th>

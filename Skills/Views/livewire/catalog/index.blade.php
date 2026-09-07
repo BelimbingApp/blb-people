@@ -125,7 +125,7 @@
                 </form>
             @endif
 
-            <x-ui.table>
+            <x-ui.table :caption="__('Skills')">
                 <x-slot:head>
                     <tr>
                         <x-ui.th>{{ __('Skill ID') }}</x-ui.th>
@@ -190,7 +190,7 @@
                 </form>
             @endif
 
-            <x-ui.table>
+            <x-ui.table :caption="__('Skill categories')">
                 <x-slot:head>
                     <tr>
                         <x-ui.th>{{ __('Code') }}</x-ui.th>
@@ -255,7 +255,7 @@
                             @endif
                         @endif
                     </header>
-                    <x-ui.table>
+                    <x-ui.table :caption="__('Levels of :scale', ['scale' => $scale->name])">
                         <x-slot:head>
                             <tr>
                                 <x-ui.th>{{ __('Level') }}</x-ui.th>
