@@ -242,5 +242,41 @@
                 </x-ui.table>
             @endif
         </section>
+
+        <section class="space-y-4" data-passport-section>
+            <h2 class="text-lg font-semibold">{{ __('Training passports') }}</h2>
+            <p class="text-sm text-muted">{{ __('Generate a stored, watermarked PDF of an employee\'s completed events, certificates and current skill levels. Copies are kept for :days days and every generation and download is recorded.', ['days' => \App\Domains\People\Training\Services\TrainingPassportDocumentStore::RETENTION_DAYS]) }}</p>
+            @if ($passportEmployees === [])
+                <p class="text-sm text-muted">{{ __('No active employee is listed for this company.') }}</p>
+            @else
+                <x-ui.table>
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                            <x-ui.th>{{ __('Latest copy') }}</x-ui.th>
+                            <x-ui.th>{{ __('Passport') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($passportEmployees as $employeeId => $name)
+                            @php($document = $passportDocuments[$employeeId] ?? null)
+                            <tr wire:key="passport-employee-{{ $employeeId }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $name }} <span class="text-muted tabular-nums">#{{ $employeeId }}</span></td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted">
+                                    @if ($document === null)
+                                        {{ __('None retained') }}
+                                    @else
+                                        <a href="{{ route('people.training.passport.document', ['documentId' => $document->id]) }}" class="font-medium text-accent underline underline-offset-2" data-passport-document-download="{{ $document->id }}"><x-ui.datetime :value="$document->generated_at" format="datetime" /></a>
+                                    @endif
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y">
+                                    <x-ui.button type="button" variant="secondary" wire:click="generatePassportPdf({{ $employeeId }})" wire:loading.attr="disabled">{{ __('Generate PDF') }}</x-ui.button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </section>
     @endif
 </div>
