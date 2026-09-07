@@ -12,6 +12,16 @@ Retain the workbook's 30-Day, 60-Day and 90-Day stages, plus the Final stage fro
 
 These intervals are company/workbook defaults, not universal standards requirements or hardcoded calendar policy. Governed policy must settle the trigger date, calendar, permitted changes and final-review timing. Do not silently choose course start, completion or return-to-work as the due-date anchor. An overdue review remains distinguishable from a completed review with an unsuccessful outcome.
 
+### Settled: the anchor, the offsets and the policy in force ([#361](https://github.com/BelimbingApp/blb-people/issues/361))
+
+**Anchor.** The checkpoint clock runs from the training event's `ends_at` and from nothing else. Not the course start, not the return-to-work date, and not when attendance was recorded — a record entered late would otherwise push the question out until nobody remembers the training.
+
+**Offsets.** Each stage's distance from that anchor is governed per company, held as an append-only history of `(day_30, day_60, day_90)` offsets with an `effective_from` date, the HR actor who set them and their stated reason. Offsets are strictly increasing and at least one day; a company that has never set a policy runs on the workbook defaults of 30/60/90 days, which live in configuration rather than in code.
+
+**Policy in force.** The policy whose `effective_from` is the newest date on or before the event's end date governs that event's checkpoints, permanently. A later change never re-dates checkpoints of an event that has already ended: a question that opened, was asked and was answered cannot retroactively have been due on a different day, and an answer rate whose denominator moves is not a measurement. Setting a policy is therefore prospective and appends; the database refuses `UPDATE` and `DELETE` on the history.
+
+**Authority.** Setting the policy is HR governance under its own capability. Holding the reviewer capability answers the questions; it does not move the day they are asked.
+
 The following names describe logical facts and references, not new columns, enums or transport APIs.
 
 | Record element | Meaning and source |

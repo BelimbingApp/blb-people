@@ -37,6 +37,8 @@ final class TrainingEffectivenessAggregate
 
     private const WINDOW_MONTHS = 12;
 
+    public function __construct(private readonly TrainingEffectivenessPolicy $policies) {}
+
     /**
      * One row per course with an attended event that ended inside the window.
      *
@@ -96,7 +98,12 @@ final class TrainingEffectivenessAggregate
             }
 
             foreach ($courseEvents as $event) {
-                $elapsed = EffectivenessCheckpoint::elapsedAt($event->ends_at, $now);
+                // The offsets in force when this event ended, so a later
+                // policy change never moves an already-counted denominator.
+                $elapsed = EffectivenessCheckpoint::elapsedAt(
+                    $event->ends_at, $now,
+                    $this->policies->offsetsFor($tenantId, $companyEntityId, $event->ends_at),
+                );
 
                 foreach ($facts->where('event_id', $event->id) as $fact) {
                     $participant = $participants->get($fact->participant_id);
