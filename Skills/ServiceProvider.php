@@ -11,6 +11,7 @@ use App\Core\User\Models\User;
 use App\Domains\People\Organisation\Contracts\SummarizesOrganisationSkillCoverage;
 use App\Domains\People\Skills\Console\Commands\RemindersDueCommand;
 use App\Domains\People\Skills\Console\Commands\SkillWorkbookDryRunCommand;
+use App\Domains\People\Skills\Console\Commands\SkillWorkbookExportCommand;
 use App\Domains\People\Skills\Contracts\ConfirmsAssessableRequirementVersion;
 use App\Domains\People\Skills\Contracts\ReadsOwnSkillStanding;
 use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
@@ -52,6 +53,7 @@ class ServiceProvider extends BaseServiceProvider
             $this->commands([
                 RemindersDueCommand::class,
                 SkillWorkbookDryRunCommand::class,
+                SkillWorkbookExportCommand::class,
             ]);
         }
     }

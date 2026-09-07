@@ -28,3 +28,9 @@ Values retain source text (including zero and blank optional values). The reader
 does not resolve business IDs, coerce domain enums, validate policy, deduplicate
 categories, execute formulas, write database records or expose a UI. It uses the
 platform's existing ZIP and DOM extensions and bounds archive/XML size.
+
+The export command people:skills-workbook-export writes this same layout from
+the company's live catalogue: headers and table positions come from
+SkillWorkbookReader::TABLES so the file cannot drift from what the dry run
+accepts, and the written file reads back with zero defects. This fixture stays
+the reader-side synthetic source and is still never modified in place.
