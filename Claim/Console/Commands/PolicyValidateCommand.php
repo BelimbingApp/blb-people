@@ -2,13 +2,13 @@
 
 namespace App\Domains\People\Claim\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Domains\People\Claim\Models\ClaimPolicy;
 use App\Domains\People\Claim\Services\ClaimPolicyValidationService;
-use Illuminate\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'blb:claim:policy:validate')]
-class PolicyValidateCommand extends Command
+class PolicyValidateCommand extends TenantScopedCommand
 {
     protected $description = 'Validate a Claim Policy and emit stable findings';
 
