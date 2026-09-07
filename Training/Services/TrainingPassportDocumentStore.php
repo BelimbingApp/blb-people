@@ -187,8 +187,9 @@ final class TrainingPassportDocumentStore
     }
 
     /**
-     * Drop the bytes of every document past its retention window. The row and
-     * its audit trail stay; only the asset pointer is cleared.
+     * Drop the bytes of every document in the current tenant past its
+     * retention window. The row and its audit trail stay; only the asset
+     * pointer is cleared.
      *
      * @return int documents purged
      */
@@ -196,7 +197,8 @@ final class TrainingPassportDocumentStore
     {
         $purged = 0;
         TrainingPassportDocument::query()
-            ->withoutCompanyScope('retention purge runs across every company of every tenant')
+            ->forTenant($this->tenantContext->requireTenantId())
+            ->withoutCompanyScope('retention purge runs across every company of the bound tenant')
             ->whereNotNull('media_asset_id')
             ->where('expires_at', '<=', now())
             ->with('asset')

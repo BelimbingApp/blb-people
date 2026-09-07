@@ -431,7 +431,8 @@ it('purges expired documents: the bytes and asset go, the row and its audit stay
     $kept = $store->generate($f['otherUser'], tpdSubject($f['tenantId'], (int) $f['company']->id, $f['other']));
 
     Carbon::setTestNow('2026-10-08 00:00:00');
-    test()->artisan('people:training-passport:purge')->expectsOutputToContain('Purged 1 expired')->assertSuccessful();
+    test()->artisan('people:training-passport:purge', ['--tenant' => $f['tenantId']])
+        ->expectsOutputToContain('Purged 1 expired')->assertSuccessful();
 
     expect($expired->fresh()->media_asset_id)->toBeNull()
         ->and(MediaAsset::query()->whereKey($asset->id)->exists())->toBeFalse()
