@@ -56,7 +56,7 @@ afterEach(function (): void {
 });
 
 /** @return array<string, mixed> */
-function kpiFixture(bool $withProfile = true, bool $withRecords = true): array
+function hrKpiFixture(bool $withProfile = true, bool $withRecords = true): array
 {
     $tenant = CompanyIsolationFixture::twoCompaniesInOneTenant('KPI Alpha', 'KPI Beta');
     app(TenantContext::class)->set($tenant->tenantId);
@@ -64,12 +64,12 @@ function kpiFixture(bool $withProfile = true, bool $withRecords = true): array
     $companyId = $tenant->alphaCompanyEntityId;
     $tag = Str::lower(Str::random(6));
 
-    $production = kpiUnit($companyId, 'prod-'.$tag, 'Production');
-    $engineering = kpiUnit($companyId, 'eng-'.$tag, 'Engineering');
-    $p1 = kpiEmployee($companyId, $production, 'Kpi Prod One');
-    $p2 = kpiEmployee($companyId, $production, 'Kpi Prod Two');
-    $p3 = kpiEmployee($companyId, $production, 'Kpi Prod Three');
-    $e1 = kpiEmployee($companyId, $engineering, 'Kpi Eng One');
+    $production = hrKpiUnit($companyId, 'prod-'.$tag, 'Production');
+    $engineering = hrKpiUnit($companyId, 'eng-'.$tag, 'Engineering');
+    $p1 = hrKpiEmployee($companyId, $production, 'Kpi Prod One');
+    $p2 = hrKpiEmployee($companyId, $production, 'Kpi Prod Two');
+    $p3 = hrKpiEmployee($companyId, $production, 'Kpi Prod Three');
+    $e1 = hrKpiEmployee($companyId, $engineering, 'Kpi Eng One');
 
     $catalog = app(SkillCatalogStore::class);
     $category = $catalog->defineCategory($companyId, 'kpi-'.$tag, 'KPI');
@@ -93,30 +93,30 @@ function kpiFixture(bool $withProfile = true, bool $withRecords = true): array
         'tenant' => $tenant, 'tenantId' => $tenant->tenantId, 'companyId' => $companyId,
         'production' => $production, 'engineering' => $engineering,
         'p1' => $p1, 'p2' => $p2, 'p3' => $p3, 'e1' => $e1, 'skillA' => $skillA, 'skillB' => $skillB,
-        'hr' => kpiUser($companyId, 'people_hr'), 'hod' => kpiUser($companyId, 'people_hod'),
-        'siblingHr' => kpiUser($tenant->betaCompanyEntityId, 'people_hr'),
+        'hr' => hrKpiUser($companyId, 'people_hr'), 'hod' => hrKpiUser($companyId, 'people_hod'),
+        'siblingHr' => hrKpiUser($tenant->betaCompanyEntityId, 'people_hr'),
     ];
 
     if ($withRecords) {
-        kpiAssessment($f, $p1, $skillA, AssessmentResultBand::Meets);
-        kpiAssessment($f, $p1, $skillB, AssessmentResultBand::Exceeds);
-        kpiAssessment($f, $p2, $skillA, AssessmentResultBand::Meets);
-        kpiAssessment($f, $p3, $skillA, AssessmentResultBand::Meets);
-        kpiAssessment($f, $e1, $skillA, AssessmentResultBand::MajorGap);
+        hrKpiAssessment($f, $p1, $skillA, AssessmentResultBand::Meets);
+        hrKpiAssessment($f, $p1, $skillB, AssessmentResultBand::Exceeds);
+        hrKpiAssessment($f, $p2, $skillA, AssessmentResultBand::Meets);
+        hrKpiAssessment($f, $p3, $skillA, AssessmentResultBand::Meets);
+        hrKpiAssessment($f, $e1, $skillA, AssessmentResultBand::MajorGap);
         // The issue's sixth latest record is "meets but hod_verification =
         // pending". The 0330_02_05 workflow trigger refuses a finalized row
         // that is not verified, so the sixth latest record is verified and
         // lapsed instead — the other way a Meets fails "Verified + Current" —
         // and the pending one stays at pending_hod_verification, where it is
         // not finalized and so not a latest record either.
-        kpiAssessment($f, $p2, $skillB, AssessmentResultBand::Meets, extra: ['valid_until' => now()->subDay()->toDateString()]);
-        kpiAssessment($f, $p3, $skillB, AssessmentResultBand::Meets, verified: false);
+        hrKpiAssessment($f, $p2, $skillB, AssessmentResultBand::Meets, extra: ['valid_until' => now()->subDay()->toDateString()]);
+        hrKpiAssessment($f, $p3, $skillB, AssessmentResultBand::Meets, verified: false);
     }
 
     return $f;
 }
 
-function kpiUnit(int $companyId, string $code, string $name): PeopleReferenceEntry
+function hrKpiUnit(int $companyId, string $code, string $name): PeopleReferenceEntry
 {
     return PeopleReferenceEntry::query()->create([
         'company_id' => $companyId, 'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
@@ -124,7 +124,7 @@ function kpiUnit(int $companyId, string $code, string $name): PeopleReferenceEnt
     ]);
 }
 
-function kpiEmployee(int $companyId, ?PeopleReferenceEntry $unit, string $name, string $status = 'active'): Employee
+function hrKpiEmployee(int $companyId, ?PeopleReferenceEntry $unit, string $name, string $status = 'active'): Employee
 {
     $employee = Employee::factory()->create([
         'company_id' => $companyId, 'full_name' => $name, 'short_name' => null, 'status' => $status, 'employee_type' => 'full_time',
@@ -136,7 +136,7 @@ function kpiEmployee(int $companyId, ?PeopleReferenceEntry $unit, string $name, 
     return $employee;
 }
 
-function kpiUser(int $companyId, string $roleCode): User
+function hrKpiUser(int $companyId, string $roleCode): User
 {
     $user = User::factory()->create(['company_id' => $companyId]);
     PrincipalRole::query()->create([
@@ -155,7 +155,7 @@ function kpiUser(int $companyId, string $roleCode): User
  *
  * @param  array<string, mixed>  $extra  columns set on the draft (valid_until, next_assessment_due, supersedes_assessment_id)
  */
-function kpiAssessment(array $f, Employee $employee, int $skillId, AssessmentResultBand $band, bool $verified = true, array $extra = [], ?int $companyId = null): SkillAssessment
+function hrKpiAssessment(array $f, Employee $employee, int $skillId, AssessmentResultBand $band, bool $verified = true, array $extra = [], ?int $companyId = null): SkillAssessment
 {
     $companyId ??= $f['companyId'];
     $assessed = match ($band) {
@@ -185,7 +185,7 @@ function kpiAssessment(array $f, Employee $employee, int $skillId, AssessmentRes
     });
 }
 
-function kpiAction(array $f, Employee $employee, DevelopmentActionClosure $closure, string $dueDate): DevelopmentAction
+function hrKpiAction(array $f, Employee $employee, DevelopmentActionClosure $closure, string $dueDate): DevelopmentAction
 {
     return DevelopmentAction::query()->create([
         'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'], 'action_key' => (string) Str::uuid(),
@@ -200,7 +200,7 @@ function kpiAction(array $f, Employee $employee, DevelopmentActionClosure $closu
     ]);
 }
 
-function kpiEvent(array $f, TrainingEventStatus $status, ?PeopleReferenceEntry $unit): TrainingEvent
+function hrKpiEvent(array $f, TrainingEventStatus $status, ?PeopleReferenceEntry $unit): TrainingEvent
 {
     $course = TrainingCourse::query()->forCompany($f['tenantId'], $f['companyId'])->first() ?? TrainingCourse::query()->create([
         'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'], 'code' => 'kpi-'.Str::lower(Str::random(8)),
@@ -217,18 +217,18 @@ function kpiEvent(array $f, TrainingEventStatus $status, ?PeopleReferenceEntry $
     ]);
 }
 
-function kpiSummary(array $f): SkillKpiSummaryResult
+function hrKpiSummary(array $f): SkillKpiSummaryResult
 {
     return app(SkillKpiSummary::class)->forCompany($f['tenantId'], $f['companyId']);
 }
 
 /** @return array<string, int|float|null> */
-function kpiValues(array $metrics): array
+function hrKpiValues(array $metrics): array
 {
     return array_map(static fn (array $metric): int|float|null => $metric['value'], $metrics);
 }
 
-function kpiPage(array $f, User $actor)
+function hrKpiPage(array $f, User $actor)
 {
     return Livewire::actingAs($actor)->test(Index::class);
 }
@@ -236,8 +236,8 @@ function kpiPage(array $f, User $actor)
 // ─── Definitions ─────────────────────────────────────────────────────────────
 
 test('the issue fixture yields coverage 0.75, verified competency 4/6 and one major or critical gap', function (): void {
-    $f = kpiFixture();
-    $company = kpiSummary($f)->company;
+    $f = hrKpiFixture();
+    $company = hrKpiSummary($f)->company;
 
     expect($company['active_staff']['value'])->toBe(4)
         ->and($company['expected_assessments']['value'])->toBe(8)
@@ -251,67 +251,67 @@ test('the issue fixture yields coverage 0.75, verified competency 4/6 and one ma
 });
 
 test('a superseded assessment is not a latest record and a not-assessed band is not counted in coverage', function (): void {
-    $f = kpiFixture();
-    $before = kpiSummary($f)->company;
+    $f = hrKpiFixture();
+    $before = hrKpiSummary($f)->company;
 
-    $old = kpiAssessment($f, $f['p3'], $f['skillB'], AssessmentResultBand::Meets);
-    kpiAssessment($f, $f['p3'], $f['skillB'], AssessmentResultBand::Exceeds, extra: ['supersedes_assessment_id' => $old->id]);
-    $company = kpiSummary($f)->company;
+    $old = hrKpiAssessment($f, $f['p3'], $f['skillB'], AssessmentResultBand::Meets);
+    hrKpiAssessment($f, $f['p3'], $f['skillB'], AssessmentResultBand::Exceeds, extra: ['supersedes_assessment_id' => $old->id]);
+    $company = hrKpiSummary($f)->company;
 
     // Guard: the supersedes chain drops the older row, so one new latest record, not two.
     expect($company['latest_records']['value'])->toBe($before['latest_records']['value'] + 1);
 
-    kpiAssessment($f, $f['e1'], $f['skillB'], AssessmentResultBand::NotAssessed);
+    hrKpiAssessment($f, $f['e1'], $f['skillB'], AssessmentResultBand::NotAssessed);
 
     // Guard: not_assessed is excluded from latest records and so from coverage.
-    expect(kpiSummary($f)->company['latest_records']['value'])->toBe($company['latest_records']['value'])
-        ->and(kpiSummary($f)->company['assessment_coverage']['value'])->toBe($company['assessment_coverage']['value']);
+    expect(hrKpiSummary($f)->company['latest_records']['value'])->toBe($company['latest_records']['value'])
+        ->and(hrKpiSummary($f)->company['assessment_coverage']['value'])->toBe($company['assessment_coverage']['value']);
 });
 
 test('a verified meets assessment valid until yesterday is not verified competent and one valid today is', function (): void {
     Carbon::setTestNow('2026-09-07 15:00:00');
-    $f = kpiFixture();
-    $base = kpiSummary($f)->company['verified_competent']['value'];
+    $f = hrKpiFixture();
+    $base = hrKpiSummary($f)->company['verified_competent']['value'];
 
     // Inserted with a time part: the column is a date, SQLite keeps the text.
-    $expired = kpiAssessment($f, $f['p1'], $f['skillB'], AssessmentResultBand::Meets, extra: ['valid_until' => '2026-09-06 23:59:00']);
+    $expired = hrKpiAssessment($f, $f['p1'], $f['skillB'], AssessmentResultBand::Meets, extra: ['valid_until' => '2026-09-06 23:59:00']);
     expect(DB::table('people_connector_skill_assessments')->where('id', $expired->id)->value('valid_until'))->toBe('2026-09-06 23:59:00');
 
     // Guard: valid_until strictly before the as-of date is not current.
-    expect(kpiSummary($f)->company['verified_competent']['value'])->toBe($base);
+    expect(hrKpiSummary($f)->company['verified_competent']['value'])->toBe($base);
 
-    kpiAssessment($f, $f['e1'], $f['skillB'], AssessmentResultBand::Meets, extra: ['valid_until' => '2026-09-07 00:30:00']);
+    hrKpiAssessment($f, $f['e1'], $f['skillB'], AssessmentResultBand::Meets, extra: ['valid_until' => '2026-09-07 00:30:00']);
 
     // Guard: a time part on today's date still counts as valid today (whereDate-safe).
-    expect(kpiSummary($f)->company['verified_competent']['value'])->toBe($base + 1);
+    expect(hrKpiSummary($f)->company['verified_competent']['value'])->toBe($base + 1);
 });
 
 test('due or expired within 30 days counts a next-due date at as-of plus 30 days and not plus 31', function (): void {
     Carbon::setTestNow('2026-09-07 09:00:00');
-    $f = kpiFixture();
-    $base = kpiSummary($f)->company['due_within_30_days']['value'];
+    $f = hrKpiFixture();
+    $base = hrKpiSummary($f)->company['due_within_30_days']['value'];
 
-    kpiAssessment($f, $f['p3'], $f['skillB'], AssessmentResultBand::Meets, extra: ['next_assessment_due' => '2026-10-07']);
+    hrKpiAssessment($f, $f['p3'], $f['skillB'], AssessmentResultBand::Meets, extra: ['next_assessment_due' => '2026-10-07']);
 
     // Guard: on/before as-of + 30 days counts.
-    expect(kpiSummary($f)->company['due_within_30_days']['value'])->toBe($base + 1);
+    expect(hrKpiSummary($f)->company['due_within_30_days']['value'])->toBe($base + 1);
 
-    kpiAssessment($f, $f['e1'], $f['skillB'], AssessmentResultBand::Meets, extra: ['next_assessment_due' => '2026-10-08']);
+    hrKpiAssessment($f, $f['e1'], $f['skillB'], AssessmentResultBand::Meets, extra: ['next_assessment_due' => '2026-10-08']);
 
     // Guard: as-of + 31 days does not.
-    expect(kpiSummary($f)->company['due_within_30_days']['value'])->toBe($base + 1);
+    expect(hrKpiSummary($f)->company['due_within_30_days']['value'])->toBe($base + 1);
 });
 
 test('open actions count the three open closure states and overdue counts a due date of yesterday, not today', function (): void {
     Carbon::setTestNow('2026-09-07 09:00:00');
-    $f = kpiFixture();
+    $f = hrKpiFixture();
 
-    kpiAction($f, $f['p1'], DevelopmentActionClosure::Open, '2026-09-07');
-    kpiAction($f, $f['p2'], DevelopmentActionClosure::PendingReassessment, '2026-09-06');
-    kpiAction($f, $f['p3'], DevelopmentActionClosure::FurtherActionRequired, '2026-09-30');
-    kpiAction($f, $f['e1'], DevelopmentActionClosure::ClosedCompetent, '2026-09-01');
-    kpiAction($f, $f['e1'], DevelopmentActionClosure::Cancelled, '2026-09-01');
-    $company = kpiSummary($f)->company;
+    hrKpiAction($f, $f['p1'], DevelopmentActionClosure::Open, '2026-09-07');
+    hrKpiAction($f, $f['p2'], DevelopmentActionClosure::PendingReassessment, '2026-09-06');
+    hrKpiAction($f, $f['p3'], DevelopmentActionClosure::FurtherActionRequired, '2026-09-30');
+    hrKpiAction($f, $f['e1'], DevelopmentActionClosure::ClosedCompetent, '2026-09-01');
+    hrKpiAction($f, $f['e1'], DevelopmentActionClosure::Cancelled, '2026-09-01');
+    $company = hrKpiSummary($f)->company;
 
     // Guard: closed_competent and cancelled are not open; only the day-before due date is overdue.
     expect($company['open_actions']['value'])->toBe(3)
@@ -319,40 +319,40 @@ test('open actions count the three open closure states and overdue counts a due 
 });
 
 test('scheduled or active training counts scheduled and in-progress events and excludes completed and cancelled', function (): void {
-    $f = kpiFixture();
+    $f = hrKpiFixture();
 
-    kpiEvent($f, TrainingEventStatus::Scheduled, $f['production']);
-    kpiEvent($f, TrainingEventStatus::InProgress, $f['engineering']);
-    kpiEvent($f, TrainingEventStatus::Completed, $f['production']);
-    kpiEvent($f, TrainingEventStatus::Cancelled, $f['production']);
+    hrKpiEvent($f, TrainingEventStatus::Scheduled, $f['production']);
+    hrKpiEvent($f, TrainingEventStatus::InProgress, $f['engineering']);
+    hrKpiEvent($f, TrainingEventStatus::Completed, $f['production']);
+    hrKpiEvent($f, TrainingEventStatus::Cancelled, $f['production']);
 
     // Guard: status filter on training events.
-    expect(kpiSummary($f)->company['scheduled_training']['value'])->toBe(2);
+    expect(hrKpiSummary($f)->company['scheduled_training']['value'])->toBe(2);
 });
 
 test('with zero expected assessments both rates are null and the page shows n/a, not 0%', function (): void {
-    $f = kpiFixture(withProfile: false, withRecords: false);
-    $company = kpiSummary($f)->company;
+    $f = hrKpiFixture(withProfile: false, withRecords: false);
+    $company = hrKpiSummary($f)->company;
 
     // Guard: a zero denominator yields null, never 0.
     expect($company['expected_assessments']['value'])->toBe(0)
         ->and($company['assessment_coverage']['value'])->toBeNull()
         ->and($company['verified_competency_rate']['value'])->toBeNull();
 
-    $page = kpiPage($f, $f['hr'])->assertOk()->assertSee('n/a');
+    $page = hrKpiPage($f, $f['hr'])->assertOk()->assertSee('n/a');
     expect($page->html())->not->toContain('0.0%');
 });
 
 // ─── Departments ─────────────────────────────────────────────────────────────
 
 test('department rows sum to the company row for every count metric and a department filter shows only that row', function (): void {
-    $f = kpiFixture();
-    kpiAction($f, $f['p1'], DevelopmentActionClosure::Open, now()->subDay()->toDateString());
-    kpiEvent($f, TrainingEventStatus::Scheduled, $f['engineering']);
+    $f = hrKpiFixture();
+    hrKpiAction($f, $f['p1'], DevelopmentActionClosure::Open, now()->subDay()->toDateString());
+    hrKpiEvent($f, TrainingEventStatus::Scheduled, $f['engineering']);
     // An event with no target department still belongs to the company, so it
     // gets its own row rather than vanishing from the department table.
-    kpiEvent($f, TrainingEventStatus::Scheduled, null);
-    $summary = kpiSummary($f);
+    hrKpiEvent($f, TrainingEventStatus::Scheduled, null);
+    $summary = hrKpiSummary($f);
 
     expect(array_column($summary->departments, 'department'))->toBe(['Engineering', 'Production', 'No department']);
 
@@ -363,11 +363,11 @@ test('department rows sum to the company row for every count metric and a depart
         expect($sum)->toBe($summary->company[$metric]['value'], $metric);
     }
 
-    expect(kpiValues($summary->department((int) $f['production']->id)['metrics']))->toMatchArray([
+    expect(hrKpiValues($summary->department((int) $f['production']->id)['metrics']))->toMatchArray([
         'active_staff' => 3, 'expected_assessments' => 6, 'latest_records' => 5, 'verified_competent' => 4, 'major_critical_gaps' => 0,
     ]);
 
-    $page = kpiPage($f, $f['hr'])->assertOk()->assertSee('Production')->assertSee('Engineering')
+    $page = hrKpiPage($f, $f['hr'])->assertOk()->assertSee('Production')->assertSee('Engineering')
         ->call('selectDepartment', (string) $f['engineering']->id)
         ->assertSet('department', (string) $f['engineering']->id);
     $rows = $page->viewData('departmentRows');
@@ -379,8 +379,8 @@ test('department rows sum to the company row for every count metric and a depart
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 test('every cell carries its value, definition and as-of, and count cells link to the drill-down that lists their records', function (): void {
-    $f = kpiFixture();
-    $page = kpiPage($f, $f['hr'])->assertOk();
+    $f = hrKpiFixture();
+    $page = hrKpiPage($f, $f['hr'])->assertOk();
     $html = $page->html();
     $asOf = $page->viewData('summary')->asOf->format('Y-m-d H:i');
 
@@ -404,11 +404,11 @@ test('every cell carries its value, definition and as-of, and count cells link t
 });
 
 test('the drill-down pages honour the filters the dashboard links carry', function (): void {
-    $f = kpiFixture();
-    kpiAction($f, $f['p1'], DevelopmentActionClosure::Open, now()->subDay()->toDateString());
-    kpiAction($f, $f['p2'], DevelopmentActionClosure::Cancelled, now()->subDay()->toDateString());
-    kpiEvent($f, TrainingEventStatus::Scheduled, $f['engineering']);
-    kpiEvent($f, TrainingEventStatus::Completed, $f['production']);
+    $f = hrKpiFixture();
+    hrKpiAction($f, $f['p1'], DevelopmentActionClosure::Open, now()->subDay()->toDateString());
+    hrKpiAction($f, $f['p2'], DevelopmentActionClosure::Cancelled, now()->subDay()->toDateString());
+    hrKpiEvent($f, TrainingEventStatus::Scheduled, $f['engineering']);
+    hrKpiEvent($f, TrainingEventStatus::Completed, $f['production']);
 
     // Guard: matrix band filter — only the engineer holds a major/critical gap.
     $matrix = Livewire::withQueryParams(['band' => 'major_gap,critical_gap'])->actingAs($f['hr'])->test(Matrix::class)->assertOk();
@@ -429,7 +429,7 @@ test('the drill-down pages honour the filters the dashboard links carry', functi
 });
 
 test('the route and the component require the HR audience', function (): void {
-    $f = kpiFixture();
+    $f = hrKpiFixture();
 
     $this->actingAs($f['hr'])->get(route('people.skill.hr-dashboard'))->assertOk();
 
@@ -439,14 +439,14 @@ test('the route and the component require the HR audience', function (): void {
 });
 
 test('HR of the sibling company sees none of this company records and another tenant rows are not loaded', function (): void {
-    $f = kpiFixture();
+    $f = hrKpiFixture();
     /** @var TwoCompanyTenant $tenant */
     $tenant = $f['tenant'];
 
-    $sibling = kpiPage($f, $f['siblingHr'])->assertOk()->assertSet('companyEntityId', $tenant->betaCompanyEntityId);
+    $sibling = hrKpiPage($f, $f['siblingHr'])->assertOk()->assertSet('companyEntityId', $tenant->betaCompanyEntityId);
 
     // Guard: CompanyAttribution scopes the selector to the actor's company.
-    expect(kpiValues($sibling->viewData('summary')->company))->toMatchArray(['active_staff' => 0, 'latest_records' => 0, 'assessment_coverage' => null]);
+    expect(hrKpiValues($sibling->viewData('summary')->company))->toMatchArray(['active_staff' => 0, 'latest_records' => 0, 'assessment_coverage' => null]);
     expect($sibling->viewData('companies'))->not->toHaveKey($f['companyId']);
     $sibling->call('selectCompany', $f['companyId'])->assertNotFound();
 
@@ -464,13 +464,13 @@ test('HR of the sibling company sees none of this company records and another te
     app(TenantContext::class)->set($f['tenantId']);
 
     // Guard: forCompany pins tenant and company on every read.
-    expect(kpiValues(kpiSummary($f)->company))->toMatchArray(['active_staff' => 4, 'latest_records' => 6]);
+    expect(hrKpiValues(hrKpiSummary($f)->company))->toMatchArray(['active_staff' => 4, 'latest_records' => 6]);
 });
 
 test('rendering the dashboard writes no assessment, action or event row', function (): void {
-    $f = kpiFixture();
-    kpiAction($f, $f['p1'], DevelopmentActionClosure::Open, now()->addWeek()->toDateString());
-    kpiEvent($f, TrainingEventStatus::Scheduled, $f['production']);
+    $f = hrKpiFixture();
+    hrKpiAction($f, $f['p1'], DevelopmentActionClosure::Open, now()->addWeek()->toDateString());
+    hrKpiEvent($f, TrainingEventStatus::Scheduled, $f['production']);
     $count = static fn (): array => [
         DB::table('people_connector_skill_assessments')->count(),
         DB::table('people_connector_skill_development_actions')->count(),
@@ -478,7 +478,7 @@ test('rendering the dashboard writes no assessment, action or event row', functi
     ];
     $before = $count();
 
-    kpiPage($f, $f['hr'])->assertOk()->call('selectDepartment', (string) $f['production']->id)->assertOk()->call('selectCompany', $f['companyId'])->assertOk();
+    hrKpiPage($f, $f['hr'])->assertOk()->call('selectDepartment', (string) $f['production']->id)->assertOk()->call('selectCompany', $f['companyId'])->assertOk();
 
     // Guard: the page is read-only.
     expect($count())->toBe($before)->and($before)->toBe([7, 1, 1]);
