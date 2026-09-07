@@ -24,6 +24,8 @@ final class TrainingAudience
 
     public const CALENDAR_VIEW = 'people.training.calendar.view';
 
+    public const EXPORT = 'people.training.participation.export';
+
     public function __construct(
         private readonly SkillAudience $skills,
         private readonly CompanyAttribution $companies,
@@ -57,6 +59,30 @@ final class TrainingAudience
     public function authorizeManage(User $user, int $companyEntityId): void
     {
         if (! $this->canManage($user, $companyEntityId)) {
+            $this->deny();
+        }
+    }
+
+    /**
+     * Whether the user may download an event's attendance register (0011-f):
+     * the export capability with the HR audience, for a company they may
+     * act for. A trainer assigned to the event holds neither.
+     */
+    public function canExport(User $user, int $companyEntityId): bool
+    {
+        try {
+            $audiences = $this->skills->authorizeAudience($user, self::EXPORT);
+        } catch (AuthorizationDeniedException) {
+            return false;
+        }
+
+        return in_array(SkillAudience::HR, $audiences, true)
+            && $this->companies->mayActFor($user, $companyEntityId);
+    }
+
+    public function authorizeExport(User $user, int $companyEntityId): void
+    {
+        if (! $this->canExport($user, $companyEntityId)) {
             $this->deny();
         }
     }
