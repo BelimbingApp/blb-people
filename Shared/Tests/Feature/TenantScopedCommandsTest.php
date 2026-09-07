@@ -87,6 +87,7 @@ function tenantScopedArguments(string $name): array
         'blb:claim:policy:simulate' => ['employee' => '1', 'line' => '1', 'date' => '2026-01-01', 'amount' => '1'],
         'blb:claim:policy:validate' => ['policy' => 'none', '--company' => 1],
         'people:skills-workbook-dry-run' => ['workbook' => __FILE__],
+        'people:skills-workbook-export' => ['output' => sys_get_temp_dir().'/tenant-scoped-export.xlsx'],
         'people:performance:cutover-check', 'people:performance:overdue', 'people:reminders-due',
         'people:training:effectiveness-due', 'people:training:evaluations-due' => ['--company' => 1],
         default => [],
