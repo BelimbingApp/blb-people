@@ -141,6 +141,64 @@ final class TrainingParticipationStore
      * same seam the page reads — so the calendar never offers an event
      * this store would refuse.
      */
+    /**
+     * Enrol every subject of an approved request onto the event it was linked
+     * to, or none of them.
+     *
+     * Called by TrainingRequestStore::linkEvent(), which has already decided
+     * the request may be linked; this owns the participation rules. Capacity
+     * is checked once for the whole cohort: half a department enrolled and the
+     * rest silently dropped is worse than a refused link somebody can act on.
+     *
+     * Idempotent per event and subject, so linking, unlinking and linking
+     * again does not duplicate anybody.
+     *
+     * @param  list<array{provider_id: string, employee_subject_id: string}>  $subjects
+     * @return list<TrainingParticipant>
+     */
+    public function enrolFromRequest(User $actor, int $companyId, int $eventId, array $subjects): array
+    {
+        $tenant = $this->scope($actor, $companyId, self::MANAGE);
+
+        return DB::transaction(function () use ($companyId, $eventId, $subjects, $tenant): array {
+            $event = TrainingEvent::query()->forCompany($tenant, $companyId)->lockForUpdate()->find($eventId)
+                ?? throw new InvalidTrainingParticipationException('Training event was not found in this company.');
+
+            $existing = TrainingParticipant::query()->forCompany($tenant, $companyId)
+                ->where('event_id', $event->id)->get();
+            $alreadyOn = $existing->filter(fn (TrainingParticipant $p): bool => $p->withdrawn_at === null)
+                ->map(fn (TrainingParticipant $p): string => $p->provider_id.':'.$p->employee_subject_id)
+                ->all();
+
+            $wanted = [];
+            foreach ($subjects as $subject) {
+                $key = $subject['provider_id'].':'.$subject['employee_subject_id'];
+                if (! in_array($key, $alreadyOn, true)) {
+                    $wanted[$key] = $subject;
+                }
+            }
+
+            $seats = (int) $event->capacity - count($alreadyOn);
+            if (count($wanted) > $seats) {
+                throw new InvalidTrainingParticipationException('The training event does not have room for everybody the request names.');
+            }
+
+            $enrolled = [];
+            foreach ($wanted as $subject) {
+                $enrolled[] = TrainingParticipant::query()->forCompany($tenant, $companyId)->updateOrCreate(
+                    [
+                        'tenant_id' => $tenant, 'company_entity_id' => $companyId, 'event_id' => $event->id,
+                        'provider_id' => $subject['provider_id'],
+                        'employee_subject_id' => $subject['employee_subject_id'],
+                    ],
+                    ['withdrawn_at' => null, 'workforce_observed_at' => now()],
+                );
+            }
+
+            return $enrolled;
+        });
+    }
+
     public function enrolSelf(User $actor, int $companyId, int $eventId): TrainingParticipant
     {
         $tenant = $this->scope($actor, $companyId, TrainingAudience::CALENDAR_VIEW);
