@@ -31,5 +31,16 @@ return [
             'permission' => 'people.skill.development-action.view',
             'parent' => 'people',
         ],
+        [
+            // 0007-e (#363): HR-only KPI dashboard; the HOD audience has its
+            // own planning and team-gap pages.
+            'id' => 'people.skill-hr-dashboard',
+            'label' => 'Skill KPIs',
+            'icon' => 'heroicon-o-chart-bar',
+            'route' => 'people.skill.hr-dashboard',
+            'permission' => 'people.skill.hr.view',
+            'condition' => 'people.skill.hr-audience',
+            'parent' => 'people',
+        ],
     ],
 ];
