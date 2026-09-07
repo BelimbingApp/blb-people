@@ -10,7 +10,7 @@
         @foreach ($groups as $group)
             <x-ui.card>
                 <h2 class="text-lg font-semibold">{{ $group['skill'] }}</h2>
-                <x-ui.table>
+                <x-ui.table :caption="__('Released scores for :skill', ['skill' => $group['skill']])">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Assessed') }}</x-ui.th>
