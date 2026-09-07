@@ -5,16 +5,22 @@ namespace App\Domains\People\Training\Services;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
+use App\Domains\People\Skills\Data\DevelopmentActionDraft;
 use App\Domains\People\Skills\Enums\AssessmentStatus;
+use App\Domains\People\Skills\Models\DevelopmentAction;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\CompanyAttribution;
+use App\Domains\People\Skills\Services\DevelopmentActionStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Data\EffectivenessOutcomeDraft;
 use App\Domains\People\Training\Data\EffectivenessReviewDraft;
 use App\Domains\People\Training\Enums\EffectivenessClosureRoute;
+use App\Domains\People\Training\Enums\EffectivenessOutcome;
 use App\Domains\People\Training\Enums\EffectivenessReviewState;
 use App\Domains\People\Training\Exceptions\InvalidEffectivenessReviewException;
+use App\Domains\People\Training\Models\TrainingCourse;
 use App\Domains\People\Training\Models\TrainingEffectivenessReview;
+use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingParticipant;
 use Illuminate\Support\Facades\DB;
 
@@ -41,6 +47,7 @@ final class TrainingEffectivenessStore
         private readonly CompanyAttribution $companies,
         private readonly SkillAudience $audiences,
         private readonly ReadsWorkforceDirectory $directory,
+        private readonly DevelopmentActionStore $developmentActions,
     ) {}
 
     public function openStage(User $actor, int $companyEntityId, EffectivenessReviewDraft $draft): TrainingEffectivenessReview
@@ -120,6 +127,187 @@ final class TrainingEffectivenessStore
 
             return $review->refresh();
         });
+    }
+
+    /**
+     * The development action a review that did not find the training effective
+     * owes somebody (0013-f).
+     *
+     * `further_action` is free text: it can say "coach him again next month"
+     * and nobody is named, nothing is due and no reassessment is scheduled.
+     * This links the review to a Skills development action, which carries all
+     * three, so the closure rule in the contract has something to point at.
+     *
+     * The action's subject is never the caller's to choose. The employee comes
+     * from the reviewed participant, the levels from the review, and the skill
+     * from the skills the participant's own course covers — a follow-up that
+     * could address any skill at all would let a HOD close a failed isolation
+     * course with a spreadsheet action.
+     *
+     * Passing an int links an already-open action of that same employee and a
+     * course skill, for the case where the gap is already being worked.
+     */
+    public function openFollowUpAction(
+        User $actor,
+        int $companyEntityId,
+        int $reviewId,
+        DevelopmentActionDraft|int $action,
+    ): TrainingEffectivenessReview {
+        $tenantId = $this->scope($actor, $companyEntityId);
+        $this->authorize($actor, SkillAudience::HOD, self::REVIEW_CAPABILITY,
+            'Only a HOD may open a follow-up development action.');
+
+        return DB::transaction(function () use ($tenantId, $companyEntityId, $reviewId, $action, $actor): TrainingEffectivenessReview {
+            $review = $this->find($tenantId, $companyEntityId, $reviewId);
+            $this->assertOwesFollowUp($review);
+            $participant = $this->participant($tenantId, $companyEntityId, (int) $review->training_participant_id);
+            $this->assertActorIsNotParticipant($actor, $companyEntityId, $participant);
+
+            // The participant's subject id is the selected provider's stable
+            // id; for the native provider it is the platform employee id, and
+            // DevelopmentActionStore refuses any id that is not an active
+            // employee of this company, so a mismatch is refused, not assumed.
+            $employeeEntityId = (int) $participant->employee_subject_id;
+            $courseSkillIds = $this->courseSkillIds($tenantId, $companyEntityId, $participant);
+
+            $linked = is_int($action)
+                ? $this->existingFollowUpAction($tenantId, $companyEntityId, $action, $employeeEntityId, $courseSkillIds)
+                : $this->newFollowUpAction($companyEntityId, $review, $action, $employeeEntityId, $courseSkillIds, $actor);
+
+            $review->update(['development_action_id' => $linked->getKey()]);
+
+            return $review->refresh();
+        });
+    }
+
+    private function assertOwesFollowUp(TrainingEffectivenessReview $review): void
+    {
+        if ($review->state === EffectivenessReviewState::Closed) {
+            throw new InvalidEffectivenessReviewException(
+                'A closed review is a historical fact; open the follow-up before closing it.',
+            );
+        }
+        if (! in_array($review->outcome, [
+            EffectivenessOutcome::PartiallyEffective,
+            EffectivenessOutcome::NotYetEffective,
+        ], true)) {
+            throw new InvalidEffectivenessReviewException(
+                'Only a partially or not-yet-effective outcome owes a follow-up development action.',
+            );
+        }
+        if ($review->development_action_id !== null) {
+            throw new InvalidEffectivenessReviewException(
+                'This review already carries a follow-up action; revise that action rather than opening a second.',
+            );
+        }
+    }
+
+    /**
+     * The skills the reviewed participant's own course covers.
+     *
+     * @return list<int>
+     */
+    private function courseSkillIds(int $tenantId, int $companyEntityId, TrainingParticipant $participant): array
+    {
+        $event = TrainingEvent::query()->forCompany($tenantId, $companyEntityId)
+            ->find($participant->event_id)
+            ?? throw new InvalidEffectivenessReviewException('The training event was not found in this company.');
+        $course = TrainingCourse::query()->forCompany($tenantId, $companyEntityId)
+            ->find($event->course_id)
+            ?? throw new InvalidEffectivenessReviewException('The training course was not found in this company.');
+
+        return $course->skillIds();
+    }
+
+    /** @param list<int> $courseSkillIds */
+    private function newFollowUpAction(
+        int $companyEntityId,
+        TrainingEffectivenessReview $review,
+        DevelopmentActionDraft $draft,
+        int $employeeEntityId,
+        array $courseSkillIds,
+        User $actor,
+    ): DevelopmentAction {
+        $skillId = $draft->skillId ?? (count($courseSkillIds) === 1 ? $courseSkillIds[0] : null);
+        if ($skillId === null) {
+            throw new InvalidEffectivenessReviewException(
+                'The reviewed course covers more than one skill; name the one this follow-up addresses.',
+            );
+        }
+        if (! in_array($skillId, $courseSkillIds, true)) {
+            throw new InvalidEffectivenessReviewException(
+                'The follow-up addresses a skill the reviewed course does not cover.',
+            );
+        }
+        // Where the employee actually stands: the verified post-training level
+        // when the review has one, and otherwise the baseline it opened with.
+        $startingLevel = $review->post_level ?? $review->baseline_level;
+        if ($startingLevel === null || $review->target_level === null) {
+            throw new InvalidEffectivenessReviewException(
+                'The review records no level to start from or to aim at, and an action needs both.',
+            );
+        }
+        if ($draft->criticality === null) {
+            throw new InvalidEffectivenessReviewException(
+                'A follow-up action needs the criticality of the requirement it closes.',
+            );
+        }
+
+        return $this->developmentActions->proposeManual($companyEntityId, new DevelopmentActionDraft(
+            employeeEntityId: $employeeEntityId,
+            type: $draft->type,
+            objective: $draft->objective,
+            intervention: $draft->intervention,
+            expectedEvidence: $draft->expectedEvidence,
+            ownerEmployeeEntityId: $draft->ownerEmployeeEntityId,
+            hrCoordinatorEmployeeEntityId: $draft->hrCoordinatorEmployeeEntityId,
+            startDate: $draft->startDate,
+            dueDate: $draft->dueDate,
+            trainerEmployeeEntityId: $draft->trainerEmployeeEntityId,
+            trainerProviderName: $draft->trainerProviderName,
+            skillId: $skillId,
+            startingLevel: (int) $startingLevel,
+            targetLevel: (int) $review->target_level,
+            criticality: $draft->criticality,
+            mandatoryGate: $draft->mandatoryGate,
+            nextSteps: $draft->nextSteps,
+            trainingCourseCode: $draft->trainingCourseCode,
+            manualReason: sprintf(
+                'Follow-up from the %s training effectiveness review #%d, outcome %s.',
+                $review->stage->label(),
+                (int) $review->getKey(),
+                $review->outcome->label(),
+            ),
+        ), (int) $actor->getKey());
+    }
+
+    /** @param list<int> $courseSkillIds */
+    private function existingFollowUpAction(
+        int $tenantId,
+        int $companyEntityId,
+        int $actionId,
+        int $employeeEntityId,
+        array $courseSkillIds,
+    ): DevelopmentAction {
+        $action = DevelopmentAction::query()->forCompany($tenantId, $companyEntityId)->find($actionId)
+            ?? throw new InvalidEffectivenessReviewException('The development action was not found in this company.');
+        if ((int) $action->employee_entity_id !== $employeeEntityId) {
+            throw new InvalidEffectivenessReviewException(
+                'The development action belongs to another employee than the reviewed participant.',
+            );
+        }
+        if (! in_array((int) $action->skill_id, $courseSkillIds, true)) {
+            throw new InvalidEffectivenessReviewException(
+                'The development action addresses a skill the reviewed course does not cover.',
+            );
+        }
+        if (! $action->status->isOpen()) {
+            throw new InvalidEffectivenessReviewException(
+                'Link an open development action; a completed or cancelled one cannot carry new follow-up.',
+            );
+        }
+
+        return $action;
     }
 
     public function closeWithReassessment(
