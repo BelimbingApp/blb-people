@@ -182,12 +182,21 @@ and a second fact for the same participant/session are refused. Unknown learning
 results remain null, not-applicable is explicit, and zero is a real score against
 the supplied maximum/pass mark. Actual minutes never default to scheduled hours.
 
-This slice does not implement nomination lifecycle, confirmed-fact corrections,
-request/plan allocations, evaluation, participant read/export or passport
-integration. A confirmed correction is refused until an append-only
-correction operation is provided. Evidence fields hold opaque references only;
-download and export remain separate governed operations. The existing aggregate
-and self-standing readers are not replaced or marked complete by this write slice.
+This slice does not implement nomination lifecycle, request/plan allocations,
+evaluation, participant read/export or passport integration. Evidence fields
+hold opaque references only; download and export remain separate governed
+operations. The existing aggregate and self-standing readers are not replaced
+or marked complete by this write slice.
+
+A confirmed fact is corrected by appending, never by updating (0011-d). HR
+holds `people.training.participation.rework` and calls
+`TrainingParticipationStore::correct()`, which writes a new row carrying
+`supersedes_fact_id` and a `correction_reason`; the original stays exactly as
+it was recorded, and the database triggers that make a confirmed row immutable
+are unchanged. Each row may be superseded once, so a further correction
+supersedes the correction and the chain stays linear. Readers that answer what
+happened use `TrainingParticipationFact::current()`; readers asking whether
+anything here was ever confirmed deliberately do not.
 
 ## Employee evidence submission slice (issue #267)
 
