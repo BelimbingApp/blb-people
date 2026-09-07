@@ -4,6 +4,7 @@ namespace App\Domains\People\Skills\Livewire\BackupCoverage;
 
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Core\Company\Models\Department;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
 use App\Domains\People\Skills\Models\EmployeeSkillScore;
@@ -27,6 +28,9 @@ final class Index extends Component
 {
     public const VIEW_CAPABILITY = 'people.skill.coverage.view';
 
+    /** Department id to narrow the per-department table to, or empty for all. */
+    public string $department = '';
+
     public function mount(): void
     {
         $this->authorizeView();
@@ -37,9 +41,37 @@ final class Index extends Component
         $this->authorizeView();
         $actor = Auth::user();
 
+        $tenantId = (int) $tenants->requireTenantId();
+        $companyId = (int) $actor->company_id;
+        $coverage = app(CriticalSkillBackupCoverage::class);
+
         return view('people::livewire.backup-coverage.index', [
-            'rows' => $this->rows((int) $tenants->requireTenantId(), (int) $actor->company_id),
+            'rows' => $this->rows($tenantId, $companyId),
+            // 0007-c: the same question asked per department and against the
+            // tenant's own minimum, rather than company-wide against two.
+            'departmentRows' => $coverage->rows(
+                $tenantId,
+                $companyId,
+                $this->department === '' ? null : (int) $this->department,
+            ),
+            'departments' => $this->departmentNames($companyId),
+            'minimum' => $coverage->minimum($tenantId),
         ]);
+    }
+
+    /**
+     * Department id => name, for the filter. Named from the department type,
+     * which is where a department's name actually lives.
+     *
+     * @return array<int, string>
+     */
+    private function departmentNames(int $companyId): array
+    {
+        return Department::query()->where('company_id', $companyId)->with('type')->get()
+            ->mapWithKeys(static fn (Department $department): array => [
+                (int) $department->id => (string) ($department->name ?? __('Unnamed department')),
+            ])
+            ->all();
     }
 
     /**
