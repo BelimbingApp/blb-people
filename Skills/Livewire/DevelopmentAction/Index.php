@@ -33,6 +33,19 @@ final class Index extends Component
     /** @var list<int> */
     public array $selectedAssessmentIds = [];
 
+    /**
+     * Narrow both registers to named actions, for a drill-down arriving from
+     * another page — the effectiveness roll-up's open follow-up count links
+     * here with the ids it counted (0013-f).
+     *
+     * A filter, never a widening: the registers are already scoped to the
+     * actions this viewer may see, and this can only take rows away.
+     *
+     * @var list<int>
+     */
+    #[Url(as: 'focusActionIds')]
+    public array $focusActionIds = [];
+
     public string $actionType = 'coaching';
 
     public string $objective = '';
@@ -299,6 +312,11 @@ final class Index extends Component
                 ->orderByDesc('mandatory_gate')->orderByDesc('priority_score')->get();
             $actions = $this->drillDown($store->operationalQuery($companyId)->whereIn('employee_entity_id', $visibleEmployeeIds)->get());
             $terminalActions = $this->drillDown($store->terminalQuery($companyId)->whereIn('employee_entity_id', $visibleEmployeeIds)->get());
+            $focus = array_values(array_filter(array_map(intval(...), $this->focusActionIds)));
+            if ($focus !== []) {
+                $actions = $actions->whereIn('id', $focus)->values();
+                $terminalActions = $terminalActions->whereIn('id', $focus)->values();
+            }
             $skillNames = Skill::query()
                 ->forCompany(app(TenantContext::class)->requireTenantId(), $companyId)
                 ->whereIn('id', $gaps->pluck('skill_id')->merge($actions->pluck('skill_id'))->merge($terminalActions->pluck('skill_id'))->unique())

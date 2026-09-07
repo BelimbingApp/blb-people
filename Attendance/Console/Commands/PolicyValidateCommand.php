@@ -2,13 +2,13 @@
 
 namespace App\Domains\People\Attendance\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
 use App\Domains\People\Attendance\Services\AttendancePolicyValidationService;
-use Illuminate\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'blb:attendance:policy:validate')]
-class PolicyValidateCommand extends Command
+class PolicyValidateCommand extends TenantScopedCommand
 {
     protected $description = 'Validate an Attendance Policy Group and emit stable findings';
 

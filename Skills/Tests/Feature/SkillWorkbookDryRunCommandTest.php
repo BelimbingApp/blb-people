@@ -37,7 +37,7 @@ function skillCatalogueRowCounts(): array
 test('the workbook dry run reports candidate records with provenance and writes nothing', function (): void {
     $before = skillCatalogueRowCounts();
 
-    $this->artisan('people:skills-workbook-dry-run', ['workbook' => skillWorkbookDryRunFixture()])
+    $this->artisan('people:skills-workbook-dry-run', ['--tenant' => createTenant()->id, 'workbook' => skillWorkbookDryRunFixture()])
         ->expectsOutputToContain('02 Skill Catalogue: skills=2, category occurrences=2')
         ->expectsOutputToContain('00 Guide: proficiency levels=6')
         ->expectsOutputToContain('skill {"code":"DEMO-001","department":"Shared"')
@@ -57,7 +57,7 @@ test('a configured blocking defect makes the dry run fail', function (): void {
     );
 
     try {
-        $this->artisan('people:skills-workbook-dry-run', ['workbook' => $path])
+        $this->artisan('people:skills-workbook-dry-run', ['--tenant' => createTenant()->id, 'workbook' => $path])
             ->expectsOutputToContain('02 Skill Catalogue: skills=1, category occurrences=1')
             ->expectsOutputToContain('[blocking] formula at 02 Skill Catalogue!D6')
             ->expectsOutputToContain('Defects: 1 (blocking: 1)')
@@ -74,7 +74,7 @@ test('a defect not marked blocking remains visible without failing the dry run',
     );
 
     try {
-        $this->artisan('people:skills-workbook-dry-run', ['workbook' => $path])
+        $this->artisan('people:skills-workbook-dry-run', ['--tenant' => createTenant()->id, 'workbook' => $path])
             ->expectsOutputToContain('[warning] formula at 02 Skill Catalogue!D6')
             ->expectsOutputToContain('Defects: 1 (blocking: 0)')
             ->assertSuccessful();
@@ -86,7 +86,7 @@ test('a defect not marked blocking remains visible without failing the dry run',
 test('an associative blocking defect configuration is rejected instead of being treated as a list', function (): void {
     config()->set('people-skills.workbook.blocking_defects', ['formula' => 'formula']);
 
-    $this->artisan('people:skills-workbook-dry-run', ['workbook' => skillWorkbookDryRunFixture()])
+    $this->artisan('people:skills-workbook-dry-run', ['--tenant' => createTenant()->id, 'workbook' => skillWorkbookDryRunFixture()])
         ->expectsOutputToContain('people-skills.workbook.blocking_defects must be a list of defect names.')
         ->assertFailed();
 });

@@ -234,7 +234,7 @@ final class TrainingEvidenceSubmissionStore
             return [];
         }
 
-        $facts = TrainingParticipationFact::query()->forCompany($tenant, $companyId)
+        $facts = TrainingParticipationFact::query()->forCompany($tenant, $companyId)->current()
             ->whereIn('participant_id', $participants->pluck('id')->all())->get()->groupBy('participant_id');
         $participants = $participants->filter(fn (TrainingParticipant $participant): bool => $facts->get($participant->id, collect())
             ->contains(fn (TrainingParticipationFact $fact): bool => $fact->attendance === AttendanceStatus::Present));

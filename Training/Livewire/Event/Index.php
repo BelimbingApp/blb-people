@@ -6,14 +6,20 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
+use App\Domains\People\Training\Data\ParticipationFactDraft;
 use App\Domains\People\Training\Data\TrainingEventDraft;
+use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\DeliveryMode;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEventException;
+use App\Domains\People\Training\Exceptions\InvalidTrainingParticipationException;
 use App\Domains\People\Training\Models\TrainingCourse;
 use App\Domains\People\Training\Models\TrainingEventAuditEvent;
+use App\Domains\People\Training\Models\TrainingParticipant;
+use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Services\TrainingAudience;
 use App\Domains\People\Training\Services\TrainingEventStore;
+use App\Domains\People\Training\Services\TrainingParticipationStore;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -26,6 +32,15 @@ final class Index extends Component
     public ?int $companyEntityId = null;
 
     public ?int $editingEventId = null;
+
+    /** The confirmed fact HR is correcting, if any. */
+    public ?int $correctingFactId = null;
+
+    public string $correctionReason = '';
+
+    public string $correctionAttendance = '';
+
+    public int $correctionMinutes = 0;
 
     public ?int $courseId = null;
 
@@ -238,9 +253,137 @@ final class Index extends Component
             $summaries = $participation->forEvents($company, $events->pluck('id')->map(intval(...))->all());
         }
 
+        $facts = $company !== null && array_key_exists($company, $companies)
+            ? $this->confirmedFactRows($company, $events->modelKeys(), $employees)
+            : collect();
+
         return view('people::livewire.event.index', compact(
-            'companies', 'events', 'courses', 'departments', 'employees', 'history', 'summaries', 'canManage',
+            'companies', 'events', 'courses', 'departments', 'employees', 'history', 'summaries', 'canManage', 'facts',
         ));
+    }
+
+    /**
+     * Confirmed participation for the visible events, as it currently stands.
+     *
+     * current() means a corrected fact is represented by its correction, not
+     * by both rows: the table answers what happened, and the reason column
+     * says when that answer replaced an earlier one.
+     *
+     * @param  list<int>  $eventIds
+     * @param  Collection<int, object>  $employees
+     * @return Collection<int, object>
+     */
+    private function confirmedFactRows(int $companyEntityId, array $eventIds, Collection $employees): Collection
+    {
+        if ($eventIds === []) {
+            return collect();
+        }
+
+        $tenant = app(TenantContext::class)->requireTenantId();
+        $names = $employees->pluck('display_name', 'workforce_entity_id');
+        $participants = TrainingParticipant::query()->forCompany($tenant, $companyEntityId)
+            ->whereIn('event_id', $eventIds)->get()->keyBy('id');
+
+        return TrainingParticipationFact::query()->forCompany($tenant, $companyEntityId)
+            ->current()
+            ->whereIn('event_id', $eventIds)
+            ->whereNotNull('confirmed_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(static function (TrainingParticipationFact $fact) use ($participants, $names): object {
+                $participant = $participants->get($fact->participant_id);
+                $subjectId = $participant === null ? null : (int) $participant->employee_subject_id;
+
+                return (object) [
+                    'id' => (int) $fact->id,
+                    'event_id' => (int) $fact->event_id,
+                    'participant' => (string) ($names[$subjectId] ?? __('Unknown participant')),
+                    'attendance' => $fact->attendance,
+                    'actual_minutes' => (int) $fact->actual_minutes,
+                    'corrected' => (int) $fact->supersedes_fact_id > 0,
+                    'reason' => (string) ($fact->correction_reason ?? ''),
+                ];
+            });
+    }
+
+    /**
+     * Open the correction form for one confirmed fact.
+     *
+     * Nothing is written here; the store decides whether this actor may
+     * correct anything, and it decides again on save.
+     */
+    public function startCorrection(int $factId): void
+    {
+        $fact = $this->confirmedFact($factId);
+        $this->correctingFactId = (int) $fact->id;
+        $this->correctionAttendance = $fact->attendance->value;
+        $this->correctionMinutes = (int) $fact->actual_minutes;
+        $this->correctionReason = '';
+    }
+
+    public function cancelCorrection(): void
+    {
+        $this->correctingFactId = null;
+        $this->correctionReason = '';
+        $this->correctionAttendance = '';
+        $this->correctionMinutes = 0;
+    }
+
+    /** Append the superseding fact through the store, which owns every rule. */
+    public function saveCorrection(TrainingParticipationStore $store): void
+    {
+        $companyId = $this->companyEntityId;
+        $factId = $this->correctingFactId;
+        abort_unless($companyId !== null && $factId !== null, 404);
+
+        $this->validate([
+            'correctionReason' => ['required', 'string', 'min:3', 'max:2000'],
+            'correctionAttendance' => ['required', Rule::enum(AttendanceStatus::class)],
+            'correctionMinutes' => ['required', 'integer', 'min:0'],
+        ]);
+
+        $fact = $this->confirmedFact($factId);
+
+        try {
+            $store->correct(Auth::user(), $companyId, (int) $fact->id, new ParticipationFactDraft(
+                attendance: AttendanceStatus::from($this->correctionAttendance),
+                actualMinutes: $this->correctionMinutes,
+                source: 'correction',
+                sourceReference: 'fact:'.$fact->id,
+                preTest: null,
+                postTest: null,
+                certificateReference: $fact->certificate_reference,
+                certificateValidFrom: $fact->certificate_valid_from,
+                certificateValidUntil: $fact->certificate_valid_until,
+                evidenceReferences: $fact->evidence_references ?? [],
+            ), $this->correctionReason);
+        } catch (InvalidTrainingParticipationException $refusal) {
+            $this->addError('correctionReason', $refusal->getMessage());
+
+            return;
+        }
+
+        $this->cancelCorrection();
+    }
+
+    /**
+     * The fact being corrected, read under the company scope so a fact id
+     * from another company or tenant is a 404 rather than a refusal that
+     * confirms the row exists.
+     */
+    private function confirmedFact(int $factId): TrainingParticipationFact
+    {
+        $companyId = $this->companyEntityId;
+        abort_unless($companyId !== null, 404);
+
+        $fact = TrainingParticipationFact::query()
+            ->forCompany(app(TenantContext::class)->requireTenantId(), $companyId)
+            ->whereNotNull('confirmed_at')
+            ->find($factId);
+
+        abort_if($fact === null, 404);
+
+        return $fact;
     }
 
     /** @return array<int, string> */

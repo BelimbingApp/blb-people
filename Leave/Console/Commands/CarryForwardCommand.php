@@ -2,10 +2,10 @@
 
 namespace App\Domains\People\Leave\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Leave\Models\LeaveAssignment;
 use App\Domains\People\Leave\Services\CarryForwardService;
-use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -16,7 +16,7 @@ use Symfony\Component\Console\Attribute\AsCommand;
  * the matching ledger entries.
  */
 #[AsCommand(name: 'blb:leave:carry-forward')]
-class CarryForwardCommand extends Command
+class CarryForwardCommand extends TenantScopedCommand
 {
     protected $description = 'Run year-end leave carry-forward across all employees with active assignments';
 

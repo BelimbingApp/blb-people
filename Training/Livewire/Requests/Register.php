@@ -12,9 +12,11 @@ use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Models\TrainingRequestDecision;
+use App\Domains\People\Training\Models\TrainingRequestSubject;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -45,6 +47,8 @@ final class Register extends Component
 
     public int $year;
 
+    /** URL-bound so a reminder can link straight to the approved-unlinked view (0009-h). */
+    #[Url]
     public string $status = '';
 
     public string $department = '';
@@ -109,9 +113,9 @@ final class Register extends Component
 
         return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'wb');
-            fputcsv($out, ['id', 'created_at', 'requestor', 'department', 'need', 'priority', 'status', 'estimated_cost', 'approver', 'decided_at', 'linked_event_id', 'linked_event_title']);
+            fputcsv($out, ['id', 'created_at', 'requestor', 'subjects', 'department', 'need', 'priority', 'status', 'estimated_cost', 'approver', 'decided_at', 'linked_event_id', 'linked_event_title']);
             foreach ($rows as $row) {
-                fputcsv($out, [$row['id'], $row['created_at'], $row['requestor'], $row['department'], $row['need'], $row['priority'], $row['status'], $row['estimated_cost'], $row['approver'], $row['decided_at'], $row['linked_event_id'], $row['linked_event_title']]);
+                fputcsv($out, [$row['id'], $row['created_at'], $row['requestor'], $row['subjects'], $row['department'], $row['need'], $row['priority'], $row['status'], $row['estimated_cost'], $row['approver'], $row['decided_at'], $row['linked_event_id'], $row['linked_event_title']]);
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);
@@ -119,7 +123,7 @@ final class Register extends Component
 
     /**
      * @param  array<string, string>  $departments
-     * @return Collection<int, array{id: int, created_at: string, requestor: string, department: string, need: string, priority: string, status: string, estimated_cost: string, approver: string, decided_at: string}>
+     * @return Collection<int, array{id: int, created_at: string, requestor: string, subjects: int, department: string, need: string, priority: string, status: string, estimated_cost: string, approver: string, decided_at: string}>
      */
     private function rows(int $companyEntityId, array $departments): Collection
     {
@@ -148,12 +152,20 @@ final class Register extends Component
         $approvers = $decisions->isEmpty() ? collect() : User::query()->whereIn('id', $decisions->pluck('actor_user_id')->unique()->all())->get()->keyBy('id');
         $linkedIds = $requests->pluck('training_event_id')->filter()->unique()->all();
         $eventTitles = $linkedIds === [] ? collect() : TrainingEvent::query()->forCompany($tenantId, $companyEntityId)->whereIn('id', $linkedIds)->pluck('course_title_snapshot', 'id');
+        // How many people each request is for (0010-f). One more pinned
+        // query for the same reason as the two above: an eager load would
+        // build the relation on a blank model and pin company 0.
+        $subjectCounts = $requests->isEmpty() ? collect() : TrainingRequestSubject::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->whereIn('training_request_id', $requests->pluck('id')->all())
+            ->get(['training_request_id'])
+            ->countBy('training_request_id');
         $employees = [];
         foreach (app(WorkforceSubjects::class)->employees($companyEntityId) as $employee) {
             $employees[$employee->reference->externalId] = $employee->displayName;
         }
 
-        return $requests->map(function (TrainingRequest $request) use ($decisions, $approvers, $employees, $departments, $eventTitles): array {
+        return $requests->map(function (TrainingRequest $request) use ($decisions, $approvers, $employees, $departments, $eventTitles, $subjectCounts): array {
             $decision = $decisions->get($request->id);
             $approver = $decision === null ? null : $approvers->get((int) $decision->actor_user_id);
 
@@ -161,6 +173,7 @@ final class Register extends Component
                 'id' => (int) $request->id,
                 'created_at' => (string) $request->created_at?->toDateString(),
                 'requestor' => $employees[$request->requestor_subject_id] ?? __('Employee :id', ['id' => $request->requestor_subject_id]),
+                'subjects' => (int) ($subjectCounts[$request->id] ?? 0),
                 'department' => $departments[$request->department_subject_id] ?? $request->department_subject_id,
                 'need' => (string) $request->need,
                 'priority' => $request->priority->value,

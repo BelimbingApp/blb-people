@@ -2,14 +2,14 @@
 
 namespace App\Domains\People\Attendance\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Domains\People\Attendance\Models\AttendancePolicyGroup;
 use App\Domains\People\Attendance\Models\AttendanceShiftTemplate;
 use App\Domains\People\Attendance\Services\AttendancePolicySimulationService;
-use Illuminate\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'blb:attendance:policy:simulate')]
-class PolicySimulateCommand extends Command
+class PolicySimulateCommand extends TenantScopedCommand
 {
     protected $description = 'Simulate an Attendance Policy Group against a shift and sample clock times';
 

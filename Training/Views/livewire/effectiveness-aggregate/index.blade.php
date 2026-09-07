@@ -62,6 +62,29 @@
                         </x-slot:body>
                     </x-ui.table>
 
+                    <x-ui.table :caption="__('Open follow-up development actions for :course', ['course' => $row->courseTitle])">
+                        <x-slot:head>
+                            <tr>
+                                <x-ui.th>{{ __('Open follow-up') }}</x-ui.th>
+                                <x-ui.th>{{ __('Drill down') }}</x-ui.th>
+                            </tr>
+                        </x-slot:head>
+                        <x-slot:body>
+                            <tr wire:key="course-{{ $row->courseId }}-follow-up">
+                                <td class="px-table-cell-x py-table-cell-y text-sm tabular-nums">{{ count($row->openFollowUpActionIds) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm">
+                                    @if ($row->openFollowUpActionIds === [])
+                                        <span class="text-muted">{{ __('Nothing outstanding') }}</span>
+                                    @else
+                                        <x-ui.link :href="route('people.skill.development-actions.index', ['focusActionIds' => $row->openFollowUpActionIds])">
+                                            {{ __('See the actions still running') }}
+                                        </x-ui.link>
+                                    @endif
+                                </td>
+                            </tr>
+                        </x-slot:body>
+                    </x-ui.table>
+
                     @if ($row->comments !== [])
                         <section class="space-y-2">
                             <h3 class="text-sm font-semibold text-ink">{{ __('Comments') }} ({{ count($row->comments) }})</h3>
