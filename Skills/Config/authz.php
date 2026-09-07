@@ -8,6 +8,13 @@ return [
     'capabilities' => [
         'people.skill.catalog.view',
         'people.skill.catalog.manage',
+
+        /*
+         * Uploading a starter-profile workbook (0008-a, #299). HR-only: the
+         * page validates every row before writing skills and draft role
+         * requirements through the catalog and profile stores.
+         */
+        'people.skill.catalog.import',
         'people.skill.assessment.view',
         'people.skill.assessment.manage',
         'people.skill-requirement.submit',
@@ -63,6 +70,7 @@ return [
             'capabilities' => [
                 'people.skill.catalog.view',
                 'people.skill.catalog.manage',
+                'people.skill.catalog.import',
                 'people.skill.assessment.view',
                 'people.skill.assessment.manage',
                 'people.skill-requirement.submit',
