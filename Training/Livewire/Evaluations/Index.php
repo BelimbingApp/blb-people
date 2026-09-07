@@ -21,8 +21,8 @@ use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Services\TrainingEvaluationFollowupStore;
 use App\Domains\People\Training\Services\TrainingEvaluationReader;
-use App\Domains\People\Training\Services\TrainingEvaluationSubmissionStore;
 use App\Domains\People\Training\Services\TrainingEvaluationReminders;
+use App\Domains\People\Training\Services\TrainingEvaluationSubmissionStore;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -273,6 +273,9 @@ final class Index extends Component
                     $events->get($participant->event_id)?->course_title_snapshot ?? __('Training event'),
                 ),
             ])->values()->all();
+    }
+
+    /**
      * The overdue drill-down (0012-d) is the same rule the reminder command
      * runs, read through {@see TrainingEvaluationReminders::overdue()}, so the
      * number on the dashboard and the participants the command chases cannot
