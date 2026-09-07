@@ -1,6 +1,7 @@
 <?php
 
 use App\Base\Authz\Enums\PrincipalType;
+use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
@@ -9,6 +10,9 @@ use App\Core\Company\Models\Department;
 use App\Core\Company\Models\DepartmentType;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
+use App\Domains\People\Provider\Data\ExternalReference;
+use App\Domains\People\Provider\Data\WorkforceSubject;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
@@ -16,14 +20,19 @@ use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Models\SkillActorBinding;
 use App\Domains\People\Skills\Services\SkillAudienceAssignmentStore;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
+use App\Domains\People\Training\Data\ParticipationFactDraft;
 use App\Domains\People\Training\Data\TrainingCourseDraft;
 use App\Domains\People\Training\Data\TrainingEventDraft;
+use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\DeliveryMode;
+use App\Domains\People\Training\Exceptions\InvalidTrainingParticipationException;
 use App\Domains\People\Training\Livewire\Calendar\Index as TrainingCalendar;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingParticipant;
+use App\Domains\People\Training\Services\TrainingAudience;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
+use App\Domains\People\Training\Services\TrainingParticipationStore;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 
@@ -247,4 +256,47 @@ it('hides sibling-company events from the calendar', function (): void {
     Livewire::actingAs($f['hr'])
         ->test(TrainingCalendar::class)
         ->assertDontSee('Sibling briefing');
+});
+
+it('refuses a second enrolment while the first is still active', function (): void {
+    $f = calendarFixture();
+    $event = calendarEvent($f['company'], $f['trainerEmployee'], 'Double booking');
+    $store = app(TrainingParticipationStore::class);
+    $store->enrolSelf($f['employee'], (int) $f['company']->id, (int) $event->id);
+
+    expect(fn () => $store->enrolSelf($f['employee'], (int) $f['company']->id, (int) $event->id))
+        ->toThrow(InvalidTrainingParticipationException::class)
+        ->and(calendarParticipantCount($f['tenantId'], (int) $f['company']->id, $event))->toBe(1);
+});
+
+it('refuses withdrawal once attendance has been recorded', function (): void {
+    $f = calendarFixture();
+    $event = calendarEvent($f['company'], $f['trainerEmployee'], 'Attended briefing');
+    $store = app(TrainingParticipationStore::class);
+    $store->enrolSelf($f['employee'], (int) $f['company']->id, (int) $event->id);
+    $session = $store->defineSession(
+        $f['hr'], (int) $f['company']->id, (int) $event->id,
+        (string) Str::uuid(), $event->starts_at, $event->ends_at,
+    );
+    test()->travelTo($event->ends_at->addHour());
+    $store->recordAttendance($f['hr'], (int) $f['company']->id, (int) $session->id, new WorkforceSubject(
+        $f['tenantId'], (int) $f['company']->id, WorkforceResourceType::Employee,
+        (string) $f['employee']->employee_id,
+        new ExternalReference(WorkforceResourceType::Employee, (string) $f['employee']->employee_id),
+    ), new ParticipationFactDraft(
+        attendance: AttendanceStatus::Present, actualMinutes: 120,
+        source: 'manual', sourceReference: (string) Str::uuid(),
+    ));
+
+    expect(fn () => $store->withdrawSelf($f['employee'], (int) $f['company']->id, (int) $event->id))
+        ->toThrow(InvalidTrainingParticipationException::class);
+});
+
+it('refuses a calendar read for a company the actor may not act for', function (): void {
+    $f = calendarFixture();
+    $sibling = Company::factory()->create(['tenant_id' => $f['tenantId'], 'name' => 'Calendar sibling company']);
+
+    expect(fn () => app(TrainingAudience::class)
+        ->visibleCalendarEvents($f['employee'], (int) $sibling->id))
+        ->toThrow(AuthorizationDeniedException::class);
 });
