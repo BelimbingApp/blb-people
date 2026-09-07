@@ -2,6 +2,9 @@
 
 namespace App\Domains\People\Skills\Services;
 
+use App\Base\Settings\Contracts\SettingsService;
+use App\Base\Settings\DTO\Scope;
+use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Department;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
@@ -24,6 +27,8 @@ use Illuminate\Support\Collection;
  */
 final class CriticalSkillBackupCoverage
 {
+    public const MINIMUM_SETTING = 'people-skills.backup_minimum';
+
     /** Enough people that one of them can be away. */
     public const DEFAULT_MINIMUM = 2;
 
@@ -49,7 +54,7 @@ final class CriticalSkillBackupCoverage
         }
 
         $departmentOf = $this->departmentByEmployee($scores);
-        $minimum = $this->minimum();
+        $minimum = $this->minimum($tenantId);
         $today = now()->toDateString();
         $rows = [];
 
@@ -97,10 +102,17 @@ final class CriticalSkillBackupCoverage
             ->all();
     }
 
-    /** How many holders a department needs before a critical skill is covered. */
-    public function minimum(): int
+    /**
+     * How many holders a department needs before a critical skill is covered.
+     *
+     * Read at the current tenant's scope, so a tenant whose teams are small
+     * can set its own without arguing with the platform default.
+     */
+    public function minimum(?int $tenantId = null): int
     {
-        $configured = config('people-skills.backup_minimum', self::DEFAULT_MINIMUM);
+        $tenantId ??= app(TenantContext::class)->currentTenantId();
+        $scope = $tenantId === null ? null : Scope::tenant($tenantId);
+        $configured = app(SettingsService::class)->get(self::MINIMUM_SETTING, $scope);
 
         return is_int($configured) && $configured > 0 ? $configured : self::DEFAULT_MINIMUM;
     }

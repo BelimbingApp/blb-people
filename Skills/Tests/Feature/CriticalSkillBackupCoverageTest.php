@@ -1,5 +1,7 @@
 <?php
 
+use App\Base\Settings\Contracts\SettingsService;
+use App\Base\Settings\DTO\Scope;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
 use App\Core\Company\Models\Department;
@@ -201,4 +203,22 @@ test('holders in another department or another company do not cover this departm
     expect($companyWide)->toHaveCount(2)
         ->and(collect($companyWide)->pluck('department_id')->all())
         ->toEqualCanonicalizing([(int) $f['department']->id, (int) $f['otherDepartment']->id]);
+});
+
+test('a tenant sets its own minimum, and without one the platform default applies', function (): void {
+    $f = backupFixture();
+    backupScore($f, backupEmployee($f, 'Only Holder'), current: 4);
+
+    // Two by default, so one holder is not cover.
+    $row = backupRow($f, $f['department']);
+    expect($row['minimum'])->toBe(2)->and($row['covered'])->toBeFalse();
+
+    // A tenant whose teams are small may say one is enough. That is a
+    // decision about this tenant, not an argument with the platform.
+    app(SettingsService::class)->set(
+        CriticalSkillBackupCoverage::MINIMUM_SETTING, 1, Scope::tenant($f['tenantId']),
+    );
+
+    $row = backupRow($f, $f['department']);
+    expect($row['minimum'])->toBe(1)->and($row['covered'])->toBeTrue();
 });
