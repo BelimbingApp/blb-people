@@ -7,41 +7,42 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Console\Concerns\AuthorizesAssessmentLogImport;
 use App\Domains\People\Skills\Exceptions\InvalidAssessmentException;
 use App\Domains\People\Skills\Import\UnreadableSkillWorkbook;
-use App\Domains\People\Skills\Services\AssessmentLogDryRun;
+use App\Domains\People\Skills\Services\AssessmentLogImporter;
 use App\Domains\People\Skills\Services\SkillAudience;
 
 /**
- * Report what importing 04 Assessment Log would do, writing nothing.
+ * Apply 04 Assessment Log: after a clean dry run, create one finalized
+ * assessment per would-create row in a single transaction (blb-people#390).
  *
- * Authorized like the catalogue import page: the acting user (--as) needs the
- * import capability with the HR audience for the named company, and that is
- * checked before the file is opened.
+ * Authorized like the dry run: the acting user (--as) needs the import
+ * capability with the HR audience for the named company, checked before the
+ * file is opened. Any defect means nothing was written and a non-zero exit.
  */
-final class AssessmentLogDryRunCommand extends TenantScopedCommand
+final class AssessmentLogApplyCommand extends TenantScopedCommand
 {
     use AuthorizesAssessmentLogImport;
 
-    protected $signature = 'people:skills-assessment-log-dry-run
+    protected $signature = 'people:skills-assessment-log-apply
                             {workbook : Path to the local XLSX workbook}
                             {--company= : Company workforce entity the log belongs to}
-                            {--as= : Platform user id the run is authorized as}';
+                            {--as= : Platform user id the import is authorized as}';
 
-    protected $description = 'Check the 04 Assessment Log sheet against the company before importing it; writes nothing';
+    protected $description = 'Import the 04 Assessment Log sheet as finalized assessments after a clean dry run; one transaction, idempotent per file and row';
 
-    public function handle(TenantContext $tenants, SkillAudience $audience, AssessmentLogDryRun $dryRun): int
+    public function handle(TenantContext $tenants, SkillAudience $audience, AssessmentLogImporter $importer): int
     {
         $tenantId = $tenants->requireTenantId();
-        $actor = $this->importActor($audience, $tenantId, 'A dry run');
+        $actor = $this->importActor($audience, $tenantId, 'An import');
         if ($actor === null) {
             return self::FAILURE;
         }
-        [, $companyEntityId] = $actor;
+        [$user, $companyEntityId] = $actor;
 
         try {
-            $result = $dryRun->run($tenantId, $companyEntityId, (string) $this->argument('workbook'));
+            $result = $importer->apply($user, $companyEntityId, (string) $this->argument('workbook'));
         } catch (UnreadableSkillWorkbook|InvalidAssessmentException $exception) {
             $this->error($exception->getMessage());
-            $this->line('Database writes: 0');
+            $this->line('Created: 0');
 
             return self::FAILURE;
         }
@@ -59,10 +60,12 @@ final class AssessmentLogDryRunCommand extends TenantScopedCommand
             ));
         }
 
-        $this->line(sprintf('Would create: %d', $result->wouldCreate));
-        $this->line(sprintf('Would skip: %d', $result->wouldSkip));
+        $this->line(sprintf('Created: %d', count($result->created)));
+        $this->line(sprintf('Skipped: %d', $result->skipped));
         $this->line(sprintf('Defects: %d', count($result->defects)));
-        $this->line('Database writes: 0');
+        if ($result->created !== []) {
+            $this->line('Created ids: '.implode(',', $result->created));
+        }
 
         return $result->defects === [] ? self::SUCCESS : self::FAILURE;
     }

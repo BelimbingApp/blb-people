@@ -5,6 +5,7 @@ namespace App\Domains\People\Skills\Services;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
 use App\Domains\People\Skills\Data\AssessmentLogDryRunResult;
+use App\Domains\People\Skills\Data\AssessmentLogPlannedRow;
 use App\Domains\People\Skills\Enums\AssessmentStatus;
 use App\Domains\People\Skills\Exceptions\InvalidAssessmentException;
 use App\Domains\People\Skills\Import\SkillWorkbookReader;
@@ -88,6 +89,7 @@ final class AssessmentLogDryRun
 
         $wouldCreate = $wouldSkip = 0;
         $seen = [];
+        $plan = [];
 
         foreach ($workbook->assessments as $row) {
             $problems = [];
@@ -132,6 +134,7 @@ final class AssessmentLogDryRun
                 $problems[] = new WorkbookDefect(self::FUTURE_ASSESSMENT_DATE, 'C'.$number, $row->source);
             }
 
+            $validUntil = null;
             if (trim($row->validUntil) !== '') {
                 $validUntil = $this->date($row->validUntil);
                 if ($validUntil === null) {
@@ -155,14 +158,27 @@ final class AssessmentLogDryRun
                 continue;
             }
 
-            if ($this->finalizedExists($tenantId, $companyEntityId, $employeeId, (int) $skill->id, $assessedOn)) {
-                $wouldSkip++;
-            } else {
-                $wouldCreate++;
-            }
+            $exists = $this->finalizedExists($tenantId, $companyEntityId, $employeeId, (int) $skill->id, $assessedOn);
+            $exists ? $wouldSkip++ : $wouldCreate++;
+
+            $plan[] = new AssessmentLogPlannedRow(
+                row: $number,
+                employeeEntityId: $employeeId,
+                skillId: (int) $skill->id,
+                assessedLevel: (int) $level,
+                assessedOn: $assessedOn,
+                validUntil: $validUntil,
+                method: strtolower(trim($row->method)),
+                cycle: strtolower(trim($row->cycle)),
+                evidence: trim($row->evidence),
+                assessorStaffId: trim($row->assessorStaffId),
+                hodVerified: trim($row->hodVerified),
+                certificateNumber: trim($row->certificateNumber) === '' ? null : trim($row->certificateNumber),
+                wouldSkip: $exists,
+            );
         }
 
-        return new AssessmentLogDryRunResult($sha256, $wouldCreate, $wouldSkip, $defects);
+        return new AssessmentLogDryRunResult($sha256, $wouldCreate, $wouldSkip, $defects, $plan);
     }
 
     /**
