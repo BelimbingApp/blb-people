@@ -8,6 +8,7 @@ use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
+use App\Domains\People\Provider\Data\ExternalReference;
 use App\Domains\People\Provider\Data\WorkforceEmployee;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
@@ -40,6 +41,7 @@ final class TrainingParticipationStore
         private readonly CompanyAttribution $companies,
         private readonly AuthorizationService $authorization,
         private readonly SkillAudience $audiences,
+        private readonly TrainingAudience $calendar,
     ) {}
 
     public function defineSession(User $actor, int $companyId, int $eventId, string $reference, DateTimeInterface $startsAt, DateTimeInterface $endsAt): TrainingSession
@@ -123,6 +125,101 @@ final class TrainingParticipationStore
             ]);
 
             return $fact->refresh();
+        });
+    }
+
+    /**
+     * Enrol the acting user into a scheduled event as their own bound
+     * employee. The event must be visible on the actor's calendar — the
+     * same seam the page reads — so the calendar never offers an event
+     * this store would refuse.
+     */
+    public function enrolSelf(User $actor, int $companyId, int $eventId): TrainingParticipant
+    {
+        $tenant = $this->scope($actor, $companyId, TrainingAudience::CALENDAR_VIEW);
+
+        return DB::transaction(function () use ($actor, $companyId, $eventId, $tenant): TrainingParticipant {
+            $event = TrainingEvent::query()->forCompany($tenant, $companyId)->lockForUpdate()->find($eventId);
+            if ($event === null || $event->status !== TrainingEventStatus::Scheduled) {
+                throw new InvalidTrainingParticipationException('Enrolment is only available for scheduled training events.');
+            }
+            $visible = $this->calendar->visibleCalendarEvents($actor, $companyId)->pluck('id')->map(intval(...))->all();
+            if (! in_array($eventId, $visible, true)) {
+                $this->deny();
+            }
+            $bound = $this->audiences->boundEmployeeEntityId($actor, $companyId);
+            if ($bound === null) {
+                $this->deny();
+            }
+            $enrolled = TrainingParticipant::query()->forCompany($tenant, $companyId)
+                ->where('event_id', $event->id)->whereNull('withdrawn_at')->count();
+            if ($enrolled >= (int) $event->capacity) {
+                throw new InvalidTrainingParticipationException('The training event is full.');
+            }
+            $existing = TrainingParticipant::query()->forCompany($tenant, $companyId)
+                ->where('event_id', $event->id)
+                ->where('provider_id', ExternalReference::PROVIDER_ID)
+                ->where('employee_subject_id', (string) $bound)
+                ->first();
+            if ($existing !== null && $existing->withdrawn_at === null) {
+                throw new InvalidTrainingParticipationException('The employee is already enrolled in the training event.');
+            }
+
+            try {
+                if ($existing !== null) {
+                    // Re-enrolment clears the withdrawal marker. The guards
+                    // permit exactly this mutation; every other column stays
+                    // identical, so history is preserved, not rewritten.
+                    $existing->update(['withdrawn_at' => null, 'withdrawn_by_user_id' => null]);
+
+                    return $existing->refresh();
+                }
+
+                return TrainingParticipant::query()->create([
+                    'tenant_id' => $tenant, 'company_entity_id' => $companyId, 'event_id' => $event->id,
+                    'provider_id' => ExternalReference::PROVIDER_ID,
+                    'employee_subject_id' => (string) $bound,
+                    'workforce_observed_at' => now(),
+                ]);
+            } catch (QueryException) {
+                throw new InvalidTrainingParticipationException('The employee is already enrolled in the training event.');
+            }
+        });
+    }
+
+    /**
+     * Withdraw the acting user's own enrolment by marking the participant
+     * row. Participant rows are trigger-immutable and are never deleted:
+     * the guards permit exactly this marker mutation. Recorded attendance
+     * is a permanent fact: once any participation fact names the
+     * participant, withdrawal is refused instead of rewriting history.
+     */
+    public function withdrawSelf(User $actor, int $companyId, int $eventId): void
+    {
+        $tenant = $this->scope($actor, $companyId, TrainingAudience::CALENDAR_VIEW);
+
+        DB::transaction(function () use ($actor, $companyId, $eventId, $tenant): void {
+            $bound = $this->audiences->boundEmployeeEntityId($actor, $companyId);
+            if ($bound === null) {
+                $this->deny();
+            }
+            $participant = TrainingParticipant::query()->forCompany($tenant, $companyId)
+                ->where('event_id', $eventId)
+                ->where('provider_id', ExternalReference::PROVIDER_ID)
+                ->where('employee_subject_id', (string) $bound)
+                ->whereNull('withdrawn_at')
+                ->lockForUpdate()
+                ->first();
+            if ($participant === null) {
+                $this->deny();
+            }
+            $hasFacts = TrainingParticipationFact::query()->forCompany($tenant, $companyId)
+                ->where('participant_id', $participant->id)->exists();
+            if ($hasFacts) {
+                throw new InvalidTrainingParticipationException('Recorded attendance cannot be withdrawn; ask HR to correct the fact.');
+            }
+
+            $participant->update(['withdrawn_at' => now(), 'withdrawn_by_user_id' => $actor->getKey()]);
         });
     }
 

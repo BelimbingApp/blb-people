@@ -10,10 +10,14 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class AuthorizeTrainingAudience
 {
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, string $capability = TrainingAudience::VIEW): Response
     {
         try {
-            app(TrainingAudience::class)->allowedCompanies($request->user());
+            if ($capability === TrainingAudience::CALENDAR_VIEW) {
+                app(TrainingAudience::class)->allowedCalendarCompanies($request->user());
+            } else {
+                app(TrainingAudience::class)->allowedCompanies($request->user());
+            }
         } catch (AuthorizationDeniedException) {
             abort(403);
         }
