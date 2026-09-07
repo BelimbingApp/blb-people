@@ -28,6 +28,7 @@ use App\Domains\People\Training\Exceptions\TrainingPassportDenied;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingEvidenceSubmission;
 use App\Domains\People\Training\Models\TrainingParticipant;
+use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Models\TrainingPassportDocument;
 use App\Domains\People\Training\Models\TrainingPlan;
 use App\Domains\People\Training\Models\TrainingRequest;
@@ -278,6 +279,7 @@ final class Index extends Component
             'reassessments' => $reassessments,
             'reassessmentSkills' => $this->reassessmentSkillNames($companyEntityId, $reassessments),
             'reassessmentEmployees' => $this->reassessmentEmployeeNames($companyEntityId, $reassessments),
+            'reassessmentSources' => $this->reassessmentSourceLabels($companyEntityId, $reassessments),
             'evidenceSubmissions' => $evidence,
             'evidenceEmployees' => $this->evidenceEmployeeNames($companyEntityId, $evidence),
             'escalations' => $companyEntityId === null ? collect() : $this->escalatedReviews($companyEntityId),
@@ -491,6 +493,37 @@ final class Index extends Component
         }
 
         return $labeled;
+    }
+
+    /**
+     * Where each pending reassessment came from (0006-e): the HOD request,
+     * or the confirmed training event whose fact opened it. Keyed by
+     * request id; the fact and event are read on the company axis.
+     *
+     * @return array<int, string>
+     */
+    private function reassessmentSourceLabels(?int $companyEntityId, Collection $reassessments): array
+    {
+        if ($companyEntityId === null || $reassessments->isEmpty()) {
+            return [];
+        }
+        $factIds = $reassessments->pluck('source_participation_fact_id')->filter()->map(intval(...))->unique()->values()->all();
+        $eventOfFact = $factIds === [] ? collect() : TrainingParticipationFact::query()
+            ->forCompany($this->tenantId(), $companyEntityId)->whereIn('id', $factIds)->pluck('event_id', 'id');
+        $eventTitles = $eventOfFact->isEmpty() ? collect() : TrainingEvent::query()
+            ->forCompany($this->tenantId(), $companyEntityId)->whereIn('id', $eventOfFact->values()->all())->pluck('course_title_snapshot', 'id');
+
+        $labels = [];
+        foreach ($reassessments as $request) {
+            $event = $request->isFromTraining()
+                ? $eventTitles[$eventOfFact[(int) $request->source_participation_fact_id] ?? 0] ?? null
+                : null;
+            $labels[(int) $request->id] = $event === null
+                ? __('From head of department')
+                : __('From training :event', ['event' => $event]);
+        }
+
+        return $labels;
     }
 
     /** @return array<int, string> */

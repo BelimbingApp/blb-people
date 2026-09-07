@@ -212,6 +212,7 @@
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $reassessmentSkills[$reassessment->skill_id] ?? __('Unknown skill') }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
                                     <span class="font-medium">{{ $reassessment->reason }}</span>
+                                    <span class="block text-muted">{{ $reassessmentSources[$reassessment->id] ?? __('From head of department') }}</span>
                                     <span class="block text-muted">{{ __('Due :date', ['date' => $reassessment->due_at->format('d M Y')]) }}</span>
                                 </td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm space-y-2">
