@@ -220,7 +220,8 @@ test('training events preserve schedule snapshots and terminal audit history', f
         ->and($completed->completion_evidence)->toBe('Signed facilitator report')
         ->and($store->registerQuery((int) $fixture['company']->id)->pluck('id')->all())->toBe([(int) $event->id])
         ->and(TrainingEventAuditEvent::query()->forCompany($fixture['tenantId'], (int) $fixture['company']->id)->count())->toBe(4)
-        ->and(app(SummarizesTrainingParticipation::class)->forEvents((int) $fixture['company']->id, [(int) $event->id]))->toBe([]);
+        // The register derives counts (0011-e): an own event nobody joined is a zero summary, not absent.
+        ->and(app(SummarizesTrainingParticipation::class)->forEvents((int) $fixture['company']->id, [(int) $event->id])[(int) $event->id]->enrolled)->toBe(0);
 
     $audit = TrainingEventAuditEvent::query()->forCompany($fixture['tenantId'], (int) $fixture['company']->id)->firstOrFail();
     expect(fn () => $audit->update(['comment' => 'rewrite']))
@@ -469,7 +470,8 @@ test('the actual register gives HR company scope, HOD department scope, and reje
         ->assertDontSee('Finance room')
         ->assertSee('Company hall')
         ->assertSee('Company-wide')
-        ->assertSee('Not recorded by the participant register yet');
+        // The register now derives counts (0011-e): an event nobody joined is zeros, not 'unavailable'.
+        ->assertSee('0 enrolled · 0 attended · 0 completed · 0 passed · pass rate n/a');
 
     expect(fn () => Livewire::actingAs($hod)->test(Index::class)->call('start', (int) $operationsEvent->id))
         ->toThrow(AuthorizationDeniedException::class);
