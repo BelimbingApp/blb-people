@@ -8,6 +8,7 @@ use App\Core\Employee\Models\Employee;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
 use App\Domains\People\Skills\Models\EmployeeSkillScore;
 use App\Domains\People\Skills\Models\Skill;
+use App\Domains\People\Skills\Services\CriticalSkillBackupCoverage;
 use App\Domains\People\Skills\Services\SkillAudience;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -25,9 +26,6 @@ use Livewire\Component;
 final class Index extends Component
 {
     public const VIEW_CAPABILITY = 'people.skill.coverage.view';
-
-    /** Fewer than this many qualified holders is a single point of failure. */
-    private const RESILIENT_HOLDERS = 2;
 
     public function mount(): void
     {
@@ -63,14 +61,15 @@ final class Index extends Component
             ->whereIn('id', $scores->pluck('skill_id')->unique())->pluck('name', 'id');
 
         $today = now()->toDateString();
+        // The same minimum the per-department report uses (0007-c): one page
+        // calling a team resilient while the other calls it exposed would be
+        // worse than either answer alone.
+        $minimum = app(CriticalSkillBackupCoverage::class)->minimum();
         $rows = [];
 
         foreach ($scores->groupBy('skill_id') as $skillId => $group) {
             $holders = $group
-                // At or above the requirement, and still valid. A score that
-                // has lapsed is a record of past competence, not cover now.
-                ->filter(fn (EmployeeSkillScore $score): bool => (int) $score->current_level >= (int) $score->required_level
-                    && ($score->valid_until === null || $score->valid_until->toDateString() >= $today))
+                ->filter(static fn (EmployeeSkillScore $score): bool => $score->coversRequirement($today))
                 ->map(fn (EmployeeSkillScore $score): string => (string) ($names[$score->employee_entity_id] ?? __('Unknown employee')))
                 ->values()
                 ->all();
@@ -78,7 +77,7 @@ final class Index extends Component
             $rows[] = [
                 'skill' => (string) ($skills[$skillId] ?? __('Unknown skill')),
                 'covered' => count($holders),
-                'single_point_of_failure' => count($holders) < self::RESILIENT_HOLDERS,
+                'single_point_of_failure' => count($holders) < $minimum,
                 'holders' => $holders,
             ];
         }

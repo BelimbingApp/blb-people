@@ -63,8 +63,7 @@ final class CriticalSkillBackupCoverage
                 continue;
             }
 
-            $holders = $group->filter(fn (EmployeeSkillScore $score): bool => (int) $score->current_level >= (int) $score->required_level
-                && ($score->valid_until === null || $score->valid_until->toDateString() >= $today))->count();
+            $holders = $group->filter(static fn (EmployeeSkillScore $score): bool => $score->coversRequirement($today))->count();
 
             $rows[] = [
                 'department_id' => $employeeDepartment,
@@ -98,7 +97,8 @@ final class CriticalSkillBackupCoverage
             ->all();
     }
 
-    private function minimum(): int
+    /** How many holders a department needs before a critical skill is covered. */
+    public function minimum(): int
     {
         $configured = config('people-skills.backup_minimum', self::DEFAULT_MINIMUM);
 
