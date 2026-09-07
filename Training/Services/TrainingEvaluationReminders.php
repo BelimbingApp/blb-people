@@ -13,6 +13,7 @@ use App\Domains\People\Training\Models\TrainingParticipationFact;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Remind participants three days before their evaluation is due, and every
@@ -145,8 +146,11 @@ final class TrainingEvaluationReminders
 
             // The guarantee is the unique key, not the check above: the check
             // only spares the ordinary repeat run a failed insert.
+            // The insert gets its own transaction (a savepoint under an outer
+            // one) so a violation is contained: PostgreSQL aborts the whole
+            // enclosing transaction on a failed statement, caught or not.
             try {
-                $written[] = TrainingEvaluationReminder::query()->create([
+                $written[] = DB::transaction(static fn (): TrainingEvaluationReminder => TrainingEvaluationReminder::query()->create([
                     'tenant_id' => $tenantId,
                     'company_entity_id' => $companyEntityId,
                     'event_id' => $row->eventId,
@@ -155,7 +159,7 @@ final class TrainingEvaluationReminders
                     'due_on' => $row->dueOn->toDateString(),
                     'day_key' => $dayKey,
                     'notified_at' => $now,
-                ]);
+                ]));
             } catch (UniqueConstraintViolationException) {
                 // Two runs overlapping is what the unique key is for.
             }
