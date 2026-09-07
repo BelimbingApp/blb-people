@@ -9,11 +9,13 @@ final readonly class SkillWorkbookResult
      * @param  list<CatalogueCategoryRow>  $categories  Category occurrences, not deduplicated identities.
      * @param  list<CatalogueLevelRow>  $levels  Source proposals, not published proficiency policy.
      * @param  list<WorkbookDefect>  $defects
+     * @param  list<AssessmentLogRow>  $assessments  Only when 04 Assessment Log was requested.
      */
     public function __construct(
         public array $skills,
         public array $categories,
         public array $levels,
         public array $defects,
+        public array $assessments = [],
     ) {}
 }
