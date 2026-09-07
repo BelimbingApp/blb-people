@@ -316,7 +316,7 @@
             @if ($passportEmployees === [])
                 <p class="text-sm text-muted">{{ __('No active employee is listed for this company.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Training passports by employee')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Employee') }}</x-ui.th>
