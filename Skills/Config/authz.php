@@ -26,6 +26,13 @@ return [
         'people.skill.employee.view',
         'people.skill.gaps.view-team',
         'people.skill.coverage.view',
+
+        /*
+         * Requesting a reassessment for a direct report's skill (0006-b).
+         * HOD-only: HR sees the resulting queue but does not request, and
+         * requesting never confers a wider skill audience.
+         */
+        'people.skill.reassessment.submit',
     ],
 
     // Audience capabilities identify why a principal may see People-owned
@@ -67,6 +74,7 @@ return [
                 'people.skill.gaps.view-team',
                 'people.skill.assessment.approve',
                 'people.skill.hod.view',
+                'people.skill.reassessment.submit',
             ],
         ],
         'people_assessor' => [
