@@ -237,3 +237,31 @@ test('an attended participant with no evaluation row is due by the event clock',
     expect(evdueRun($f))->toBe(0)
         ->and(evdueRows($f))->toBe(1);
 });
+
+test('a participant whose attendance was corrected to absent is not reminded', function (): void {
+    $f = evdueFixture();
+    $participant = evdueParticipant($f, 'Alice');
+    evdueEvaluation($f, $participant, TrainingEvaluationStatus::Draft, today()->addDays(3)->toDateString());
+
+    // The sibling test above shows this same setup earns a reminder. HR then
+    // appends a correction saying they were not there (0011-d): the original
+    // still says Present and stays exactly as recorded.
+    $original = TrainingParticipationFact::query()->forCompany($f['tenantId'], $f['companyId'])
+        ->where('participant_id', $participant->id)->sole();
+    TrainingParticipationFact::query()->forCompany($f['tenantId'], $f['companyId'])->create([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'],
+        'event_id' => $original->event_id, 'participant_id' => $original->participant_id,
+        'session_id' => $original->session_id,
+        'attendance' => AttendanceStatus::Absent,
+        'actual_minutes' => 0, 'evidence_references' => [],
+        'source' => 'correction', 'source_reference' => 'fact:'.$original->id,
+        'supersedes_fact_id' => (int) $original->id,
+        'correction_reason' => 'Signed the sheet for a colleague.',
+        'recorded_by_user_id' => $f['recorder']->id, 'recorded_capability' => 'fixture', 'recorded_at' => now(),
+        'confirmed_by_user_id' => $f['recorder']->id, 'confirmed_capability' => 'fixture', 'confirmed_at' => now(),
+    ]);
+
+    // Nobody chases an evaluation for training somebody did not attend.
+    expect(evdueRun($f))->toBe(0)
+        ->and(evdueRows($f))->toBe(0);
+});
