@@ -56,7 +56,7 @@ final readonly class TrainingRequestStore
     {
         $tenantId = $this->authorize($actor, $companyId, self::SUBMIT);
         $this->validate($tenantId, $companyId, $draft);
-        $resolved = $this->resolveSubjects($tenantId, $companyId, $draft,
+        $resolved = $this->resolveSubjects($actor, $tenantId, $companyId, $draft,
             $subjects ?? TrainingRequestSubjectsDraft::forSubjects([$draft->requestor]));
 
         return DB::transaction(function () use ($actor, $companyId, $draft, $tenantId, $resolved): TrainingRequest {
@@ -330,17 +330,71 @@ final readonly class TrainingRequestStore
      *
      * @return list<array{provider_id: string, employee_subject_id: string, workforce_observed_at: string, source: string, cohort_reference: string|null}>
      */
-    private function resolveSubjects(int $tenantId, int $companyId, TrainingRequestDraft $draft, TrainingRequestSubjectsDraft $subjects): array
+    private function resolveSubjects(User $actor, int $tenantId, int $companyId, TrainingRequestDraft $draft, TrainingRequestSubjectsDraft $subjects): array
     {
         $rows = $subjects->cohort
             ? $this->cohortRows($companyId, $draft)
             : $this->namedRows($tenantId, $companyId, $subjects->subjects);
+
+        $this->authorizeSubjects($actor, $companyId, $draft, $rows, $subjects->cohort);
 
         if ($rows === []) {
             throw new InvalidTrainingRequestException('A training request names at least one person who will attend.');
         }
 
         return $rows;
+    }
+
+    /**
+     * Who this actor may put on a request.
+     *
+     * A head of department speaks for the department: they may name its
+     * members, or take the whole cohort. Anybody else speaks only for
+     * themselves, which is what the submit capability means — it is a request
+     * for training, not an instruction that somebody else attend.
+     *
+     * @param  list<array{employee_subject_id: string, ...}>  $rows
+     */
+    private function authorizeSubjects(User $actor, int $companyId, TrainingRequestDraft $draft, array $rows, bool $cohort): void
+    {
+        if ($this->authorization->can(Actor::forUser($actor), self::HOD_RECOMMEND)->allowed) {
+            $this->authorizeDepartmentSubjects($companyId, $draft, $rows);
+
+            return;
+        }
+
+        if ($cohort) {
+            throw new InvalidTrainingRequestException('Only a head of department may request training for a whole department.');
+        }
+
+        $self = (string) ($draft->requestor->stableId);
+        foreach ($rows as $row) {
+            if ($row['employee_subject_id'] !== $self) {
+                throw new InvalidTrainingRequestException('Request training for yourself, or ask the head of department to request it for somebody else.');
+            }
+        }
+    }
+
+    /**
+     * A head of department names their own department's people, not a peer's.
+     *
+     * @param  list<array{employee_subject_id: string, ...}>  $rows
+     */
+    private function authorizeDepartmentSubjects(int $companyId, TrainingRequestDraft $draft, array $rows): void
+    {
+        $department = $draft->department->stableId;
+        $members = [];
+        foreach (app(WorkforceSubjects::class)->employees($companyId) as $employee) {
+            if ($employee->organizationReference?->externalId === $department) {
+                $members[(string) $employee->reference->externalId] = true;
+            }
+        }
+
+        foreach ($rows as $row) {
+            if (! isset($members[$row['employee_subject_id']])) {
+                throw new InvalidTrainingRequestException('A subject must belong to the department the request names.');
+            }
+        }
     }
 
     /**

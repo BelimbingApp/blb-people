@@ -11,15 +11,18 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Skills\Exceptions\MissingCompanyScopeException;
 use App\Domains\People\Skills\Services\CompanyAttribution;
 use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
+use App\Domains\People\Training\Data\TrainingRequestSubjectsDraft;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingPriority;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingRequestException;
 use App\Domains\People\Training\Models\TrainingRequest;
+use App\Domains\People\Training\Models\TrainingRequestSubject;
 use App\Domains\People\Training\Services\TrainingRequestStore;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -175,4 +178,61 @@ test('the shared boundary refuses missing tenant and sibling-company writes', fu
 test('request queries require an explicit company axis', function (): void {
     requestFixture();
     expect(fn () => TrainingRequest::query()->count())->toThrow(MissingCompanyScopeException::class);
+});
+
+/** Put an employee in an organisation unit, which is what makes them a cohort member. */
+function requestPlaceInUnit(array $f, $employee, $unit, bool $active = true): void
+{
+    EmployeeWorkProfile::query()->create([
+        'employee_id' => $employee->id, 'organization_unit_id' => $unit->id,
+    ]);
+    if (! $active) {
+        $employee->update(['status' => 'inactive']);
+    }
+}
+
+test('a submitter may request training for themselves and for nobody else', function (): void {
+    $f = requestFixture();
+    $other = NativeWorkforceFixture::create((int) $f['tenant']->id, WorkforceResourceType::Employee, (int) $f['company']->id);
+    $store = app(TrainingRequestStore::class);
+    $companyId = (int) $f['company']->id;
+    $before = TrainingRequest::query()->forCompany((int) $f['tenant']->id, $companyId)->count();
+
+    // Self is the whole point of the submit capability.
+    $own = $store->create($f['actors']['hr'], $companyId, requestDraft($f), TrainingRequestSubjectsDraft::forSubjects([
+        $f['subject']($f['employee'], WorkforceResourceType::Employee),
+    ]));
+    expect(TrainingRequestSubject::query()->forCompany((int) $f['tenant']->id, $companyId)
+        ->where('training_request_id', $own->id)->count())->toBe(1);
+
+    // Naming somebody else is an instruction, not a request.
+    expect(fn () => $store->create($f['actors']['hr'], $companyId, requestDraft($f), TrainingRequestSubjectsDraft::forSubjects([
+        $f['subject']($other, WorkforceResourceType::Employee),
+    ])))->toThrow(InvalidTrainingRequestException::class, 'ask the head of department');
+
+    expect(TrainingRequest::query()->forCompany((int) $f['tenant']->id, $companyId)->count())->toBe($before + 1);
+});
+
+test('only a head of department may take the whole department', function (): void {
+    $f = requestFixture();
+    $store = app(TrainingRequestStore::class);
+    $companyId = (int) $f['company']->id;
+    $before = TrainingRequest::query()->forCompany((int) $f['tenant']->id, $companyId)->count();
+
+    expect(fn () => $store->create($f['actors']['hr'], $companyId, requestDraft($f), TrainingRequestSubjectsDraft::forDepartmentCohort()))
+        ->toThrow(InvalidTrainingRequestException::class, 'whole department');
+
+    expect(TrainingRequest::query()->forCompany((int) $f['tenant']->id, $companyId)->count())->toBe($before);
+});
+
+test('a request naming nobody is refused', function (): void {
+    $f = requestFixture();
+    $store = app(TrainingRequestStore::class);
+    $companyId = (int) $f['company']->id;
+    $before = TrainingRequest::query()->forCompany((int) $f['tenant']->id, $companyId)->count();
+
+    expect(fn () => $store->create($f['actors']['hr'], $companyId, requestDraft($f), TrainingRequestSubjectsDraft::forSubjects([])))
+        ->toThrow(InvalidTrainingRequestException::class, 'at least one person');
+
+    expect(TrainingRequest::query()->forCompany((int) $f['tenant']->id, $companyId)->count())->toBe($before);
 });
