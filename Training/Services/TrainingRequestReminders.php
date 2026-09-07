@@ -2,8 +2,6 @@
 
 namespace App\Domains\People\Training\Services;
 
-use App\Base\Authz\Enums\PrincipalType;
-use App\Base\Authz\Models\PrincipalRole;
 use App\Core\User\Models\User;
 use App\Domains\People\Training\Data\DueTrainingRequest;
 use App\Domains\People\Training\Livewire\Requests\Register;
@@ -41,7 +39,10 @@ final class TrainingRequestReminders
     /** The HR grant a recipient must hold in the company. */
     public const RECIPIENT_CAPABILITY = TrainingRequestStore::HR_REVIEW;
 
-    public function __construct(private readonly TrainingRequestStore $requests) {}
+    public function __construct(
+        private readonly TrainingRequestStore $requests,
+        private readonly TrainingCapabilityHolders $holders,
+    ) {}
 
     /**
      * Approved requests in this company with no event whose approval is at
@@ -163,22 +164,7 @@ final class TrainingRequestReminders
      */
     public function recipients(int $companyEntityId): array
     {
-        $userIds = PrincipalRole::query()
-            ->join('base_authz_roles', 'base_authz_roles.id', '=', 'base_authz_principal_roles.role_id')
-            ->join('base_authz_role_capabilities', 'base_authz_role_capabilities.role_id', '=', 'base_authz_roles.id')
-            ->where('base_authz_principal_roles.principal_type', PrincipalType::USER->value)
-            ->where('base_authz_principal_roles.company_id', $companyEntityId)
-            ->where('base_authz_role_capabilities.capability_key', self::RECIPIENT_CAPABILITY)
-            ->distinct()
-            ->pluck('base_authz_principal_roles.principal_id')
-            ->map(static fn (mixed $id): int => (int) $id)
-            ->all();
-
-        if ($userIds === []) {
-            return [];
-        }
-
-        return User::query()->whereIn('id', $userIds)->orderBy('id')->get()->all();
+        return $this->holders->users($companyEntityId, self::RECIPIENT_CAPABILITY);
     }
 
     /** The ISO year-week a reminder belongs to, e.g. 2026-W37. */

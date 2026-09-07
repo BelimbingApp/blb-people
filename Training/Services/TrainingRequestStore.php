@@ -44,6 +44,7 @@ final readonly class TrainingRequestStore
         private CompanyAttribution $companies,
         private ResolvesWorkforceSubjects $subjects,
         private TrainingBudgetStore $budgets,
+        private TrainingRequestNotifications $notifications,
     ) {}
 
     /**
@@ -315,7 +316,10 @@ final readonly class TrainingRequestStore
         User $actor, ?string $notes): TrainingRequest
     {
         $request->update(['status' => $status]);
-        $this->record($request, $decision, $actor, $notes);
+        $row = $this->record($request, $decision, $actor, $notes);
+        // Inside the caller's transaction, after the decision row: a refused
+        // transition rolls the messages back with the row (0010-g).
+        $this->notifications->notify($request, $row, $actor);
 
         return $request->refresh();
     }
@@ -507,9 +511,9 @@ final readonly class TrainingRequestStore
             ?? throw new InvalidTrainingRequestException('Training request was not found in this company.');
     }
 
-    private function record(TrainingRequest $request, string $decision, User $actor, ?string $notes = null): void
+    private function record(TrainingRequest $request, string $decision, User $actor, ?string $notes = null): TrainingRequestDecision
     {
-        TrainingRequestDecision::query()->forCompany((int) $request->tenant_id, (int) $request->company_entity_id)->create([
+        return TrainingRequestDecision::query()->forCompany((int) $request->tenant_id, (int) $request->company_entity_id)->create([
             'tenant_id' => $request->tenant_id, 'company_entity_id' => $request->company_entity_id,
             'training_request_id' => $request->id, 'decision' => $decision,
             'actor_user_id' => $actor->getKey(), 'notes' => trim((string) $notes) ?: null, 'occurred_at' => now(),
