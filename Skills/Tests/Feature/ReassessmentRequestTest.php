@@ -25,10 +25,13 @@ use App\Domains\People\Skills\Enums\AssessmentMethod;
 use App\Domains\People\Skills\Enums\AssessmentStatus;
 use App\Domains\People\Skills\Enums\ReassessmentRequestStatus;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
+use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Enums\SelectorType;
+use App\Domains\People\Skills\Exceptions\InvalidAssessmentException;
 use App\Domains\People\Skills\Exceptions\InvalidReassessmentRequestException;
 use App\Domains\People\Skills\Livewire\TeamGaps\Index as TeamGaps;
 use App\Domains\People\Skills\Models\EmployeeSkillScore;
+use App\Domains\People\Skills\Models\RequirementProfile;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Models\SkillReassessmentRequest;
@@ -209,11 +212,9 @@ final class RrRequirements implements ResolvesSkillRequirements
     }
 }
 
-function rrRequirement(array $f, int $skillId): void
+function rrProfileDraft(int $skillId): RequirementProfileDraft
 {
-    app(SkillCatalogDefaults::class)->install($f['companyId']);
-    $profiles = app(RequirementProfileStore::class);
-    $profile = $profiles->draft($f['companyId'], new RequirementProfileDraft(
+    return new RequirementProfileDraft(
         code: 'fixture.rr-ops',
         name: 'RR operations',
         selectors: [new RequirementSelectorDraft(SelectorType::Company)],
@@ -224,19 +225,58 @@ function rrRequirement(array $f, int $skillId): void
             criticality: RequirementCriticality::Critical,
             weightPercent: 100.0,
         )],
-    ));
-    $profile = $profiles->publish($f['companyId'], (int) $profile->id);
+    );
+}
+
+function rrBindRequirement(int $skillId, int $profileId, int $version): void
+{
     app()->instance(ResolvesSkillRequirements::class, new RrRequirements([
         new ResolvedSkillRequirement(
             requirementReference: 'fixture.rr',
-            requirementVersion: 1,
-            requirementProfileId: (int) $profile->id,
+            requirementVersion: $version,
+            requirementProfileId: $profileId,
             skillId: $skillId,
             requiredLevel: 4,
             criticality: RequirementCriticality::Critical,
             mandatoryGate: true,
         ),
     ]));
+}
+
+function rrRequirement(array $f, int $skillId): void
+{
+    app(SkillCatalogDefaults::class)->install($f['companyId']);
+    $profiles = app(RequirementProfileStore::class);
+    $profile = $profiles->publish(
+        $f['companyId'],
+        (int) $profiles->draft($f['companyId'], rrProfileDraft($skillId))->id,
+    );
+    rrBindRequirement($skillId, (int) $profile->id, 1);
+}
+
+/**
+ * Supersede the published version the baseline assessment was taken against.
+ *
+ * Returns the replacement profile id, rebound as the requirement the skill
+ * now resolves to — the governed v1 → retire → v2 chain, not a row the
+ * application could never produce.
+ */
+function rrSupersedeRequirement(array $f, int $skillId): int
+{
+    $profiles = app(RequirementProfileStore::class);
+    $superseded = RequirementProfile::query()
+        ->forCompany($f['tenantId'], $f['companyId'])
+        ->where('code', 'fixture.rr-ops')
+        ->where('status', RequirementProfileStatus::Published->value)
+        ->firstOrFail();
+    $profiles->retire($f['companyId'], (int) $superseded->id);
+    $replacement = $profiles->publish(
+        $f['companyId'],
+        (int) $profiles->draft($f['companyId'], rrProfileDraft($skillId))->id,
+    );
+    rrBindRequirement($skillId, (int) $replacement->id, (int) $replacement->version);
+
+    return (int) $replacement->id;
 }
 
 it('performs a pending request with a new finalized assessment and leaves history untouched', function (): void {
@@ -269,6 +309,60 @@ it('performs a pending request with a new finalized assessment and leaves histor
     expect(SkillAssessment::query()->forCompany($f['tenantId'], $f['companyId'])
         ->whereKey((int) $previous->source_assessment_id)->firstOrFail()->getAttributes())
         ->toBe($previousSnapshot);
+});
+
+it('pins the currently published version when the previous assessment version was superseded', function (): void {
+    $f = rrFixture();
+    $skillId = rrSkill($f);
+    $previous = rrScore($f, $f['report'], $skillId);
+    $supersededProfile = (int) SkillAssessment::query()
+        ->forCompany($f['tenantId'], $f['companyId'])
+        ->whereKey((int) $previous->source_assessment_id)
+        ->valueOrFail('requirement_profile_id');
+    $request = rrPendingRequest($f, $skillId);
+
+    $published = rrSupersedeRequirement($f, $skillId);
+
+    app(SkillReassessmentStore::class)->perform(
+        $f['hr'], $f['companyId'], (int) $request->id, 3, now()->toDateString(), 'Retraining complete, observed task again.',
+    );
+
+    // The new assessment is taken against the replacement, never the
+    // superseded version — and the previous row still names its own.
+    $fresh = EmployeeSkillScore::query()->forCompany($f['tenantId'], $f['companyId'])
+        ->where('employee_entity_id', $f['report']->id)->where('skill_id', $skillId)->firstOrFail();
+    expect((int) SkillAssessment::query()
+        ->forCompany($f['tenantId'], $f['companyId'])
+        ->whereKey((int) $fresh->source_assessment_id)
+        ->valueOrFail('requirement_profile_id'))->toBe($published)
+        ->and((int) SkillAssessment::query()
+            ->forCompany($f['tenantId'], $f['companyId'])
+            ->whereKey((int) $previous->source_assessment_id)
+            ->valueOrFail('requirement_profile_id'))->toBe($supersededProfile);
+});
+
+it('refuses to perform when the previous assessment version was superseded with no replacement', function (): void {
+    $f = rrFixture();
+    $skillId = rrSkill($f);
+    rrScore($f, $f['report'], $skillId);
+    $request = rrPendingRequest($f, $skillId);
+
+    $profiles = app(RequirementProfileStore::class);
+    $superseded = RequirementProfile::query()
+        ->forCompany($f['tenantId'], $f['companyId'])
+        ->where('code', 'fixture.rr-ops')
+        ->where('status', RequirementProfileStatus::Published->value)
+        ->firstOrFail();
+    $profiles->retire($f['companyId'], (int) $superseded->id);
+
+    // The requirement the baseline was taken against is retired and nothing
+    // published replaces it. Performing would record evidence against a
+    // version nobody governs, so the lifecycle refuses instead.
+    expect(fn () => app(SkillReassessmentStore::class)->perform(
+        $f['hr'], $f['companyId'], (int) $request->id, 3, now()->toDateString(), 'Retraining complete.',
+    ))->toThrow(InvalidAssessmentException::class);
+
+    expect($request->refresh()->status)->toBe(ReassessmentRequestStatus::Pending);
 });
 
 it('refuses to perform a closed request again', function (): void {
