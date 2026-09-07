@@ -1,7 +1,7 @@
 <div class="space-y-section-gap">
     <x-ui.page-header
         :title="__('HR governance')"
-        :subtitle="__('Everything awaiting HR in this company: requirement publication, training requests, plan approvals and skill reassessments. Each action runs the owning workflow and its own checks.')"
+        :subtitle="__('Everything awaiting HR in this company: requirement publication, training requests, plan approvals, skill reassessments and evidence submissions. Each action runs the owning workflow and its own checks.')"
     />
 
     @if ($companies === [])
@@ -156,6 +156,46 @@
                                     <x-ui.input type="text" wire:model="reassessmentNotes.{{ $reassessment->id }}" :placeholder="__('Assessor note (required)')" />
                                     <div class="flex gap-2">
                                         <x-ui.button type="button" variant="primary" wire:click="performReassessment({{ $reassessment->id }})">{{ __('Record and close') }}</x-ui.button>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </section>
+
+        <section class="space-y-4">
+            <h2 class="text-lg font-semibold">{{ __('Evidence submissions') }}</h2>
+            @if ($evidenceSubmissions->isEmpty())
+                <p class="text-sm text-muted">{{ __('No evidence submission awaits HR decision.') }}</p>
+            @else
+                <x-ui.table>
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                            <x-ui.th>{{ __('Reflection') }}</x-ui.th>
+                            <x-ui.th>{{ __('Decide') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($evidenceSubmissions as $submission)
+                            <tr wire:key="hr-evidence-{{ $submission->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $evidenceEmployees[$submission->participant_id] ?? __('Unknown employee') }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
+                                    <span class="font-medium">{{ $submission->reflection }}</span>
+                                    @if ($submission->certificate_number !== null)
+                                        <span class="block text-muted">{{ __('Certificate :number', ['number' => $submission->certificate_number]) }}</span>
+                                    @endif
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm space-y-2">
+                                    @error('evidence.'.$submission->id)
+                                        <x-ui.alert variant="danger">{{ $message }}</x-ui.alert>
+                                    @enderror
+                                    <x-ui.input type="text" wire:model="evidenceReturnNotes.{{ $submission->id }}" :placeholder="__('Return note (required to return)')" />
+                                    <div class="flex gap-2">
+                                        <x-ui.button type="button" variant="primary" wire:click="confirmEvidence({{ $submission->id }})">{{ __('Confirm') }}</x-ui.button>
+                                        <x-ui.button type="button" variant="secondary" wire:click="returnEvidence({{ $submission->id }})">{{ __('Return') }}</x-ui.button>
                                     </div>
                                 </td>
                             </tr>

@@ -18,6 +18,13 @@ return [
         'people.training.participation.verify',
         'people.training.participation.evidence.assign',
         'people.training.participation.evidence.submit',
+
+        /*
+         * HR decisions on submitted evidence (0011-b). Uses the platform
+         * 'verify' verb: verbs are a closed platform vocabulary and
+         * 'confirm' is not declared there.
+         */
+        'people.training.participation.evidence.verify',
         'people.training.passport.view',
         'people.training.passport.view-team',
         'people.training.effectiveness.review',
@@ -99,6 +106,7 @@ return [
                 'people.training.participation.manage',
                 'people.training.participation.verify',
                 'people.training.participation.evidence.assign',
+                'people.training.participation.evidence.verify',
                 'people.training.passport.view',
                 'people.training.effectiveness.close',
                 'people.training.evaluation-aggregate.view',
