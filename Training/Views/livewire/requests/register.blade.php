@@ -44,6 +44,7 @@
                     <tr>
                         <x-ui.th>{{ __('Created') }}</x-ui.th>
                         <x-ui.th>{{ __('Requestor') }}</x-ui.th>
+                        <x-ui.th align="right">{{ __('People') }}</x-ui.th>
                         <x-ui.th>{{ __('Department') }}</x-ui.th>
                         <x-ui.th>{{ __('Need') }}</x-ui.th>
                         <x-ui.th>{{ __('Status') }}</x-ui.th>
@@ -58,6 +59,7 @@
                         <tr wire:key="training-request-row-{{ $row['id'] }}">
                             <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $row['created_at'] }}</td>
                             <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['requestor'] }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-ink">{{ $row['subjects'] }}</td>
                             <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['department'] }}</td>
                             <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['need'] }}</td>
                             <td class="px-table-cell-x py-table-cell-y text-sm text-ink"><span data-status="{{ $row['status'] }}">{{ $row['status'] }}</span></td>

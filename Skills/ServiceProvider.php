@@ -9,7 +9,9 @@ use App\Base\Menu\Services\MenuConditionRegistry;
 use App\Base\Workflow\Events\TransitionCompleted;
 use App\Core\User\Models\User;
 use App\Domains\People\Organisation\Contracts\SummarizesOrganisationSkillCoverage;
+use App\Domains\People\Skills\Console\Commands\AssessmentLogDryRunCommand;
 use App\Domains\People\Skills\Console\Commands\RemindersDueCommand;
+use App\Domains\People\Skills\Console\Commands\RemindersSendCommand;
 use App\Domains\People\Skills\Console\Commands\SkillWorkbookDryRunCommand;
 use App\Domains\People\Skills\Console\Commands\SkillWorkbookExportCommand;
 use App\Domains\People\Skills\Contracts\ConfirmsAssessableRequirementVersion;
@@ -51,7 +53,9 @@ class ServiceProvider extends BaseServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
+                AssessmentLogDryRunCommand::class,
                 RemindersDueCommand::class,
+                RemindersSendCommand::class,
                 SkillWorkbookDryRunCommand::class,
                 SkillWorkbookExportCommand::class,
             ]);

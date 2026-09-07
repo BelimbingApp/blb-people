@@ -2,9 +2,8 @@
 
 namespace App\Domains\People\Training\Services;
 
-use App\Core\Company\Models\Department;
-use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
+use App\Domains\People\Skills\Services\DepartmentHeads;
 use App\Domains\People\Training\Data\OpenEffectivenessCheckpoint;
 use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\EffectivenessCheckpoint;
@@ -35,6 +34,8 @@ final class TrainingEffectivenessCheckpoints
 
     private const MAX_RATING = 5;
 
+    public function __construct(private readonly DepartmentHeads $heads) {}
+
     /**
      * Every question due right now in this company, answered or not.
      *
@@ -44,7 +45,7 @@ final class TrainingEffectivenessCheckpoints
     {
         $now = $this->moment($asOf);
 
-        $facts = TrainingParticipationFact::query()->forCompany($tenantId, $companyEntityId)
+        $facts = TrainingParticipationFact::query()->forCompany($tenantId, $companyEntityId)->current()
             ->where('attendance', AttendanceStatus::Present)
             ->orderBy('participant_id')
             ->get();
@@ -88,7 +89,7 @@ final class TrainingEffectivenessCheckpoints
                 eventId: (int) $event->id,
                 employeeEntityId: $employeeEntityId,
                 checkpoint: $checkpoint,
-                hodUserId: $this->headUserOf($companyEntityId, $employeeEntityId),
+                hodUserId: $this->heads->headUserOf($companyEntityId, $employeeEntityId),
                 answered: $answered->has($participant->id.':'.$checkpoint->value),
             );
         }
@@ -196,34 +197,6 @@ final class TrainingEffectivenessCheckpoints
     }
 
     /** The user account of the head of this employee's department, if any. */
-    private function headUserOf(int $companyEntityId, int $employeeEntityId): ?int
-    {
-        $departmentId = Employee::query()
-            ->where('company_id', $companyEntityId)
-            ->whereKey($employeeEntityId)
-            ->value('department_id');
-
-        if ($departmentId === null) {
-            return null;
-        }
-
-        $headId = Department::query()
-            ->where('company_id', $companyEntityId)
-            ->whereKey($departmentId)
-            ->value('head_id');
-
-        if ($headId === null) {
-            return null;
-        }
-
-        $userId = User::query()
-            ->where('company_id', $companyEntityId)
-            ->where('employee_id', $headId)
-            ->value('id');
-
-        return $userId === null ? null : (int) $userId;
-    }
-
     private function moment(?DateTimeInterface $asOf): CarbonImmutable
     {
         return $asOf === null ? CarbonImmutable::now() : CarbonImmutable::instance($asOf);

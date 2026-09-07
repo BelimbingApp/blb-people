@@ -23,10 +23,12 @@ use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingPriority;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
+use App\Domains\People\Training\Exceptions\InvalidTrainingParticipationException;
 use App\Domains\People\Training\Exceptions\InvalidTrainingRequestException;
 use App\Domains\People\Training\Livewire\HrGovernance\Index as HrGovernanceIndex;
 use App\Domains\People\Training\Livewire\Requests\Register;
 use App\Domains\People\Training\Models\TrainingEvent;
+use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Models\TrainingRequestDecision;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
@@ -259,4 +261,80 @@ test('the register filter approved_unlinked matches approvedUnlinkedQuery and th
     }
     expect(array_slice($byId[$linked->id], -2))->toBe([(string) $a['event']->id, 'Isolation induction Alpha'])
         ->and(array_slice($byId[$unlinked->id], -2))->toBe(['', '']);
+});
+
+/** Participants of one event, not withdrawn. */
+function reqLinkParticipants(array $s, int $eventId): array
+{
+    return TrainingParticipant::query()->forCompany($s['tenantId'], (int) $s['company']->id)
+        ->where('event_id', $eventId)->whereNull('withdrawn_at')
+        ->pluck('employee_subject_id')->sort()->values()->all();
+}
+
+test('linking enrols every subject once, and relinking after an unlink duplicates nobody', function (): void {
+    $f = reqLinkFixture();
+    $a = $f['alpha'];
+    $companyId = (int) $a['company']->id;
+    $eventId = (int) $a['event']->id;
+    $request = reqLinkRequest($a, 'Certification for the line.');
+    $store = app(TrainingRequestStore::class);
+
+    $store->linkEvent($a['hr'], $companyId, (int) $request->id, $eventId);
+    $after = reqLinkParticipants($a, $eventId);
+
+    // The request names its requestor by default, so exactly that person is on.
+    expect($after)->toBe([(string) $a['employee']->id]);
+
+    // Unlink leaves them enrolled: somebody may already have attended, and a
+    // withdrawal is a decision about that person.
+    $store->unlinkEvent($a['hr'], $companyId, (int) $request->id);
+    expect(reqLinkParticipants($a, $eventId))->toBe($after);
+
+    $store->linkEvent($a['hr'], $companyId, (int) $request->id, $eventId);
+    expect(reqLinkParticipants($a, $eventId))->toBe($after);
+});
+
+test('a link that would exceed the event capacity enrols nobody', function (): void {
+    $f = reqLinkFixture();
+    $a = $f['alpha'];
+    $companyId = (int) $a['company']->id;
+    $eventId = (int) $a['event']->id;
+    $request = reqLinkRequest($a, 'Certification for the whole line.');
+
+    // Fill every seat with somebody else first.
+    TrainingEvent::query()->forCompany($a['tenantId'], $companyId)->whereKey($eventId)->update(['capacity' => 1]);
+    TrainingParticipant::query()->forCompany($a['tenantId'], $companyId)->create([
+        'tenant_id' => $a['tenantId'], 'company_entity_id' => $companyId, 'event_id' => $eventId,
+        'provider_id' => 'native', 'employee_subject_id' => '999999', 'workforce_observed_at' => now(),
+    ]);
+    $before = reqLinkParticipants($a, $eventId);
+
+    expect(fn () => app(TrainingRequestStore::class)->linkEvent($a['hr'], $companyId, (int) $request->id, $eventId))
+        ->toThrow(InvalidTrainingParticipationException::class, 'does not have room');
+
+    expect(reqLinkParticipants($a, $eventId))->toBe($before)
+        ->and($request->fresh()->training_event_id)->toBeNull();
+});
+
+test('relinking a full event refuses nobody when the seats are held by this request own people', function (): void {
+    $f = reqLinkFixture();
+    $a = $f['alpha'];
+    $companyId = (int) $a['company']->id;
+    $eventId = (int) $a['event']->id;
+    $request = reqLinkRequest($a, 'Certification for the line.');
+    $store = app(TrainingRequestStore::class);
+
+    // One seat, and the request's own person takes it.
+    TrainingEvent::query()->forCompany($a['tenantId'], $companyId)->whereKey($eventId)->update(['capacity' => 1]);
+    $store->linkEvent($a['hr'], $companyId, (int) $request->id, $eventId);
+    $enrolled = reqLinkParticipants($a, $eventId);
+    expect($enrolled)->toHaveCount(1);
+
+    $store->unlinkEvent($a['hr'], $companyId, (int) $request->id);
+
+    // Relinking must not count the seat they already hold against them.
+    $store->linkEvent($a['hr'], $companyId, (int) $request->id, $eventId);
+
+    expect(reqLinkParticipants($a, $eventId))->toBe($enrolled)
+        ->and($request->fresh()->training_event_id)->toBe($eventId);
 });

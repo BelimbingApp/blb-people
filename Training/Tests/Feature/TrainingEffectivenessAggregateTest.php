@@ -14,6 +14,11 @@ use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use App\Domains\People\Skills\Data\SkillDraft;
+use App\Domains\People\Skills\Enums\DevelopmentActionClosure;
+use App\Domains\People\Skills\Enums\DevelopmentActionStatus;
+use App\Domains\People\Skills\Enums\DevelopmentActionType;
+use App\Domains\People\Skills\Enums\RequirementCriticality;
+use App\Domains\People\Skills\Models\DevelopmentAction;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
 use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use App\Domains\People\Training\Data\ParticipationFactDraft;
@@ -22,7 +27,12 @@ use App\Domains\People\Training\Data\TrainingEventDraft;
 use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\DeliveryMode;
 use App\Domains\People\Training\Enums\EffectivenessCheckpoint;
+use App\Domains\People\Training\Enums\EffectivenessOutcome;
+use App\Domains\People\Training\Enums\EffectivenessReviewStage;
+use App\Domains\People\Training\Enums\EffectivenessReviewState;
 use App\Domains\People\Training\Livewire\EffectivenessAggregate\Index as AggregateIndex;
+use App\Domains\People\Training\Models\TrainingEffectivenessReview;
+use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEffectivenessAggregate;
 use App\Domains\People\Training\Services\TrainingEffectivenessCheckpoints;
@@ -128,10 +138,10 @@ function aggregateEvent(array $f, string $courseTitle, int $endedDaysAgo): objec
 }
 
 /** An attendee of the event, in the fixture's department. */
-function aggregateAttendee(array $f, object $event, string $name, AttendanceStatus $attendance = AttendanceStatus::Present): int
+function aggregateAttendee(array $f, object $event, string $name, AttendanceStatus $attendance = AttendanceStatus::Present, ?int $departmentId = null): int
 {
     $employee = Employee::factory()->create([
-        'company_id' => $f['companyId'], 'department_id' => $f['department']->id,
+        'company_id' => $f['companyId'], 'department_id' => $departmentId ?? $f['department']->id,
         'full_name' => $name, 'status' => 'active', 'employee_type' => 'full_time',
     ]);
     $store = app(TrainingParticipationStore::class);
@@ -293,4 +303,131 @@ test('somebody who did not attend is not counted in the denominator', function (
     $row = aggregateRow($f, 'Half-attended course');
     expect($row->checkpoints[EffectivenessCheckpoint::Day30->value]->opened)->toBe(1)
         ->and($row->checkpoints[EffectivenessCheckpoint::Day30->value]->answerRate)->toBe(100);
+});
+
+/**
+ * A review of this participant that handed its follow-up to a development
+ * action in the given closure state.
+ *
+ * Both rows are written directly: TrainingEffectivenessStoreTest owns the
+ * rules for opening one, and what is under test here is only which of them
+ * the roll-up still counts as outstanding.
+ */
+function aggregateFollowUp(array $f, int $participantId, DevelopmentActionClosure $closure): int
+{
+    $catalog = app(SkillCatalogStore::class);
+    $skill = $catalog->defineSkill($f['companyId'], new SkillDraft(
+        code: Str::lower(Str::random(12)), name: 'Follow-up skill',
+        definition: 'Worked on after the review.',
+        categoryId: (int) $catalog->defineCategory($f['companyId'], Str::lower(Str::random(12)), 'Follow-up')->id,
+    ));
+    $participant = TrainingParticipant::query()->forCompany($f['tenantId'], $f['companyId'])->findOrFail($participantId);
+    $action = DevelopmentAction::query()->create([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'],
+        'action_key' => (string) Str::uuid(),
+        'employee_entity_id' => (int) $participant->employee_subject_id, 'skill_id' => (int) $skill->id,
+        'employee_name_snapshot' => 'Follow-up subject', 'starting_level' => 2, 'target_level' => 4,
+        'gap_at_start' => 2, 'criticality' => RequirementCriticality::Critical, 'mandatory_gate' => false,
+        'priority_score' => 10, 'priority_explanation' => 'Fixture row.',
+        'action_type' => DevelopmentActionType::Coaching, 'objective' => 'Close the gap.',
+        'intervention' => 'Coaching.', 'expected_evidence' => 'Signed permits.',
+        'owner_employee_entity_id' => (int) $f['head']->id,
+        'hr_coordinator_employee_entity_id' => (int) $f['head']->id,
+        'start_date' => now()->toDateString(), 'due_date' => now()->addMonth()->toDateString(),
+        'status' => $closure === DevelopmentActionClosure::Cancelled
+            ? DevelopmentActionStatus::Cancelled
+            : DevelopmentActionStatus::InProgress,
+        'closure_status' => $closure,
+    ]);
+    TrainingEffectivenessReview::query()->create([
+        'tenant_id' => $f['tenantId'], 'company_entity_id' => $f['companyId'],
+        'training_participant_id' => $participantId,
+        'stage' => EffectivenessReviewStage::Day30, 'due_on' => now()->toDateString(),
+        'due_date_policy' => 'policy:0013 thirty days after the recorded return to work',
+        'reviewer_employee_entity_id' => (int) $f['head']->id,
+        'outcome' => EffectivenessOutcome::NotYetEffective,
+        'state' => EffectivenessReviewState::OutcomeRecorded,
+        'development_action_id' => (int) $action->id,
+    ]);
+
+    return (int) $action->id;
+}
+
+test('open follow-up counts the closure states that still owe work', function (DevelopmentActionClosure $closure, bool $counted): void {
+    $f = aggregateFixture();
+    $event = aggregateEvent($f, 'Isolation drill', 31);
+    $participantId = aggregateAttendee($f, $event, 'Follow-up Learner');
+    $actionId = aggregateFollowUp($f, $participantId, $closure);
+
+    expect(aggregateRow($f, 'Isolation drill')->openFollowUpActionIds)
+        ->toBe($counted ? [$actionId] : []);
+})->with([
+    'open' => [DevelopmentActionClosure::Open, true],
+    'pending reassessment' => [DevelopmentActionClosure::PendingReassessment, true],
+    'further action required' => [DevelopmentActionClosure::FurtherActionRequired, true],
+    'closed competent' => [DevelopmentActionClosure::ClosedCompetent, false],
+    'cancelled' => [DevelopmentActionClosure::Cancelled, false],
+]);
+
+test('the drill-down ids are exactly the counted open follow-ups', function (): void {
+    $f = aggregateFixture();
+    $event = aggregateEvent($f, 'Permit writing', 31);
+    $running = aggregateFollowUp($f, aggregateAttendee($f, $event, 'Still Working'), DevelopmentActionClosure::Open);
+    $more = aggregateFollowUp($f, aggregateAttendee($f, $event, 'Also Working'), DevelopmentActionClosure::FurtherActionRequired);
+    aggregateFollowUp($f, aggregateAttendee($f, $event, 'Finished'), DevelopmentActionClosure::ClosedCompetent);
+
+    $ids = aggregateRow($f, 'Permit writing')->openFollowUpActionIds;
+    sort($ids);
+    $expected = [$running, $more];
+    sort($expected);
+
+    expect($ids)->toBe($expected)->and(count($ids))->toBe(2);
+});
+
+test('one participant who repeated a stage owes both of its follow-ups', function (): void {
+    $f = aggregateFixture();
+    $event = aggregateEvent($f, 'Repeated stage', 31);
+    $participantId = aggregateAttendee($f, $event, 'Twice Reviewed');
+    $first = aggregateFollowUp($f, $participantId, DevelopmentActionClosure::Open);
+    $second = aggregateFollowUp($f, $participantId, DevelopmentActionClosure::PendingReassessment);
+
+    $ids = aggregateRow($f, 'Repeated stage')->openFollowUpActionIds;
+    sort($ids);
+    $expected = [$first, $second];
+    sort($expected);
+
+    expect($ids)->toBe($expected);
+});
+
+/**
+ * Both attendees sat the same course, so the row survives either filter and the
+ * follow-up ids are actually observable. Filtering to a department whose
+ * checkpoints all fall away would skip the row entirely, and a leak would hide
+ * behind the skip rather than fail.
+ */
+test('the department filter narrows open follow-ups the way it narrows the rest of the row', function (): void {
+    $f = aggregateFixture();
+    $elsewhere = Department::query()->create([
+        'company_id' => $f['companyId'], 'status' => 'active',
+        // A company holds one department per type, so the second needs its own.
+        'department_type_id' => DepartmentType::query()->create([
+            'code' => 'agg-ops-elsewhere', 'name' => 'Elsewhere', 'category' => 'operational', 'is_active' => true,
+        ])->id,
+    ]);
+    $event = aggregateEvent($f, 'Filtered follow-up', 31);
+    $mine = aggregateFollowUp($f, aggregateAttendee($f, $event, 'Filtered Learner'), DevelopmentActionClosure::Open);
+    $theirs = aggregateFollowUp(
+        $f,
+        aggregateAttendee($f, $event, 'Other Department', AttendanceStatus::Present, (int) $elsewhere->id),
+        DevelopmentActionClosure::Open,
+    );
+
+    $all = aggregateRow($f, 'Filtered follow-up')->openFollowUpActionIds;
+    sort($all);
+    $both = [$mine, $theirs];
+    sort($both);
+
+    expect(aggregateRow($f, 'Filtered follow-up', (int) $f['department']->id)->openFollowUpActionIds)->toBe([$mine])
+        ->and(aggregateRow($f, 'Filtered follow-up', (int) $elsewhere->id)->openFollowUpActionIds)->toBe([$theirs])
+        ->and($all)->toBe($both);
 });
