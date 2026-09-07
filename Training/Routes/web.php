@@ -14,6 +14,7 @@ use App\Domains\People\Training\Livewire\HrGovernance\Index as HrGovernanceIndex
 use App\Domains\People\Training\Livewire\Request\Index as RequestIndex;
 use App\Domains\People\Training\Livewire\Requests\Register as RequestsRegister;
 use App\Domains\People\Training\Livewire\TeamPassports;
+use App\Domains\People\Training\Livewire\TrainingKpi\Index as TrainingKpiIndex;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function (): void {
@@ -80,6 +81,12 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/training/effectiveness-summary', EffectivenessAggregateIndex::class)
         ->middleware('authz:'.EffectivenessAggregateIndex::VIEW_CAPABILITY)
         ->name('people.training.effectiveness.summary');
+
+    // HR training KPI dashboard (0007-f). The HR audience is asserted inside
+    // the component (SkillAudience), as the governance queue does.
+    Route::get('people/training/kpi', TrainingKpiIndex::class)
+        ->middleware('authz:'.TrainingKpiIndex::VIEW_CAPABILITY)
+        ->name('people.training.kpi');
 
     Route::get('people/training-evaluations', EvaluationIndex::class)
         ->middleware('authz:'.EvaluationIndex::CAPABILITY)

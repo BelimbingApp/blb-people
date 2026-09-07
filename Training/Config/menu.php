@@ -68,6 +68,15 @@ return [
         'condition' => 'people.training.calendar-audience',
         'parent' => 'people',
     ], [
+        // 0007-f (#389): HR-only training KPI dashboard.
+        'id' => 'people.training-kpi',
+        'label' => 'Training KPIs',
+        'icon' => 'heroicon-o-chart-bar',
+        'route' => 'people.training.kpi',
+        'permission' => 'people.training.kpi.view',
+        'condition' => 'people.training.kpi-audience',
+        'parent' => 'people',
+    ], [
         'id' => 'people.hr-governance',
         'label' => 'HR governance',
         'icon' => 'heroicon-o-clipboard-document-check',

@@ -115,6 +115,14 @@ return [
          * for everybody, quietly. Recorded on the issue.
          */
         'people.training.effectiveness-aggregate.view',
+
+        /*
+         * The HR training KPI dashboard (0007-f, #389): the workbook's
+         * training controls per company and department. HR-only on purpose;
+         * a HOD reads their department through the evaluations dashboard and
+         * the effectiveness form, never company-level rates.
+         */
+        'people.training.kpi.view',
     ],
 
     'roles' => [
@@ -141,6 +149,7 @@ return [
                 'people.training.budget.view',
                 'people.training.budget.manage',
                 'people.training.effectiveness-aggregate.view',
+                'people.training.kpi.view',
             ],
         ],
         'people_training_trainer' => [

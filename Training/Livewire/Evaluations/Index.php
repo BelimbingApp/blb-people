@@ -25,6 +25,7 @@ use App\Domains\People\Training\Services\TrainingEvaluationReminders;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
@@ -76,7 +77,8 @@ final class Index extends Component
     /** One of the rating criteria, or null for the completion drill-down. */
     public ?string $openCriterion = null;
 
-    /** Organization-unit stable id, or empty for the whole company (0012-d). */
+    /** Organization-unit stable id, or empty for the whole company (0012-d); URL-bound for the KPI drill-down (#389). */
+    #[Url]
     public string $department = '';
 
     public function mount(): void
