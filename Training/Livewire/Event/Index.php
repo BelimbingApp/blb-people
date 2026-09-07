@@ -368,7 +368,9 @@ final class Index extends Component
                     'pre_test_score' => $pre === null ? '' : (string) $pre,
                     'post_test_score' => $post === null ? '' : (string) $post,
                     'improvement' => $pre === null || $post === null ? '' : (string) ($post - $pre),
-                    'pass_result' => match ($fact->post_test['passed'] ?? null) { true => 'pass', false => 'fail', default => '' },
+                    'pass_result' => match ($fact->post_test['passed'] ?? null) {
+                        true => 'pass', false => 'fail', default => ''
+                    },
                     'certificate_reference' => (string) ($fact->certificate_reference ?? ''),
                     'certificate_valid_from' => $fact->certificate_valid_from?->format('Y-m-d') ?? '',
                     'certificate_valid_until' => $fact->certificate_valid_until?->format('Y-m-d') ?? '',
