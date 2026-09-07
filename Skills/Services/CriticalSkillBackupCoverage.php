@@ -54,6 +54,8 @@ final class CriticalSkillBackupCoverage
         }
 
         $departmentOf = $this->departmentByEmployee($scores);
+        $skillNames = $this->skillNames($tenantId, $companyEntityId, $scores);
+        $departmentNames = $this->departmentNames($departmentOf);
         $minimum = $this->minimum($tenantId);
         $today = now()->toDateString();
         $rows = [];
@@ -68,16 +70,21 @@ final class CriticalSkillBackupCoverage
                 continue;
             }
 
-            $holders = $group->filter(static fn (EmployeeSkillScore $score): bool => $score->coversRequirement($today))->count();
+            // The strictest requirement anyone in the department carries. If two
+            // roles disagree — an operator at 3, a supervisor at 5 — cover has
+            // to satisfy the higher, so the count is measured against it too.
+            // Somebody at 3 is doing their own job, not covering the other's.
+            $requiredLevel = (int) $group->max('required_level');
+            $holders = $group->filter(
+                static fn (EmployeeSkillScore $score): bool => $score->coversRequirement($today, $requiredLevel)
+            )->count();
 
             $rows[] = [
                 'department_id' => $employeeDepartment,
-                'department' => $this->departmentName($employeeDepartment),
+                'department' => $departmentNames[$employeeDepartment] ?? (string) __('No department'),
                 'skill_id' => (int) $first->skill_id,
-                'skill' => $this->skillName($tenantId, $companyEntityId, (int) $first->skill_id),
-                // The strictest requirement anyone in the department carries:
-                // if two profiles disagree, cover has to satisfy the higher.
-                'required_level' => (int) $group->max('required_level'),
+                'skill' => $skillNames[(int) $first->skill_id] ?? (string) __('Unknown skill'),
+                'required_level' => $requiredLevel,
                 'holders' => $holders,
                 'minimum' => $minimum,
                 'covered' => $holders >= $minimum,
@@ -117,17 +124,35 @@ final class CriticalSkillBackupCoverage
         return is_int($configured) && $configured > 0 ? $configured : self::DEFAULT_MINIMUM;
     }
 
-    private function departmentName(?int $departmentId): string
+    /**
+     * @param  array<int, int|null>  $departmentOf
+     * @return array<int, string>
+     */
+    private function departmentNames(array $departmentOf): array
     {
-        if ($departmentId === null) {
-            return (string) __('No department');
+        $ids = array_values(array_unique(array_filter($departmentOf, static fn (?int $id): bool => $id !== null)));
+
+        if ($ids === []) {
+            return [];
         }
 
-        return (string) (Department::query()->with('type')->find($departmentId)?->name ?? __('Unknown department'));
+        return Department::query()->with('type')->whereIn('id', $ids)->get()
+            ->mapWithKeys(static fn (Department $department): array => [
+                (int) $department->id => (string) ($department->name ?? __('Unknown department')),
+            ])
+            ->all();
     }
 
-    private function skillName(int $tenantId, int $companyEntityId, int $skillId): string
+    /**
+     * @param  Collection<int, EmployeeSkillScore>  $scores
+     * @return array<int, string>
+     */
+    private function skillNames(int $tenantId, int $companyEntityId, Collection $scores): array
     {
-        return (string) (Skill::query()->forCompany($tenantId, $companyEntityId)->find($skillId)?->name ?? __('Unknown skill'));
+        return Skill::query()->forCompany($tenantId, $companyEntityId)
+            ->whereIn('id', $scores->pluck('skill_id')->unique()->all())
+            ->pluck('name', 'id')
+            ->map(static fn (mixed $name): string => (string) $name)
+            ->all();
     }
 }

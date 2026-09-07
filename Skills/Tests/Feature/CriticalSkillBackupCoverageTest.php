@@ -267,3 +267,18 @@ test('the per-department table carries a caption and names the minimum', functio
         ->assertSee('Backup coverage by department')
         ->assertSee('Energy isolation');
 });
+
+test('a holder who only meets a lower requirement does not cover the strictest one', function (): void {
+    $f = backupFixture();
+    // Two roles, one skill: an operator needs level 3, a supervisor needs 5.
+    backupScore($f, backupEmployee($f, 'Operator'), current: 3, required: 3);
+    backupScore($f, backupEmployee($f, 'Supervisor'), current: 4, required: 5);
+
+    $row = backupRow($f, $f['department']);
+
+    // The row advertises 5 as the bar, so the count has to mean that bar.
+    // Somebody at 3 is doing their own job, not covering the supervisor's.
+    expect($row['required_level'])->toBe(5)
+        ->and($row['holders'])->toBe(0)
+        ->and($row['covered'])->toBeFalse();
+});

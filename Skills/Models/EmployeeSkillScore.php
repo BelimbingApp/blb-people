@@ -48,18 +48,21 @@ class EmployeeSkillScore extends TenantOwnedModel implements ReferencesWorkforce
 
     /**
      * Whether this score is somebody you can count on for the requirement it
-     * measures: at or above the level asked for, and not lapsed.
+     * measures: at or above the level asked for, and not lapsed. Callers
+     * with a bar of their own — a department's strictest requirement, say —
+     * pass it; otherwise the score answers for its own requirement.
      *
      * A score that has lapsed is a record of past competence — a certificate
      * that expired last month is not somebody you can call at 2am. Both the
      * backup coverage page (0007-b) and the per-department coverage service
      * (0007-c) ask this question, so it is answered once, here.
      */
-    public function coversRequirement(?string $asOf = null): bool
+    public function coversRequirement(?string $asOf = null, ?int $requiredLevel = null): bool
     {
         $asOf ??= now()->toDateString();
+        $requiredLevel ??= (int) $this->required_level;
 
-        return (int) $this->current_level >= (int) $this->required_level
+        return (int) $this->current_level >= $requiredLevel
             && ($this->valid_until === null || $this->valid_until->toDateString() >= $asOf);
     }
 
