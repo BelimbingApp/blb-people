@@ -68,6 +68,13 @@ return [
         'condition' => 'people.training.calendar-audience',
         'parent' => 'people',
     ], [
+        'id' => 'people.training-migration-sources',
+        'label' => 'Migration sources',
+        'icon' => 'heroicon-o-archive-box-arrow-down',
+        'route' => 'people.training.migration.index',
+        'permission' => 'people.training.migration.view',
+        'parent' => 'people',
+    ], [
         'id' => 'people.hr-governance',
         'label' => 'HR governance',
         'icon' => 'heroicon-o-clipboard-document-check',

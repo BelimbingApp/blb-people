@@ -11,6 +11,7 @@ use App\Domains\People\Training\Livewire\Evaluation\Index as EvaluationIndex;
 use App\Domains\People\Training\Livewire\Event\Index;
 use App\Domains\People\Training\Livewire\Evidence\Index as EvidenceIndex;
 use App\Domains\People\Training\Livewire\HrGovernance\Index as HrGovernanceIndex;
+use App\Domains\People\Training\Livewire\Migration\Index as MigrationIndex;
 use App\Domains\People\Training\Livewire\Request\Index as RequestIndex;
 use App\Domains\People\Training\Livewire\Requests\Register as RequestsRegister;
 use App\Domains\People\Training\Livewire\TeamPassports;
@@ -80,6 +81,13 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/training/effectiveness-summary', EffectivenessAggregateIndex::class)
         ->middleware('authz:'.EffectivenessAggregateIndex::VIEW_CAPABILITY)
         ->name('people.training.effectiveness.summary');
+
+    // The signed migration source inventory (0015-a). HR and HOD read; only
+    // people.training.migration.manage records, updates and signs, and the
+    // store decides that, not the page.
+    Route::get('people/training/migration-sources', MigrationIndex::class)
+        ->middleware('authz:'.MigrationIndex::VIEW_CAPABILITY)
+        ->name('people.training.migration.index');
 
     Route::get('people/training-evaluations', EvaluationIndex::class)
         ->middleware('authz:'.EvaluationIndex::CAPABILITY)
