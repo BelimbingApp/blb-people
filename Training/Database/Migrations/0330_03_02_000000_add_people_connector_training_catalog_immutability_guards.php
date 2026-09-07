@@ -1,5 +1,6 @@
 <?php
 
+use App\Base\Database\Concerns\IncubatingSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +33,8 @@ use Illuminate\Support\Facades\DB;
  */
 return new class extends Migration
 {
+    use IncubatingSchema;
+
     public function up(): void
     {
         $this->assertNoCrossCompanyCourseSkillMappings();
