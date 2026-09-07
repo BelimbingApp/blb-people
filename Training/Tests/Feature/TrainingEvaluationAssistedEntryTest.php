@@ -7,10 +7,14 @@ use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
+use App\Domains\People\Provider\Data\ExternalReference;
+use App\Domains\People\Provider\Data\WorkforceSubject;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
 use App\Domains\People\Skills\Tests\Support\CompanyIsolationFixture;
+use App\Domains\People\Training\Data\ParticipationFactDraft;
 use App\Domains\People\Training\Data\TrainingCourseDraft;
 use App\Domains\People\Training\Data\TrainingEventDraft;
 use App\Domains\People\Training\Enums\AttendanceStatus;
@@ -22,11 +26,11 @@ use App\Domains\People\Training\Livewire\Evaluations\Index as EvaluationsDashboa
 use App\Domains\People\Training\Models\TrainingEvaluation;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingParticipant;
-use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Models\TrainingSession;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEvaluationSubmissionStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
+use App\Domains\People\Training\Services\TrainingParticipationStore;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -80,31 +84,33 @@ function assistedEvent(int $companyId, string $label): array
     return ['event' => $event, 'trainer' => $trainer];
 }
 
+/**
+ * Attendance goes through the participation store, the same write path the
+ * self-submission test uses, so the participant row carries the provider id
+ * the evaluation store later filters on.
+ */
 function assistedParticipant(int $tenantId, int $companyId, TrainingEvent $event, Employee $employee, User $recorder): TrainingParticipant
 {
-    $participant = TrainingParticipant::query()->create([
-        'tenant_id' => $tenantId, 'company_entity_id' => $companyId, 'event_id' => $event->id,
-        'provider_id' => 'native', 'employee_subject_id' => (string) $employee->id, 'workforce_observed_at' => now(),
-    ]);
-    $session = TrainingSession::query()->firstOrCreate([
-        'tenant_id' => $tenantId, 'company_entity_id' => $companyId, 'event_id' => $event->id,
-        'session_reference' => 'assisted-session-'.$event->id,
-    ], ['starts_at' => $event->starts_at, 'ends_at' => $event->ends_at, 'created_by_user_id' => $recorder->id]);
-    TrainingParticipationFact::query()->create([
-        'tenant_id' => $tenantId, 'company_entity_id' => $companyId, 'event_id' => $event->id,
-        'participant_id' => $participant->id, 'session_id' => $session->id,
-        'attendance' => AttendanceStatus::Present, 'actual_minutes' => 120, 'evidence_references' => [],
-        'source' => 'fixture', 'source_reference' => 'assisted-fact-'.$participant->id,
-        'recorded_by_user_id' => $recorder->id, 'recorded_capability' => 'fixture', 'recorded_at' => now(),
-    ]);
+    $store = app(TrainingParticipationStore::class);
+    $session = TrainingSession::query()->forCompany($tenantId, $companyId)
+        ->where('event_id', $event->id)->first()
+        ?? $store->defineSession($recorder, $companyId, (int) $event->id, (string) Str::uuid(), $event->starts_at, $event->ends_at);
+    $subject = new WorkforceSubject(
+        $tenantId, $companyId, WorkforceResourceType::Employee, (string) $employee->id,
+        new ExternalReference(WorkforceResourceType::Employee, (string) $employee->id),
+    );
+    $store->recordAttendance($recorder, $companyId, (int) $session->id, $subject, new ParticipationFactDraft(
+        attendance: AttendanceStatus::Present, actualMinutes: 120, source: 'manual', sourceReference: (string) Str::uuid(),
+    ));
 
-    return $participant;
+    return TrainingParticipant::query()->forCompany($tenantId, $companyId)
+        ->where('event_id', $event->id)->where('employee_subject_id', (string) $employee->id)->sole();
 }
 
 /**
  * Alpha is the acting company; Beta is its sibling in the same tenant. The
- * clock is moved to an hour after Alpha's event ended, so the event is over
- * and the 14-day window is open.
+ * clock ends an hour after both events ended, so they are over and the
+ * 14-day window is open.
  *
  * @return array<string, mixed>
  */
@@ -129,18 +135,20 @@ function assistedFixture(): array
     ]);
     $colleague = Employee::factory()->create(['company_id' => $companyId, 'full_name' => 'Bob Colleague', 'status' => 'active', 'employee_type' => 'full_time']);
 
-    ['event' => $event] = assistedEvent($companyId, 'Alpha');
-    $participant = assistedParticipant($tenantId, $companyId, $event, $employee, $hr);
-    $colleagueParticipant = assistedParticipant($tenantId, $companyId, $event, $colleague, $hr);
-
     $betaId = $tenant->betaCompanyEntityId;
     $betaHr = User::factory()->create(['company_id' => $betaId]);
     assistedRole($betaHr, 'people_hr');
-    ['event' => $betaEvent] = assistedEvent($betaId, 'Beta');
     $betaEmployee = Employee::factory()->create(['company_id' => $betaId, 'full_name' => 'Beta Person', 'status' => 'active', 'employee_type' => 'full_time']);
-    $betaParticipant = assistedParticipant($tenantId, $betaId, $betaEvent, $betaEmployee, $betaHr);
 
+    // Both events are scheduled before the clock moves: attendance can only
+    // be recorded for a session that has ended, and both end at the same time.
+    ['event' => $event] = assistedEvent($companyId, 'Alpha');
+    ['event' => $betaEvent] = assistedEvent($betaId, 'Beta');
     test()->travelTo($event->ends_at->addHour());
+
+    $participant = assistedParticipant($tenantId, $companyId, $event, $employee, $hr);
+    $colleagueParticipant = assistedParticipant($tenantId, $companyId, $event, $colleague, $hr);
+    $betaParticipant = assistedParticipant($tenantId, $betaId, $betaEvent, $betaEmployee, $betaHr);
 
     return compact('tenantId', 'companyId', 'hr', 'hod', 'employee', 'employeeUser', 'event', 'participant', 'colleagueParticipant', 'betaId', 'betaParticipant');
 }
