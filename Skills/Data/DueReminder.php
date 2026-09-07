@@ -26,5 +26,7 @@ final readonly class DueReminder
         public \DateTimeImmutable $dueOn,
         public string $requirementReference,
         public int $requirementVersion,
+        public ?int $developmentActionId = null,
+        public ?int $ownerEmployeeEntityId = null,
     ) {}
 }
