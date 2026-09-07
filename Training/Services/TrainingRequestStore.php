@@ -14,11 +14,14 @@ use App\Domains\People\Skills\Enums\AssessmentStatus;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\CompanyAttribution;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
+use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingRequestException;
+use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Models\TrainingRequestDecision;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -108,6 +111,60 @@ final readonly class TrainingRequestStore
 
         return $this->move($actor, $companyId, $requestId, TrainingRequestStatus::PendingApproval,
             TrainingRequestStatus::Approved, 'approved', self::APPROVE, $notes);
+    }
+
+    /**
+     * Link an approved request to the scheduled event that satisfies it
+     * (0010-d). The event must be in this company and still ahead (scheduled
+     * or in progress); the link is a fact on the request plus one decision
+     * row, so the trail keeps every link and unlink ever made.
+     */
+    public function linkEvent(User $actor, int $companyId, int $requestId, int $eventId): TrainingRequest
+    {
+        $tenantId = $this->authorize($actor, $companyId, self::HR_REVIEW);
+
+        return DB::transaction(function () use ($actor, $companyId, $requestId, $eventId, $tenantId): TrainingRequest {
+            $request = $this->find($tenantId, $companyId, $requestId);
+            if ($request->status !== TrainingRequestStatus::Approved) {
+                throw new InvalidTrainingRequestException('Only an approved training request can be linked to an event.');
+            }
+            $event = TrainingEvent::query()->forCompany($tenantId, $companyId)->whereKey($eventId)->first()
+                ?? throw new InvalidTrainingRequestException('Training event was not found in this company.');
+            if (! in_array($event->status, [TrainingEventStatus::Scheduled, TrainingEventStatus::InProgress], true)) {
+                throw new InvalidTrainingRequestException('Only a scheduled or in-progress training event can satisfy a request.');
+            }
+
+            $request->update(['training_event_id' => $event->id, 'linked_by_user_id' => $actor->getKey(), 'linked_at' => now()]);
+            $this->record($request, 'linked', $actor, "Linked to event {$event->id}: {$event->course_title_snapshot}");
+
+            return $request->refresh();
+        });
+    }
+
+    public function unlinkEvent(User $actor, int $companyId, int $requestId, ?string $notes = null): TrainingRequest
+    {
+        $tenantId = $this->authorize($actor, $companyId, self::HR_REVIEW);
+
+        return DB::transaction(function () use ($actor, $companyId, $requestId, $notes, $tenantId): TrainingRequest {
+            $request = $this->find($tenantId, $companyId, $requestId);
+            if ($request->training_event_id === null) {
+                throw new InvalidTrainingRequestException('The training request is not linked to an event.');
+            }
+            $eventId = (int) $request->training_event_id;
+            $request->update(['training_event_id' => null, 'linked_by_user_id' => null, 'linked_at' => null]);
+            $this->record($request, 'unlinked', $actor, trim("Unlinked from event {$eventId}. ".(string) $notes));
+
+            return $request->refresh();
+        });
+    }
+
+    /** Approved requests no scheduled event satisfies yet: the HR queue's "approved, not linked" section. */
+    public function approvedUnlinkedQuery(int $tenantId, int $companyId): Builder
+    {
+        return TrainingRequest::query()->forCompany($tenantId, $companyId)
+            ->where('status', TrainingRequestStatus::Approved->value)
+            ->whereNull('training_event_id')
+            ->orderBy('id');
     }
 
     public function reject(User $actor, int $companyId, int $requestId, string $notes): TrainingRequest

@@ -20,6 +20,7 @@
         <div class="grid gap-4 md:grid-cols-3">
             <x-ui.select wire:model.live="status" :label="__('Status')">
                 <option value="">{{ __('All statuses') }}</option>
+                <option value="approved_unlinked">{{ __('approved, not linked to an event') }}</option>
                 @foreach ($statuses as $case)
                     <option value="{{ $case->value }}">{{ $case->value }}</option>
                 @endforeach
@@ -38,7 +39,7 @@
         @if ($rows->isEmpty())
             <p class="text-sm text-muted">{{ __('No training request matches.') }}</p>
         @else
-            <x-ui.table>
+            <x-ui.table :caption="__('Training requests register')">
                 <x-slot:head>
                     <tr>
                         <x-ui.th>{{ __('Created') }}</x-ui.th>
@@ -49,6 +50,7 @@
                         <x-ui.th>{{ __('Estimated cost') }}</x-ui.th>
                         <x-ui.th>{{ __('Approver') }}</x-ui.th>
                         <x-ui.th>{{ __('Decided') }}</x-ui.th>
+                        <x-ui.th>{{ __('Linked event') }}</x-ui.th>
                     </tr>
                 </x-slot:head>
                 <x-slot:body>
@@ -62,6 +64,7 @@
                             <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $row['estimated_cost'] }}</td>
                             <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['approver'] }}</td>
                             <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $row['decided_at'] }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['linked_event_title'] !== '' ? $row['linked_event_title'] : ($row['linked_event_id'] !== '' ? __('Event :id', ['id' => $row['linked_event_id']]) : '') }}</td>
                         </tr>
                     @endforeach
                 </x-slot:body>

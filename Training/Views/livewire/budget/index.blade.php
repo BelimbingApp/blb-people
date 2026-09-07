@@ -15,7 +15,7 @@
         <x-ui.alert variant="info">{{ __('No department has a training budget or a costed request for this year yet.') }}</x-ui.alert>
     @else
         <x-ui.card>
-            <x-ui.table>
+            <x-ui.table :caption="__('Training budget by department')">
                 <x-slot:head>
                     <tr>
                         <x-ui.th>{{ __('Department') }}</x-ui.th>

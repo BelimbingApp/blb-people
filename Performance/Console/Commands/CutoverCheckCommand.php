@@ -24,7 +24,6 @@ final class CutoverCheckCommand extends TenantScopedCommand
 
     public function handle(TenantContext $tenants, CutoverReadiness $readiness): int
     {
-
         $company = $this->option('company');
 
         if ($company === null || $company === '') {

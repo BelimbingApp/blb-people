@@ -19,6 +19,30 @@ use App\Domains\People\Employees\Livewire\TrainingPassport;
         </div>
 
         <x-ui.card>
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-medium tracking-tight text-ink">{{ __('Printable passport') }}</h2>
+                    <p class="mt-1 text-sm text-muted">{{ __('A PDF of your completed events, certificates and current skill levels, watermarked with the generation date and your employee id. Each copy is kept for :days days and every download is recorded.', ['days' => \App\Domains\People\Training\Services\TrainingPassportDocumentStore::RETENTION_DAYS]) }}</p>
+                </div>
+                <x-ui.button type="button" variant="primary" wire:click="generatePassportPdf" wire:loading.attr="disabled">{{ __('Generate PDF') }}</x-ui.button>
+            </div>
+
+            @if ($passportDocuments->isNotEmpty())
+                <ul class="mt-4 divide-y divide-border-default" data-passport-documents>
+                    @foreach ($passportDocuments as $document)
+                        <li wire:key="passport-document-{{ $document->id }}" class="flex flex-wrap items-center justify-between gap-3 py-2 text-sm">
+                            <span class="text-ink">
+                                <x-ui.datetime :value="$document->generated_at" format="datetime" />
+                                <span class="text-muted">· {{ __('available until') }} <x-ui.datetime :value="$document->expires_at" format="date" /></span>
+                            </span>
+                            <a href="{{ route('people.training.passport.document', ['documentId' => $document->id]) }}" class="font-medium text-accent underline underline-offset-2" data-passport-document-download="{{ $document->id }}">{{ __('Download PDF') }}</a>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </x-ui.card>
+
+        <x-ui.card>
             <div class="mb-4">
                 <h2 class="text-lg font-medium tracking-tight text-ink">{{ __('Training events') }}</h2>
                 <p class="mt-1 text-sm text-muted">{{ __('Attendance and event completion are shown separately from competence.') }}</p>
