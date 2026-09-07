@@ -20,8 +20,10 @@ use App\Domains\People\Skills\Services\DevelopmentActionStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 final class Index extends Component
@@ -68,6 +70,16 @@ final class Index extends Component
 
     /** @var array<int, string> */
     public array $actionEvidence = [];
+
+    /**
+     * Drill-down filters from the HR KPI dashboard (#363): comma-separated
+     * closure states, and overdue=1 for commitments past their due date.
+     */
+    #[Url]
+    public string $closure = '';
+
+    #[Url]
+    public string $overdue = '';
 
     /** @var array<int, string>|null */
     private ?array $allowedCompanies = null;
@@ -285,8 +297,8 @@ final class Index extends Component
                 ->whereIn('employee_entity_id', $visibleEmployeeIds)
                 ->whereIn('id', $sourceIds)->whereNotIn('id', $openSourceIds)
                 ->orderByDesc('mandatory_gate')->orderByDesc('priority_score')->get();
-            $actions = $store->operationalQuery($companyId)->whereIn('employee_entity_id', $visibleEmployeeIds)->get();
-            $terminalActions = $store->terminalQuery($companyId)->whereIn('employee_entity_id', $visibleEmployeeIds)->get();
+            $actions = $this->drillDown($store->operationalQuery($companyId)->whereIn('employee_entity_id', $visibleEmployeeIds)->get());
+            $terminalActions = $this->drillDown($store->terminalQuery($companyId)->whereIn('employee_entity_id', $visibleEmployeeIds)->get());
             $skillNames = Skill::query()
                 ->forCompany(app(TenantContext::class)->requireTenantId(), $companyId)
                 ->whereIn('id', $gaps->pluck('skill_id')->merge($actions->pluck('skill_id'))->merge($terminalActions->pluck('skill_id'))->unique())
@@ -326,6 +338,20 @@ final class Index extends Component
             'eligibleReassessments' => $eligibleReassessments,
             'canManage' => $this->canManage(),
         ]);
+    }
+
+    /**
+     * @param  Collection<int, DevelopmentAction>  $actions
+     * @return Collection<int, DevelopmentAction>
+     */
+    private function drillDown($actions)
+    {
+        $closures = array_values(array_filter(explode(',', $this->closure)));
+
+        return $actions
+            ->filter(fn (DevelopmentAction $action): bool => $closures === [] || in_array($action->closure_status->value, $closures, true))
+            ->filter(fn (DevelopmentAction $action): bool => $this->overdue !== '1' || $action->daysOverdue() > 0)
+            ->values();
     }
 
     /** @return array<int, string> */
