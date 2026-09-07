@@ -9,6 +9,7 @@ use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
+use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Models\TrainingRequestDecision;
 use Illuminate\Contracts\View\View;
@@ -33,6 +34,9 @@ final class Register extends Component
     public const VIEW_CAPABILITY = 'people.training.request.list';
 
     public const EXPORT_EVENT = 'people.training.requests.exported';
+
+    /** A status filter value beyond the enum: approved requests with no event yet (0010-d). */
+    public const FILTER_APPROVED_UNLINKED = 'approved_unlinked';
 
     /** Final decisions, whose actor is the approver and whose time is the decision date. */
     private const FINAL_DECISIONS = ['approved', 'rejected'];
@@ -105,9 +109,9 @@ final class Register extends Component
 
         return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'wb');
-            fputcsv($out, ['id', 'created_at', 'requestor', 'department', 'need', 'priority', 'status', 'estimated_cost', 'approver', 'decided_at']);
+            fputcsv($out, ['id', 'created_at', 'requestor', 'department', 'need', 'priority', 'status', 'estimated_cost', 'approver', 'decided_at', 'linked_event_id', 'linked_event_title']);
             foreach ($rows as $row) {
-                fputcsv($out, [$row['id'], $row['created_at'], $row['requestor'], $row['department'], $row['need'], $row['priority'], $row['status'], $row['estimated_cost'], $row['approver'], $row['decided_at']]);
+                fputcsv($out, [$row['id'], $row['created_at'], $row['requestor'], $row['department'], $row['need'], $row['priority'], $row['status'], $row['estimated_cost'], $row['approver'], $row['decided_at'], $row['linked_event_id'], $row['linked_event_title']]);
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);
@@ -124,7 +128,9 @@ final class Register extends Component
             ->forCompany($tenantId, $companyEntityId)
             ->whereBetween('created_at', [sprintf('%d-01-01 00:00:00', $this->year), sprintf('%d-12-31 23:59:59', $this->year)])
             ->orderByDesc('id');
-        if ($this->status !== '' && TrainingRequestStatus::tryFrom($this->status) !== null) {
+        if ($this->status === self::FILTER_APPROVED_UNLINKED) {
+            $query->where('status', TrainingRequestStatus::Approved->value)->whereNull('training_event_id');
+        } elseif ($this->status !== '' && TrainingRequestStatus::tryFrom($this->status) !== null) {
             $query->where('status', $this->status);
         }
         if ($this->department !== '' && array_key_exists($this->department, $departments)) {
@@ -140,12 +146,14 @@ final class Register extends Component
             ->whereIn('decision', self::FINAL_DECISIONS)
             ->orderBy('id')->get()->keyBy('training_request_id');
         $approvers = $decisions->isEmpty() ? collect() : User::query()->whereIn('id', $decisions->pluck('actor_user_id')->unique()->all())->get()->keyBy('id');
+        $linkedIds = $requests->pluck('training_event_id')->filter()->unique()->all();
+        $eventTitles = $linkedIds === [] ? collect() : TrainingEvent::query()->forCompany($tenantId, $companyEntityId)->whereIn('id', $linkedIds)->pluck('course_title_snapshot', 'id');
         $employees = [];
         foreach (app(WorkforceSubjects::class)->employees($companyEntityId) as $employee) {
             $employees[$employee->reference->externalId] = $employee->displayName;
         }
 
-        return $requests->map(function (TrainingRequest $request) use ($decisions, $approvers, $employees, $departments): array {
+        return $requests->map(function (TrainingRequest $request) use ($decisions, $approvers, $employees, $departments, $eventTitles): array {
             $decision = $decisions->get($request->id);
             $approver = $decision === null ? null : $approvers->get((int) $decision->actor_user_id);
 
@@ -160,6 +168,8 @@ final class Register extends Component
                 'estimated_cost' => $request->estimated_cost === null ? '' : (string) $request->estimated_cost,
                 'approver' => $approver?->name ?? '',
                 'decided_at' => $decision === null ? '' : (string) $decision->occurred_at?->toDateString(),
+                'linked_event_id' => $request->training_event_id === null ? '' : (string) $request->training_event_id,
+                'linked_event_title' => $request->training_event_id === null ? '' : (string) ($eventTitles[(int) $request->training_event_id] ?? ''),
             ];
         })->values();
     }

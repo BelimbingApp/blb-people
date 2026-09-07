@@ -2,10 +2,10 @@
 
 namespace App\Domains\People\Performance\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Performance\Data\CutoverCheck;
 use App\Domains\People\Performance\Services\CutoverReadiness;
-use Illuminate\Console\Command;
 
 /**
  * Report whether a company can stop running performance reviews by hand.
@@ -14,10 +14,9 @@ use Illuminate\Console\Command;
  * than only inform one. That is the difference between a readiness check and
  * a report somebody has to read carefully.
  */
-final class CutoverCheckCommand extends Command
+final class CutoverCheckCommand extends TenantScopedCommand
 {
     protected $signature = 'people:performance:cutover-check
-                            {--tenant= : Tenant to check; defaults to the current tenant context}
                             {--company= : Company workforce entity to check}
                             {--json : Print the report as JSON for scripts}';
 
@@ -25,12 +24,6 @@ final class CutoverCheckCommand extends Command
 
     public function handle(TenantContext $tenants, CutoverReadiness $readiness): int
     {
-        $tenantOption = $this->option('tenant');
-
-        if ($tenantOption !== null && $tenantOption !== '') {
-            $tenants->set((int) $tenantOption);
-        }
-
         $company = $this->option('company');
 
         if ($company === null || $company === '') {

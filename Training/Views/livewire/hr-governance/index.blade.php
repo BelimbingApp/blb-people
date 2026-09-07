@@ -22,7 +22,7 @@
             @if ($profiles->isEmpty())
                 <p class="text-sm text-muted">{{ __('No requirement profile awaits HR review or publication.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Requirement profiles awaiting HR review')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Profile') }}</x-ui.th>
@@ -63,7 +63,7 @@
             @if ($requests->isEmpty())
                 <p class="text-sm text-muted">{{ __('No training request awaits HR review.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Training requests awaiting HR review')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Need') }}</x-ui.th>
@@ -94,11 +94,78 @@
         </section>
 
         <section class="space-y-4">
+            <h2 class="text-lg font-semibold">{{ __('Approved requests not yet linked to an event') }}</h2>
+            @if ($approvedUnlinked->isEmpty())
+                <p class="text-sm text-muted">{{ __('Every approved training request is linked to an event.') }}</p>
+            @else
+                <x-ui.table :caption="__('Approved training requests awaiting an event')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Need') }}</x-ui.th>
+                            <x-ui.th>{{ __('Priority') }}</x-ui.th>
+                            <x-ui.th>{{ __('Event') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($approvedUnlinked as $request)
+                            <tr wire:key="hr-unlinked-{{ $request->id }}" data-approved-unlinked="{{ $request->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
+                                    <span class="font-medium">{{ $request->need }}</span>
+                                    <span class="block text-muted">{{ $request->learning_objective }}</span>
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $request->priority->value }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm space-y-2">
+                                    @if ($linkableEvents === [])
+                                        <span class="text-muted">{{ __('No scheduled event to link.') }}</span>
+                                    @else
+                                        <x-ui.select wire:model="linkEventId.{{ $request->id }}">
+                                            <option value="">{{ __('Choose an event') }}</option>
+                                            @foreach ($linkableEvents as $eventId => $label)
+                                                <option value="{{ $eventId }}">{{ $label }}</option>
+                                            @endforeach
+                                        </x-ui.select>
+                                        @error('link.'.$request->id)<p class="text-sm text-danger">{{ $message }}</p>@enderror
+                                        <x-ui.button type="button" variant="primary" wire:click="linkEvent({{ $request->id }})">{{ __('Link') }}</x-ui.button>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+            @if ($approvedLinked->isNotEmpty())
+                <x-ui.table :caption="__('Approved training requests linked to an event')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Need') }}</x-ui.th>
+                            <x-ui.th>{{ __('Event') }}</x-ui.th>
+                            <x-ui.th>{{ __('Linked') }}</x-ui.th>
+                            <x-ui.th>{{ __('Action') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($approvedLinked as $request)
+                            <tr wire:key="hr-linked-{{ $request->id }}" data-approved-linked="{{ $request->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $request->need }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $eventTitles[(int) $request->training_event_id] ?? __('Event :id', ['id' => $request->training_event_id]) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $request->linked_at?->toDateString() }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm space-y-2">
+                                    <x-ui.input type="text" wire:model="requestNotes.{{ $request->id }}" :placeholder="__('Reason (optional)')" />
+                                    <x-ui.button type="button" variant="secondary" wire:click="unlinkEvent({{ $request->id }})">{{ __('Unlink') }}</x-ui.button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </section>
+
+        <section class="space-y-4">
             <h2 class="text-lg font-semibold">{{ __('Training plans') }}</h2>
             @if ($plans->isEmpty())
                 <p class="text-sm text-muted">{{ __('No submitted training plan awaits approval.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Training plans awaiting approval')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Plan') }}</x-ui.th>
@@ -129,7 +196,7 @@
             @if ($reassessments->isEmpty())
                 <p class="text-sm text-muted">{{ __('No skill reassessment awaits HR decision.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Skill reassessments awaiting HR decision')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Employee') }}</x-ui.th>
@@ -170,7 +237,7 @@
             @if ($evidenceSubmissions->isEmpty())
                 <p class="text-sm text-muted">{{ __('No evidence submission awaits HR decision.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Evidence submissions awaiting HR decision')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Employee') }}</x-ui.th>
@@ -212,7 +279,7 @@
             @else
                 {{-- Listed, not actioned: the review stays the manager's to
                      finish, and HR reading it is the whole point. --}}
-                <x-ui.table>
+                <x-ui.table :caption="__('Escalated performance reviews')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Review') }}</x-ui.th>
@@ -235,6 +302,42 @@
                                 </td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-muted">
                                     <x-ui.datetime :value="$escalation->notified_at" />
+                                </td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </section>
+
+        <section class="space-y-4" data-passport-section>
+            <h2 class="text-lg font-semibold">{{ __('Training passports') }}</h2>
+            <p class="text-sm text-muted">{{ __('Generate a stored, watermarked PDF of an employee\'s completed events, certificates and current skill levels. Copies are kept for :days days and every generation and download is recorded.', ['days' => \App\Domains\People\Training\Services\TrainingPassportDocumentStore::RETENTION_DAYS]) }}</p>
+            @if ($passportEmployees === [])
+                <p class="text-sm text-muted">{{ __('No active employee is listed for this company.') }}</p>
+            @else
+                <x-ui.table :caption="__('Training passports by employee')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Employee') }}</x-ui.th>
+                            <x-ui.th>{{ __('Latest copy') }}</x-ui.th>
+                            <x-ui.th>{{ __('Passport') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($passportEmployees as $employeeId => $name)
+                            @php($document = $passportDocuments[$employeeId] ?? null)
+                            <tr wire:key="passport-employee-{{ $employeeId }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $name }} <span class="text-muted tabular-nums">#{{ $employeeId }}</span></td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted">
+                                    @if ($document === null)
+                                        {{ __('None retained') }}
+                                    @else
+                                        <a href="{{ route('people.training.passport.document', ['documentId' => $document->id]) }}" class="font-medium text-accent underline underline-offset-2" data-passport-document-download="{{ $document->id }}"><x-ui.datetime :value="$document->generated_at" format="datetime" /></a>
+                                    @endif
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y">
+                                    <x-ui.button type="button" variant="secondary" wire:click="generatePassportPdf({{ $employeeId }})" wire:loading.attr="disabled">{{ __('Generate PDF') }}</x-ui.button>
                                 </td>
                             </tr>
                         @endforeach

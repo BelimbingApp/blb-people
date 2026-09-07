@@ -33,7 +33,19 @@ Preserve the rating scale without inventing anchors or averaging it into a compe
 
 The accountable manager/reviewer records workplace observations and objective evidence. The HOD verifies the review within explicitly assigned scope and the approved assessor/HOD separation. HR governs follow-up and coordinates the approved procedure. A role title or reporting relationship alone grants no write, verification, closure or export authority.
 
-A reviewer must not self-verify outside the approved separation. Exact delegation and independence rules remain HR/HOD policy to confirm; this document does not nominate an additional approver or invent permission identifiers. Employee or trainer evidence can inform a review but does not become HOD verification or an official Skills reassessment merely because it was submitted.
+A reviewer must not self-verify outside the approved separation. Beyond the three shipped rules below, exact delegation and independence rules remain HR/HOD policy to confirm; this document does not nominate an additional approver or invent permission identifiers. Employee or trainer evidence can inform a review but does not become HOD verification or an official Skills reassessment merely because it was submitted.
+
+### Conflicts of interest
+
+Shipped behaviour, not policy to confirm. `TrainingEffectivenessStore` refuses each of the three, and the first is mirrored by a database guard on `people_training_effectiveness_reviews` so a write path that steps around the store is refused too.
+
+| Rule | Refused where |
+| --- | --- |
+| No self-review: the reviewer named on a stage cannot be the participant being reviewed | `openStage()`, plus an insert/update trigger joining the review to its participant |
+| No outcome or closure on your own training: the acting user's projected employee cannot be the reviewed participant | `openStage()`, `recordOutcome()`, `closeWithReassessment()`, `closeAsNonAssessable()` |
+| No closure on the reviewer's own reassessment: the linked reassessment's assessor cannot be the review's reviewer | `closeWithReassessment()` |
+
+A reviewer must also be an active employee of the company the review belongs to; an employee of a sibling company in the same tenant is refused.
 
 Skills performs and verifies reassessment through its own governed lifecycle. Training requests or links it and reads its result. HR coordination, an event status change or a high workplace rating cannot directly modify the skill score.
 

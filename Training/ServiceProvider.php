@@ -7,6 +7,7 @@ use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Console\Commands\EffectivenessDueCommand;
 use App\Domains\People\Training\Console\Commands\EvaluationsDueCommand;
+use App\Domains\People\Training\Console\Commands\PurgeTrainingPassportDocumentsCommand;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
 use App\Domains\People\Training\Services\UnavailableTrainingParticipationSummary;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -25,6 +26,7 @@ class ServiceProvider extends BaseServiceProvider
             $this->commands([
                 EffectivenessDueCommand::class,
                 EvaluationsDueCommand::class,
+                PurgeTrainingPassportDocumentsCommand::class,
             ]);
         }
     }

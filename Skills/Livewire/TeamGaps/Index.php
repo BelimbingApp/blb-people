@@ -5,12 +5,14 @@ namespace App\Domains\People\Skills\Livewire\TeamGaps;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Employee\Models\Employee;
+use App\Core\User\Models\User;
 use App\Domains\People\Skills\Enums\ReassessmentRequestStatus;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
 use App\Domains\People\Skills\Exceptions\InvalidReassessmentRequestException;
 use App\Domains\People\Skills\Models\EmployeeSkillScore;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillReassessmentRequest;
+use App\Domains\People\Skills\Services\CriticalSkillBackupCoverage;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillReassessmentStore;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
@@ -83,6 +85,10 @@ final class Index extends Component
 
         return view('people::livewire.team-gaps.index', [
             'rows' => $visible === [] ? [] : $this->rows($tenantId, $companyId, $visible),
+            // 0007-c: gaps say who is short; coverage says whether the
+            // department survives one of them being away. A head reads their
+            // own department, which is the one they can do anything about.
+            'coverage' => $this->coverage($tenantId, $companyId, $actor),
         ]);
     }
 
@@ -133,6 +139,28 @@ final class Index extends Component
             'planned' => in_array((int) $score->source_assessment_id, array_map('intval', $targeted), true),
             'reassessment_pending' => ($pending[(int) $score->employee_entity_id.':'.(int) $score->skill_id] ?? false) === true,
         ])->values()->all();
+    }
+
+    /**
+     * Backup coverage for the department this head belongs to.
+     *
+     * A head with no employee record, or one filed under no department, gets
+     * nothing rather than the whole company: this panel is about the team they
+     * run, and a company-wide list here would be a different page.
+     *
+     * @return list<array{department_id: int|null, department: string, skill_id: int, skill: string, required_level: int, holders: int, minimum: int, covered: bool}>
+     */
+    private function coverage(int $tenantId, int $companyId, ?User $actor): array
+    {
+        $departmentId = $actor?->employee_id === null
+            ? null
+            : Employee::query()->whereKey($actor->employee_id)->value('department_id');
+
+        if ($departmentId === null) {
+            return [];
+        }
+
+        return app(CriticalSkillBackupCoverage::class)->rows($tenantId, $companyId, (int) $departmentId);
     }
 
     private function authorizeView(): void

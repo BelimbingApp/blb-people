@@ -274,3 +274,17 @@ test('the HOD\'s own gap is not in the team list', function (): void {
     expect($names)->toContain('Direct Report')
         ->and($names)->not->toContain('Operations Head');
 });
+
+test('the page shows backup coverage for the head\'s own department only', function (): void {
+    $f = gapsFixture();
+    gapsScore($f, $f['report'], required: 3, current: 4);
+    // A holder in a peer department is not cover for this one (0007-c).
+    gapsScore($f, $f['peer'], required: 3, current: 4);
+
+    $coverage = Livewire::actingAs($f['hod'])->test(Index::class)->viewData('coverage');
+
+    expect($coverage)->toHaveCount(1)
+        ->and($coverage[0]['holders'])->toBe(1)
+        ->and($coverage[0]['minimum'])->toBe(2)
+        ->and($coverage[0]['covered'])->toBeFalse();
+});
