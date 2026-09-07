@@ -44,6 +44,26 @@ enum EffectivenessCheckpoint: string
     }
 
     /**
+     * Every checkpoint whose moment has passed, oldest first.
+     *
+     * Distinct from openAt(), which answers "what is being asked now" and
+     * returns one. An aggregate needs "what has been asked at all", because
+     * the honest denominator for an answer rate is every checkpoint that
+     * opened — including the ones a later checkpoint superseded unanswered.
+     *
+     * @return list<self>
+     */
+    public static function elapsedAt(DateTimeInterface $eventEndedAt, DateTimeInterface $now): array
+    {
+        $moment = CarbonImmutable::instance($now);
+
+        return array_values(array_filter(
+            self::cases(),
+            static fn (self $checkpoint): bool => $moment->greaterThanOrEqualTo($checkpoint->opensAfter($eventEndedAt)),
+        ));
+    }
+
+    /**
      * The checkpoint being asked right now, or null when none is.
      *
      * Only one is ever open. An unanswered thirty-day question does not stay

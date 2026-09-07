@@ -5,6 +5,7 @@ use App\Domains\People\Training\Livewire\Budget\Index as BudgetIndex;
 use App\Domains\People\Training\Livewire\Calendar\Index as CalendarIndex;
 use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
 use App\Domains\People\Training\Livewire\Effectiveness\Index as EffectivenessIndex;
+use App\Domains\People\Training\Livewire\EffectivenessAggregate\Index as EffectivenessAggregateIndex;
 use App\Domains\People\Training\Livewire\Evaluation\Index as EvaluationIndex;
 use App\Domains\People\Training\Livewire\Event\Index;
 use App\Domains\People\Training\Livewire\Evidence\Index as EvidenceIndex;
@@ -58,6 +59,11 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/training-effectiveness', EffectivenessIndex::class)
         ->middleware('authz:'.EffectivenessIndex::VIEW_CAPABILITY)
         ->name('people.training.effectiveness.index');
+
+    // HR's roll-up of the same answers the HOD form records.
+    Route::get('people/training/effectiveness-summary', EffectivenessAggregateIndex::class)
+        ->middleware('authz:'.EffectivenessAggregateIndex::VIEW_CAPABILITY)
+        ->name('people.training.effectiveness.summary');
 
     Route::get('people/training-evaluations', EvaluationIndex::class)
         ->middleware('authz:'.EvaluationIndex::CAPABILITY)
