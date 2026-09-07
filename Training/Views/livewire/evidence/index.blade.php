@@ -75,6 +75,9 @@
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
                                     @if ($event['confirmed'])
                                         {{ __('Confirmed by HR') }}
+                                    @elseif ($event['returned_note'] !== null)
+                                        <span class="font-medium">{{ __('Returned by HR') }}</span>
+                                        <span class="block text-muted">{{ $event['returned_note'] }}</span>
                                     @elseif ($event['submitted'])
                                         {{ __('Pending HR confirmation') }}
                                     @else
@@ -88,7 +91,7 @@
                                         <span class="text-muted">{{ __('Submitted') }}</span>
                                     @else
                                         <x-ui.button type="button" variant="primary" wire:click="submit({{ $event['event_id'] }})" wire:loading.attr="disabled" wire:target="submit,document">
-                                            {{ __('Submit evidence') }}
+                                            {{ $event['returned_note'] !== null ? __('Resubmit evidence') : __('Submit evidence') }}
                                         </x-ui.button>
                                     @endif
                                 </td>
