@@ -131,5 +131,56 @@
                 @endforeach
             @endif
         </section>
+        @if ($canManage && $facts->isNotEmpty())
+            <x-ui.card>
+                <x-ui.table container="flush" :caption="__('Confirmed participation, as it currently stands')">
+                    <x-slot name="head">
+                        <tr>
+                            <x-ui.th>{{ __('Participant') }}</x-ui.th>
+                            <x-ui.th>{{ __('Attendance') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Minutes') }}</x-ui.th>
+                            <x-ui.th>{{ __('Correction') }}</x-ui.th>
+                            <x-ui.th><span class="sr-only">{{ __('Actions') }}</span></x-ui.th>
+                        </tr>
+                    </x-slot>
+                    @foreach ($facts as $fact)
+                        <tr wire:key="fact-{{ $fact->id }}">
+                            <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $fact->participant }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $fact->attendance->value }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-ink">{{ $fact->actual_minutes }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm text-muted">
+                                @if ($fact->corrected)
+                                    <x-ui.badge variant="warning">{{ __('Corrected') }}</x-ui.badge>
+                                    <span class="ml-2">{{ $fact->reason }}</span>
+                                @else
+                                    {{ __('As recorded') }}
+                                @endif
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm">
+                                <x-ui.button type="button" variant="secondary" wire:click="startCorrection({{ $fact->id }})">
+                                    {{ __('Correct') }}
+                                </x-ui.button>
+                            </td>
+                        </tr>
+                        @if ($correctingFactId === $fact->id)
+                            <tr wire:key="fact-{{ $fact->id }}-form">
+                                <td colspan="5" class="px-table-cell-x py-table-cell-y">
+                                    {{-- A correction is an append, so the reason is not optional:
+                                         it is the only record of why the earlier answer was wrong. --}}
+                                    <div class="flex flex-wrap items-end gap-2">
+                                        <x-ui.input id="correction-{{ $fact->id }}-attendance" :label="__('Attendance')" wire:model="correctionAttendance" />
+                                        <x-ui.input id="correction-{{ $fact->id }}-minutes" type="number" :label="__('Minutes')" wire:model="correctionMinutes" />
+                                        <x-ui.input id="correction-{{ $fact->id }}-reason" :label="__('Why the confirmed fact was wrong')" wire:model="correctionReason" />
+                                        <x-ui.button type="button" wire:click="saveCorrection">{{ __('Append correction') }}</x-ui.button>
+                                        <x-ui.button type="button" variant="secondary" wire:click="cancelCorrection">{{ __('Cancel') }}</x-ui.button>
+                                    </div>
+                                    @error('correctionReason')<p class="mt-2 text-sm text-danger">{{ $message }}</p>@enderror
+                                </td>
+                            </tr>
+                        @endif
+                    @endforeach
+                </x-ui.table>
+            </x-ui.card>
+        @endif
     @endif
 </div>
