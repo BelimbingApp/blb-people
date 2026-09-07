@@ -26,15 +26,11 @@
                     @endforeach
                 </x-ui.select>
 
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    @foreach ([
-                        'paperRelevance' => __('Relevance'),
-                        'paperTrainerEffectiveness' => __('Trainer'),
-                        'paperMaterialsExercises' => __('Materials'),
-                        'paperPaceDuration' => __('Pace'),
-                        'paperPracticalUsefulness' => __('Applicability'),
-                    ] as $field => $label)
-                        <x-ui.select id="{{ str($field)->kebab() }}" wire:model="{{ $field }}" :label="$label" :error="$errors->first($field)" required>
+                <p class="text-xs text-muted" data-paper-criteria-version="{{ $paperCriteria['version'] }}">{{ __('Criteria version :version', ['version' => $paperCriteria['version']]) }}</p>
+
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    @foreach ($paperCriteria['ratings'] as $column)
+                        <x-ui.select id="paper-{{ str($column)->kebab() }}" wire:model="paperRatings.{{ $column }}" :label="__(ucfirst(str_replace('_', ' ', $column)))" :error="$errors->first('paperRatings.'.$column)" :required="in_array($column, $paperCriteria['mandatory'], true)">
                             <option value="">{{ __('Choose 1–5') }}</option>
                             @foreach (range(1, 5) as $rating)
                                 <option value="{{ $rating }}">{{ $rating }}</option>
@@ -45,11 +41,18 @@
 
                 <x-ui.input type="text" wire:model="paperReference" :label="__('Paper form reference')" :error="$errors->first('paperReference')" maxlength="160" required />
 
-                <div>
-                    <label for="paper-comment" class="block text-sm font-medium text-ink">{{ __('Comment from the form (optional)') }}</label>
-                    <textarea id="paper-comment" wire:model="paperComment" rows="3" maxlength="2000" class="mt-1 block w-full rounded border-border bg-surface text-ink shadow-sm focus:border-primary focus:ring-primary"></textarea>
-                    @error('paperComment')<p class="mt-1 text-sm text-danger">{{ $message }}</p>@enderror
-                </div>
+                @foreach ($paperCriteria['free_text'] as $column)
+                    <div>
+                        <label for="paper-{{ str($column)->kebab() }}" class="block text-sm font-medium text-ink">
+                            {{ __(ucfirst(str_replace('_', ' ', $column))) }}
+                            @if (! in_array($column, $paperCriteria['mandatory'], true))
+                                <span class="text-muted">{{ __('(optional)') }}</span>
+                            @endif
+                        </label>
+                        <textarea id="paper-{{ str($column)->kebab() }}" wire:model="paperText.{{ $column }}" rows="3" maxlength="2000" class="mt-1 block w-full rounded border-border bg-surface text-ink shadow-sm focus:border-primary focus:ring-primary"></textarea>
+                        @error('paperText.'.$column)<p class="mt-1 text-sm text-danger">{{ $message }}</p>@enderror
+                    </div>
+                @endforeach
 
                 <x-ui.button wire:click="enterPaperEvaluation" wire:loading.attr="disabled" wire:target="enterPaperEvaluation">
                     <span wire:loading.remove wire:target="enterPaperEvaluation">{{ __('Enter paper evaluation') }}</span>
@@ -82,7 +85,7 @@
                                 <x-ui.th>{{ __('Participant') }}</x-ui.th>
                                 <x-ui.th>{{ __('Submitted') }}</x-ui.th>
                                 <x-ui.th>{{ __('Entry') }}</x-ui.th>
-                                @foreach (['relevance', 'trainer_effectiveness', 'materials_exercises', 'pace_duration', 'practical_usefulness'] as $criterion)
+                                @foreach (\App\Domains\People\Training\Services\TrainingEvaluationReader::RATINGS as $criterion)
                                     <x-ui.th>{{ __(ucfirst(str_replace('_', ' ', $criterion))) }}</x-ui.th>
                                 @endforeach
                                 @foreach ($drillDown['comment_columns'] as $column)
@@ -96,7 +99,7 @@
                                     <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['participant'] }}</td>
                                     <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $row['submitted_on'] }}</td>
                                     <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['entry_source'] }}</td>
-                                    @foreach (['relevance', 'trainer_effectiveness', 'materials_exercises', 'pace_duration', 'practical_usefulness'] as $criterion)
+                                    @foreach (\App\Domains\People\Training\Services\TrainingEvaluationReader::RATINGS as $criterion)
                                         <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $row[$criterion] ?? __('—') }}</td>
                                     @endforeach
                                     @foreach ($drillDown['comment_columns'] as $column)
@@ -130,10 +133,10 @@
                     </span>
                 </div>
 
-                <dl class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     @foreach ($event['means'] as $criterion => $mean)
                         <div>
-                            <dt class="text-xs text-muted">{{ __(ucfirst(str_replace('_', ' ', $criterion))) }}</dt>
+                            <dt class="text-xs text-muted">{{ __(ucfirst(str_replace('_', ' ', $criterion))) }} <span data-answered="{{ $event['event_id'] }}-{{ $criterion }}">({{ __(':count answered', ['count' => $event['answered'][$criterion]]) }})</span></dt>
                             <dd class="text-sm tabular-nums text-ink">
                                 @if ($mean === null)
                                     {{ __('—') }}

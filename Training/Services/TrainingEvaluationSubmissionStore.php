@@ -31,8 +31,6 @@ final class TrainingEvaluationSubmissionStore
 
     public const PAPER_REFERENCE_PREFIX = 'paper:';
 
-    private const CRITERIA = ['relevance', 'trainer_effectiveness', 'materials_exercises', 'pace_duration', 'practical_usefulness'];
-
     public function __construct(
         private readonly TenantContext $tenancy,
         private readonly ReadsWorkforceDirectory $directory,
@@ -42,6 +40,10 @@ final class TrainingEvaluationSubmissionStore
     ) {}
 
     /**
+     * The self-service form of criteria version 0012-a.v1: five ratings and
+     * one comment, completed in one write. Kept for that version's callers;
+     * the row it writes stays pinned to 0012-a.v1.
+     *
      * @param  array{relevance: int, trainer_effectiveness: int, materials_exercises: int, pace_duration: int, practical_usefulness: int}  $ratings
      */
     public function submit(User $actor, int $companyId, int $eventId, array $ratings, ?string $comment): TrainingEvaluation
@@ -49,52 +51,179 @@ final class TrainingEvaluationSubmissionStore
         [$tenant, $employee] = $this->scope($actor, $companyId);
         $participant = $this->participant($tenant, $companyId, $eventId, $employee);
         $event = $this->openAttendedEvent($tenant, $companyId, $participant);
-        $this->validateRatings($ratings);
-        $comment = $this->comment($comment);
+        foreach ($ratings as $rating) {
+            if (! is_int($rating) || $rating < 1 || $rating > 5) {
+                throw new InvalidTrainingEvaluationException('Rate every evaluation item from 1 to 5.');
+            }
+        }
+        if (array_keys($ratings) !== self::criteria(self::CRITERIA_VERSION)['ratings']) {
+            throw new InvalidTrainingEvaluationException('The evaluation criteria do not match this form. Reload the page and try again.');
+        }
+        $answers = [...$ratings, 'issues_or_improvements' => $this->text('issues_or_improvements', $comment)];
 
-        return $this->write($tenant, $companyId, $participant, $event, $ratings, $comment, null, $actor, TrainingEvaluation::ENTRY_SELF);
+        return $this->write($tenant, $companyId, $participant, $event, self::CRITERIA_VERSION, $answers, TrainingEvaluationStatus::Completed, $actor);
     }
 
     /**
-     * HR keys in a completed paper form for a named participant (0012-f).
+     * HR keys in a completed paper form for a named participant (0012-f),
+     * under the current criteria version (0012-g).
      *
      * The participant stays the employee subject; the HR user is the entering
      * actor; entry_source says the answers arrived on paper; the paper
      * reference is kept in notes. Assistance is not authority to change already
      * completed answers, so a completed evaluation — self or paper — is refused
-     * rather than overwritten. The 14-day window of the self path is unchanged.
+     * rather than overwritten. The 14-day window of the self path is unchanged,
+     * and so is the mandatory set: a paper form completes under the same rule
+     * as complete().
      *
-     * @param  array{relevance: int, trainer_effectiveness: int, materials_exercises: int, pace_duration: int, practical_usefulness: int}  $ratings
+     * @param  array<string, mixed>  $answers  rating => int|null, free text => string|null
      */
-    public function submitAssisted(User $actor, int $companyId, int $participantId, array $ratings, ?string $comment, string $paperReference): TrainingEvaluation
+    public function submitAssisted(User $actor, int $companyId, int $participantId, array $answers, string $paperReference): TrainingEvaluation
     {
         $tenant = $this->hrScope($actor, $companyId);
         $participant = TrainingParticipant::query()->forCompany($tenant, $companyId)
             ->whereKey($participantId)->first() ?? $this->deny();
         $event = $this->openAttendedEvent($tenant, $companyId, $participant);
-        $completed = TrainingEvaluation::query()->forCompany($tenant, $companyId)
-            ->where('participant_id', (int) $participant->id)
-            ->where('status', TrainingEvaluationStatus::Completed->value)->exists();
-        if ($completed) {
+        if ($this->existing($tenant, $companyId, $participant)?->status === TrainingEvaluationStatus::Completed) {
             throw new InvalidTrainingEvaluationException('This evaluation is already completed. Assisted entry does not replace completed answers.');
         }
-        $this->validateRatings($ratings);
-        $comment = $this->comment($comment);
+        $version = self::currentCriteriaVersion();
+        $answers = $this->answers($version, $answers);
+        $this->requireMandatory($version, $answers);
         $paperReference = trim($paperReference);
         if ($paperReference === '' || mb_strlen($paperReference) > 160) {
             throw new InvalidTrainingEvaluationException('Give the paper form a reference of 1 to 160 characters.');
         }
 
         return $this->write(
-            $tenant, $companyId, $participant, $event, $ratings, $comment,
-            self::PAPER_REFERENCE_PREFIX.$paperReference, $actor, TrainingEvaluation::ENTRY_ASSISTED_PAPER,
+            $tenant, $companyId, $participant, $event, $version, $answers, TrainingEvaluationStatus::Completed, $actor,
+            self::PAPER_REFERENCE_PREFIX.$paperReference, TrainingEvaluation::ENTRY_ASSISTED_PAPER,
         );
     }
 
     /**
-     * @param  array<string, int>  $ratings
+     * Keep partial answers under the current criteria version without
+     * completing (0012-g). Unanswered questions stay null: a draft is an
+     * unanswered form, so it is in no count and no mean. A completed
+     * evaluation is not reopened into a draft here (contract: no silent
+     * replacement of completed answers).
+     *
+     * @param  array<string, mixed>  $answers  rating => int|null, free text => string|null
      */
-    private function write(int $tenant, int $companyId, TrainingParticipant $participant, TrainingEvent $event, array $ratings, ?string $comment, ?string $notes, User $actor, string $entrySource): TrainingEvaluation
+    public function saveDraft(User $actor, int $companyId, int $eventId, array $answers): TrainingEvaluation
+    {
+        [$tenant, $employee] = $this->scope($actor, $companyId);
+        $participant = $this->participant($tenant, $companyId, $eventId, $employee);
+        $event = $this->openAttendedEvent($tenant, $companyId, $participant);
+        $version = self::currentCriteriaVersion();
+        $answers = $this->answers($version, $answers);
+        if ($this->existing($tenant, $companyId, $participant)?->status === TrainingEvaluationStatus::Completed) {
+            throw new InvalidTrainingEvaluationException('This evaluation is already completed. Revise and submit it again rather than saving a draft.');
+        }
+
+        return $this->write($tenant, $companyId, $participant, $event, $version, $answers, TrainingEvaluationStatus::Draft, $actor);
+    }
+
+    /**
+     * Complete under the current criteria version: every mandatory question
+     * of that version must be answered, and the refusal names the missing
+     * ones so the row stays as it was (draft or absent) until it is.
+     *
+     * @param  array<string, mixed>  $answers  rating => int|null, free text => string|null
+     */
+    public function complete(User $actor, int $companyId, int $eventId, array $answers): TrainingEvaluation
+    {
+        [$tenant, $employee] = $this->scope($actor, $companyId);
+        $participant = $this->participant($tenant, $companyId, $eventId, $employee);
+        $event = $this->openAttendedEvent($tenant, $companyId, $participant);
+        $version = self::currentCriteriaVersion();
+        $answers = $this->answers($version, $answers);
+        $this->requireMandatory($version, $answers);
+
+        return $this->write($tenant, $companyId, $participant, $event, $version, $answers, TrainingEvaluationStatus::Completed, $actor);
+    }
+
+    public static function currentCriteriaVersion(): string
+    {
+        $version = config('people-training.evaluation.current_criteria_version');
+        if (! is_string($version) || $version === '') {
+            throw new InvalidTrainingEvaluationException('No current evaluation criteria version is configured.');
+        }
+
+        return $version;
+    }
+
+    /**
+     * The question set of one stored criteria version. A row is read against
+     * the version it stores, so an unknown version is refused rather than
+     * silently read as the current one.
+     *
+     * @return array{ratings: list<string>, free_text: list<string>, mandatory: list<string>}
+     */
+    public static function criteria(string $version): array
+    {
+        // Indexed, not dotted: a version string such as 0012-g.v1 holds a
+        // dot, which config() would read as a path segment.
+        $versions = config('people-training.evaluation.criteria_versions');
+        $criteria = is_array($versions) ? ($versions[$version] ?? null) : null;
+        if (! is_array($criteria) || ! is_array($criteria['ratings'] ?? null) || ! is_array($criteria['free_text'] ?? null) || ! is_array($criteria['mandatory'] ?? null)) {
+            throw new InvalidTrainingEvaluationException("Evaluation criteria version {$version} is not configured.");
+        }
+
+        return $criteria;
+    }
+
+    /**
+     * Every mandatory question of the version must be answered; the refusal
+     * names the missing ones so the row stays as it was (draft or absent).
+     *
+     * @param  array<string, int|string|null>  $answers
+     */
+    private function requireMandatory(string $version, array $answers): void
+    {
+        $missing = array_values(array_filter(
+            self::criteria($version)['mandatory'],
+            static fn (string $key): bool => $answers[$key] === null,
+        ));
+        if ($missing !== []) {
+            throw new InvalidTrainingEvaluationException(
+                'Answer the mandatory questions before submitting: '.implode(', ', $missing).'.',
+            );
+        }
+    }
+
+    /**
+     * Every question of the version, answered or null; a rating is 1-5 or
+     * null (zero is outside the scale, not "unanswered"), free text is
+     * trimmed and capped, and a key outside the version is refused.
+     *
+     * @param  array<string, mixed>  $answers
+     * @return array<string, int|string|null>
+     */
+    private function answers(string $version, array $answers): array
+    {
+        $criteria = self::criteria($version);
+        $unknown = array_diff(array_keys($answers), $criteria['ratings'], $criteria['free_text']);
+        if ($unknown !== []) {
+            throw new InvalidTrainingEvaluationException('The evaluation criteria do not match this form. Reload the page and try again.');
+        }
+        $clean = [];
+        foreach ($criteria['ratings'] as $key) {
+            $rating = $answers[$key] ?? null;
+            if ($rating !== null && (! is_int($rating) || $rating < 1 || $rating > 5)) {
+                throw new InvalidTrainingEvaluationException('Rate every evaluation item from 1 to 5.');
+            }
+            $clean[$key] = $rating;
+        }
+        foreach ($criteria['free_text'] as $key) {
+            $clean[$key] = $this->text($key, $answers[$key] ?? null);
+        }
+
+        return $clean;
+    }
+
+    /** @param array<string, int|string|null> $answers */
+    private function write(int $tenant, int $companyId, TrainingParticipant $participant, TrainingEvent $event, string $version, array $answers, TrainingEvaluationStatus $status, User $actor, ?string $notes = null, string $entrySource = TrainingEvaluation::ENTRY_SELF): TrainingEvaluation
     {
         // Its own transaction: the (tenant, participant) unique key can be
         // raced by a self-submission, and a refused insert must not poison
@@ -106,39 +235,21 @@ final class TrainingEvaluationSubmissionStore
         ], [
             'event_id' => (int) $event->id,
             'employee_subject_id' => (string) $participant->employee_subject_id,
-            'criteria_version' => self::CRITERIA_VERSION,
-            ...$ratings,
-            'issues_or_improvements' => $comment,
+            'criteria_version' => $version,
+            ...$answers,
             'notes' => $notes,
-            'status' => TrainingEvaluationStatus::Completed,
+            'status' => $status,
             'due_on' => $event->ends_at->addDays(14)->toDateString(),
-            'completed_at' => now(),
+            'completed_at' => $status === TrainingEvaluationStatus::Completed ? now() : null,
             'submitted_by_user_id' => (int) $actor->getKey(),
             'entry_source' => $entrySource,
         ]));
     }
 
-    /** @param array<string, mixed> $ratings */
-    private function validateRatings(array $ratings): void
+    private function existing(int $tenant, int $companyId, TrainingParticipant $participant): ?TrainingEvaluation
     {
-        foreach ($ratings as $rating) {
-            if (! is_int($rating) || $rating < 1 || $rating > 5) {
-                throw new InvalidTrainingEvaluationException('Rate every evaluation item from 1 to 5.');
-            }
-        }
-        if (array_keys($ratings) !== self::CRITERIA) {
-            throw new InvalidTrainingEvaluationException('The evaluation criteria do not match this form. Reload the page and try again.');
-        }
-    }
-
-    private function openAttendedEvent(int $tenant, int $companyId, TrainingParticipant $participant): TrainingEvent
-    {
-        $event = $this->attendedEvent($tenant, $companyId, $participant);
-        if (now()->isAfter($event->ends_at->addDays(14))) {
-            throw new InvalidTrainingEvaluationException('This evaluation window has closed. Ask HR if a traceable correction is needed.');
-        }
-
-        return $event;
+        return TrainingEvaluation::query()->forCompany($tenant, $companyId)
+            ->where('participant_id', (int) $participant->id)->first();
     }
 
     /**
@@ -248,14 +359,27 @@ final class TrainingEvaluationSubmissionStore
             ->whereKey($participant->event_id)->first() ?? $this->deny();
     }
 
-    private function comment(?string $comment): ?string
+    private function openAttendedEvent(int $tenant, int $companyId, TrainingParticipant $participant): TrainingEvent
     {
-        $comment = trim((string) $comment);
-        if (mb_strlen($comment) > 2000) {
-            throw new InvalidTrainingEvaluationException('Keep the evaluation comment to 2,000 characters or fewer.');
+        $event = $this->attendedEvent($tenant, $companyId, $participant);
+        if (now()->isAfter($event->ends_at->addDays(14))) {
+            throw new InvalidTrainingEvaluationException('This evaluation window has closed. Ask HR if a traceable correction is needed.');
         }
 
-        return $comment === '' ? null : $comment;
+        return $event;
+    }
+
+    private function text(string $key, mixed $text): ?string
+    {
+        if ($text !== null && ! is_string($text)) {
+            throw new InvalidTrainingEvaluationException('The evaluation criteria do not match this form. Reload the page and try again.');
+        }
+        $text = trim((string) $text);
+        if (mb_strlen($text) > 2000) {
+            throw new InvalidTrainingEvaluationException(sprintf('Keep %s to 2,000 characters or fewer.', str_replace('_', ' ', $key)));
+        }
+
+        return $text === '' ? null : $text;
     }
 
     private function deny(): never

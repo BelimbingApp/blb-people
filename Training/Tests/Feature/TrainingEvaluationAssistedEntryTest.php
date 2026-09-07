@@ -153,8 +153,32 @@ function assistedFixture(): array
     return compact('tenantId', 'companyId', 'hr', 'hod', 'employee', 'employeeUser', 'event', 'participant', 'colleagueParticipant', 'betaId', 'betaParticipant');
 }
 
-/** @return array<string, int> */
-function assistedRatings(int $value = 4): array
+/** @return list<string> the eight ratings of the current criteria version (0012-g.v1) */
+function assistedRatingColumns(): array
+{
+    return [
+        'relevance', 'objectives_met', 'content_quality', 'trainer_effectiveness',
+        'materials_exercises', 'pace_duration', 'practical_usefulness', 'overall_satisfaction',
+    ];
+}
+
+/**
+ * A complete paper form under 0012-g.v1: every rating at $value, the
+ * mandatory commitment answered, the comment from the form.
+ *
+ * @return array<string, int|string>
+ */
+function assistedAnswers(int $value = 4): array
+{
+    return [
+        ...array_fill_keys(assistedRatingColumns(), $value),
+        'application_commitment' => 'Isolate before every intervention.',
+        'issues_or_improvements' => 'From the paper form.',
+    ];
+}
+
+/** The 0012-a.v1 self form: five ratings, one comment. */
+function assistedSelfRatings(int $value = 5): array
 {
     return [
         'relevance' => $value, 'trainer_effectiveness' => $value, 'materials_exercises' => $value,
@@ -162,10 +186,10 @@ function assistedRatings(int $value = 4): array
     ];
 }
 
-function assistedSubmit(array $f, User $actor, int $participantId, array $ratings, ?int $companyId = null): TrainingEvaluation
+function assistedSubmit(array $f, User $actor, int $participantId, array $answers, ?int $companyId = null): TrainingEvaluation
 {
     return app(TrainingEvaluationSubmissionStore::class)->submitAssisted(
-        $actor, $companyId ?? $f['companyId'], $participantId, $ratings, 'From the paper form.', 'FORM-12',
+        $actor, $companyId ?? $f['companyId'], $participantId, $answers, 'FORM-12',
     );
 }
 
@@ -180,10 +204,12 @@ test('HR enters a paper evaluation with actual-actor provenance and the employee
     Livewire::actingAs($f['hr'])->test(EvaluationsDashboard::class)
         ->assertSee('Enter paper evaluation')
         ->assertSee('Alice Paper — Alpha induction')
+        ->assertSee('Criteria version 0012-g.v1')
+        ->assertSee('Overall satisfaction')
         ->set('paperParticipantId', (int) $f['participant']->id)
-        ->set('paperRelevance', 5)->set('paperTrainerEffectiveness', 4)->set('paperMaterialsExercises', 3)
-        ->set('paperPaceDuration', 2)->set('paperPracticalUsefulness', 1)
-        ->set('paperReference', 'FORM-12')->set('paperComment', 'Room was cold.')
+        ->set('paperRatings', [...array_fill_keys(assistedRatingColumns(), 3), 'relevance' => 5, 'overall_satisfaction' => 1])
+        ->set('paperText.application_commitment', 'Isolate before every intervention.')
+        ->set('paperReference', 'FORM-12')->set('paperText.issues_or_improvements', 'Room was cold.')
         ->call('enterPaperEvaluation')
         ->assertHasNoErrors()
         ->assertSee('Paper evaluation entered')
@@ -198,8 +224,12 @@ test('HR enters a paper evaluation with actual-actor provenance and the employee
         ->and($row->submitted_by_user_id)->not->toBe((int) $f['employeeUser']->id)
         ->and($row->notes)->toBe('paper:FORM-12')
         ->and($row->issues_or_improvements)->toBe('Room was cold.')
+        ->and($row->application_commitment)->toBe('Isolate before every intervention.')
+        ->and($row->criteria_version)->toBe('0012-g.v1')
         ->and($row->relevance)->toBe(5)
-        ->and($row->practical_usefulness)->toBe(1)
+        ->and($row->objectives_met)->toBe(3)
+        ->and($row->overall_satisfaction)->toBe(1)
+        ->and($row->most_useful_learning)->toBeNull()
         ->and($row->status)->toBe(TrainingEvaluationStatus::Completed);
 
     Livewire::actingAs($f['employeeUser'])->test(EmployeeEvaluationIndex::class)
@@ -210,7 +240,7 @@ test('HR enters a paper evaluation with actual-actor provenance and the employee
 test('an employee cannot enter an assisted evaluation for another participant', function (): void {
     $f = assistedFixture();
 
-    expect(fn () => assistedSubmit($f, $f['employeeUser'], (int) $f['colleagueParticipant']->id, assistedRatings()))
+    expect(fn () => assistedSubmit($f, $f['employeeUser'], (int) $f['colleagueParticipant']->id, assistedAnswers()))
         ->toThrow(AuthorizationDeniedException::class);
 
     expect(assistedRows($f)->count())->toBe(0);
@@ -219,7 +249,7 @@ test('an employee cannot enter an assisted evaluation for another participant', 
 test('a HOD cannot enter an assisted evaluation', function (): void {
     $f = assistedFixture();
 
-    expect(fn () => assistedSubmit($f, $f['hod'], (int) $f['participant']->id, assistedRatings()))
+    expect(fn () => assistedSubmit($f, $f['hod'], (int) $f['participant']->id, assistedAnswers()))
         ->toThrow(AuthorizationDeniedException::class);
 
     expect(assistedRows($f)->count())->toBe(0);
@@ -227,14 +257,14 @@ test('a HOD cannot enter an assisted evaluation', function (): void {
 
 test('assisted entry never replaces a completed evaluation', function (): void {
     $f = assistedFixture();
-    $own = assistedSubmit($f, $f['hr'], (int) $f['colleagueParticipant']->id, assistedRatings(5));
+    $own = assistedSubmit($f, $f['hr'], (int) $f['colleagueParticipant']->id, assistedAnswers(5));
     app(TrainingEvaluationSubmissionStore::class)->submit(
-        $f['employeeUser'], $f['companyId'], (int) $f['event']->id, assistedRatings(5), 'My own words.',
+        $f['employeeUser'], $f['companyId'], (int) $f['event']->id, assistedSelfRatings(5), 'My own words.',
     );
 
     // Neither a self-submission nor an earlier paper entry is HR's to change.
     foreach ([$f['participant'], $f['colleagueParticipant']] as $participant) {
-        expect(fn () => assistedSubmit($f, $f['hr'], (int) $participant->id, assistedRatings(2)))
+        expect(fn () => assistedSubmit($f, $f['hr'], (int) $participant->id, assistedAnswers(2)))
             ->toThrow(InvalidTrainingEvaluationException::class, 'already completed');
     }
 
@@ -277,10 +307,10 @@ test('a participant of the sibling company is not reachable', function (): void 
     $f = assistedFixture();
 
     // Named under Alpha: the participant row belongs to Beta, so it is not found.
-    expect(fn () => assistedSubmit($f, $f['hr'], (int) $f['betaParticipant']->id, assistedRatings()))
+    expect(fn () => assistedSubmit($f, $f['hr'], (int) $f['betaParticipant']->id, assistedAnswers()))
         ->toThrow(InvalidTrainingEvaluationException::class, 'unavailable in the current scope');
     // Named under Beta: Alpha's HR may not act for the sibling company.
-    expect(fn () => assistedSubmit($f, $f['hr'], (int) $f['betaParticipant']->id, assistedRatings(), $f['betaId']))
+    expect(fn () => assistedSubmit($f, $f['hr'], (int) $f['betaParticipant']->id, assistedAnswers(), $f['betaId']))
         ->toThrow(InvalidTrainingEvaluationException::class, 'unavailable in the current scope');
 
     expect(TrainingEvaluation::query()->forCompany($f['tenantId'], $f['betaId'])->count())->toBe(0);
@@ -292,7 +322,7 @@ test('an HR user of another tenant is refused', function (): void {
     $foreignHr = User::factory()->create(['company_id' => $foreignCompany->id]);
     assistedRole($foreignHr, 'people_hr');
 
-    expect(fn () => assistedSubmit($f, $foreignHr, (int) $f['participant']->id, assistedRatings()))
+    expect(fn () => assistedSubmit($f, $foreignHr, (int) $f['participant']->id, assistedAnswers()))
         ->toThrow(InvalidTrainingEvaluationException::class, 'unavailable in the current scope');
 
     expect(assistedRows($f)->count())->toBe(0);
@@ -301,7 +331,7 @@ test('an HR user of another tenant is refused', function (): void {
 test('rating bounds are enforced on the assisted path exactly as on self-submission', function (mixed $invalid): void {
     $f = assistedFixture();
 
-    expect(fn () => assistedSubmit($f, $f['hr'], (int) $f['participant']->id, [...assistedRatings(), 'relevance' => $invalid]))
+    expect(fn () => assistedSubmit($f, $f['hr'], (int) $f['participant']->id, [...assistedAnswers(), 'relevance' => $invalid]))
         ->toThrow(InvalidTrainingEvaluationException::class, 'from 1 to 5');
 
     expect(assistedRows($f)->count())->toBe(0);
@@ -311,8 +341,31 @@ test('the 14-day window applies unchanged to assisted entry', function (): void 
     $f = assistedFixture();
     $this->travelTo($f['event']->ends_at->addDays(14)->addSecond());
 
-    expect(fn () => assistedSubmit($f, $f['hr'], (int) $f['participant']->id, assistedRatings()))
+    expect(fn () => assistedSubmit($f, $f['hr'], (int) $f['participant']->id, assistedAnswers()))
         ->toThrow(InvalidTrainingEvaluationException::class, 'window has closed');
 
     expect(assistedRows($f)->count())->toBe(0);
 });
+
+test('a paper form completes under the current version\'s mandatory set, like the self form', function (string $missing): void {
+    $f = assistedFixture();
+    $field = (str_starts_with($missing, 'application') ? 'paperText.' : 'paperRatings.').$missing;
+
+    expect(fn () => assistedSubmit($f, $f['hr'], (int) $f['participant']->id, [...assistedAnswers(), $missing => null]))
+        ->toThrow(InvalidTrainingEvaluationException::class, "mandatory questions before submitting: {$missing}");
+    expect(fn () => assistedSubmit($f, $f['hr'], (int) $f['participant']->id, [...assistedAnswers(), 'unknown_question' => 3]))
+        ->toThrow(InvalidTrainingEvaluationException::class, 'do not match this form');
+
+    expect(assistedRows($f)->count())->toBe(0);
+
+    Livewire::actingAs($f['hr'])->test(EvaluationsDashboard::class)
+        ->set('paperParticipantId', (int) $f['participant']->id)
+        ->set('paperRatings', array_fill_keys(assistedRatingColumns(), 4))
+        ->set('paperText.application_commitment', 'Isolate before every intervention.')
+        ->set('paperReference', 'FORM-12')
+        ->set($field, null)
+        ->call('enterPaperEvaluation')
+        ->assertHasErrors([$field => 'required']);
+
+    expect(assistedRows($f)->count())->toBe(0);
+})->with(['objectives_met', 'application_commitment']);

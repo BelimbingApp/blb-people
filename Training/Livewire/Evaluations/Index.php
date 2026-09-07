@@ -60,28 +60,13 @@ final class Index extends Component
 
     public mixed $paperParticipantId = null;
 
-    public mixed $paperRelevance = null;
+    /** @var array<string, mixed> rating column => 1-5, the current criteria version's ratings */
+    public array $paperRatings = [];
 
-    public mixed $paperTrainerEffectiveness = null;
-
-    public mixed $paperMaterialsExercises = null;
-
-    public mixed $paperPaceDuration = null;
-
-    public mixed $paperPracticalUsefulness = null;
+    /** @var array<string, mixed> free-text column => answer, the current criteria version's free text */
+    public array $paperText = [];
 
     public string $paperReference = '';
-
-    public string $paperComment = '';
-
-    /** @var list<string> */
-    private const RATINGS = [
-        'relevance',
-        'trainer_effectiveness',
-        'materials_exercises',
-        'pace_duration',
-        'practical_usefulness',
-    ];
 
     /** @var array<int, string> action notes keyed by follow-up id */
     public array $followupNotes = [];
@@ -154,7 +139,7 @@ final class Index extends Component
     public function openMean(int $eventId, string $criterion): void
     {
         $this->authorizeView();
-        abort_unless(in_array($criterion, self::RATINGS, true), 404);
+        abort_unless(in_array($criterion, TrainingEvaluationReader::RATINGS, true), 404);
         $this->openEventId = $eventId;
         $this->openCriterion = $criterion;
     }
@@ -177,6 +162,7 @@ final class Index extends Component
         return view('people::livewire.evaluations.index', [
             'events' => $this->events($reader, $companyId),
             'paperCandidates' => $this->paperCandidates($this->tenantOf($reader), $companyId),
+            'paperCriteria' => self::paperCriteria(),
             'canManageFollowups' => $this->canManageFollowups(),
             'drillDown' => $this->drillDown($reader, $companyId),
             'departments' => $departments,
@@ -187,37 +173,44 @@ final class Index extends Component
     /**
      * Enter a completed paper evaluation for one attended participant.
      *
-     * The rating rules are the store's; the component validates the same
-     * bounds first only so the form shows a field-level message rather than a
-     * page-level refusal for a blank select.
+     * The questions are the current criteria version's, read from the store
+     * so the form and the row it writes never disagree. The rating rules are
+     * the store's; the component validates the same bounds first only so the
+     * form shows a field-level message rather than a page-level refusal for a
+     * blank select. Every mandatory question of the version is required
+     * here for the same reason.
      */
     public function enterPaperEvaluation(): void
     {
         $this->authorizeView();
-        $validated = $this->validate([
+        $criteria = self::paperCriteria();
+        $rules = [
             'paperParticipantId' => ['required', 'integer'],
-            'paperRelevance' => ['required', 'integer', 'between:1,5'],
-            'paperTrainerEffectiveness' => ['required', 'integer', 'between:1,5'],
-            'paperMaterialsExercises' => ['required', 'integer', 'between:1,5'],
-            'paperPaceDuration' => ['required', 'integer', 'between:1,5'],
-            'paperPracticalUsefulness' => ['required', 'integer', 'between:1,5'],
             'paperReference' => ['required', 'string', 'max:160'],
-            'paperComment' => ['nullable', 'string', 'max:2000'],
-        ]);
+        ];
+        foreach ($criteria['ratings'] as $column) {
+            $rules['paperRatings.'.$column] = [in_array($column, $criteria['mandatory'], true) ? 'required' : 'nullable', 'integer', 'between:1,5'];
+        }
+        foreach ($criteria['free_text'] as $column) {
+            $rules['paperText.'.$column] = [in_array($column, $criteria['mandatory'], true) ? 'required' : 'nullable', 'string', 'max:2000'];
+        }
+        $validated = $this->validate($rules);
+
+        $answers = [];
+        foreach ($criteria['ratings'] as $column) {
+            $value = $validated['paperRatings'][$column] ?? null;
+            $answers[$column] = $value === null || $value === '' ? null : (int) $value;
+        }
+        foreach ($criteria['free_text'] as $column) {
+            $answers[$column] = $validated['paperText'][$column] ?? null;
+        }
 
         try {
             app(TrainingEvaluationSubmissionStore::class)->submitAssisted(
                 $this->user(),
                 $this->companyId(),
                 (int) $validated['paperParticipantId'],
-                [
-                    'relevance' => (int) $validated['paperRelevance'],
-                    'trainer_effectiveness' => (int) $validated['paperTrainerEffectiveness'],
-                    'materials_exercises' => (int) $validated['paperMaterialsExercises'],
-                    'pace_duration' => (int) $validated['paperPaceDuration'],
-                    'practical_usefulness' => (int) $validated['paperPracticalUsefulness'],
-                ],
-                $validated['paperComment'],
+                $answers,
                 $validated['paperReference'],
             );
         } catch (AuthorizationDeniedException) {
@@ -228,8 +221,20 @@ final class Index extends Component
             return;
         }
 
-        $this->reset('paperParticipantId', 'paperRelevance', 'paperTrainerEffectiveness', 'paperMaterialsExercises', 'paperPaceDuration', 'paperPracticalUsefulness', 'paperReference', 'paperComment');
+        $this->reset('paperParticipantId', 'paperRatings', 'paperText', 'paperReference');
         session()->flash('training-evaluations-status', __('Paper evaluation entered. The record names you as the entering actor.'));
+    }
+
+    /**
+     * The current criteria version's questions, as the paper form presents them.
+     *
+     * @return array{version: string, ratings: list<string>, free_text: list<string>, mandatory: list<string>}
+     */
+    private static function paperCriteria(): array
+    {
+        $version = TrainingEvaluationSubmissionStore::currentCriteriaVersion();
+
+        return ['version' => $version, ...TrainingEvaluationSubmissionStore::criteria($version)];
     }
 
     /**
@@ -347,7 +352,7 @@ final class Index extends Component
             return null;
         }
         $criterion = $this->openCriterion;
-        abort_unless($criterion === null || in_array($criterion, self::RATINGS, true), 404);
+        abort_unless($criterion === null || in_array($criterion, TrainingEvaluationReader::RATINGS, true), 404);
         $event = TrainingEvent::query()->forCompany($this->tenantOf($reader), $companyId)->whereKey($this->openEventId)->first();
         abort_if($event === null, 404);
 
@@ -362,7 +367,7 @@ final class Index extends Component
             'event_id' => (int) $event->id,
             'title' => (string) $event->course_title_snapshot,
             'criterion' => $criterion,
-            'mean' => $criterion === null ? null : $this->means($rows)[$criterion],
+            'mean' => $criterion === null ? null : $reader->means($rows)[$criterion]['mean'],
             'comment_columns' => $commentColumns,
             'rows' => $rows->map(function (TrainingEvaluation $e) use ($names, $commentColumns): array {
                 $row = [
@@ -371,7 +376,7 @@ final class Index extends Component
                     'submitted_on' => (string) $e->completed_at?->toDateString(),
                     'entry_source' => (string) $e->entry_source,
                 ];
-                foreach (self::RATINGS as $rating) {
+                foreach (TrainingEvaluationReader::RATINGS as $rating) {
                     $row[$rating] = $e->{$rating} === null ? null : (int) $e->{$rating};
                 }
                 foreach ($commentColumns as $column) {
@@ -390,7 +395,7 @@ final class Index extends Component
     }
 
     /**
-     * @return list<array{event_id: int, title: string, attended: int, submitted: int, response_rate: int|null, means: array<string, float|null>, paper_entries: int, comments: list<array{participant: string, comment: string, from_paper: bool}>, flagged: list<array{evaluation_id: int, participant: string, support: array{id: int, status: string}|null, provider: array{id: int, status: string}|null}>}>
+     * @return list<array{event_id: int, title: string, attended: int, submitted: int, response_rate: int|null, means: array<string, float|null>, answered: array<string, int>, paper_entries: int, comments: list<array{participant: string, comment: string, from_paper: bool}>, flagged: list<array{evaluation_id: int, participant: string, support: array{id: int, status: string}|null, provider: array{id: int, status: string}|null}>}>
      */
     private function events(TrainingEvaluationReader $reader, int $companyId): array
     {
@@ -406,7 +411,7 @@ final class Index extends Component
         $names = $this->participantNames($this->tenantOf($reader), $companyId, $events->pluck('id')->all());
         $followups = $this->followupStates($this->tenantOf($reader), $companyId, $evaluations->flatten()->all());
 
-        return $events->map(function (TrainingEvent $event) use ($evaluations, $attended, $names, $followups): array {
+        return $events->map(function (TrainingEvent $event) use ($reader, $evaluations, $attended, $names, $followups): array {
             $rows = $evaluations->get($event->id, collect());
             $attendedCount = (int) ($attended[$event->id] ?? 0);
 
@@ -418,7 +423,8 @@ final class Index extends Component
                 // No attendance is not a nought-percent response. Nobody was
                 // asked, so there is no rate to report.
                 'response_rate' => $attendedCount === 0 ? null : (int) round($rows->count() / $attendedCount * 100),
-                'means' => $this->means($rows),
+                'means' => array_map(static fn (array $criterion): ?float => $criterion['mean'], $means = $reader->means($rows)),
+                'answered' => array_map(static fn (array $criterion): int => $criterion['answered_count'], $means),
                 'paper_entries' => $rows->filter(static fn (TrainingEvaluation $evaluation): bool => $evaluation->enteredFromPaper())->count(),
                 'comments' => $this->comments($rows, $names),
                 'flagged' => $this->flagged($rows, $names, $followups),
@@ -493,18 +499,6 @@ final class Index extends Component
         }
 
         return $states;
-    }
-
-    /** @return array<string, float|null> */
-    private function means(Collection $rows): array
-    {
-        $means = [];
-        foreach (self::RATINGS as $rating) {
-            $values = $rows->pluck($rating)->filter(static fn (mixed $value): bool => $value !== null);
-            $means[$rating] = $values->isEmpty() ? null : round((float) $values->avg(), 2);
-        }
-
-        return $means;
     }
 
     /**

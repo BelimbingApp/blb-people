@@ -199,7 +199,7 @@ test('somebody who did not attend is not in the denominator', function (): void 
         ->and($row['response_rate'])->toBe(100);
 });
 
-test('each of the five ratings gets its own mean', function (): void {
+test('each of the eight ratings gets its own mean; a criterion 0012-a.v1 never asked reads as unanswered, not hidden', function (): void {
     $f = dashFixture();
     $eventId = dashEvent($f);
     dashEvaluation($f, $eventId, dashParticipant($f, $eventId, 'Alice'), 4);
@@ -209,10 +209,22 @@ test('each of the five ratings gets its own mean', function (): void {
 
     expect($row['means'])->toBe([
         'relevance' => 3.0,
+        'objectives_met' => null,
+        'content_quality' => null,
         'trainer_effectiveness' => 3.0,
         'materials_exercises' => 3.0,
         'pace_duration' => 3.0,
         'practical_usefulness' => 3.0,
+        'overall_satisfaction' => null,
+    ])->and($row['answered'])->toBe([
+        'relevance' => 2,
+        'objectives_met' => 0,
+        'content_quality' => 0,
+        'trainer_effectiveness' => 2,
+        'materials_exercises' => 2,
+        'pace_duration' => 2,
+        'practical_usefulness' => 2,
+        'overall_satisfaction' => 0,
     ]);
 });
 
