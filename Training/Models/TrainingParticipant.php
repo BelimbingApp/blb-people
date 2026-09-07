@@ -13,6 +13,6 @@ final class TrainingParticipant extends TenantOwnedModel
 
     protected function casts(): array
     {
-        return ['workforce_observed_at' => 'immutable_datetime'];
+        return ['workforce_observed_at' => 'immutable_datetime', 'withdrawn_at' => 'immutable_datetime'];
     }
 }
