@@ -215,3 +215,31 @@ test('the provider-outage path reports unavailable, never zero', function (): vo
     expect($summary->isAvailable())->toBeFalse();
     Livewire::actingAs($a['hr'])->test(Index::class)->assertSee('Participation unavailable')->assertDontSee('0 enrolled');
 });
+
+test('a corrected fact is counted as the correction says, not as it was first recorded', function (): void {
+    $f = partSummaryFixture();
+    $a = $f['alpha'];
+    $present = partSummaryParticipant($a, $a['event'], 'Attended');
+    $corrected = partSummaryParticipant($a, $a['event'], 'Corrected away');
+    partSummaryFact($a, $present, AttendanceStatus::Present);
+    $original = partSummaryFact($a, $corrected, AttendanceStatus::Present);
+
+    // HR appends a correction saying they were not there (0011-d). The
+    // original still says Present and is still in the table; "attended" is a
+    // question about what happened, so it must read the correction.
+    TrainingParticipationFact::query()->create([
+        'tenant_id' => $a['tenantId'], 'company_entity_id' => $a['company']->id, 'event_id' => $original->event_id,
+        'participant_id' => $original->participant_id, 'session_id' => $original->session_id,
+        'attendance' => AttendanceStatus::Absent, 'actual_minutes' => 0,
+        'post_test' => null, 'evidence_references' => [], 'source' => 'correction',
+        'source_reference' => 'fact:'.$original->id,
+        'supersedes_fact_id' => (int) $original->id,
+        'correction_reason' => 'Signed the sheet for a colleague.',
+        'recorded_by_user_id' => $a['hr']->id, 'recorded_capability' => 'fixture', 'recorded_at' => now(),
+        'confirmed_by_user_id' => $a['hr']->id, 'confirmed_capability' => 'fixture', 'confirmed_at' => now(),
+    ]);
+
+    $summary = app(DatabaseTrainingParticipationSummary::class)->forEvents((int) $a['company']->id, [$a['event']])[$a['event']];
+
+    expect([$summary->enrolled, $summary->attended])->toBe([2, 1]);
+});

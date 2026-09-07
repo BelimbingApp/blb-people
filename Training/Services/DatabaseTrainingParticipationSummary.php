@@ -53,6 +53,7 @@ final class DatabaseTrainingParticipationSummary implements SummarizesTrainingPa
             ->get(['id', 'event_id']);
 
         $facts = $participants->isEmpty() ? collect() : TrainingParticipationFact::query()->forCompany($tenantId, $companyEntityId)
+            ->current()
             ->whereIn('participant_id', $participants->pluck('id')->all())
             ->orderBy('recorded_at')->orderBy('id')
             ->get(['participant_id', 'attendance', 'post_test', 'recorded_at'])

@@ -34,6 +34,7 @@ use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
 use App\Domains\People\Training\Livewire\Event\Index;
 use App\Domains\People\Training\Models\TrainingCourse;
 use App\Domains\People\Training\Models\TrainingEventAuditEvent;
+use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Services\TrainingAudience;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
@@ -815,4 +816,77 @@ test('rescheduling creates a new event and keeps the old one', function (): void
         'startsAt' => now()->addDays(3)->setTime(9, 0),
         'endsAt' => now()->addDays(3)->setTime(17, 0),
     ])))->toThrow(InvalidTrainingEventException::class, 'scheduled event');
+});
+
+/** A confirmed participation fact on a finished event, for the correction tests. */
+function trainingEventConfirmedFact(array $fixture, User $hr): TrainingParticipationFact
+{
+    $store = app(TrainingParticipationStore::class);
+    $event = app(TrainingEventStore::class)->schedule((int) $fixture['company']->id, trainingEventDraft($fixture));
+    $session = $store->defineSession($hr, (int) $fixture['company']->id, (int) $event->id,
+        (string) Str::uuid(), $event->starts_at, $event->ends_at);
+    test()->travelTo($event->ends_at->addHour());
+    $subject = new WorkforceSubject(
+        $fixture['tenantId'], (int) $fixture['company']->id, WorkforceResourceType::Employee,
+        (string) $fixture['operations']->id,
+        new ExternalReference(WorkforceResourceType::Employee, (string) $fixture['operations']->id),
+    );
+    $fact = $store->recordAttendance($hr, (int) $fixture['company']->id, (int) $session->id, $subject, new ParticipationFactDraft(
+        attendance: AttendanceStatus::Present, actualMinutes: 90,
+        source: 'manual', sourceReference: (string) Str::uuid(),
+    ));
+    $store->confirm($hr, (int) $fixture['company']->id, (int) $fact->id);
+
+    return $fact->refresh();
+}
+
+test('HR appends a correction from the event page and the table shows it with its reason', function (): void {
+    $this->travelTo(new DateTimeImmutable('2026-09-30T12:00:00+00:00'));
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    $fact = trainingEventConfirmedFact($fixture, $hr);
+    $companyId = (int) $fixture['company']->id;
+
+    Livewire::actingAs($hr)->test(Index::class)
+        ->set('companyEntityId', $companyId)
+        ->assertSee('Confirmed participation, as it currently stands')
+        ->assertSee('As recorded')
+        ->call('startCorrection', (int) $fact->id)
+        ->assertSet('correctingFactId', (int) $fact->id)
+        ->set('correctionAttendance', AttendanceStatus::Absent->value)
+        ->set('correctionMinutes', 0)
+        ->set('correctionReason', 'Signed the sheet for a colleague.')
+        ->call('saveCorrection')
+        ->assertHasNoErrors()
+        ->assertSet('correctingFactId', null)
+        ->assertSee('Corrected')
+        ->assertSee('Signed the sheet for a colleague.');
+
+    // The original is still there, untouched; the table shows the correction.
+    expect($fact->refresh()->attendance)->toBe(AttendanceStatus::Present)
+        ->and(TrainingParticipationFact::query()->forCompany($fixture['tenantId'], $companyId)
+            ->where('supersedes_fact_id', (int) $fact->id)->count())->toBe(1);
+});
+
+test('the correction form refuses an empty reason and surfaces the store refusal as a field error', function (): void {
+    $this->travelTo(new DateTimeImmutable('2026-09-30T12:00:00+00:00'));
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    $fact = trainingEventConfirmedFact($fixture, $hr);
+    $companyId = (int) $fixture['company']->id;
+
+    Livewire::actingAs($hr)->test(Index::class)
+        ->set('companyEntityId', $companyId)
+        ->call('startCorrection', (int) $fact->id)
+        ->set('correctionAttendance', AttendanceStatus::Absent->value)
+        ->set('correctionMinutes', 0)
+        ->set('correctionReason', '')
+        ->call('saveCorrection')
+        ->assertHasErrors('correctionReason')
+        ->call('cancelCorrection')
+        ->assertSet('correctingFactId', null);
+
+    expect(TrainingParticipationFact::query()->forCompany($fixture['tenantId'], $companyId)->count())->toBe(1);
 });

@@ -416,7 +416,7 @@ final class Index extends Component
      */
     private function attendedCounts(int $tenantId, int $companyId, array $eventIds): array
     {
-        return TrainingParticipationFact::query()->forCompany($tenantId, $companyId)
+        return TrainingParticipationFact::query()->forCompany($tenantId, $companyId)->current()
             ->whereIn('event_id', $eventIds)
             ->where('attendance', AttendanceStatus::Present->value)
             ->get()

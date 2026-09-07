@@ -52,6 +52,7 @@ final class TrainingEvaluationReminders
         $today = $this->moment($asOf)->startOfDay();
 
         $facts = TrainingParticipationFact::query()->forCompany($tenantId, $companyEntityId)
+            ->current()
             ->where('attendance', AttendanceStatus::Present)
             ->orderBy('participant_id')
             ->get()
