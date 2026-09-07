@@ -111,14 +111,19 @@ function evaluationSubmissionAttendance(
     ));
 }
 
+/** The mandatory set of criteria version 0012-g.v1 (eight ratings and the application commitment) plus the comment. */
 function evaluationSubmissionValues(string $comment, int $offset = 0): array
 {
     return [
         'relevance' => 5 - $offset,
+        'objectivesMet' => 3,
+        'contentQuality' => 3,
         'trainerEffectiveness' => 4 - $offset,
         'materialsExercises' => 3 + $offset,
         'paceDuration' => 2 + $offset,
         'practicalUsefulness' => 1 + $offset,
+        'overallSatisfaction' => 4,
+        'applicationCommitment' => 'Use the checklist on every lift.',
         'comment' => $comment,
     ];
 }
@@ -155,7 +160,7 @@ test('an employee creates then updates one evaluation for their own attended eve
     evaluationSubmissionFill($component, evaluationSubmissionValues('More practical exercises would help.'))
         ->call('submit', (int) $fixture['event']->id)
         ->assertHasNoErrors()
-        ->assertSee('Evaluation saved');
+        ->assertSee('Evaluation submitted');
 
     $first = evaluationSubmissionRows($fixture)->sole();
     expect($first->participant_id)->toBe((int) $fact->participant_id)
@@ -165,6 +170,11 @@ test('an employee creates then updates one evaluation for their own attended eve
         ->and($first->materials_exercises)->toBe(3)
         ->and($first->pace_duration)->toBe(2)
         ->and($first->practical_usefulness)->toBe(1)
+        ->and($first->objectives_met)->toBe(3)
+        ->and($first->overall_satisfaction)->toBe(4)
+        ->and($first->application_commitment)->toBe('Use the checklist on every lift.')
+        ->and($first->most_useful_learning)->toBeNull()
+        ->and($first->criteria_version)->toBe('0012-g.v1')
         ->and($first->issues_or_improvements)->toBe('More practical exercises would help.')
         ->and($first->status)->toBe(TrainingEvaluationStatus::Completed)
         ->and($first->submitted_by_user_id)->toBe($fixture['user']->id);
@@ -238,4 +248,38 @@ test('the evaluation route is employee-only', function (): void {
 
     $this->actingAs($fixture['user'])->get(route('people.training.evaluations.index'))->assertOk()->assertSee('Training evaluation');
     $this->actingAs($fixture['hr'])->get(route('people.training.evaluations.index'))->assertForbidden();
+});
+
+test('the page saves a partial draft, refuses to submit it without the mandatory answers, then completes it', function (): void {
+    $fixture = evaluationSubmissionFixture();
+    evaluationSubmissionAttendance($fixture);
+
+    $component = Livewire::actingAs($fixture['user'])->test(Index::class)
+        ->set('relevance', 5)
+        ->set('mostUsefulLearning', 'Load charts.')
+        ->call('saveDraft', (int) $fixture['event']->id)
+        ->assertHasNoErrors()
+        ->assertSee('Draft saved')
+        ->assertSee('Continue draft');
+
+    $draft = evaluationSubmissionRows($fixture)->sole();
+    expect($draft->status)->toBe(TrainingEvaluationStatus::Draft)
+        ->and($draft->relevance)->toBe(5)
+        ->and($draft->most_useful_learning)->toBe('Load charts.')
+        ->and($draft->completed_at)->toBeNull();
+
+    $component->call('submit', (int) $fixture['event']->id)
+        ->assertHasErrors(['objectivesMet', 'applicationCommitment']);
+    expect(evaluationSubmissionRows($fixture)->sole()->status)->toBe(TrainingEvaluationStatus::Draft);
+
+    evaluationSubmissionFill($component, evaluationSubmissionValues('Now complete.'))
+        ->call('submit', (int) $fixture['event']->id)
+        ->assertHasNoErrors()
+        ->assertSee('Evaluation submitted');
+
+    $completed = evaluationSubmissionRows($fixture)->sole();
+    expect($completed->id)->toBe($draft->id)
+        ->and($completed->status)->toBe(TrainingEvaluationStatus::Completed)
+        ->and($completed->most_useful_learning)->toBe('Load charts.')
+        ->and($completed->completed_at)->not->toBeNull();
 });

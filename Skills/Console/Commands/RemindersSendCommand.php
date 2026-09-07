@@ -4,6 +4,7 @@ namespace App\Domains\People\Skills\Console\Commands;
 
 use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Domains\People\Skills\Data\DeliveryRunResult;
+use App\Domains\People\Skills\Enums\ReminderRule;
 use App\Domains\People\Skills\Models\SkillReminderDelivery;
 use App\Domains\People\Skills\Services\ReminderDeliveries;
 use App\Domains\People\Skills\Services\ReminderRules;
@@ -12,7 +13,8 @@ use App\Domains\People\Skills\Services\ReminderRules;
  * Send this week's skill reminders for one company and print what happened.
  *
  * `people:reminders-due` stays the read-only report. This is the sending half:
- * one deduplicated delivery row per reminder, recipient and ISO week, failures
+ * one deduplicated delivery row per reminder, recipient and period (ISO week,
+ * or ISO month for a critical coverage gap), failures
  * printed one per line so an operator can see them, and --retry to re-attempt
  * exactly those. --dry-run prints the counts a send would produce and writes
  * nothing.
@@ -76,10 +78,11 @@ final class RemindersSendCommand extends TenantScopedCommand
     private function failureLine(SkillReminderDelivery $row): string
     {
         return sprintf(
-            'failed #%d %s employee %d skill %d%s -> user %d: %s',
+            'failed #%d %s %s %d skill %d%s -> user %d: %s',
             $row->id,
             $row->rule->value,
-            $row->employee_entity_id,
+            $row->rule === ReminderRule::CriticalCoverageGap ? 'department' : 'employee',
+            $row->rule === ReminderRule::CriticalCoverageGap ? (int) $row->department_id : (int) $row->employee_entity_id,
             $row->skill_id,
             $row->developmentActionId() === null ? '' : ' action '.$row->developmentActionId(),
             $row->recipient_user_id,

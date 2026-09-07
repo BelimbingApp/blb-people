@@ -124,14 +124,14 @@ function delivSkill(int $companyId, string $code): int
     ))->id;
 }
 
-/** An overdue reassessment score for the side's employee. */
+/** An overdue reassessment score for the side's employee. Essential, not critical: a lone critical holder is also a coverage gap (0009-i), and this file measures score reminders. */
 function delivOverdueScore(int $tenantId, array $side, array $overrides = []): EmployeeSkillScore
 {
     $assessment = SkillAssessment::query()->create([
         'tenant_id' => $tenantId, 'company_entity_id' => $side['companyId'],
         'employee_entity_id' => $side['employeeId'], 'skill_id' => $side['skillId'],
         'requirement_reference' => 'deliv.ops', 'requirement_version' => 2,
-        'required_level' => 4, 'criticality' => 'critical', 'mandatory_gate' => true,
+        'required_level' => 4, 'criticality' => 'essential', 'mandatory_gate' => true,
         'assessed_level' => 2, 'gap' => 2, 'method' => 'direct_observation', 'cycle' => 'annual',
         'status' => 'draft', 'evidence' => 'Observed once.', 'assessed_at' => now()->subYear(), 'assessor_user_id' => 9,
     ]);
@@ -142,7 +142,7 @@ function delivOverdueScore(int $tenantId, array $side, array $overrides = []): E
         'source_assessment_id' => (int) $assessment->id,
         'requirement_reference' => 'deliv.ops', 'requirement_version' => 2,
         'required_level' => 4, 'current_level' => 2, 'gap' => 2, 'mandatory_gate' => true,
-        'criticality' => 'critical', 'assessed_at' => now()->subYear(),
+        'criticality' => 'essential', 'assessed_at' => now()->subYear(),
         'next_assessment_due' => now()->subDays(3)->toDateString(),
     ], $overrides));
 }

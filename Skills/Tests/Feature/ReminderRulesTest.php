@@ -85,7 +85,9 @@ function reminderScore(array $f, int $companyId, int $employeeId, array $overrid
         'requirement_reference' => 'reminder.ops',
         'requirement_version' => 2,
         'required_level' => 4,
-        'criticality' => 'critical',
+        // Essential, not critical: a lone under-level critical holder is also a
+        // coverage gap (0009-i), and this file measures the score rules alone.
+        'criticality' => 'essential',
         'mandatory_gate' => true,
         'assessed_level' => 2,
         'gap' => 2,
@@ -109,7 +111,7 @@ function reminderScore(array $f, int $companyId, int $employeeId, array $overrid
         'current_level' => 2,
         'gap' => 2,
         'mandatory_gate' => true,
-        'criticality' => 'critical',
+        'criticality' => 'essential',
         'assessed_at' => now()->subYear(),
         'next_assessment_due' => null,
         'valid_until' => null,
