@@ -156,8 +156,22 @@ final readonly class TrainingRequestStore
                 throw new InvalidTrainingRequestException('Only a scheduled or in-progress training event can satisfy a request.');
             }
 
+            // Everyone the request named becomes a participant, or the link
+            // is refused: an approved request that enrols nobody is a promise
+            // the calendar does not keep.
+            $subjects = TrainingRequestSubject::query()->forCompany($tenantId, $companyId)
+                ->where('training_request_id', $request->id)
+                ->get(['provider_id', 'employee_subject_id'])
+                ->map(static fn (TrainingRequestSubject $subject): array => [
+                    'provider_id' => (string) $subject->provider_id,
+                    'employee_subject_id' => (string) $subject->employee_subject_id,
+                ])
+                ->all();
+            $enrolled = app(TrainingParticipationStore::class)
+                ->enrolFromRequest($actor, $companyId, (int) $event->id, $subjects);
+
             $request->update(['training_event_id' => $event->id, 'linked_by_user_id' => $actor->getKey(), 'linked_at' => now()]);
-            $this->record($request, 'linked', $actor, "Linked to event {$event->id}: {$event->course_title_snapshot}");
+            $this->record($request, 'linked', $actor, "Linked to event {$event->id}: {$event->course_title_snapshot}; enrolled ".count($enrolled));
 
             return $request->refresh();
         });
@@ -174,7 +188,11 @@ final readonly class TrainingRequestStore
             }
             $eventId = (int) $request->training_event_id;
             $request->update(['training_event_id' => null, 'linked_by_user_id' => null, 'linked_at' => null]);
-            $this->record($request, 'unlinked', $actor, trim("Unlinked from event {$eventId}. ".(string) $notes));
+            // Participants stay: somebody may already have attended, and a
+            // withdrawal is a decision about that person, not a side effect of
+            // HR rearranging which event satisfies the paperwork.
+            $this->record($request, 'unlinked', $actor,
+                trim("Unlinked from event {$eventId}; participants remain enrolled. ".(string) $notes));
 
             return $request->refresh();
         });
