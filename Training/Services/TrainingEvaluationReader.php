@@ -40,6 +40,11 @@ final class TrainingEvaluationReader
      * unrelated employees/companies, private evidence, HR follow-up or export
      * solely by hierarchy." Ratings and completion state are departmental
      * management information; what someone wrote about their training is not.
+     *
+     * entry_source and submitted_by_user_id are deliberately not here: who
+     * entered an evaluation and whether it arrived on paper is provenance
+     * every audience gets, so the employee's own view and the HR dashboard
+     * can both say "entered from paper by HR" (0012-f).
      */
     private const FREE_TEXT_COLUMNS = [
         'most_useful_learning',

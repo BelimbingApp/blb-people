@@ -61,6 +61,18 @@ return [
          */
         'people.training.calendar.view',
         'people.training.evaluation.submit',
+
+        /*
+         * HR assisted (paper) entry of a participant's evaluation (0012-f).
+         * A capability of its own rather than a widening of submit, which is
+         * employee-only: the store binds the actual entering actor and marks
+         * the row entry_source = assisted_paper, so the grant is what makes
+         * "entered by HR on the participant's behalf" a fact the record can
+         * show, not a second way to look like the participant. The verb is
+         * `assign` because `enter` is not in the platform's declared verb
+         * list and an undeclared verb is filtered rather than refused.
+         */
+        'people.training.evaluation.assign',
         'people.training.evaluation-aggregate.view',
 
         /*
@@ -105,6 +117,7 @@ return [
                 'people.training.calendar.view',
                 'people.training.event.view',
                 'people.training.evaluation.view',
+                'people.training.evaluation.assign',
                 'people.training.event.manage',
                 'people.training.plan.approve',
                 'people.training.request.submit',

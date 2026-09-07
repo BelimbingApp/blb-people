@@ -9,6 +9,7 @@ use App\Core\User\Models\User;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
 use App\Domains\People\Provider\Data\WorkforceEmployee;
 use App\Domains\People\Skills\Services\CompanyAttribution;
+use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\TrainingEvaluationStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEvaluationException;
@@ -17,18 +18,27 @@ use App\Domains\People\Training\Models\TrainingEvaluation;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Models\TrainingParticipationFact;
+use Illuminate\Support\Facades\DB;
 
 final class TrainingEvaluationSubmissionStore
 {
     public const SUBMIT = 'people.training.evaluation.submit';
 
+    /** HR assisted (paper) entry on a participant's behalf (0012-f). */
+    public const ASSIGN = 'people.training.evaluation.assign';
+
     public const CRITERIA_VERSION = '0012-a.v1';
+
+    public const PAPER_REFERENCE_PREFIX = 'paper:';
+
+    private const CRITERIA = ['relevance', 'trainer_effectiveness', 'materials_exercises', 'pace_duration', 'practical_usefulness'];
 
     public function __construct(
         private readonly TenantContext $tenancy,
         private readonly ReadsWorkforceDirectory $directory,
         private readonly CompanyAttribution $companies,
         private readonly AuthorizationService $authorization,
+        private readonly SkillAudience $audiences,
     ) {}
 
     /**
@@ -38,37 +48,117 @@ final class TrainingEvaluationSubmissionStore
     {
         [$tenant, $employee] = $this->scope($actor, $companyId);
         $participant = $this->participant($tenant, $companyId, $eventId, $employee);
-        $event = $this->attendedEvent($tenant, $companyId, $participant);
-        if (now()->isAfter($event->ends_at->addDays(14))) {
-            throw new InvalidTrainingEvaluationException('This evaluation window has closed. Ask HR if a traceable correction is needed.');
-        }
-
-        foreach ($ratings as $rating) {
-            if (! is_int($rating) || $rating < 1 || $rating > 5) {
-                throw new InvalidTrainingEvaluationException('Rate every evaluation item from 1 to 5.');
-            }
-        }
-        if (array_keys($ratings) !== ['relevance', 'trainer_effectiveness', 'materials_exercises', 'pace_duration', 'practical_usefulness']) {
-            throw new InvalidTrainingEvaluationException('The evaluation criteria do not match this form. Reload the page and try again.');
-        }
+        $event = $this->openAttendedEvent($tenant, $companyId, $participant);
+        $this->validateRatings($ratings);
         $comment = $this->comment($comment);
 
-        return TrainingEvaluation::query()->updateOrCreate([
+        return $this->write($tenant, $companyId, $participant, $event, $ratings, $comment, null, $actor, TrainingEvaluation::ENTRY_SELF);
+    }
+
+    /**
+     * HR keys in a completed paper form for a named participant (0012-f).
+     *
+     * The participant stays the employee subject; the HR user is the entering
+     * actor; entry_source says the answers arrived on paper; the paper
+     * reference is kept in notes. Assistance is not authority to change already
+     * completed answers, so a completed evaluation — self or paper — is refused
+     * rather than overwritten. The 14-day window of the self path is unchanged.
+     *
+     * @param  array{relevance: int, trainer_effectiveness: int, materials_exercises: int, pace_duration: int, practical_usefulness: int}  $ratings
+     */
+    public function submitAssisted(User $actor, int $companyId, int $participantId, array $ratings, ?string $comment, string $paperReference): TrainingEvaluation
+    {
+        $tenant = $this->hrScope($actor, $companyId);
+        $participant = TrainingParticipant::query()->forCompany($tenant, $companyId)
+            ->whereKey($participantId)->first() ?? $this->deny();
+        $event = $this->openAttendedEvent($tenant, $companyId, $participant);
+        $completed = TrainingEvaluation::query()->forCompany($tenant, $companyId)
+            ->where('participant_id', (int) $participant->id)
+            ->where('status', TrainingEvaluationStatus::Completed->value)->exists();
+        if ($completed) {
+            throw new InvalidTrainingEvaluationException('This evaluation is already completed. Assisted entry does not replace completed answers.');
+        }
+        $this->validateRatings($ratings);
+        $comment = $this->comment($comment);
+        $paperReference = trim($paperReference);
+        if ($paperReference === '' || mb_strlen($paperReference) > 160) {
+            throw new InvalidTrainingEvaluationException('Give the paper form a reference of 1 to 160 characters.');
+        }
+
+        return $this->write(
+            $tenant, $companyId, $participant, $event, $ratings, $comment,
+            self::PAPER_REFERENCE_PREFIX.$paperReference, $actor, TrainingEvaluation::ENTRY_ASSISTED_PAPER,
+        );
+    }
+
+    /**
+     * @param  array<string, int>  $ratings
+     */
+    private function write(int $tenant, int $companyId, TrainingParticipant $participant, TrainingEvent $event, array $ratings, ?string $comment, ?string $notes, User $actor, string $entrySource): TrainingEvaluation
+    {
+        // Its own transaction: the (tenant, participant) unique key can be
+        // raced by a self-submission, and a refused insert must not poison
+        // an outer transaction.
+        return DB::transaction(fn (): TrainingEvaluation => TrainingEvaluation::query()->updateOrCreate([
             'tenant_id' => $tenant,
             'company_entity_id' => $companyId,
             'participant_id' => (int) $participant->id,
         ], [
             'event_id' => (int) $event->id,
-            'employee_subject_id' => $employee->reference->externalId,
+            'employee_subject_id' => (string) $participant->employee_subject_id,
             'criteria_version' => self::CRITERIA_VERSION,
             ...$ratings,
             'issues_or_improvements' => $comment,
+            'notes' => $notes,
             'status' => TrainingEvaluationStatus::Completed,
             'due_on' => $event->ends_at->addDays(14)->toDateString(),
             'completed_at' => now(),
             'submitted_by_user_id' => (int) $actor->getKey(),
-            'entry_source' => 'self',
-        ]);
+            'entry_source' => $entrySource,
+        ]));
+    }
+
+    /** @param array<string, mixed> $ratings */
+    private function validateRatings(array $ratings): void
+    {
+        foreach ($ratings as $rating) {
+            if (! is_int($rating) || $rating < 1 || $rating > 5) {
+                throw new InvalidTrainingEvaluationException('Rate every evaluation item from 1 to 5.');
+            }
+        }
+        if (array_keys($ratings) !== self::CRITERIA) {
+            throw new InvalidTrainingEvaluationException('The evaluation criteria do not match this form. Reload the page and try again.');
+        }
+    }
+
+    private function openAttendedEvent(int $tenant, int $companyId, TrainingParticipant $participant): TrainingEvent
+    {
+        $event = $this->attendedEvent($tenant, $companyId, $participant);
+        if (now()->isAfter($event->ends_at->addDays(14))) {
+            throw new InvalidTrainingEvaluationException('This evaluation window has closed. Ask HR if a traceable correction is needed.');
+        }
+
+        return $event;
+    }
+
+    /**
+     * The assisted path is HR's, resolved through SkillAudience so the module
+     * keeps one audience engine; the participant is named, not derived from the
+     * actor's own employee binding, which is the whole difference from scope().
+     */
+    private function hrScope(User $actor, int $companyId): int
+    {
+        $tenant = $this->tenancy->currentTenantId();
+        $currentActor = $actor->exists ? User::query()->find($actor->getKey()) : null;
+        if ($tenant === null || $currentActor === null || $currentActor->getCompanyId() !== $actor->getCompanyId()
+            || (int) $currentActor->tenant_id !== $tenant || ! $this->companies->mayActFor($actor, $companyId)) {
+            $this->deny();
+        }
+        if (! in_array(SkillAudience::HR, $this->audiences->authorizeAudience($actor, self::ASSIGN), true)) {
+            $this->deny();
+        }
+
+        return $tenant;
     }
 
     /**
