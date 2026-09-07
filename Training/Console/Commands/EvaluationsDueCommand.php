@@ -2,23 +2,22 @@
 
 namespace App\Domains\People\Training\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Training\Data\DueEvaluation;
 use App\Domains\People\Training\Services\TrainingEvaluationReminders;
-use Illuminate\Console\Command;
 
 /**
  * Remind participants whose training evaluation is due within three days or
  * overdue, once per participant per day.
  *
  * Per company, because a reminder is somebody's inbox and inboxes belong to a
- * company. Tenancy is taken from --tenant, or from the ambient context when
- * the command runs inside a request-shaped scope.
+ * company. The tenant comes from --tenant, resolved and bound by
+ * TenantScopedCommand before handle() runs (belimbing#710).
  */
-final class EvaluationsDueCommand extends Command
+final class EvaluationsDueCommand extends TenantScopedCommand
 {
     protected $signature = 'people:training:evaluations-due
-                            {--tenant= : Tenant to run for; defaults to the current tenant context}
                             {--company= : Company workforce entity to run for}
                             {--dry-run : List what is due and record nothing}';
 
@@ -26,12 +25,6 @@ final class EvaluationsDueCommand extends Command
 
     public function handle(TenantContext $tenants, TrainingEvaluationReminders $reminders): int
     {
-        $tenantOption = $this->option('tenant');
-
-        if ($tenantOption !== null && $tenantOption !== '') {
-            $tenants->set((int) $tenantOption);
-        }
-
         $company = $this->option('company');
 
         if ($company === null || $company === '') {
