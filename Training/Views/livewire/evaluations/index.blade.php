@@ -27,7 +27,7 @@
                                 <x-ui.th>{{ __('Participant') }}</x-ui.th>
                                 <x-ui.th>{{ __('Submitted') }}</x-ui.th>
                                 <x-ui.th>{{ __('Entry') }}</x-ui.th>
-                                @foreach (['relevance', 'trainer_effectiveness', 'materials_exercises', 'pace_duration', 'practical_usefulness'] as $criterion)
+                                @foreach (\App\Domains\People\Training\Services\TrainingEvaluationReader::RATINGS as $criterion)
                                     <x-ui.th>{{ __(ucfirst(str_replace('_', ' ', $criterion))) }}</x-ui.th>
                                 @endforeach
                                 @foreach ($drillDown['comment_columns'] as $column)
@@ -41,7 +41,7 @@
                                     <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['participant'] }}</td>
                                     <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $row['submitted_on'] }}</td>
                                     <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['entry_source'] }}</td>
-                                    @foreach (['relevance', 'trainer_effectiveness', 'materials_exercises', 'pace_duration', 'practical_usefulness'] as $criterion)
+                                    @foreach (\App\Domains\People\Training\Services\TrainingEvaluationReader::RATINGS as $criterion)
                                         <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $row[$criterion] ?? __('—') }}</td>
                                     @endforeach
                                     @foreach ($drillDown['comment_columns'] as $column)
@@ -72,10 +72,10 @@
                     </span>
                 </div>
 
-                <dl class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     @foreach ($event['means'] as $criterion => $mean)
                         <div>
-                            <dt class="text-xs text-muted">{{ __(ucfirst(str_replace('_', ' ', $criterion))) }}</dt>
+                            <dt class="text-xs text-muted">{{ __(ucfirst(str_replace('_', ' ', $criterion))) }} <span data-answered="{{ $event['event_id'] }}-{{ $criterion }}">({{ __(':count answered', ['count' => $event['answered'][$criterion]]) }})</span></dt>
                             <dd class="text-sm tabular-nums text-ink">
                                 @if ($mean === null)
                                     {{ __('—') }}

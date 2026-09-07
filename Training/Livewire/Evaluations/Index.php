@@ -50,15 +50,6 @@ final class Index extends Component
 {
     public const VIEW_CAPABILITY = 'people.training.evaluation-aggregate.view';
 
-    /** @var list<string> */
-    private const RATINGS = [
-        'relevance',
-        'trainer_effectiveness',
-        'materials_exercises',
-        'pace_duration',
-        'practical_usefulness',
-    ];
-
     /** @var array<int, string> action notes keyed by follow-up id */
     public array $followupNotes = [];
 
@@ -130,7 +121,7 @@ final class Index extends Component
     public function openMean(int $eventId, string $criterion): void
     {
         $this->authorizeView();
-        abort_unless(in_array($criterion, self::RATINGS, true), 404);
+        abort_unless(in_array($criterion, TrainingEvaluationReader::RATINGS, true), 404);
         $this->openEventId = $eventId;
         $this->openCriterion = $criterion;
     }
@@ -231,7 +222,7 @@ final class Index extends Component
             return null;
         }
         $criterion = $this->openCriterion;
-        abort_unless($criterion === null || in_array($criterion, self::RATINGS, true), 404);
+        abort_unless($criterion === null || in_array($criterion, TrainingEvaluationReader::RATINGS, true), 404);
         $event = TrainingEvent::query()->forCompany($this->tenantOf($reader), $companyId)->whereKey($this->openEventId)->first();
         abort_if($event === null, 404);
 
@@ -246,7 +237,7 @@ final class Index extends Component
             'event_id' => (int) $event->id,
             'title' => (string) $event->course_title_snapshot,
             'criterion' => $criterion,
-            'mean' => $criterion === null ? null : $this->means($rows)[$criterion],
+            'mean' => $criterion === null ? null : $reader->means($rows)[$criterion]['mean'],
             'comment_columns' => $commentColumns,
             'rows' => $rows->map(function (TrainingEvaluation $e) use ($names, $commentColumns): array {
                 $row = [
@@ -255,7 +246,7 @@ final class Index extends Component
                     'submitted_on' => (string) $e->completed_at?->toDateString(),
                     'entry_source' => (string) $e->entry_source,
                 ];
-                foreach (self::RATINGS as $rating) {
+                foreach (TrainingEvaluationReader::RATINGS as $rating) {
                     $row[$rating] = $e->{$rating} === null ? null : (int) $e->{$rating};
                 }
                 foreach ($commentColumns as $column) {
@@ -274,7 +265,7 @@ final class Index extends Component
     }
 
     /**
-     * @return list<array{event_id: int, title: string, attended: int, submitted: int, response_rate: int|null, means: array<string, float|null>, comments: list<array{participant: string, comment: string}>, flagged: list<array{evaluation_id: int, participant: string, support: array{id: int, status: string}|null, provider: array{id: int, status: string}|null}>}>
+     * @return list<array{event_id: int, title: string, attended: int, submitted: int, response_rate: int|null, means: array<string, float|null>, answered: array<string, int>, comments: list<array{participant: string, comment: string}>, flagged: list<array{evaluation_id: int, participant: string, support: array{id: int, status: string}|null, provider: array{id: int, status: string}|null}>}>
      */
     private function events(TrainingEvaluationReader $reader, int $companyId): array
     {
@@ -290,7 +281,7 @@ final class Index extends Component
         $names = $this->participantNames($this->tenantOf($reader), $companyId, $events->pluck('id')->all());
         $followups = $this->followupStates($this->tenantOf($reader), $companyId, $evaluations->flatten()->all());
 
-        return $events->map(function (TrainingEvent $event) use ($evaluations, $attended, $names, $followups): array {
+        return $events->map(function (TrainingEvent $event) use ($reader, $evaluations, $attended, $names, $followups): array {
             $rows = $evaluations->get($event->id, collect());
             $attendedCount = (int) ($attended[$event->id] ?? 0);
 
@@ -302,7 +293,8 @@ final class Index extends Component
                 // No attendance is not a nought-percent response. Nobody was
                 // asked, so there is no rate to report.
                 'response_rate' => $attendedCount === 0 ? null : (int) round($rows->count() / $attendedCount * 100),
-                'means' => $this->means($rows),
+                'means' => array_map(static fn (array $criterion): ?float => $criterion['mean'], $means = $reader->means($rows)),
+                'answered' => array_map(static fn (array $criterion): int => $criterion['answered_count'], $means),
                 'comments' => $this->comments($rows, $names),
                 'flagged' => $this->flagged($rows, $names, $followups),
             ];
@@ -376,18 +368,6 @@ final class Index extends Component
         }
 
         return $states;
-    }
-
-    /** @return array<string, float|null> */
-    private function means(Collection $rows): array
-    {
-        $means = [];
-        foreach (self::RATINGS as $rating) {
-            $values = $rows->pluck($rating)->filter(static fn (mixed $value): bool => $value !== null);
-            $means[$rating] = $values->isEmpty() ? null : round((float) $values->avg(), 2);
-        }
-
-        return $means;
     }
 
     /**

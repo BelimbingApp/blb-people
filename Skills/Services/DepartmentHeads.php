@@ -27,6 +27,12 @@ final class DepartmentHeads
             return null;
         }
 
+        return $this->headUserOfDepartment($companyEntityId, (int) $departmentId);
+    }
+
+    /** The same rule from the department: its head, and that head's user in the same company. */
+    public function headUserOfDepartment(int $companyEntityId, int $departmentId): ?int
+    {
         $headId = Department::query()
             ->where('company_id', $companyEntityId)
             ->whereKey($departmentId)
