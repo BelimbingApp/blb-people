@@ -341,3 +341,64 @@ test('an actor moved to another company cannot keep writing with a stale user in
     expect(fn () => app(TrainingParticipationStore::class)->recordAttendance($f['hr'], (int) $f['company']->id,
         (int) $session->id, $f['subject'], participationDraft()))->toThrow(InvalidTrainingParticipationException::class);
 });
+
+test('HR corrects a confirmed fact by appending a superseding row, leaving the original untouched', function (): void {
+    $f = participationFixture();
+    $session = participationSession($f);
+    $this->travelTo($f['event']->ends_at->addHour());
+    $store = app(TrainingParticipationStore::class);
+    $original = $store->recordAttendance($f['hr'], (int) $f['company']->id, (int) $session->id, $f['subject'], participationDraft());
+    $store->confirm($f['hr'], (int) $f['company']->id, (int) $original->id);
+    $before = $original->refresh()->getAttributes();
+    $rows = TrainingParticipationFact::query()->forCompany((int) $f['tenant']->id, (int) $f['company']->id)->count();
+
+    $correction = $store->correct(
+        $f['hr'], (int) $f['company']->id, (int) $original->id,
+        participationDraft(['attendance' => AttendanceStatus::Absent, 'actualMinutes' => 0, 'sourceReference' => (string) Str::uuid()]),
+        'Signed the wrong sheet at the door.',
+    );
+
+    // Append, never update: the original is a record of what the company said,
+    // and the correction is a second record saying otherwise.
+    expect(TrainingParticipationFact::query()->forCompany((int) $f['tenant']->id, (int) $f['company']->id)->count())->toBe($rows + 1)
+        ->and($original->refresh()->getAttributes())->toBe($before)
+        ->and((int) $correction->supersedes_fact_id)->toBe((int) $original->id)
+        ->and($correction->correction_reason)->toBe('Signed the wrong sheet at the door.')
+        ->and($correction->confirmed_at)->not->toBeNull()
+        ->and($correction->attendance)->toBe(AttendanceStatus::Absent);
+
+    // current() answers "what happened", which is now the correction.
+    $current = TrainingParticipationFact::query()->forCompany((int) $f['tenant']->id, (int) $f['company']->id)
+        ->current()->pluck('id')->all();
+    expect($current)->toContain((int) $correction->id)
+        ->and($current)->not->toContain((int) $original->id);
+});
+
+test('a correction needs a reason, a confirmed target, and the rework capability', function (): void {
+    $f = participationFixture();
+    $session = participationSession($f);
+    $this->travelTo($f['event']->ends_at->addHour());
+    $store = app(TrainingParticipationStore::class);
+    $companyId = (int) $f['company']->id;
+    $pending = $store->recordAttendance($f['hr'], $companyId, (int) $session->id, $f['subject'], participationDraft());
+    $rows = fn (): int => TrainingParticipationFact::query()->forCompany((int) $f['tenant']->id, $companyId)->count();
+    $before = $rows();
+
+    // An unconfirmed fact is revised, not corrected.
+    expect(fn () => $store->correct($f['hr'], $companyId, (int) $pending->id, participationDraft(), 'reason'))
+        ->toThrow(InvalidTrainingParticipationException::class, 'Only a confirmed participation fact is corrected; revise the draft instead.');
+
+    $store->confirm($f['hr'], $companyId, (int) $pending->id);
+
+    // A correction without a reason is not a correction, it is a rewrite.
+    expect(fn () => $store->correct($f['hr'], $companyId, (int) $pending->id, participationDraft(['sourceReference' => (string) Str::uuid()]), '   '))
+        ->toThrow(InvalidTrainingParticipationException::class, 'A correction records why the confirmed fact was wrong.');
+
+    // A trainer holds manage and confirms nothing: correcting is HR's. Named
+    // by class, not Throwable — Pest reads an interface name as a message to
+    // match, so toThrow(Throwable::class) asserts nothing useful.
+    expect(fn () => $store->correct($f['trainerUser'], $companyId, (int) $pending->id, participationDraft(['sourceReference' => (string) Str::uuid()]), 'reason'))
+        ->toThrow(AuthorizationDeniedException::class);
+
+    expect($rows())->toBe($before);
+});
