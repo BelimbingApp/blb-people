@@ -1,10 +1,12 @@
 <?php
 
 use App\Base\Authz\Enums\PrincipalType;
+use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\Media\Models\MediaAsset;
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Core\Company\Models\Company;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Data\ExternalReference;
@@ -21,7 +23,10 @@ use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\DeliveryMode;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEvidenceSubmissionException;
 use App\Domains\People\Training\Livewire\Evidence\Index;
+use App\Domains\People\Training\Livewire\HrGovernance\Index as GovernanceIndex;
+use App\Domains\People\Training\Models\TrainingEvidenceDecision;
 use App\Domains\People\Training\Models\TrainingEvidenceSubmission;
+use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
 use App\Domains\People\Training\Services\TrainingEvidenceSubmissionStore;
@@ -213,4 +218,154 @@ test('the route is available to employees and refused to users outside the self-
 
     $this->actingAs($fixture['user'])->get(route('people.training.evidence.index'))->assertOk()->assertSee('Training evidence');
     $this->actingAs($outsider)->get(route('people.training.evidence.index'))->assertForbidden();
+});
+
+function evidencePendingSubmission(array $fixture, ?string $number = 'FL-2026-0042', ?string $expires = '2027-09-07'): TrainingEvidenceSubmission
+{
+    evidenceAttendance($fixture, AttendanceStatus::Present);
+
+    return app(TrainingEvidenceSubmissionStore::class)->submit(
+        $fixture['user'],
+        (int) $fixture['company']->id,
+        (int) $fixture['event']->id,
+        'I can now inspect and operate the forklift safely.',
+        $number,
+        $expires,
+        evidenceDocument('forklift-certificate.png'),
+    );
+}
+
+test('HR confirms a pending submission onto the fact with one audit row', function (): void {
+    $fixture = evidenceFixture();
+    $submission = evidencePendingSubmission($fixture);
+
+    $decided = app(TrainingEvidenceSubmissionStore::class)->confirm(
+        $fixture['hr'], (int) $fixture['company']->id, (int) $submission->id,
+    );
+
+    expect($decided->status)->toBe('confirmed')
+        ->and((int) $decided->decided_by_user_id)->toBe((int) $fixture['hr']->id);
+
+    $fact = TrainingParticipationFact::query()
+        ->forCompany((int) $fixture['tenant']->id, (int) $fixture['company']->id)
+        ->where('participant_id', $submission->participant_id)
+        ->sole();
+    expect($fact->certificate_reference)->toBe('FL-2026-0042')
+        ->and($fact->certificate_valid_until->format('Y-m-d'))->toBe('2027-09-07');
+
+    $audits = TrainingEvidenceDecision::query()
+        ->forCompany((int) $fixture['tenant']->id, (int) $fixture['company']->id)
+        ->where('submission_id', $submission->id)
+        ->get();
+    expect($audits)->toHaveCount(1)
+        ->and($audits->sole()->decision)->toBe('confirmed')
+        ->and((int) $audits->sole()->decided_by_user_id)->toBe((int) $fixture['hr']->id);
+});
+
+test('a confirmed submission cannot be returned afterwards', function (): void {
+    $fixture = evidenceFixture();
+    $submission = evidencePendingSubmission($fixture);
+    $store = app(TrainingEvidenceSubmissionStore::class);
+    $store->confirm($fixture['hr'], (int) $fixture['company']->id, (int) $submission->id);
+
+    expect(fn () => $store->returnToEmployee(
+        $fixture['hr'], (int) $fixture['company']->id, (int) $submission->id, 'Too late to return.',
+    ))->toThrow(InvalidTrainingEvidenceSubmissionException::class);
+});
+
+test('returning without a note is refused and the note reaches the employee', function (): void {
+    $fixture = evidenceFixture();
+    $submission = evidencePendingSubmission($fixture);
+    $store = app(TrainingEvidenceSubmissionStore::class);
+
+    expect(fn () => $store->returnToEmployee(
+        $fixture['hr'], (int) $fixture['company']->id, (int) $submission->id, '  ',
+    ))->toThrow(InvalidTrainingEvidenceSubmissionException::class);
+
+    $returned = $store->returnToEmployee(
+        $fixture['hr'], (int) $fixture['company']->id, (int) $submission->id, 'The certificate scan is unreadable.',
+    );
+    expect($returned->status)->toBe('draft')
+        ->and($returned->decision_note)->toBe('The certificate scan is unreadable.');
+
+    Livewire::withQueryParams(['participant_id' => $submission->participant_id])
+        ->actingAs($fixture['user'])
+        ->test(Index::class)
+        ->assertSee('The certificate scan is unreadable.');
+});
+
+test('a returned submission can be resubmitted by the employee', function (): void {
+    $fixture = evidenceFixture();
+    $submission = evidencePendingSubmission($fixture);
+    $store = app(TrainingEvidenceSubmissionStore::class);
+    $store->returnToEmployee(
+        $fixture['hr'], (int) $fixture['company']->id, (int) $submission->id, 'The certificate scan is unreadable.',
+    );
+
+    $resubmitted = $store->submit(
+        $fixture['user'],
+        (int) $fixture['company']->id,
+        (int) $fixture['event']->id,
+        'Resubmitted with a clearer scan.',
+        'FL-2026-0043',
+        null,
+        evidenceDocument('forklift-certificate-v2.png'),
+    );
+
+    expect((int) $resubmitted->id)->toBe((int) $submission->id)
+        ->and($resubmitted->status)->toBe('pending')
+        ->and($resubmitted->certificate_number)->toBe('FL-2026-0043');
+});
+
+test('a user without the verify capability cannot decide submissions', function (): void {
+    $fixture = evidenceFixture();
+    $submission = evidencePendingSubmission($fixture);
+    $hod = User::factory()->create(['company_id' => $fixture['company']->id]);
+    evidenceRole($hod, 'people_hod');
+
+    expect(fn () => app(TrainingEvidenceSubmissionStore::class)->confirm(
+        $hod, (int) $fixture['company']->id, (int) $submission->id,
+    ))->toThrow(AuthorizationDeniedException::class);
+});
+
+test('another company submission is neither listed nor decided', function (): void {
+    $fixture = evidenceFixture();
+    $submission = evidencePendingSubmission($fixture);
+    $store = app(TrainingEvidenceSubmissionStore::class);
+    $sibling = Company::factory()->create(['tenant_id' => $fixture['tenant']->id, 'name' => 'Sibling evidence co', 'status' => 'active']);
+
+    expect($store->pendingQueue($fixture['hr'], (int) $fixture['company']->id)->pluck('id')->all())
+        ->toBe([(int) $submission->id]);
+
+    expect(fn () => $store->pendingQueue($fixture['hr'], (int) $sibling->id))
+        ->toThrow(InvalidTrainingEvidenceSubmissionException::class);
+
+    expect(fn () => $store->confirm($fixture['hr'], (int) $sibling->id, (int) $submission->id))
+        ->toThrow(InvalidTrainingEvidenceSubmissionException::class);
+});
+
+test('HR confirms a submission from the governance queue', function (): void {
+    $fixture = evidenceFixture();
+    $submission = evidencePendingSubmission($fixture);
+
+    Livewire::actingAs($fixture['hr'])
+        ->test(GovernanceIndex::class)
+        ->assertSee('I can now inspect and operate the forklift safely.')
+        ->call('confirmEvidence', (int) $submission->id)
+        ->assertSee('No evidence submission awaits HR decision.');
+
+    expect($submission->refresh()->status)->toBe('confirmed');
+});
+
+test('HR returns a submission with a note from the governance queue', function (): void {
+    $fixture = evidenceFixture();
+    $submission = evidencePendingSubmission($fixture);
+
+    Livewire::actingAs($fixture['hr'])
+        ->test(GovernanceIndex::class)
+        ->set('evidenceReturnNotes.'.$submission->id, 'Queue return note.')
+        ->call('returnEvidence', (int) $submission->id)
+        ->assertSee('No evidence submission awaits HR decision.');
+
+    expect($submission->refresh()->status)->toBe('draft');
 });

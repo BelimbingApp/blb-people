@@ -17,8 +17,12 @@ use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillReassessmentStore;
 use App\Domains\People\Training\Enums\TrainingPlanStatus;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
+use App\Domains\People\Training\Exceptions\InvalidTrainingEvidenceSubmissionException;
+use App\Domains\People\Training\Models\TrainingEvidenceSubmission;
+use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Models\TrainingPlan;
 use App\Domains\People\Training\Models\TrainingRequest;
+use App\Domains\People\Training\Services\TrainingEvidenceSubmissionStore;
 use App\Domains\People\Training\Services\TrainingPlanStore;
 use App\Domains\People\Training\Services\TrainingRequestStore;
 use Illuminate\Contracts\View\View;
@@ -58,6 +62,9 @@ final class Index extends Component
 
     /** @var array<int, string> */
     public array $reassessmentNotes = [];
+
+    /** @var array<int, string> */
+    public array $evidenceReturnNotes = [];
 
     /** @var array<string, string>|null */
     private ?array $allowedCompanies = null;
@@ -128,6 +135,38 @@ final class Index extends Component
         });
     }
 
+    public function confirmEvidence(int $submissionId): void
+    {
+        $companyEntityId = $this->requireCompany();
+
+        try {
+            app(TrainingEvidenceSubmissionStore::class)->confirm($this->user(), $companyEntityId, $submissionId);
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        } catch (InvalidTrainingEvidenceSubmissionException $exception) {
+            $this->addError('evidence.'.$submissionId, $exception->getMessage());
+        }
+    }
+
+    public function returnEvidence(int $submissionId): void
+    {
+        $companyEntityId = $this->requireCompany();
+
+        try {
+            app(TrainingEvidenceSubmissionStore::class)->returnToEmployee(
+                $this->user(),
+                $companyEntityId,
+                $submissionId,
+                (string) ($this->evidenceReturnNotes[$submissionId] ?? ''),
+            );
+            unset($this->evidenceReturnNotes[$submissionId]);
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        } catch (InvalidTrainingEvidenceSubmissionException $exception) {
+            $this->addError('evidence.'.$submissionId, $exception->getMessage());
+        }
+    }
+
     public function performReassessment(int $requestId): void
     {
         $companyEntityId = $this->requireCompany();
@@ -163,6 +202,7 @@ final class Index extends Component
         $companyEntityId = $this->companyEntityId === null ? null : $this->requireCompany();
 
         $reassessments = $companyEntityId === null ? collect() : $this->pendingReassessments($companyEntityId);
+        $evidence = $companyEntityId === null ? collect() : $this->pendingEvidence($companyEntityId);
 
         return view('people::livewire.hr-governance.index', [
             'companies' => $companies,
@@ -172,6 +212,8 @@ final class Index extends Component
             'reassessments' => $reassessments,
             'reassessmentSkills' => $this->reassessmentSkillNames($companyEntityId, $reassessments),
             'reassessmentEmployees' => $this->reassessmentEmployeeNames($companyEntityId, $reassessments),
+            'evidenceSubmissions' => $evidence,
+            'evidenceEmployees' => $this->evidenceEmployeeNames($companyEntityId, $evidence),
             'escalations' => $companyEntityId === null ? collect() : $this->escalatedReviews($companyEntityId),
         ]);
     }
@@ -260,6 +302,47 @@ final class Index extends Component
             ->pluck('name', 'id')
             ->map(static fn ($name): string => (string) $name)
             ->all();
+    }
+
+    /**
+     * Pending evidence submissions for the HR queue (0011-b).
+     *
+     * @return Collection<int, TrainingEvidenceSubmission>
+     */
+    private function pendingEvidence(int $companyEntityId): Collection
+    {
+        try {
+            return app(TrainingEvidenceSubmissionStore::class)->pendingQueue($this->user(), $companyEntityId);
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        }
+    }
+
+    /** @return array<int, string> keyed by participant id */
+    private function evidenceEmployeeNames(?int $companyEntityId, Collection $submissions): array
+    {
+        if ($companyEntityId === null || $submissions->isEmpty()) {
+            return [];
+        }
+
+        $subjects = TrainingParticipant::query()
+            ->forCompany($this->tenantId(), $companyEntityId)
+            ->whereIn('id', $submissions->pluck('participant_id')->all())
+            ->pluck('employee_subject_id', 'id');
+
+        $names = Employee::query()
+            ->where('company_id', $companyEntityId)
+            ->whereIn('id', $subjects->values()->all())
+            ->pluck('full_name', 'id')
+            ->map(static fn ($name): string => (string) $name)
+            ->all();
+
+        $labeled = [];
+        foreach ($subjects as $participantId => $employeeId) {
+            $labeled[(int) $participantId] = $names[(int) $employeeId] ?? __('Unknown employee');
+        }
+
+        return $labeled;
     }
 
     /** @return array<int, string> */
