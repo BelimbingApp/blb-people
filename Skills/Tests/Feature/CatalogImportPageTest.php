@@ -15,6 +15,7 @@ use App\Domains\People\Skills\Livewire\Catalog\Import;
 use App\Domains\People\Skills\Models\RequirementItem;
 use App\Domains\People\Skills\Models\RequirementProfile;
 use App\Domains\People\Skills\Models\Skill;
+use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\StarterProfileImporter;
 use Illuminate\Http\UploadedFile;
 use Livewire\Livewire;
@@ -246,4 +247,9 @@ test('a six-skill role imports without tripping the weight total', function (): 
         ->assertHasNoErrors();
 
     expect(catImportCounts($f['tenantId'], $f['alpha'])['profiles'])->toBe(1);
+
+    // The tolerance lives on the publish path: an imported draft whose six
+    // weights sum to 100.0002 imports fine and then can never be published.
+    $profile = RequirementProfile::query()->forCompany($f['tenantId'], (int) $f['alpha']->id)->firstOrFail();
+    expect(app(RequirementProfileStore::class)->publish((int) $f['alpha']->id, (int) $profile->id)->id)->toBe($profile->id);
 });

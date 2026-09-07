@@ -216,12 +216,12 @@ final class StarterProfileImporter
             if (RequirementProfile::query()->forCompany($tenantId, $companyEntityId)->where('code', $code)->exists()) {
                 continue;
             }
-            // Equal weights, with the rounding remainder on the last item so
-            // the total is exactly 100: six items at 16.6667 sum to 100.0002,
-            // which the store's tolerance rightly refuses.
+            // Equal weights at the column's two decimals, with the rounding
+            // remainder on the last item so the stored total is exactly 100:
+            // six items at 16.67 sum to 100.02, which publish() rightly refuses.
             $count = count($group);
-            $weight = round(100 / $count, 4);
-            $last = round(100 - $weight * ($count - 1), 4);
+            $weight = round(100 / $count, 2);
+            $last = round(100 - $weight * ($count - 1), 2);
             $items = [];
             foreach (array_values($group) as $index => $row) {
                 $items[] = new RequirementItemDraft(
