@@ -16,6 +16,7 @@ use App\Domains\People\Training\Models\TrainingRequestSubject;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -46,6 +47,8 @@ final class Register extends Component
 
     public int $year;
 
+    /** URL-bound so a reminder can link straight to the approved-unlinked view (0009-h). */
+    #[Url]
     public string $status = '';
 
     public string $department = '';
