@@ -40,7 +40,7 @@
             </form>
         @endif
 
-        <x-ui.table>
+        <x-ui.table :caption="__('Training courses')">
             <x-slot:head><tr><x-ui.th>{{ __('Training ID') }}</x-ui.th><x-ui.th>{{ __('Course') }}</x-ui.th><x-ui.th>{{ __('Delivery') }}</x-ui.th><x-ui.th>{{ __('Skills') }}</x-ui.th><x-ui.th>{{ __('Status') }}</x-ui.th>@if ($canManage)<x-ui.th>{{ __('Actions') }}</x-ui.th>@endif</tr></x-slot:head>
             <x-slot:body>
                 @forelse ($courses as $course)
