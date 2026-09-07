@@ -242,7 +242,7 @@ test('a six-skill role imports without tripping the weight total', function (): 
     Livewire::actingAs($f['hr'])
         ->test(Import::class, ['companyId' => (int) $f['alpha']->id])
         ->set('workbook', catImportCsv($rows))
-        ->call('save')
+        ->call('import')
         ->assertHasNoErrors();
 
     expect(catImportCounts($f['tenantId'], $f['alpha'])['profiles'])->toBe(1);
