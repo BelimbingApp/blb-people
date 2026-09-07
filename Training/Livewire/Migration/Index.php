@@ -7,22 +7,31 @@ use App\Base\Authz\DTO\Actor;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Training\Data\TrainingMigrationFieldMappingDraft;
 use App\Domains\People\Training\Data\TrainingMigrationSourceDraft;
 use App\Domains\People\Training\Enums\MigrationSourceKind;
+use App\Domains\People\Training\Enums\MigrationWorkflow;
+use App\Domains\People\Training\Enums\MigrationWriter;
+use App\Domains\People\Training\Exceptions\InvalidTrainingMigrationMappingException;
 use App\Domains\People\Training\Exceptions\InvalidTrainingMigrationSourceException;
 use App\Domains\People\Training\Models\TrainingMigrationSource;
+use App\Domains\People\Training\Services\TrainingMigrationMappingStore;
 use App\Domains\People\Training\Services\TrainingMigrationSourceStore;
+use DateTimeImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 /**
  * The migration source inventory page (0015-a): HR records each legacy
- * source, corrects it while unsigned, and signs it; HODs read.
+ * source, corrects it while unsigned, and signs it; HODs read. The field and
+ * code mapping register and the writer windows (0015-b) sit on the same page,
+ * appended through {@see TrainingMigrationMappingStore} and closed by one
+ * sign-off of the mapping set.
  *
- * The page lists and edits nothing itself: every row comes from
- * {@see TrainingMigrationSourceStore} and every change goes back through it,
- * so the capability and company checks live in one place. Whether the form is
+ * The page lists and edits nothing itself: every row comes from a store and
+ * every change goes back through one, so the capability and company checks
+ * live in one place. Whether the form is
  * rendered is a courtesy to the reader; the refusal that matters is the store's.
  */
 final class Index extends Component
@@ -53,6 +62,28 @@ final class Index extends Component
     /** @var array<int, string> */
     public array $signNote = [];
 
+    public string $mappingSourceId = '';
+
+    public string $mappingSourceField = '';
+
+    public string $mappingSourceCode = '';
+
+    public string $mappingTargetTable = '';
+
+    public string $mappingTargetColumn = '';
+
+    public string $mappingDedupRule = '';
+
+    public string $windowWorkflow = MigrationWorkflow::Assessments->value;
+
+    public string $windowWriter = MigrationWriter::Legacy->value;
+
+    public string $windowStartsOn = '';
+
+    public string $windowEndsOn = '';
+
+    public string $mappingSignNote = '';
+
     /** @var array<string, string>|null */
     private ?array $allowedCompanies = null;
 
@@ -71,18 +102,24 @@ final class Index extends Component
         $this->resetForm();
     }
 
-    public function render(TrainingMigrationSourceStore $store, AuthorizationService $authorization): View
+    public function render(TrainingMigrationSourceStore $store, TrainingMigrationMappingStore $mappings, AuthorizationService $authorization): View
     {
         $this->authorizeView();
         $companies = $this->allowedCompanies();
         $companyEntityId = $this->companyEntityId === null ? null : $this->requireCompany();
+        $user = $this->user();
 
         return view('people::livewire.migration.index', [
             'companies' => $companies,
-            'sources' => $companyEntityId === null ? collect() : $store->inventory($this->user(), $companyEntityId),
+            'sources' => $companyEntityId === null ? collect() : $store->inventory($user, $companyEntityId),
             'kinds' => MigrationSourceKind::cases(),
-            'mayManage' => $authorization->can(Actor::forUser($this->user()), TrainingMigrationSourceStore::MANAGE)->allowed,
+            'mayManage' => $authorization->can(Actor::forUser($user), TrainingMigrationSourceStore::MANAGE)->allowed,
             'signed' => $companyEntityId !== null && $store->signedInventory($companyEntityId),
+            'mappings' => $companyEntityId === null ? collect() : $mappings->mappings($user, $companyEntityId),
+            'windows' => $companyEntityId === null ? collect() : $mappings->writerWindows($user, $companyEntityId),
+            'mappingSignoff' => $companyEntityId === null ? null : $mappings->mappingSignoff($user, $companyEntityId),
+            'workflows' => MigrationWorkflow::cases(),
+            'writers' => MigrationWriter::cases(),
         ]);
     }
 
@@ -165,6 +202,86 @@ final class Index extends Component
 
         unset($this->signNote[$sourceId]);
         session()->flash('migration-status', __('The source was signed.'));
+    }
+
+    /** Append one field or code mapping to the register. */
+    public function mapField(TrainingMigrationMappingStore $store): void
+    {
+        $companyEntityId = $this->requireCompany();
+
+        try {
+            $store->map($this->user(), $companyEntityId, new TrainingMigrationFieldMappingDraft(
+                sourceId: (int) $this->mappingSourceId,
+                sourceField: $this->mappingSourceField,
+                sourceCode: $this->mappingSourceCode,
+                targetTable: $this->mappingTargetTable,
+                targetColumn: $this->mappingTargetColumn,
+                dedupRule: $this->mappingDedupRule,
+            ));
+        } catch (InvalidTrainingMigrationMappingException $exception) {
+            $this->addError('mappingForm', $exception->getMessage());
+
+            return;
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        }
+
+        $this->reset('mappingSourceField', 'mappingSourceCode', 'mappingTargetColumn', 'mappingDedupRule');
+        session()->flash('migration-status', __('The mapping was recorded.'));
+    }
+
+    /** Declare the authoritative writer of one workflow for a cutover window. */
+    public function declareWriter(TrainingMigrationMappingStore $store): void
+    {
+        $companyEntityId = $this->requireCompany();
+        $workflow = MigrationWorkflow::tryFrom($this->windowWorkflow);
+        $writer = MigrationWriter::tryFrom($this->windowWriter);
+        $startsOn = $this->date($this->windowStartsOn);
+        $endsOn = trim($this->windowEndsOn) === '' ? null : $this->date($this->windowEndsOn);
+        if ($workflow === null || $writer === null || $startsOn === null || (trim($this->windowEndsOn) !== '' && $endsOn === null)) {
+            $this->addError('windowForm', __('Choose a workflow, a writer and a start date (and a valid end date, if any).'));
+
+            return;
+        }
+
+        try {
+            $store->declareWriter($this->user(), $companyEntityId, $workflow, $writer, $startsOn, $endsOn);
+        } catch (InvalidTrainingMigrationMappingException $exception) {
+            $this->addError('windowForm', $exception->getMessage());
+
+            return;
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        }
+
+        $this->reset('windowStartsOn', 'windowEndsOn');
+        session()->flash('migration-status', __('The writer window was declared.'));
+    }
+
+    /** Sign the company's mapping set; nothing is appended to either register afterwards. */
+    public function signMappings(TrainingMigrationMappingStore $store): void
+    {
+        $companyEntityId = $this->requireCompany();
+
+        try {
+            $store->signMappings($this->user(), $companyEntityId, $this->mappingSignNote);
+        } catch (InvalidTrainingMigrationMappingException $exception) {
+            $this->addError('mappingSign', $exception->getMessage());
+
+            return;
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        }
+
+        $this->reset('mappingSignNote');
+        session()->flash('migration-status', __('The mapping set was signed.'));
+    }
+
+    private function date(string $value): ?DateTimeImmutable
+    {
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', trim($value));
+
+        return $date !== false && $date->format('Y-m-d') === trim($value) ? $date : null;
     }
 
     private function resetForm(): void
