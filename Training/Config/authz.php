@@ -124,6 +124,15 @@ return [
          * for everybody, quietly. Recorded on the issue.
          */
         'people.training.effectiveness-aggregate.view',
+
+        /*
+         * The migration source inventory (0015-a): the signed list of legacy
+         * sources a production import may read from. HR records and signs;
+         * HODs read, so a department can see what of its own records is on the
+         * list. Later import lanes consult signedInventory() and nothing else.
+         */
+        'people.training.migration.view',
+        'people.training.migration.manage',
     ],
 
     'roles' => [
@@ -151,6 +160,8 @@ return [
                 'people.training.budget.view',
                 'people.training.budget.manage',
                 'people.training.effectiveness-aggregate.view',
+                'people.training.migration.view',
+                'people.training.migration.manage',
             ],
         ],
         'people_training_trainer' => [
@@ -171,6 +182,7 @@ return [
                 'people.training.passport.view',
                 'people.training.passport.view-team',
                 'people.training.budget.view',
+                'people.training.migration.view',
             ],
         ],
         'people_employee' => [
