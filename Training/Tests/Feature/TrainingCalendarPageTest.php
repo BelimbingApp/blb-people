@@ -292,6 +292,37 @@ it('refuses withdrawal once attendance has been recorded', function (): void {
         ->toThrow(InvalidTrainingParticipationException::class);
 });
 
+it('navigates the calendar month forward and back', function (): void {
+    $f = calendarFixture();
+    $label = now()->format('F Y');
+    $next = now()->addMonth()->format('F Y');
+
+    Livewire::actingAs($f['employee'])
+        ->test(TrainingCalendar::class)
+        ->assertSee($label)
+        ->call('nextMonth')
+        ->assertSet('month', now()->addMonth()->month)
+        ->assertSee($next)
+        ->call('previousMonth')
+        ->assertSet('month', now()->month)
+        ->assertSee($label);
+});
+
+it('switches the calendar between month and list modes', function (): void {
+    $f = calendarFixture();
+    calendarEvent($f['company'], $f['trainerEmployee'], 'Mode switch briefing');
+
+    Livewire::actingAs($f['employee'])
+        ->test(TrainingCalendar::class)
+        ->assertSet('mode', 'month')
+        ->call('showList')
+        ->assertSet('mode', 'list')
+        ->assertSee('Mode switch briefing')
+        ->assertSee('of 10 enrolled')
+        ->call('showMonth')
+        ->assertSet('mode', 'month');
+});
+
 it('refuses a calendar read for a company the actor may not act for', function (): void {
     $f = calendarFixture();
     $sibling = Company::factory()->create(['tenant_id' => $f['tenantId'], 'name' => 'Calendar sibling company']);

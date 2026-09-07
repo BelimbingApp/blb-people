@@ -28,15 +28,23 @@ return new class extends Migration
             DB::unprepared(<<<'SQL'
                 CREATE OR REPLACE FUNCTION pt_participation_immutable() RETURNS trigger AS $$
                 BEGIN
-                    IF TG_TABLE_NAME = 'people_training_participants' AND TG_OP = 'UPDATE'
-                        AND OLD.tenant_id IS NOT DISTINCT FROM NEW.tenant_id
-                        AND OLD.company_entity_id IS NOT DISTINCT FROM NEW.company_entity_id
-                        AND OLD.event_id IS NOT DISTINCT FROM NEW.event_id
-                        AND OLD.provider_id IS NOT DISTINCT FROM NEW.provider_id
-                        AND OLD.employee_subject_id IS NOT DISTINCT FROM NEW.employee_subject_id
-                        AND OLD.workforce_observed_at IS NOT DISTINCT FROM NEW.workforce_observed_at
-                        AND OLD.created_at IS NOT DISTINCT FROM NEW.created_at THEN
-                        RETURN NEW;
+                    -- Statement-level branch first: this function is shared by
+                    -- the sessions, participants and facts triggers, and only
+                    -- participants rows carry provider_id. Comparing
+                    -- participant identity columns inside a single AND chain
+                    -- lets PostgreSQL evaluate OLD.provider_id for sessions
+                    -- and facts rows (AND operand order is not guaranteed),
+                    -- raising 42703 instead of the intended verdict below.
+                    IF TG_OP = 'UPDATE' AND TG_TABLE_NAME = 'people_training_participants' THEN
+                        IF OLD.tenant_id IS NOT DISTINCT FROM NEW.tenant_id
+                            AND OLD.company_entity_id IS NOT DISTINCT FROM NEW.company_entity_id
+                            AND OLD.event_id IS NOT DISTINCT FROM NEW.event_id
+                            AND OLD.provider_id IS NOT DISTINCT FROM NEW.provider_id
+                            AND OLD.employee_subject_id IS NOT DISTINCT FROM NEW.employee_subject_id
+                            AND OLD.workforce_observed_at IS NOT DISTINCT FROM NEW.workforce_observed_at
+                            AND OLD.created_at IS NOT DISTINCT FROM NEW.created_at THEN
+                            RETURN NEW;
+                        END IF;
                     END IF;
                     IF TG_TABLE_NAME <> 'people_training_participation_facts' THEN
                         RAISE EXCEPTION 'participation identity and sessions are immutable';
