@@ -25,7 +25,7 @@
                 <div class="space-y-4">
                     <h2 class="text-lg font-semibold text-ink">{{ $row->courseTitle }}</h2>
 
-                    <x-ui.table>
+                    <x-ui.table :caption="__('Effectiveness checkpoints for :course', ['course' => $row->courseTitle])">
                         <x-slot:head>
                             <tr>
                                 <x-ui.th>{{ __('Checkpoint') }}</x-ui.th>
