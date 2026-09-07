@@ -273,9 +273,10 @@ test('a verified meets assessment valid until yesterday is not verified competen
     $f = hrKpiFixture();
     $base = hrKpiSummary($f)->company['verified_competent']['value'];
 
-    // Inserted with a time part: the column is a date, SQLite keeps the text.
+    // Inserted with a time part: the column is a date, SQLite keeps the text
+    // and PostgreSQL truncates it, so the read-back is compared as a date.
     $expired = hrKpiAssessment($f, $f['p1'], $f['skillB'], AssessmentResultBand::Meets, extra: ['valid_until' => '2026-09-06 23:59:00']);
-    expect(DB::table('people_connector_skill_assessments')->where('id', $expired->id)->value('valid_until'))->toBe('2026-09-06 23:59:00');
+    expect(substr((string) DB::table('people_connector_skill_assessments')->where('id', $expired->id)->value('valid_until'), 0, 10))->toBe('2026-09-06');
 
     // Guard: valid_until strictly before the as-of date is not current.
     expect(hrKpiSummary($f)->company['verified_competent']['value'])->toBe($base);
