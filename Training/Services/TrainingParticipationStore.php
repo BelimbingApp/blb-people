@@ -33,6 +33,13 @@ final class TrainingParticipationStore
 
     public const CONFIRM = 'people.training.participation.verify';
 
+    /**
+     * Correcting a confirmed fact is a separate authority from recording one:
+     * it rewrites what the company says happened, after somebody already
+     * signed it off. HR holds it; a trainer with MANAGE does not.
+     */
+    public const REWORK = 'people.training.participation.rework';
+
     public const EVIDENCE = 'people.training.participation.evidence.assign';
 
     public function __construct(
@@ -328,6 +335,57 @@ final class TrainingParticipationStore
     private function fact(int $tenant, int $companyId, int $id): TrainingParticipationFact
     {
         return TrainingParticipationFact::query()->forCompany($tenant, $companyId)->lockForUpdate()->find($id) ?? $this->deny();
+    }
+
+    /**
+     * Append a superseding fact, never an update.
+     *
+     * A confirmed fact is immutable at the database level, which is the point:
+     * what the company said happened is a record, not a draft. A correction is
+     * therefore a new row that names the one it replaces and carries the
+     * reason, so the original and the correction are both readable afterwards.
+     *
+     * The correction is confirmed by construction — HR is the confirming
+     * authority here, and an unconfirmed correction would leave the session
+     * with neither a current answer nor a pending one.
+     */
+    public function correct(User $actor, int $companyId, int $factId, ParticipationFactDraft $draft, string $reason): TrainingParticipationFact
+    {
+        $tenant = $this->scope($actor, $companyId, self::REWORK);
+
+        if (trim($reason) === '') {
+            throw new InvalidTrainingParticipationException('A correction records why the confirmed fact was wrong.');
+        }
+
+        return DB::transaction(function () use ($actor, $companyId, $factId, $draft, $reason, $tenant): TrainingParticipationFact {
+            $fact = $this->fact($tenant, $companyId, $factId);
+            $session = $this->session($tenant, $companyId, (int) $fact->session_id);
+            $this->authorizeEvent($actor, $this->event($tenant, $companyId, (int) $session->event_id), true);
+
+            if ($fact->confirmed_at === null) {
+                throw new InvalidTrainingParticipationException('Only a confirmed participation fact is corrected; revise the draft instead.');
+            }
+            if (TrainingParticipationFact::query()->forCompany($tenant, $companyId)
+                ->where('supersedes_fact_id', (int) $fact->id)->exists()) {
+                throw new InvalidTrainingParticipationException('This fact has already been corrected; correct the correction.');
+            }
+
+            $correction = TrainingParticipationFact::query()->forCompany($tenant, $companyId)->create([
+                ...$this->payload($actor, $session, $draft),
+                'tenant_id' => $tenant,
+                'company_entity_id' => $companyId,
+                'event_id' => (int) $fact->event_id,
+                'participant_id' => (int) $fact->participant_id,
+                'session_id' => (int) $fact->session_id,
+                'supersedes_fact_id' => (int) $fact->id,
+                'correction_reason' => trim($reason),
+                'confirmed_by_user_id' => $actor->getKey(),
+                'confirmed_capability' => self::REWORK,
+                'confirmed_at' => now(),
+            ]);
+
+            return $correction->refresh();
+        });
     }
 
     private function requireUnconfirmed(TrainingParticipationFact $fact): void

@@ -45,7 +45,7 @@ final class TrainingEffectivenessCheckpoints
     {
         $now = $this->moment($asOf);
 
-        $facts = TrainingParticipationFact::query()->forCompany($tenantId, $companyEntityId)
+        $facts = TrainingParticipationFact::query()->forCompany($tenantId, $companyEntityId)->current()
             ->where('attendance', AttendanceStatus::Present)
             ->orderBy('participant_id')
             ->get();

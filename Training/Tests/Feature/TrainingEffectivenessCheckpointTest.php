@@ -26,6 +26,7 @@ use App\Domains\People\Training\Exceptions\InvalidTrainingEffectivenessException
 use App\Domains\People\Training\Livewire\Effectiveness\Index as EffectivenessIndex;
 use App\Domains\People\Training\Models\TrainingEffectivenessAnswer;
 use App\Domains\People\Training\Models\TrainingEffectivenessReminder;
+use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEffectivenessCheckpoints;
 use App\Domains\People\Training\Services\TrainingEventStore;
@@ -409,4 +410,30 @@ test('the page shows a HOD nothing for another department', function (): void {
         ->assertSee('No effectiveness question is open');
 
     Carbon::setTestNow();
+});
+
+test('a correction that says absent closes the checkpoint the original opened', function (): void {
+    $f = checkpointFixture();
+    $participantId = checkpointAttend($f);
+
+    // Control: present, so the thirty-day checkpoint is due.
+    expect(checkpointOpen($f, 31))->not->toBe([]);
+
+    $store = app(TrainingParticipationStore::class);
+    $fact = TrainingParticipationFact::query()->forCompany($f['tenantId'], $f['companyId'])
+        ->where('participant_id', $participantId)->sole();
+
+    Carbon::setTestNow($f['event']->ends_at->copy()->addHours(2));
+    $store->confirm($f['hr'], $f['companyId'], (int) $fact->id);
+    $store->correct($f['hr'], $f['companyId'], (int) $fact->id, new ParticipationFactDraft(
+        attendance: AttendanceStatus::Absent,
+        actualMinutes: 0,
+        source: 'manual',
+        sourceReference: (string) Str::uuid(),
+    ), 'Signed in for a colleague; they were not there.');
+    Carbon::setTestNow();
+
+    // The original still says Present and is still in the table. The reader
+    // asks what happened, and what happened is the correction.
+    expect(checkpointOpen($f, 31))->toBe([]);
 });
