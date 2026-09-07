@@ -61,6 +61,18 @@ return [
          * to exist. `unlock` is declared and already means this in People.
          */
         'people.training.budget.unlock',
+
+        /*
+         * The 30/60/90-day effectiveness roll-up (0013-b).
+         *
+         * The aggregate is the RESOURCE, not the verb, matching
+         * people.training.evaluation-aggregate.view above. #303 asked for
+         * people.training.effectiveness.view-aggregate, but `view-aggregate`
+         * is not a declared verb and the grammar reads the last segment as
+         * the action — that key would be dropped from the registry and denied
+         * for everybody, quietly. Recorded on the issue.
+         */
+        'people.training.effectiveness-aggregate.view',
     ],
 
     'roles' => [
@@ -80,6 +92,7 @@ return [
                 'people.training.evaluation-aggregate.view',
                 'people.training.budget.view',
                 'people.training.budget.manage',
+                'people.training.effectiveness-aggregate.view',
             ],
         ],
         'people_training_trainer' => [

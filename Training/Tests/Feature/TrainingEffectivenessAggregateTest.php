@@ -1,7 +1,6 @@
 <?php
 
 use App\Base\Authz\Enums\PrincipalType;
-use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
@@ -129,7 +128,7 @@ function aggregateEvent(array $f, string $courseTitle, int $endedDaysAgo): objec
 }
 
 /** An attendee of the event, in the fixture's department. */
-function aggregateAttendee(array $f, object $event, string $name): int
+function aggregateAttendee(array $f, object $event, string $name, AttendanceStatus $attendance = AttendanceStatus::Present): int
 {
     $employee = Employee::factory()->create([
         'company_id' => $f['companyId'], 'department_id' => $f['department']->id,
@@ -146,7 +145,7 @@ function aggregateAttendee(array $f, object $event, string $name): int
         $f['tenantId'], $f['companyId'], WorkforceResourceType::Employee, (string) $employee->id,
         new ExternalReference(WorkforceResourceType::Employee, (string) $employee->id),
     ), new ParticipationFactDraft(
-        attendance: AttendanceStatus::Present, actualMinutes: 240,
+        attendance: $attendance, actualMinutes: $attendance === AttendanceStatus::Present ? 240 : 0,
         source: 'manual', sourceReference: (string) Str::uuid(),
     ));
     Carbon::setTestNow();
@@ -270,6 +269,28 @@ test('the page renders for HR and refuses a user without the capability', functi
         ->assertSee('Rendered course')
         ->assertSee('Applied in full.');
 
-    expect(fn () => Livewire::actingAs($f['employeeUser'])->test(AggregateIndex::class))
-        ->toThrow(AuthorizationDeniedException::class);
+    // Asserted through the route, not by instantiating the component: the
+    // `authz:` middleware is what actually guards the page in production, and
+    // Livewire wraps a render-time refusal in a ViewException, which would
+    // make the assertion say less than it appears to.
+    test()->actingAs($f['hr'])
+        ->get(route('people.training.effectiveness.summary'))
+        ->assertOk();
+    test()->actingAs($f['employeeUser'])
+        ->get(route('people.training.effectiveness.summary'))
+        ->assertForbidden();
+});
+
+test('somebody who did not attend is not counted in the denominator', function (): void {
+    $f = aggregateFixture();
+    $event = aggregateEvent($f, 'Half-attended course', 31);
+    $present = aggregateAttendee($f, $event, 'Present One');
+    aggregateAttendee($f, $event, 'Absent Two', AttendanceStatus::Absent);
+    aggregateAnswer($f, $present, EffectivenessCheckpoint::Day30, 4, 'Applied.');
+
+    // The absentee was never asked, so counting them would report a HOD who
+    // ignored a question nobody put to them — a 50% rate instead of 100%.
+    $row = aggregateRow($f, 'Half-attended course');
+    expect($row->checkpoints[EffectivenessCheckpoint::Day30->value]->opened)->toBe(1)
+        ->and($row->checkpoints[EffectivenessCheckpoint::Day30->value]->answerRate)->toBe(100);
 });

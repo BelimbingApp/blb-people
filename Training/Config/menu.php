@@ -2,6 +2,13 @@
 
 return [
     'items' => [[
+        'id' => 'people.training-effectiveness-summary',
+        'label' => 'Training effectiveness summary',
+        'icon' => 'heroicon-o-presentation-chart-line',
+        'route' => 'people.training.effectiveness.summary',
+        'permission' => 'people.training.effectiveness-aggregate.view',
+        'parent' => 'people',
+    ], [
         'id' => 'people.training-effectiveness',
         'label' => 'Training effectiveness',
         'icon' => 'heroicon-o-clipboard-document-check',
