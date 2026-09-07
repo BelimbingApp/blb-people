@@ -60,6 +60,14 @@ return [
         'condition' => 'people.training.event-audience',
         'parent' => 'people',
     ], [
+        'id' => 'people.training-calendar',
+        'label' => 'Training calendar',
+        'icon' => 'heroicon-o-calendar',
+        'route' => 'people.training.calendar',
+        'permission' => 'people.training.calendar.view',
+        'condition' => 'people.training.calendar-audience',
+        'parent' => 'people',
+    ], [
         'id' => 'people.hr-governance',
         'label' => 'HR governance',
         'icon' => 'heroicon-o-clipboard-document-check',

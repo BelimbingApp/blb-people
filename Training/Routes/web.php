@@ -2,6 +2,7 @@
 
 use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingAudience;
 use App\Domains\People\Training\Livewire\Budget\Index as BudgetIndex;
+use App\Domains\People\Training\Livewire\Calendar\Index as CalendarIndex;
 use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
 use App\Domains\People\Training\Livewire\Effectiveness\Index as EffectivenessIndex;
 use App\Domains\People\Training\Livewire\EffectivenessAggregate\Index as EffectivenessAggregateIndex;
@@ -25,6 +26,10 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/training-events', Index::class)
         ->middleware('authz:people.training.event.view', AuthorizeTrainingAudience::class)
         ->name('people.training.events.index');
+
+    Route::get('people/training-calendar', CalendarIndex::class)
+        ->middleware('authz:people.training.calendar.view', AuthorizeTrainingAudience::class.':people.training.calendar.view')
+        ->name('people.training.calendar');
 
     // The HR audience is asserted inside the component (SkillAudience), so a
     // capability holder outside the HR audience is refused at mount, not listed.

@@ -36,6 +36,17 @@ return [
          * the refusal is the absence of this grant rather than a special case.
          */
         'people.training.evaluation.view',
+
+        /*
+         * The training calendar read. A capability of its own rather than
+         * reusing event.view, for the same reason evaluation.view states:
+         * granting employees the events capability to reach the calendar
+         * would widen menu and route access (catalog, schedule management
+         * surfaces) as a side effect. Trainers hold it so they can see the
+         * events they teach; the calendar discloses nothing an employee
+         * cannot already see, and enrolment is always self-only.
+         */
+        'people.training.calendar.view',
         'people.training.evaluation.submit',
         'people.training.evaluation-aggregate.view',
 
@@ -78,6 +89,7 @@ return [
     'roles' => [
         'people_hr' => [
             'capabilities' => [
+                'people.training.calendar.view',
                 'people.training.event.view',
                 'people.training.evaluation.view',
                 'people.training.event.manage',
@@ -98,10 +110,11 @@ return [
         'people_training_trainer' => [
             'name' => 'People Training Trainer',
             'description' => 'Records participation for explicitly assigned training events.',
-            'capabilities' => ['people.training.participation.manage', 'people.training.participation.evidence.assign'],
+            'capabilities' => ['people.training.calendar.view', 'people.training.participation.manage', 'people.training.participation.evidence.assign'],
         ],
         'people_hod' => [
             'capabilities' => [
+                'people.training.calendar.view',
                 'people.training.event.view',
                 'people.training.evaluation.view',
                 'people.training.plan.submit',
@@ -118,6 +131,7 @@ return [
             // Submitting is drafting for oneself; the request page pins the
             // requestor to the bound employee (0005-i).
             'capabilities' => [
+                'people.training.calendar.view',
                 'people.training.evaluation.view',
                 'people.training.passport.view',
                 'people.training.request.submit',
