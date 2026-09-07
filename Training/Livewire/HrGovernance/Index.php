@@ -9,11 +9,13 @@ use App\Core\User\Models\User;
 use App\Domains\People\Performance\Models\PerformanceReviewEscalation;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
+use App\Domains\People\Skills\Enums\ReminderDeliveryState;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Exceptions\InvalidReassessmentRequestException;
 use App\Domains\People\Skills\Models\RequirementProfile;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillReassessmentRequest;
+use App\Domains\People\Skills\Models\SkillReminderDelivery;
 use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillReassessmentStore;
@@ -279,9 +281,27 @@ final class Index extends Component
             'evidenceSubmissions' => $evidence,
             'evidenceEmployees' => $this->evidenceEmployeeNames($companyEntityId, $evidence),
             'escalations' => $companyEntityId === null ? collect() : $this->escalatedReviews($companyEntityId),
+            'failedDeliveries' => $companyEntityId === null ? collect() : $this->failedDeliveries($companyEntityId),
             'passportEmployees' => $companyEntityId === null ? [] : $this->passportEmployees($companyEntityId),
             'passportDocuments' => $companyEntityId === null ? [] : $this->passportDocuments($companyEntityId),
         ]);
+    }
+
+    /**
+     * Skill reminder deliveries that failed (0009-g), newest first, the acting
+     * company only. Listed for visibility; the retry is the operator's
+     * `people:reminders-send --retry`, not a page action.
+     *
+     * @return Collection<int, SkillReminderDelivery>
+     */
+    private function failedDeliveries(int $companyEntityId): Collection
+    {
+        return SkillReminderDelivery::query()
+            ->forCompany($this->tenantId(), $companyEntityId)
+            ->where('state', ReminderDeliveryState::Failed->value)
+            ->orderByDesc('attempted_at')
+            ->orderByDesc('id')
+            ->get();
     }
 
     /**

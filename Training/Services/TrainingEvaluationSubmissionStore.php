@@ -210,7 +210,7 @@ final class TrainingEvaluationSubmissionStore
             return [];
         }
 
-        $presentParticipantIds = TrainingParticipationFact::query()->forCompany($tenant, $companyId)
+        $presentParticipantIds = TrainingParticipationFact::query()->forCompany($tenant, $companyId)->current()
             ->whereIn('participant_id', $participants->pluck('id')->all())
             ->where('attendance', AttendanceStatus::Present->value)
             ->pluck('participant_id')->map(fn ($id): int => (int) $id)->unique();
@@ -272,7 +272,7 @@ final class TrainingEvaluationSubmissionStore
 
     private function attendedEvent(int $tenant, int $companyId, TrainingParticipant $participant): TrainingEvent
     {
-        $attended = TrainingParticipationFact::query()->forCompany($tenant, $companyId)
+        $attended = TrainingParticipationFact::query()->forCompany($tenant, $companyId)->current()
             ->where('participant_id', $participant->id)
             ->where('attendance', AttendanceStatus::Present->value)->exists();
         if (! $attended) {

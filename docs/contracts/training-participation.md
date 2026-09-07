@@ -53,6 +53,24 @@ no-shows, and cancellation remain intelligible.
 | Evidence | Opaque references to attendance, result, certificate, or completion evidence. Attachments remain governed documents; filenames, links, and contents are not embedded into broadly readable summaries or logs. |
 | Provenance and confirmation | Source, accountable actor and capability, recorded time, confirmation state, confirmer and confirmation time. Imported or paper-captured facts also retain source provenance and duplicate-prevention identity. |
 
+## Event aggregates (0011-e)
+
+The event register's per-event counts are derived from participant records by
+`DatabaseTrainingParticipationSummary`, never entered:
+
+| Count | Definition |
+|---|---|
+| enrolled | participant rows of the event without `withdrawn_at` |
+| attended | enrolled participants with at least one session fact whose attendance is `present` |
+| completed | attended participants whose latest recorded fact carries an applicable post-test with a score; a missing or not-applicable post-test is not a completion |
+| passed | completed participants whose post-test score is at or above its pass mark |
+
+The pass rate is `passed / completed`; with zero completions it is null and
+the register shows "n/a", never 0%. A summary that cannot be read (the
+provider-outage path, `UnavailableTrainingParticipationSummary`) is
+unavailable and shown as such, never as zeros. Counts are pinned to the
+tenant and company; an event the company does not own yields no summary.
+
 Workbook helper values, dashboard totals, passport rows, and printable forms are
 projections over these canonical facts. They are not editable participant
 records. Imports preserve source identity and evidence and quarantine ambiguous
@@ -182,12 +200,21 @@ and a second fact for the same participant/session are refused. Unknown learning
 results remain null, not-applicable is explicit, and zero is a real score against
 the supplied maximum/pass mark. Actual minutes never default to scheduled hours.
 
-This slice does not implement nomination lifecycle, confirmed-fact corrections,
-request/plan allocations, evaluation, participant read/export or passport
-integration. A confirmed correction is refused until an append-only
-correction operation is provided. Evidence fields hold opaque references only;
-download and export remain separate governed operations. The existing aggregate
-and self-standing readers are not replaced or marked complete by this write slice.
+This slice does not implement nomination lifecycle, request/plan allocations,
+evaluation, participant read/export or passport integration. Evidence fields
+hold opaque references only; download and export remain separate governed
+operations. The existing aggregate and self-standing readers are not replaced
+or marked complete by this write slice.
+
+A confirmed fact is corrected by appending, never by updating (0011-d). HR
+holds `people.training.participation.rework` and calls
+`TrainingParticipationStore::correct()`, which writes a new row carrying
+`supersedes_fact_id` and a `correction_reason`; the original stays exactly as
+it was recorded, and the database triggers that make a confirmed row immutable
+are unchanged. Each row may be superseded once, so a further correction
+supersedes the correction and the chain stays linear. Readers that answer what
+happened use `TrainingParticipationFact::current()`; readers asking whether
+anything here was ever confirmed deliberately do not.
 
 ## Employee evidence submission slice (issue #267)
 

@@ -42,7 +42,7 @@ Shipped behaviour, not policy to confirm. `TrainingEffectivenessStore` refuses e
 | Rule | Refused where |
 | --- | --- |
 | No self-review: the reviewer named on a stage cannot be the participant being reviewed | `openStage()`, plus an insert/update trigger joining the review to its participant |
-| No outcome or closure on your own training: the acting user's projected employee cannot be the reviewed participant | `openStage()`, `recordOutcome()`, `closeWithReassessment()`, `closeAsNonAssessable()` |
+| No outcome or closure on your own training: the acting user's projected employee cannot be the reviewed participant | `openStage()`, `recordOutcome()`, `closeWithReassessment()`, `closeAsNonAssessable()`, `openFollowUpAction()` |
 | No closure on the reviewer's own reassessment: the linked reassessment's assessor cannot be the review's reviewer | `closeWithReassessment()` |
 
 A reviewer must also be an active employee of the company the review belongs to; an employee of a sibling company in the same tenant is refused.
@@ -67,6 +67,37 @@ Verified post level and improvement are derived from the linked assessment. Part
 | Partially Effective | Some intended workplace result is supported, with remaining need | Keep explicit further action and subsequent review/development follow-up |
 | Not Yet Effective | Intended workplace result has not yet been established | Remain open, schedule another review or create/revise a development action |
 | Not Applicable | Applicability has been assessed and documented | Evidence is still required; this label is not automatic exemption from skill-gap closure |
+
+
+### The follow-up a review owes — shipped behaviour
+
+`further_action` is free text, so an outcome of Partially Effective or Not Yet
+Effective used to end in a sentence with nobody's name on it. `openFollowUpAction()`
+links the review to the Skills development action that carries an owner, a due
+date and a reassessment, and `people_training_effectiveness_reviews.development_action_id`
+records the link.
+
+The action's subject is never the caller's to choose: the employee comes from
+the reviewed participant, the starting level from the verified post-training
+level or else the review's baseline, the target level from the review, and the
+skill from the skills the participant's own course covers — named by the caller
+when the course covers more than one. The caller supplies only what a
+development action needs and a review cannot know, such as who owns the work
+and when it is due.
+
+| Rule | Refused where |
+| --- | --- |
+| Only Partially Effective and Not Yet Effective owe a follow-up | `openFollowUpAction()` |
+| One review carries one link; revise the action rather than opening a second | `openFollowUpAction()` |
+| A closed review is a historical fact: open the follow-up before closing | `openFollowUpAction()` |
+| A linked existing action must be open and belong to the same employee and a course skill | `openFollowUpAction()` |
+| A linked action must belong to the review's own tenant and company | `openFollowUpAction()`, plus an insert/update trigger on the review row |
+
+The effectiveness roll-up reports open follow-up per course as the linked
+actions whose closure status is `open`, `pending_reassessment` or
+`further_action_required`, read from the action rather than from the review:
+the review hands the work to Skills and stops being the authority on whether it
+is finished. The drill-through names exactly those action ids.
 
 The retained 0013 closure rule requires the participant evaluation, reviewed workplace evidence, a new evidence-backed verified assessment, and satisfaction of the applicable target/effectiveness rule before skill-linked training closes as effective. Missing or unverified evidence must remain explicit. Cancellation, passage of 90 days, a Final-stage label or delivery completion does not satisfy those gates.
 
