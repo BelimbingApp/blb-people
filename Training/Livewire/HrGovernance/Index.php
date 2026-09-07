@@ -7,6 +7,8 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Performance\Models\PerformanceReviewEscalation;
+use App\Domains\People\Provider\Data\WorkforceSubject;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Exceptions\InvalidReassessmentRequestException;
 use App\Domains\People\Skills\Models\RequirementProfile;
@@ -15,16 +17,20 @@ use App\Domains\People\Skills\Models\SkillReassessmentRequest;
 use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillReassessmentStore;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingPlanStatus;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEvidenceSubmissionException;
+use App\Domains\People\Training\Exceptions\TrainingPassportDenied;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingEvidenceSubmission;
 use App\Domains\People\Training\Models\TrainingParticipant;
+use App\Domains\People\Training\Models\TrainingPassportDocument;
 use App\Domains\People\Training\Models\TrainingPlan;
 use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Services\TrainingEvidenceSubmissionStore;
+use App\Domains\People\Training\Services\TrainingPassportDocumentStore;
 use App\Domains\People\Training\Services\TrainingPlanStore;
 use App\Domains\People\Training\Services\TrainingRequestStore;
 use Illuminate\Contracts\View\View;
@@ -221,6 +227,31 @@ final class Index extends Component
         }
     }
 
+    /**
+     * Generate the printable training passport for an employee listed in the
+     * selected company's directory (0014-a). The id must be one this page
+     * lists: a request-supplied id outside the company is a 404 before the
+     * store is asked, and the store then applies its own HR check.
+     */
+    public function generatePassportPdf(int $employeeId): void
+    {
+        $companyEntityId = $this->requireCompany();
+        abort_unless(array_key_exists($employeeId, $this->passportEmployees($companyEntityId)), 404);
+
+        $subject = new WorkforceSubject(
+            $this->tenantId(),
+            $companyEntityId,
+            WorkforceResourceType::Employee,
+            (string) $employeeId,
+        );
+
+        try {
+            app(TrainingPassportDocumentStore::class)->generate($this->user(), $subject);
+        } catch (TrainingPassportDenied) {
+            abort(403);
+        }
+    }
+
     public function render(): View
     {
         $this->authorizeView();
@@ -248,7 +279,42 @@ final class Index extends Component
             'evidenceSubmissions' => $evidence,
             'evidenceEmployees' => $this->evidenceEmployeeNames($companyEntityId, $evidence),
             'escalations' => $companyEntityId === null ? collect() : $this->escalatedReviews($companyEntityId),
+            'passportEmployees' => $companyEntityId === null ? [] : $this->passportEmployees($companyEntityId),
+            'passportDocuments' => $companyEntityId === null ? [] : $this->passportDocuments($companyEntityId),
         ]);
+    }
+
+    /**
+     * Employees of the selected company as the directory lists them, keyed by
+     * employee entity id: the set an HR user may generate a passport for.
+     *
+     * @return array<int, string>
+     */
+    private function passportEmployees(int $companyEntityId): array
+    {
+        return collect(app(WorkforceSubjects::class)->employees($companyEntityId))
+            ->filter(fn ($employee): bool => $employee->active)
+            ->sortBy(fn ($employee): string => $employee->displayName)
+            ->mapWithKeys(fn ($employee): array => [(int) $employee->reference->externalId => (string) $employee->displayName])
+            ->all();
+    }
+
+    /**
+     * Latest retained passport document per employee of the company.
+     *
+     * @return array<int, TrainingPassportDocument>
+     */
+    private function passportDocuments(int $companyEntityId): array
+    {
+        return TrainingPassportDocument::query()
+            ->forCompany($this->tenantId(), $companyEntityId)
+            ->whereNotNull('media_asset_id')
+            ->unexpired()
+            ->orderByDesc('id')
+            ->get()
+            ->unique('employee_entity_id')
+            ->keyBy('employee_entity_id')
+            ->all();
     }
 
     /**

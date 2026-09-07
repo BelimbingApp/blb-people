@@ -16,10 +16,10 @@ test('People contributes only valid organisation audience capabilities to the co
 
     expect($peopleRejected)->toBe([])
         ->and($registry->forDomain('people'))->toContain(
-            'people.organisation.audience.executive.view',
-            'people.organisation.audience.hod.view',
-            'people.organisation.audience.employee.view',
-            'people.organisation.audience.hr.view',
-            'people.organisation.audience.auditor.view',
+            'people.organisation.executive.view',
+            'people.organisation.hod.view',
+            'people.organisation.employee.view',
+            'people.organisation.hr.view',
+            'people.organisation.auditor.view',
         );
 });

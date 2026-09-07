@@ -1,5 +1,6 @@
 <?php
 
+use App\Domains\People\Training\Http\Controllers\TrainingPassportDocumentController;
 use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingAudience;
 use App\Domains\People\Training\Livewire\Budget\Index as BudgetIndex;
 use App\Domains\People\Training\Livewire\Calendar\Index as CalendarIndex;
@@ -19,6 +20,14 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/training/team-passports/{employeeId?}', TeamPassports::class)
         ->middleware('authz:'.TeamPassports::VIEW_CAPABILITY)
         ->name('people.training.team-passports');
+
+    // Download of a generated passport PDF (0014-a). The capability gets a
+    // caller to the door; the store decides whether this document is theirs
+    // (the employee it describes, or HR of the company) and still retained.
+    Route::get('people/training/passport/documents/{documentId}', TrainingPassportDocumentController::class)
+        ->where('documentId', '[0-9]+')
+        ->middleware('authz:people.training.passport.view')
+        ->name('people.training.passport.document');
 
     Route::get('people/training-catalog', CatalogIndex::class)
         ->middleware('authz:people.training.event.view', AuthorizeTrainingAudience::class)
