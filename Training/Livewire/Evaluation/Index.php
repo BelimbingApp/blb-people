@@ -20,6 +20,9 @@ final class Index extends Component
 
     public ?int $selectedEventId = null;
 
+    /** Per-request memo; deliberately not Livewire state. */
+    private ?bool $identityMissing = null;
+
     /**
      * Livewire property => stored column, for criteria version 0012-g.v1.
      *
@@ -154,15 +157,34 @@ final class Index extends Component
         return view('people::livewire.evaluation.index', [
             'companies' => $this->allowedCompanies(),
             'events' => $this->events(),
+            'employeeIdentityMissing' => $this->employeeIdentityMissing(),
         ]);
     }
 
     /** @return list<array<string, mixed>> */
     private function events(): array
     {
-        return $this->companyEntityId === null
+        return $this->companyEntityId === null || $this->employeeIdentityMissing()
             ? []
             : app(TrainingEvaluationSubmissionStore::class)->visibleEvents($this->user(), $this->requireCompany());
+    }
+
+    /**
+     * Whether this account is authorized here but has no employee identity.
+     *
+     * Asking before visibleEvents() is what keeps the first render from dying:
+     * the store denies inside scope(), and that exception used to escape
+     * mount() as an unhandled 500 (#434). Memoised per request because
+     * mount() and render() both ask.
+     */
+    private function employeeIdentityMissing(): bool
+    {
+        if ($this->companyEntityId === null) {
+            return false;
+        }
+
+        return $this->identityMissing ??= ! app(TrainingEvaluationSubmissionStore::class)
+            ->hasEmployeeIdentity($this->user(), $this->requireCompany());
     }
 
     private function selectFirstEvent(): void
