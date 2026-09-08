@@ -9,16 +9,22 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
+use App\Domains\People\Training\Data\TrainingMigrationFieldMappingDraft;
 use App\Domains\People\Training\Data\TrainingMigrationSourceDraft;
 use App\Domains\People\Training\Enums\MigrationSourceKind;
+use App\Domains\People\Training\Enums\MigrationWorkflow;
+use App\Domains\People\Training\Enums\MigrationWriter;
 use App\Domains\People\Training\Enums\PilotSignoffRole;
 use App\Domains\People\Training\Exceptions\InvalidPilotSignoffException;
+use App\Domains\People\Training\Exceptions\InvalidTrainingMigrationMappingException;
 use App\Domains\People\Training\Exceptions\InvalidTrainingMigrationSourceException;
 use App\Domains\People\Training\Models\TrainingMigrationSource;
 use App\Domains\People\Training\Models\TrainingPilotSignoff;
 use App\Domains\People\Training\Services\DepartmentPilotReadiness;
 use App\Domains\People\Training\Services\PilotSignoffStore;
+use App\Domains\People\Training\Services\TrainingMigrationMappingStore;
 use App\Domains\People\Training\Services\TrainingMigrationSourceStore;
+use DateTimeImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -27,12 +33,13 @@ use Livewire\Component;
 use Livewire\WithPagination;
 
 /**
- * The migration source inventory page (0015-a) plus department pilot
- * readiness and HOD/HR sign-off (0015-c).
+ * The migration source inventory page (0015-a), field/code mapping and writer
+ * windows (0015-b), plus department pilot readiness and HOD/HR sign-off (0015-c).
  *
- * Inventory mutations stay on {@see TrainingMigrationSourceStore}. Pilot
- * sign-off stays on {@see PilotSignoffStore}. The page chooses one unit at
- * a time for the readiness table.
+ * Inventory mutations stay on {@see TrainingMigrationSourceStore}. Mapping and
+ * writer windows stay on {@see TrainingMigrationMappingStore}. Pilot sign-off
+ * stays on {@see PilotSignoffStore}. The page chooses one unit at a time for
+ * the readiness table. Store refusals remain authoritative over UI courtesy.
  */
 final class Index extends Component
 {
@@ -94,6 +101,28 @@ final class Index extends Component
     /** @var array<int, string> */
     public array $signNote = [];
 
+    public string $mappingSourceId = '';
+
+    public string $mappingSourceField = '';
+
+    public string $mappingSourceCode = '';
+
+    public string $mappingTargetTable = '';
+
+    public string $mappingTargetColumn = '';
+
+    public string $mappingDedupRule = '';
+
+    public string $windowWorkflow = MigrationWorkflow::Assessments->value;
+
+    public string $windowWriter = MigrationWriter::Legacy->value;
+
+    public string $windowStartsOn = '';
+
+    public string $windowEndsOn = '';
+
+    public string $mappingSignNote = '';
+
     /** @var array<string, string>|null */
     private ?array $allowedCompanies = null;
 
@@ -128,20 +157,21 @@ final class Index extends Component
 
     public function render(
         TrainingMigrationSourceStore $store,
+        TrainingMigrationMappingStore $mappings,
         AuthorizationService $authorization,
         DepartmentPilotReadiness $readiness,
     ): View {
         $this->authorizeView();
         $companies = $this->allowedCompanies();
         $companyEntityId = $this->companyEntityId === null ? null : $this->requireCompany();
+        $user = $this->user();
+        $actor = Actor::forUser($user);
         $units = $companyEntityId === null ? [] : $this->unitsForCompany($companyEntityId);
         $unitId = $this->organizationUnitEntityId;
         if ($unitId !== null && ! array_key_exists($unitId, $units)) {
             $unitId = null;
             $this->organizationUnitEntityId = null;
         }
-
-        $actor = Actor::forUser($this->user());
 
         $employees = $companyEntityId === null ? collect() : collect(app(WorkforceSubjects::class)->employees($companyEntityId))
             ->mapWithKeys(fn ($employee): array => [(int) $employee->reference->externalId => $employee->displayName])
@@ -161,6 +191,11 @@ final class Index extends Component
             'kinds' => MigrationSourceKind::cases(),
             'mayManage' => $authorization->can($actor, TrainingMigrationSourceStore::MANAGE)->allowed,
             'signed' => $companyEntityId !== null && $store->signedInventory($companyEntityId),
+            'mappings' => $companyEntityId === null ? collect() : $mappings->mappings($user, $companyEntityId),
+            'windows' => $companyEntityId === null ? collect() : $mappings->writerWindows($user, $companyEntityId),
+            'mappingSignoff' => $companyEntityId === null ? null : $mappings->mappingSignoff($user, $companyEntityId),
+            'workflows' => MigrationWorkflow::cases(),
+            'writers' => MigrationWriter::cases(),
             'units' => $units,
             'readinessRows' => $companyEntityId === null || $unitId === null
                 ? []
@@ -257,6 +292,87 @@ final class Index extends Component
         session()->flash('migration-status', __('The source was signed.'));
     }
 
+    /** Append one field or code mapping to the register. */
+    public function mapField(TrainingMigrationMappingStore $store): void
+    {
+        $companyEntityId = $this->requireCompany();
+
+        try {
+            $store->map($this->user(), $companyEntityId, new TrainingMigrationFieldMappingDraft(
+                sourceId: (int) $this->mappingSourceId,
+                sourceField: $this->mappingSourceField,
+                sourceCode: $this->mappingSourceCode,
+                targetTable: $this->mappingTargetTable,
+                targetColumn: $this->mappingTargetColumn,
+                dedupRule: $this->mappingDedupRule,
+            ));
+        } catch (InvalidTrainingMigrationMappingException $exception) {
+            $this->addError('mappingForm', $exception->getMessage());
+
+            return;
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        }
+
+        $this->reset('mappingSourceField', 'mappingSourceCode', 'mappingTargetColumn', 'mappingDedupRule');
+        session()->flash('migration-status', __('The mapping was recorded.'));
+    }
+
+    /** Declare the authoritative writer of one workflow for a cutover window. */
+    public function declareWriter(TrainingMigrationMappingStore $store): void
+    {
+        $companyEntityId = $this->requireCompany();
+        $workflow = MigrationWorkflow::tryFrom($this->windowWorkflow);
+        $writer = MigrationWriter::tryFrom($this->windowWriter);
+        $startsOn = $this->date($this->windowStartsOn);
+        $endsOn = trim($this->windowEndsOn) === '' ? null : $this->date($this->windowEndsOn);
+        if ($workflow === null || $writer === null || $startsOn === null || (trim($this->windowEndsOn) !== '' && $endsOn === null)) {
+            $this->addError('windowForm', __('Choose a workflow, a writer and a start date (and a valid end date, if any).'));
+
+            return;
+        }
+
+        try {
+            $store->declareWriter($this->user(), $companyEntityId, $workflow, $writer, $startsOn, $endsOn);
+        } catch (InvalidTrainingMigrationMappingException $exception) {
+            $this->addError('windowForm', $exception->getMessage());
+
+            return;
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        }
+
+        $this->reset('windowStartsOn', 'windowEndsOn');
+        session()->flash('migration-status', __('The writer window was declared.'));
+    }
+
+    /** Sign the company's mapping set; nothing is appended to either register afterwards. */
+    public function signMappings(TrainingMigrationMappingStore $store): void
+    {
+        $companyEntityId = $this->requireCompany();
+
+        try {
+            $store->signMappings($this->user(), $companyEntityId, $this->mappingSignNote);
+        } catch (InvalidTrainingMigrationMappingException $exception) {
+            $this->addError('mappingSign', $exception->getMessage());
+
+            return;
+        } catch (AuthorizationDeniedException) {
+            abort(403);
+        }
+
+        $this->reset('mappingSignNote');
+        session()->flash('migration-status', __('The mapping set was signed.'));
+    }
+
+    private function date(string $value): ?DateTimeImmutable
+    {
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', trim($value));
+
+        return $date !== false && $date->format('Y-m-d') === trim($value) ? $date : null;
+    }
+
+
     public function signAsHod(PilotSignoffStore $store): void
     {
         $companyEntityId = $this->requireCompany();
@@ -336,6 +452,15 @@ final class Index extends Component
                 : (string) $row->role);
     }
 
+    private function requireUnit(): int
+    {
+        $companyEntityId = $this->requireCompany();
+        $unitId = $this->organizationUnitEntityId;
+        abort_unless($unitId !== null && array_key_exists($unitId, $this->unitsForCompany($companyEntityId)), 404);
+
+        return $unitId;
+    }
+
     private function resetForm(): void
     {
         $this->reset('showForm', 'editingId', 'sourceKey', 'name', 'format', 'ownerEmployeeEntityId', 'estimatedVolume', 'retentionNote', 'dataQualityNote');
@@ -349,15 +474,6 @@ final class Index extends Component
         abort_unless($companyEntityId !== null && array_key_exists($companyEntityId, $this->allowedCompanies()), 404);
 
         return $companyEntityId;
-    }
-
-    private function requireUnit(): int
-    {
-        $companyEntityId = $this->requireCompany();
-        $unitId = $this->organizationUnitEntityId;
-        abort_unless($unitId !== null && array_key_exists($unitId, $this->unitsForCompany($companyEntityId)), 404);
-
-        return $unitId;
     }
 
     /** HR or a HOD of the company: the capability opens the page, the audience says for which companies. */

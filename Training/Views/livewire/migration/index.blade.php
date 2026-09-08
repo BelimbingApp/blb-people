@@ -203,5 +203,134 @@
                 </form>
             </x-ui.card>
         @endif
+        <x-ui.alert :variant="$mappingSignoff !== null ? 'success' : 'info'">
+            @if ($mappingSignoff !== null)
+                {{ __('The mapping set is signed :at; nothing more can be added to the mappings or the writer windows.', ['at' => $mappingSignoff->signed_at->toDateString()]) }}
+                @if ($mappingSignoff->note)
+                    <span class="block text-muted">{{ $mappingSignoff->note }}</span>
+                @endif
+            @else
+                {{ __('The mapping set is not signed: mappings and writer windows can still be added, and an import cannot rely on them yet.') }}
+            @endif
+        </x-ui.alert>
+
+        <x-ui.card>
+            @if ($mappings->isEmpty())
+                <p class="text-sm text-muted">{{ __('No field or code mapping is recorded for this company yet.') }}</p>
+            @else
+                <x-ui.table :caption="__('Field and code mappings')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Source') }}</x-ui.th>
+                            <x-ui.th>{{ __('Source field') }}</x-ui.th>
+                            <x-ui.th>{{ __('Source code') }}</x-ui.th>
+                            <x-ui.th>{{ __('Target table') }}</x-ui.th>
+                            <x-ui.th>{{ __('Target column') }}</x-ui.th>
+                            <x-ui.th>{{ __('Dedup rule') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($mappings as $mapping)
+                            <tr wire:key="migration-mapping-{{ $mapping->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink font-mono">{{ $mapping->source?->source_key ?? $mapping->training_migration_source_id }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $mapping->source_field }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $mapping->source_code ?? '—' }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink font-mono">{{ $mapping->target_table }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink font-mono">{{ $mapping->target_column }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted">{{ $mapping->dedup_rule }}</td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </x-ui.card>
+
+        <x-ui.card>
+            @if ($windows->isEmpty())
+                <p class="text-sm text-muted">{{ __('No writer window is declared for this company yet: no workflow has an authoritative writer.') }}</p>
+            @else
+                <x-ui.table :caption="__('Authoritative writer windows')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Workflow') }}</x-ui.th>
+                            <x-ui.th>{{ __('Writer') }}</x-ui.th>
+                            <x-ui.th>{{ __('From') }}</x-ui.th>
+                            <x-ui.th>{{ __('To') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($windows as $window)
+                            <tr wire:key="migration-window-{{ $window->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $window->workflow->label() }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $window->writer->label() }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $window->starts_on->toDateString() }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $window->ends_on?->toDateString() ?? __('until further notice') }}</td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </x-ui.card>
+
+        @if ($mayManage && $mappingSignoff === null)
+            <x-ui.card>
+                <h2 class="text-lg font-semibold">{{ __('Map a field or code') }}</h2>
+                @error('mappingForm')
+                    <x-ui.alert variant="danger">{{ $message }}</x-ui.alert>
+                @enderror
+                <div class="grid gap-3 md:grid-cols-2">
+                    <x-ui.select wire:model="mappingSourceId" :label="__('Source')">
+                        <option value="">{{ __('Choose a source') }}</option>
+                        @foreach ($sources as $source)
+                            <option value="{{ $source->id }}">{{ $source->source_key }}</option>
+                        @endforeach
+                    </x-ui.select>
+                    <x-ui.input type="text" wire:model="mappingSourceField" :label="__('Source field')" />
+                    <x-ui.input type="text" wire:model="mappingSourceCode" :label="__('Source code (optional)')" />
+                    <x-ui.input type="text" wire:model="mappingTargetTable" :label="__('Target table')" />
+                    <x-ui.input type="text" wire:model="mappingTargetColumn" :label="__('Target column')" />
+                    <x-ui.input type="text" wire:model="mappingDedupRule" :label="__('Dedup rule')" />
+                </div>
+                <div class="pt-3">
+                    <x-ui.button type="button" variant="primary" wire:click="mapField">{{ __('Record mapping') }}</x-ui.button>
+                </div>
+            </x-ui.card>
+
+            <x-ui.card>
+                <h2 class="text-lg font-semibold">{{ __('Declare an authoritative writer') }}</h2>
+                @error('windowForm')
+                    <x-ui.alert variant="danger">{{ $message }}</x-ui.alert>
+                @enderror
+                <div class="grid gap-3 md:grid-cols-2">
+                    <x-ui.select wire:model="windowWorkflow" :label="__('Workflow')">
+                        @foreach ($workflows as $option)
+                            <option value="{{ $option->value }}">{{ $option->label() }}</option>
+                        @endforeach
+                    </x-ui.select>
+                    <x-ui.select wire:model="windowWriter" :label="__('Writer')">
+                        @foreach ($writers as $option)
+                            <option value="{{ $option->value }}">{{ $option->label() }}</option>
+                        @endforeach
+                    </x-ui.select>
+                    <x-ui.input type="date" wire:model="windowStartsOn" :label="__('From')" />
+                    <x-ui.input type="date" wire:model="windowEndsOn" :label="__('To (leave empty for until further notice)')" />
+                </div>
+                <div class="pt-3">
+                    <x-ui.button type="button" variant="primary" wire:click="declareWriter">{{ __('Declare window') }}</x-ui.button>
+                </div>
+            </x-ui.card>
+
+            <x-ui.card>
+                <h2 class="text-lg font-semibold">{{ __('Sign the mapping set') }}</h2>
+                <p class="text-sm text-muted">{{ __('Signing closes both registers for this company: no mapping or writer window can be added afterwards.') }}</p>
+                @error('mappingSign')
+                    <x-ui.alert variant="danger">{{ $message }}</x-ui.alert>
+                @enderror
+                <x-ui.input type="text" wire:model="mappingSignNote" :placeholder="__('Sign-off note (optional)')" />
+                <div class="pt-3">
+                    <x-ui.button type="button" variant="primary" wire:click="signMappings">{{ __('Sign') }}</x-ui.button>
+                </div>
+            </x-ui.card>
+        @endif
     @endif
 </div>
