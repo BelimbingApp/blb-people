@@ -351,8 +351,8 @@ final class MigrationImport
     /**
      * Resolve a department name to its organization-unit id.
      *
-     * @return int|false|null  int when unique, false when two+ active units share
-     *                         the case-insensitive name, null when none match
+     * @return int|false|null int when unique, false when two+ active units share
+     *                        the case-insensitive name, null when none match
      */
     private function departmentId(int $companyEntityId, string $departmentName): int|false|null
     {
