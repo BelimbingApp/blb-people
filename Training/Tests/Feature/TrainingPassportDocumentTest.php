@@ -244,8 +244,12 @@ function tpdDownload(User $actor, int $documentId): TestResponse
 }
 
 it('stores one document and one audit row whose PDF text carries the certificates, the expired marker, the watermark and the skill level', function (): void {
-    $f = tpdFixture();
+    // Freeze before the fixture: CERT-OWN-EXPIRED uses now()->subDay(), and
+    // TrainingPassportReader marks expired with validUntil->isBefore(today()).
+    // Freezing after the fixture made "yesterday" equal today once the wall
+    // clock crossed the frozen date (postgres-mirror red on #409).
     Carbon::setTestNow('2026-09-07 10:30:00');
+    $f = tpdFixture();
 
     Livewire::actingAs($f['user'])
         ->test(TrainingPassport::class)
