@@ -163,7 +163,9 @@ class Matrix extends Component
         }
 
         $this->reset('scores', 'evidence');
-        session()->flash('status', __('Assessment matrix submitted for HOD verification.'));
+        session()->flash('status', __('Assessment matrix submitted by :name as assessor of record for HOD verification.', [
+            'name' => Auth::user()->name,
+        ]));
     }
 
     public function render(): View
@@ -194,6 +196,7 @@ class Matrix extends Component
             'employees' => $employees,
             'requiredLevels' => $requiredLevels,
             'canAssess' => $this->canAssess(),
+            'assessorName' => Auth::user()->name,
             'hasPublishedScale' => $hasPublishedScale,
             'canManageCatalog' => $canManageCatalog,
             'selectedSkills' => $skills->whereIn('id', $this->selectedSkillIds)->values(),

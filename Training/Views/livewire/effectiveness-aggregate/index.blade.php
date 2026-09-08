@@ -4,6 +4,8 @@
         :subtitle="__('Applied-rating means and answer rates per course at each checkpoint, for events that ended in the last twelve months.')"
     />
 
+    @include('people::livewire.effectiveness.partials.tabs')
+
     @if (session('effectiveness-policy-status'))
         <x-ui.alert variant="success">{{ session('effectiveness-policy-status') }}</x-ui.alert>
     @endif

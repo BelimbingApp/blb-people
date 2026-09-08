@@ -153,6 +153,14 @@ return [
          */
         'people.training.migration.view',
         'people.training.migration.manage',
+
+        /*
+         * Department pilot readiness sign-off (0015-c). View rides on
+         * migration.view. HOD signs the unit when every readiness row is
+         * green; HR signs governance only after that HOD row exists.
+         */
+        'people.training.migration.hod-approve',
+        'people.training.migration.approve',
     ],
 
     'roles' => [
@@ -184,6 +192,7 @@ return [
                 'people.training.kpi.view',
                 'people.training.migration.view',
                 'people.training.migration.manage',
+                'people.training.migration.approve',
             ],
         ],
         'people_training_trainer' => [
@@ -205,6 +214,7 @@ return [
                 'people.training.passport.view-team',
                 'people.training.budget.view',
                 'people.training.migration.view',
+                'people.training.migration.hod-approve',
             ],
         ],
         'people_employee' => [
