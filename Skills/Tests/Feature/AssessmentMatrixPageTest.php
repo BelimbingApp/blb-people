@@ -89,3 +89,50 @@ test('saveMatrix refuses viewers without manage capability', function (): void {
         ->call('saveMatrix')
         ->assertForbidden();
 });
+
+test('the matrix explains a missing published scale before exposing score entry', function (): void {
+    [$tenant, $company] = createTenantWithCompany(['name' => 'Scale Readiness Tenant'], ['name' => 'Scale Readiness Co']);
+    app(TenantContext::class)->set((int) $tenant->id);
+    $hr = User::factory()->create(['company_id' => $company->id]);
+    assessmentPageCompanyEntity((int) $tenant->id, 'Scale Readiness Workforce', (int) $company->id);
+
+    foreach (['people.skill.assessment.view', 'people.skill.assessment.manage', 'people.skill.catalog.view', 'people.skill.catalog.manage', 'people.skill.hr.view'] as $capability) {
+        PrincipalCapability::query()->create([
+            'company_id' => $company->id,
+            'principal_type' => PrincipalType::USER->value,
+            'principal_id' => $hr->id,
+            'capability_key' => $capability,
+            'is_allowed' => true,
+        ]);
+    }
+
+    Livewire::actingAs($hr)
+        ->test(Matrix::class)
+        ->assertSee('Assessments cannot be submitted until a proficiency scale is published.')
+        ->assertSee('Set up the proficiency scale')
+        ->assertSeeHtml('href="'.route('people.skill.catalog.index', ['tab' => 'scale']).'"')
+        ->assertDontSee('Select skills to open the matrix.');
+});
+
+test('an assessor without catalog authority receives HR guidance instead of a setup link', function (): void {
+    [$tenant, $company] = createTenantWithCompany(['name' => 'Assessor Scale Tenant'], ['name' => 'Assessor Scale Co']);
+    app(TenantContext::class)->set((int) $tenant->id);
+    $assessor = User::factory()->create(['company_id' => $company->id]);
+    assessmentPageCompanyEntity((int) $tenant->id, 'Assessor Scale Workforce', (int) $company->id);
+
+    foreach (['people.skill.assessment.view', 'people.skill.assessment.manage', 'people.skill.assessor.view'] as $capability) {
+        PrincipalCapability::query()->create([
+            'company_id' => $company->id,
+            'principal_type' => PrincipalType::USER->value,
+            'principal_id' => $assessor->id,
+            'capability_key' => $capability,
+            'is_allowed' => true,
+        ]);
+    }
+
+    Livewire::actingAs($assessor)
+        ->test(Matrix::class)
+        ->assertSee('Ask People HR to publish the proficiency scale before entering scores.')
+        ->assertDontSee('Set up the proficiency scale')
+        ->assertDontSee('Select skills to open the matrix.');
+});

@@ -137,6 +137,75 @@ test('HR can install the starter pack and administer the catalog end to end', fu
         ->assertHasErrors('skillForm');
 });
 
+test('HR can publish the standard scale from an empty or category-only catalog without overwriting existing data', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    $companyEntityId = catalogPageCompanyEntity($tenantId, 'Partial Catalog Co', (int) $admin->company_id);
+    $custom = app(SkillCatalogStore::class)->defineCategory($companyEntityId, 'demo', 'Edited Demo Category');
+
+    $component = Livewire::actingAs($admin)
+        ->test(Index::class)
+        ->set('tab', 'scale')
+        ->assertSee('Publish the standard 0–5 proficiency scale')
+        ->assertSee('Adds any missing standard skill categories without changing existing categories.')
+        ->assertSee('Level 0 is an assessed result; an employee with no score remains not yet assessed.')
+        ->call('installStarterPack')
+        ->assertHasNoErrors()
+        ->assertSee('Not trained')
+        ->assertSee('Expert / Authoriser')
+        ->assertDontSee('Publish the standard 0–5 proficiency scale');
+
+    expect($custom->refresh()->name)->toBe('Edited Demo Category')
+        ->and(SkillCategory::query()->forCompany($tenantId, $companyEntityId)->count())->toBe(11)
+        ->and(ProficiencyScale::query()->forCompany($tenantId, $companyEntityId)->count())->toBe(1);
+
+    $component->call('installStarterPack')->assertHasNoErrors();
+
+    expect($custom->refresh()->name)->toBe('Edited Demo Category')
+        ->and(SkillCategory::query()->forCompany($tenantId, $companyEntityId)->count())->toBe(11)
+        ->and(ProficiencyScale::query()->forCompany($tenantId, $companyEntityId)->count())->toBe(1);
+});
+
+test('a read-only catalog explains who can publish a missing scale without offering an unavailable action', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    catalogPageCompanyEntity($tenantId, 'Read-only Catalog Co', (int) $admin->company_id);
+    $viewer = catalogPageViewer((int) $admin->company_id);
+    app(TenantContext::class)->set($tenantId);
+
+    Livewire::actingAs($viewer)
+        ->test(Index::class)
+        ->set('tab', 'scale')
+        ->assertSee('Ask a People HR administrator to publish the standard proficiency scale before assessments begin.')
+        ->assertDontSee('Publish the standard 0–5 proficiency scale');
+});
+
+test('an existing published scale needs no starter setup even when the category catalog is empty', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    $companyEntityId = catalogPageCompanyEntity($tenantId, 'Scale-only Catalog Co', (int) $admin->company_id);
+    $defaults = app(SkillCatalogDefaults::class);
+    $draft = app(ProficiencyScaleStore::class)->draft(
+        $companyEntityId,
+        SkillCatalogDefaults::SCALE_CODE,
+        'Standard Proficiency Scale',
+        $defaults->standardLevels(),
+    );
+    app(ProficiencyScaleStore::class)->publish($companyEntityId, (int) $draft->id);
+
+    Livewire::actingAs($admin)
+        ->test(Index::class)
+        ->set('tab', 'scale')
+        ->assertSee('Not trained')
+        ->assertSee('Expert / Authoriser')
+        ->assertDontSee('Publish the standard 0–5 proficiency scale');
+
+    expect(SkillCategory::query()->forCompany($tenantId, $companyEntityId)->count())->toBe(0);
+});
+
 test('a viewer can read the catalog but every manage action is refused', function (): void {
     $admin = createAdminUser();
     catalogPageGrantHr($admin);
