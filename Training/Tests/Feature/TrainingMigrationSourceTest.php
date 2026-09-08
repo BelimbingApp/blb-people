@@ -15,6 +15,8 @@ use App\Domains\People\Training\Livewire\Migration\Index;
 use App\Domains\People\Training\Models\TrainingMigrationSource;
 use App\Domains\People\Training\Models\TrainingMigrationSourceSignoff;
 use App\Domains\People\Training\Services\TrainingMigrationSourceStore;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 
 /**
@@ -273,4 +275,37 @@ test('HR of company A can neither sign nor update a sibling company\'s source, a
         ->toThrow(InvalidTrainingMigrationSourceException::class, 'not found');
     expect(migSrcSignoffs($b, $theirs))->toBe(0)
         ->and($theirs->fresh()->getAttributes())->toBe($before);
+});
+
+test('a sign-off survives the query builder, not only the model', function (): void {
+    // #449: Eloquent does not fire updating/deleting for builder-level writes,
+    // so the model guard alone left a mass update or delete free to rewrite or
+    // remove a signature. Each attempt runs in its own transaction: on
+    // PostgreSQL a raised exception poisons the surrounding one, so a shared
+    // transaction would report 25P02 for the second attempt instead of the
+    // trigger's own message.
+    $f = migSrcFixture('MigSrcBuilder');
+    $a = $f['alpha'];
+    $source = migSrcRecord($a);
+    $signoff = app(TrainingMigrationSourceStore::class)
+        ->sign($a['hr'], $a['companyId'], (int) $source->id, 'Inventoried.');
+
+    $table = 'people_training_migration_source_signoffs';
+
+    expect(fn () => DB::transaction(fn () => DB::table($table)->where('id', $signoff->id)->update(['note' => 'Rewritten by mass update'])))
+        ->toThrow(QueryException::class);
+    expect(fn () => DB::transaction(fn () => DB::table($table)->where('id', $signoff->id)->delete()))
+        ->toThrow(QueryException::class);
+
+    // Through the model's own builder too, which is the shape the issue names.
+    expect(fn () => DB::transaction(fn () => TrainingMigrationSourceSignoff::query()
+        ->forCompany($a['tenantId'], $a['companyId'])->update(['note' => 'Rewritten'])))
+        ->toThrow(QueryException::class);
+    expect(fn () => DB::transaction(fn () => TrainingMigrationSourceSignoff::query()
+        ->forCompany($a['tenantId'], $a['companyId'])->delete()))
+        ->toThrow(QueryException::class);
+
+    $row = DB::table($table)->where('id', $signoff->id)->first();
+    expect($row)->not->toBeNull()
+        ->and($row->note)->toBe('Inventoried.');
 });

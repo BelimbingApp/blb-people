@@ -146,7 +146,7 @@ return new class extends Migration
     {
         if (DB::connection()->getDriverName() === 'pgsql') {
             DB::unprepared(<<<'SQL'
-                CREATE FUNCTION pct_training_event_audit_immutable() RETURNS trigger AS $$
+                CREATE OR REPLACE FUNCTION pct_training_event_audit_immutable() RETURNS trigger AS $$
                 BEGIN
                     -- The connector permitted exactly one rewrite here: a merged
                     -- company entity carrying its audit rows to the merge target.
