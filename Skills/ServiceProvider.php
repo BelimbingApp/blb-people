@@ -9,8 +9,12 @@ use App\Base\Menu\Services\MenuConditionRegistry;
 use App\Base\Workflow\Events\TransitionCompleted;
 use App\Core\User\Models\User;
 use App\Domains\People\Organisation\Contracts\SummarizesOrganisationSkillCoverage;
+use App\Domains\People\Skills\Console\Commands\AssessmentLogApplyCommand;
+use App\Domains\People\Skills\Console\Commands\AssessmentLogDryRunCommand;
 use App\Domains\People\Skills\Console\Commands\RemindersDueCommand;
+use App\Domains\People\Skills\Console\Commands\RemindersSendCommand;
 use App\Domains\People\Skills\Console\Commands\SkillWorkbookDryRunCommand;
+use App\Domains\People\Skills\Console\Commands\SkillWorkbookExportCommand;
 use App\Domains\People\Skills\Contracts\ConfirmsAssessableRequirementVersion;
 use App\Domains\People\Skills\Contracts\ReadsOwnSkillStanding;
 use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
@@ -21,7 +25,9 @@ use App\Domains\People\Skills\Services\RequirementProfileDataShareDestinationMap
 use App\Domains\People\Skills\Services\RequirementResolver;
 use App\Domains\People\Skills\Services\RequirementVersionGuard;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Skills\Services\SkillsSubjectExporter;
 use App\Domains\People\Skills\Workflow\RequirementProfileTransitionAuthority;
+use App\Domains\PeopleConnector\Connector\Contracts\ExportsSupplementalSubjectRecords;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
@@ -36,6 +42,11 @@ class ServiceProvider extends BaseServiceProvider
         $this->app->bind(ReadsOwnSkillStanding::class, OwnSkillStandingReader::class);
         $this->app->bind(SummarizesOrganisationSkillCoverage::class, OrganisationSkillCoverage::class);
         $this->app->singleton(RequirementProfileTransitionAuthority::class);
+        // Connector #308: tag only when the connector contract is mounted.
+        if (interface_exists(ExportsSupplementalSubjectRecords::class)) {
+            $this->app->singleton(SkillsSubjectExporter::class);
+            $this->app->tag([SkillsSubjectExporter::class], ExportsSupplementalSubjectRecords::class);
+        }
         $this->app->extend(
             DataShareDestinationMapper::class,
             fn (): RequirementProfileDataShareDestinationMapper => new RequirementProfileDataShareDestinationMapper(
@@ -50,8 +61,12 @@ class ServiceProvider extends BaseServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
+                AssessmentLogApplyCommand::class,
+                AssessmentLogDryRunCommand::class,
                 RemindersDueCommand::class,
+                RemindersSendCommand::class,
                 SkillWorkbookDryRunCommand::class,
+                SkillWorkbookExportCommand::class,
             ]);
         }
     }
@@ -72,6 +87,11 @@ class ServiceProvider extends BaseServiceProvider
                 'people.skill.assessment-audience',
                 static fn (Authenticatable $user): bool => $user instanceof User
                     && app(SkillAudience::class)->mayAccess($user, 'people.skill.assessment.view'),
+            );
+            $registry->register(
+                'people.skill.hr-audience',
+                static fn (Authenticatable $user): bool => $user instanceof User
+                    && app(SkillAudience::class)->mayAccess($user, 'people.skill.hr.view'),
             );
         });
     }

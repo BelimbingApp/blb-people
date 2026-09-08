@@ -4,6 +4,7 @@ namespace App\Domains\People\Training\Livewire\Budget;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
+use App\Core\User\Models\User;
 use App\Domains\People\Training\Exceptions\InvalidTrainingBudgetException;
 use App\Domains\People\Training\Services\TrainingBudgetStore;
 use Illuminate\Contracts\View\View;
@@ -33,20 +34,83 @@ final class Index extends Component
     /** @var array<int, string> */
     public array $reason = [];
 
+    public ?int $newDepartmentEntityId = null;
+
+    public string $newAmount = '';
+
+    public string $newReason = '';
+
     public function mount(?int $companyEntityId = null, ?int $year = null): void
     {
         $this->companyEntityId = $companyEntityId ?? (int) Auth::user()->company_id;
         $this->year = $year ?? (int) now()->year;
     }
 
-    public function render(TrainingBudgetStore $budgets, AuthorizationService $authorization): View
+    public function render(TrainingBudgetStore $budgets): View
     {
-        $rows = $budgets->rollUp(Auth::user(), (int) $this->companyEntityId, $this->year);
+        $actor = Auth::user();
+        $companyEntityId = (int) $this->companyEntityId;
+        $rows = $budgets->rollUp($actor, $companyEntityId, $this->year);
+        $history = $budgets->allocationHistory($actor, $companyEntityId, $this->year);
+        $historyActors = $history->flatten(1)->pluck('actor_user_id')->filter()->unique()->values();
+        $historyActors = $historyActors->isEmpty()
+            ? collect()
+            : User::query()->whereIn('id', $historyActors->all())->get()->keyBy('id');
+        $mayManage = $budgets->mayManage($actor, $companyEntityId);
+        $eligibleDepartments = $mayManage ? $budgets->eligibleDepartments($actor, $companyEntityId) : [];
 
         return view('people::livewire.budget.index', [
             'rows' => $rows,
-            'mayManage' => $authorization->can(Actor::forUser(Auth::user()), TrainingBudgetStore::MANAGE)->allowed,
+            'history' => $history,
+            'historyActors' => $historyActors,
+            'mayManage' => $mayManage,
+            'eligibleDepartments' => $eligibleDepartments,
+            'unallocatedDepartments' => $mayManage
+                ? $budgets->unallocatedDepartments($actor, $companyEntityId, $this->year)
+                : [],
+            'mayManageDepartmentSetup' => $mayManage
+                && $eligibleDepartments === []
+                && $companyEntityId === (int) $actor->getCompanyId()
+                && app(AuthorizationService::class)->can(Actor::forUser($actor), 'people.settings.view')->allowed
+                && app(AuthorizationService::class)->can(Actor::forUser($actor), 'people.settings.manage')->allowed,
         ]);
+    }
+
+    public function saveFirst(TrainingBudgetStore $budgets): void
+    {
+        $validated = $this->validate([
+            'newDepartmentEntityId' => ['required', 'integer'],
+            'newAmount' => ['required', 'numeric', 'min:0'],
+            'newReason' => ['required', 'string', 'max:1000'],
+        ]);
+        $departmentEntityId = (int) $validated['newDepartmentEntityId'];
+
+        try {
+            $unallocated = $budgets->unallocatedDepartments(
+                Auth::user(),
+                (int) $this->companyEntityId,
+                $this->year,
+            );
+            if (! array_key_exists($departmentEntityId, $unallocated)) {
+                throw new InvalidTrainingBudgetException('Choose an active department without an allocation for this year.');
+            }
+
+            $budgets->setBudget(
+                Auth::user(),
+                (int) $this->companyEntityId,
+                $departmentEntityId,
+                $this->year,
+                trim((string) $validated['newAmount']),
+                trim((string) $validated['newReason']),
+            );
+        } catch (InvalidTrainingBudgetException $exception) {
+            $this->addError('budget', $exception->getMessage());
+
+            return;
+        }
+
+        $this->reset('newDepartmentEntityId', 'newAmount', 'newReason');
+        session()->flash('training-budget-status', __('The first allocation was set.'));
     }
 
     public function save(int $departmentEntityId, TrainingBudgetStore $budgets): void

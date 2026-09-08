@@ -32,7 +32,7 @@ afterEach(function (): void {
     app(TenantContext::class)->clear();
 });
 
-function cutoverUser(int $companyId, string $roleCode, ?int $employeeId = null): User
+function cutoverReadinessUser(int $companyId, string $roleCode, ?int $employeeId = null): User
 {
     $user = User::factory()->create(['company_id' => $companyId, 'employee_id' => $employeeId]);
     PrincipalRole::query()->create([
@@ -50,7 +50,7 @@ function cutoverUser(int $companyId, string $roleCode, ?int $employeeId = null):
  *
  * @return array<string, mixed>
  */
-function cutoverFixture(string $label = 'Cutover'): array
+function cutoverReadinessFixture(string $label = 'Cutover'): array
 {
     [$tenant, $company] = createTenantWithCompany(
         ['name' => $label.' Tenant'],
@@ -75,13 +75,13 @@ function cutoverFixture(string $label = 'Cutover'): array
     // themselves as a supervisor to reach green; that cycle was hiding a
     // defect rather than modelling anything.
 
-    $manager = cutoverUser($companyId, 'people_hod', (int) $managerEmployee->id);
-    $hr = cutoverUser($companyId, 'people_hr');
+    $manager = cutoverReadinessUser($companyId, 'people_hod', (int) $managerEmployee->id);
+    $hr = cutoverReadinessUser($companyId, 'people_hr');
 
     return compact('tenantId', 'companyId', 'company', 'manager', 'hr', 'managerEmployee', 'reportEmployee');
 }
 
-function cutoverRun(array $f, array $options = []): int
+function cutoverReadinessRun(array $f, array $options = []): int
 {
     return Artisan::call('people:performance:cutover-check', array_replace([
         '--tenant' => $f['tenantId'], '--company' => $f['companyId'],
@@ -89,7 +89,7 @@ function cutoverRun(array $f, array $options = []): int
 }
 
 /** @return array<string, int> check name => count */
-function cutoverCounts(array $f): array
+function cutoverReadinessCounts(array $f): array
 {
     app(TenantContext::class)->set($f['tenantId']);
 
@@ -99,7 +99,7 @@ function cutoverCounts(array $f): array
 }
 
 /** A draft review by the fixture's manager, created the given days ago. */
-function cutoverDraft(array $f, int $daysAgo): void
+function cutoverReadinessDraft(array $f, int $daysAgo): void
 {
     Carbon::setTestNow(now()->subDays($daysAgo)->toDateTimeString());
     $store = app(PerformanceReviewStore::class);
@@ -122,7 +122,7 @@ function cutoverDraft(array $f, int $daysAgo): void
 }
 
 /** An escalation on the company's one draft review. */
-function cutoverEscalate(array $f, int $notifiedDaysAgo): void
+function cutoverReadinessEscalate(array $f, int $notifiedDaysAgo): void
 {
     $review = PerformanceReview::query()
         ->forCompany($f['tenantId'], $f['companyId'])->sole();
@@ -135,10 +135,10 @@ function cutoverEscalate(array $f, int $notifiedDaysAgo): void
 }
 
 test('a compliant company is green on every check and exits zero', function (): void {
-    $f = cutoverFixture();
+    $f = cutoverReadinessFixture();
 
-    expect(cutoverRun($f))->toBe(0)
-        ->and(cutoverCounts($f))->toBe([
+    expect(cutoverReadinessRun($f))->toBe(0)
+        ->and(cutoverReadinessCounts($f))->toBe([
             'reporting_line' => 0,
             'manager_capability' => 0,
             'stale_drafts' => 0,
@@ -147,7 +147,7 @@ test('a compliant company is green on every check and exits zero', function (): 
 });
 
 test('an employee with no manager is one red count and a non-zero exit', function (): void {
-    $f = cutoverFixture();
+    $f = cutoverReadinessFixture();
     Employee::factory()->create([
         'company_id' => $f['companyId'], 'full_name' => 'Unmanaged Employee',
         'status' => 'active', 'employee_type' => 'full_time', 'supervisor_id' => null,
@@ -155,24 +155,24 @@ test('an employee with no manager is one red count and a non-zero exit', functio
 
     // Delete the manager-presence check and the run is green, which is the
     // difference between a readiness report and a rubber stamp.
-    expect(cutoverCounts($f)['reporting_line'])->toBe(1)
-        ->and(cutoverRun($f))->toBe(1);
+    expect(cutoverReadinessCounts($f)['reporting_line'])->toBe(1)
+        ->and(cutoverReadinessRun($f))->toBe(1);
 });
 
 test('an inactive employee without a manager is not counted', function (): void {
-    $f = cutoverFixture();
+    $f = cutoverReadinessFixture();
     Employee::factory()->create([
         'company_id' => $f['companyId'], 'full_name' => 'Departed Employee',
         'status' => 'inactive', 'employee_type' => 'full_time', 'supervisor_id' => null,
     ]);
 
     // Cutover is about the people the process will run for.
-    expect(cutoverCounts($f)['reporting_line'])->toBe(0)
-        ->and(cutoverRun($f))->toBe(0);
+    expect(cutoverReadinessCounts($f)['reporting_line'])->toBe(0)
+        ->and(cutoverReadinessRun($f))->toBe(0);
 });
 
 test('a manager without the review capability is counted', function (): void {
-    $f = cutoverFixture();
+    $f = cutoverReadinessFixture();
     $strandedEmployee = Employee::factory()->create([
         'company_id' => $f['companyId'], 'full_name' => 'Stranded Manager',
         'status' => 'active', 'employee_type' => 'full_time',
@@ -184,31 +184,31 @@ test('a manager without the review capability is counted', function (): void {
         'supervisor_id' => $strandedEmployee->id,
     ]);
     // people_employee does not hold people.performance.review.view.
-    cutoverUser($f['companyId'], 'people_employee', (int) $strandedEmployee->id);
+    cutoverReadinessUser($f['companyId'], 'people_employee', (int) $strandedEmployee->id);
 
-    expect(cutoverCounts($f)['manager_capability'])->toBe(1)
-        ->and(cutoverRun($f))->toBe(1);
+    expect(cutoverReadinessCounts($f)['manager_capability'])->toBe(1)
+        ->and(cutoverReadinessRun($f))->toBe(1);
 });
 
 test('a draft older than the stale threshold is counted and a fresh one is not', function (): void {
-    $f = cutoverFixture();
-    cutoverDraft($f, 31);
+    $f = cutoverReadinessFixture();
+    cutoverReadinessDraft($f, 31);
 
-    expect(cutoverCounts($f)['stale_drafts'])->toBe(1)
-        ->and(cutoverRun($f))->toBe(1);
+    expect(cutoverReadinessCounts($f)['stale_drafts'])->toBe(1)
+        ->and(cutoverReadinessRun($f))->toBe(1);
 });
 
 test('a draft inside the threshold leaves the company green', function (): void {
-    $f = cutoverFixture();
-    cutoverDraft($f, 29);
+    $f = cutoverReadinessFixture();
+    cutoverReadinessDraft($f, 29);
 
-    expect(cutoverCounts($f)['stale_drafts'])->toBe(0)
-        ->and(cutoverRun($f))->toBe(0);
+    expect(cutoverReadinessCounts($f)['stale_drafts'])->toBe(0)
+        ->and(cutoverReadinessRun($f))->toBe(0);
 });
 
 test('an escalation older than a fortnight is counted', function (): void {
-    $f = cutoverFixture();
-    cutoverDraft($f, 45);
+    $f = cutoverReadinessFixture();
+    cutoverReadinessDraft($f, 45);
     $review = PerformanceReview::query()
         ->forCompany($f['tenantId'], $f['companyId'])->sole();
     PerformanceReviewEscalation::query()->create([
@@ -218,25 +218,25 @@ test('an escalation older than a fortnight is counted', function (): void {
         'fortnight_key' => '2026-F18', 'notified_at' => now()->subDays(15),
     ]);
 
-    expect(cutoverCounts($f)['open_escalations'])->toBe(1)
-        ->and(cutoverRun($f))->toBe(1);
+    expect(cutoverReadinessCounts($f)['open_escalations'])->toBe(1)
+        ->and(cutoverReadinessRun($f))->toBe(1);
 });
 
 test("another tenant's employees never count", function (): void {
-    $f = cutoverFixture();
-    $other = cutoverFixture('Other Cutover');
+    $f = cutoverReadinessFixture();
+    $other = cutoverReadinessFixture('Other Cutover');
     Employee::factory()->create([
         'company_id' => $other['companyId'], 'full_name' => 'Other Unmanaged',
         'status' => 'active', 'employee_type' => 'full_time', 'supervisor_id' => null,
     ]);
 
-    expect(cutoverCounts($f)['reporting_line'])->toBe(0)
-        ->and(cutoverRun($f))->toBe(0);
+    expect(cutoverReadinessCounts($f)['reporting_line'])->toBe(0)
+        ->and(cutoverReadinessRun($f))->toBe(0);
 });
 
 test('--json prints a machine-readable report', function (): void {
-    $f = cutoverFixture();
-    cutoverRun($f, ['--json' => true]);
+    $f = cutoverReadinessFixture();
+    cutoverReadinessRun($f, ['--json' => true]);
     $decoded = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
 
     expect($decoded['ready'])->toBeTrue()
@@ -244,7 +244,7 @@ test('--json prints a machine-readable report', function (): void {
 });
 
 test('a manager with no user account is counted as unable', function (): void {
-    $f = cutoverFixture();
+    $f = cutoverReadinessFixture();
     $accountless = Employee::factory()->create([
         'company_id' => $f['companyId'], 'full_name' => 'Accountless Manager',
         'status' => 'active', 'employee_type' => 'full_time',
@@ -258,46 +258,46 @@ test('a manager with no user account is counted as unable', function (): void {
 
     // No account is not a milder problem than the wrong capability: either
     // way nobody can write the review this person owes.
-    expect(cutoverCounts($f)['manager_capability'])->toBe(1)
-        ->and(cutoverRun($f))->toBe(1);
+    expect(cutoverReadinessCounts($f)['manager_capability'])->toBe(1)
+        ->and(cutoverReadinessRun($f))->toBe(1);
 });
 
 test('a recent escalation is inside the grace period and not counted', function (): void {
-    $f = cutoverFixture();
+    $f = cutoverReadinessFixture();
     // A draft inside the stale threshold, so this test turns on the
     // escalation grace alone and not on a second check going red.
-    cutoverDraft($f, 10);
-    cutoverEscalate($f, notifiedDaysAgo: 3);
+    cutoverReadinessDraft($f, 10);
+    cutoverReadinessEscalate($f, notifiedDaysAgo: 3);
 
     // Escalating is not itself the failure; going unanswered is.
-    expect(cutoverCounts($f)['open_escalations'])->toBe(0)
-        ->and(cutoverRun($f))->toBe(0);
+    expect(cutoverReadinessCounts($f)['open_escalations'])->toBe(0)
+        ->and(cutoverReadinessRun($f))->toBe(0);
 });
 
 test('an escalation is closed once its review is finalized', function (): void {
-    $f = cutoverFixture();
-    cutoverDraft($f, 45);
+    $f = cutoverReadinessFixture();
+    cutoverReadinessDraft($f, 45);
     $review = PerformanceReview::query()
         ->forCompany($f['tenantId'], $f['companyId'])->sole();
-    cutoverEscalate($f, notifiedDaysAgo: 20);
+    cutoverReadinessEscalate($f, notifiedDaysAgo: 20);
     app(PerformanceReviewStore::class)->finalize($f['manager'], $f['companyId'], (int) $review->id);
 
     // Finalising is the act that answers the escalation, whatever the
     // escalation row still says.
-    expect(cutoverCounts($f)['open_escalations'])->toBe(0)
-        ->and(cutoverRun($f))->toBe(0);
+    expect(cutoverReadinessCounts($f)['open_escalations'])->toBe(0)
+        ->and(cutoverReadinessRun($f))->toBe(0);
 });
 
 test('a top-level manager with no supervisor does not block cutover', function (): void {
-    $f = cutoverFixture();
+    $f = cutoverReadinessFixture();
     $f['managerEmployee']->update(['supervisor_id' => null]);
 
-    expect(cutoverCounts($f)['reporting_line'])->toBe(0)
-        ->and(cutoverRun($f))->toBe(0);
+    expect(cutoverReadinessCounts($f)['reporting_line'])->toBe(0)
+        ->and(cutoverReadinessRun($f))->toBe(0);
 });
 
 test('an employee with no manager and no reports is still a gap', function (): void {
-    $f = cutoverFixture();
+    $f = cutoverReadinessFixture();
     Employee::factory()->create([
         'company_id' => $f['companyId'], 'full_name' => 'Unmanaged Leaf',
         'status' => 'active', 'employee_type' => 'full_time', 'supervisor_id' => null,
@@ -305,12 +305,12 @@ test('an employee with no manager and no reports is still a gap', function (): v
 
     // Distinct from the head above: this person manages nobody, so the tree
     // implies no reviewer for them at all.
-    expect(cutoverCounts($f)['reporting_line'])->toBe(1)
-        ->and(cutoverRun($f))->toBe(1);
+    expect(cutoverReadinessCounts($f)['reporting_line'])->toBe(1)
+        ->and(cutoverReadinessRun($f))->toBe(1);
 });
 
 test('an employee whose only report is inactive is not a manager', function (): void {
-    $f = cutoverFixture();
+    $f = cutoverReadinessFixture();
     $lead = Employee::factory()->create([
         'company_id' => $f['companyId'], 'full_name' => 'Lead Without Live Reports',
         'status' => 'active', 'employee_type' => 'full_time', 'supervisor_id' => null,
@@ -324,7 +324,34 @@ test('an employee whose only report is inactive is not a manager', function (): 
     // is a reporting-line gap, and is never asked the capability question
     // (they have no account, so being treated as a manager would count them
     // as unable as well).
-    expect(cutoverCounts($f)['reporting_line'])->toBe(1)
-        ->and(cutoverCounts($f)['manager_capability'])->toBe(0)
-        ->and(cutoverRun($f))->toBe(1);
+    expect(cutoverReadinessCounts($f)['reporting_line'])->toBe(1)
+        ->and(cutoverReadinessCounts($f)['manager_capability'])->toBe(0)
+        ->and(cutoverReadinessRun($f))->toBe(1);
+});
+
+test('running without --tenant is refused before handle() runs', function (): void {
+    $f = cutoverReadinessFixture();
+    app(TenantContext::class)->clear();
+
+    $exit = Artisan::call('people:performance:cutover-check', ['--company' => $f['companyId']]);
+    $output = Artisan::output();
+
+    // Refused by the TenantScopedCommand base, not by handle(): no report
+    // line, only the base's option-required message.
+    expect($exit)->not->toBe(0)
+        ->and($output)->toContain('A --tenant=<id> option is required')
+        ->and($output)->not->toContain('Ready:')
+        ->and($output)->not->toContain('Not ready:');
+});
+
+test('an unknown tenant id is refused with the base message', function (): void {
+    $f = cutoverReadinessFixture();
+
+    $exit = cutoverReadinessRun($f, ['--tenant' => 999999]);
+    $output = Artisan::output();
+
+    expect($exit)->not->toBe(0)
+        ->and($output)->toContain('Tenant [999999] is unknown or not available.')
+        ->and($output)->not->toContain('Ready:')
+        ->and($output)->not->toContain('Not ready:');
 });

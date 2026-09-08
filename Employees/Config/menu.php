@@ -8,6 +8,7 @@ return [
             'icon' => 'heroicon-o-academic-cap',
             'route' => 'people.training.passport',
             'permission' => 'people.training.passport.view',
+            'condition' => 'people.training.passport-eligible',
             'parent' => 'people',
         ],
         [

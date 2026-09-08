@@ -8,7 +8,9 @@ use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
 use App\Domains\People\Skills\Data\AssessmentDraft;
 use App\Domains\People\Skills\Enums\AssessmentCycle;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
+use App\Domains\People\Skills\Enums\ProficiencyScaleStatus;
 use App\Domains\People\Skills\Exceptions\InvalidAssessmentException;
+use App\Domains\People\Skills\Models\ProficiencyScale;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\AssessmentStore;
@@ -16,6 +18,7 @@ use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
@@ -40,6 +43,16 @@ class Matrix extends Component
     public string $method = 'direct_observation';
 
     public string $sharedEvidence = '';
+
+    /**
+     * Drill-down filters from the HR KPI dashboard (#363): comma-separated
+     * latest result bands, and one organisation unit id. Empty means all.
+     */
+    #[Url]
+    public string $band = '';
+
+    #[Url]
+    public string $department = '';
 
     /** @var array<int, string>|null */
     private ?array $allowedCompanies = null;
@@ -161,11 +174,18 @@ class Matrix extends Component
         $skills = collect();
         $employees = collect();
         $requiredLevels = [];
+        $hasPublishedScale = false;
+        $canManageCatalog = false;
 
         if ($companyEntityId !== null && array_key_exists($companyEntityId, $companies)) {
             $skills = $this->skills($companyEntityId);
             $employees = $this->employees($companyEntityId);
             $requiredLevels = $this->requiredLevels($companyEntityId);
+            $hasPublishedScale = ProficiencyScale::query()
+                ->forCompany(app(TenantContext::class)->requireTenantId(), $companyEntityId)
+                ->where('status', ProficiencyScaleStatus::Published->value)
+                ->exists();
+            $canManageCatalog = app(SkillAudience::class)->mayManageCatalog(Auth::user(), $companyEntityId);
         }
 
         return view('people::livewire.assessment.matrix', [
@@ -174,6 +194,8 @@ class Matrix extends Component
             'employees' => $employees,
             'requiredLevels' => $requiredLevels,
             'canAssess' => $this->canAssess(),
+            'hasPublishedScale' => $hasPublishedScale,
+            'canManageCatalog' => $canManageCatalog,
             'selectedSkills' => $skills->whereIn('id', $this->selectedSkillIds)->values(),
         ]);
     }
@@ -195,8 +217,13 @@ class Matrix extends Component
             manage: $this->canAssess(),
         );
 
+        $bandEmployeeIds = $this->employeeIdsWithLatestBand($companyEntityId);
+
         return collect(app(WorkforceSubjects::class)->employees($companyEntityId))
             ->filter(fn ($employee): bool => in_array((int) $employee->reference->externalId, $employeeEntityIds, true))
+            ->filter(fn ($employee): bool => $bandEmployeeIds === null || in_array((int) $employee->reference->externalId, $bandEmployeeIds, true))
+            ->filter(fn ($employee): bool => $this->department === ''
+                || ($employee->organizationReference !== null && $employee->organizationReference->externalId === $this->department))
             ->map(fn ($employee): object => (object) [
                 'workforce_entity_id' => (int) $employee->reference->externalId,
                 'display_name' => $employee->displayName,
@@ -208,6 +235,34 @@ class Matrix extends Component
             ->sortBy('display_name')
             ->take(50)
             ->values();
+    }
+
+    /**
+     * Employees holding a latest (finalized, not superseded) assessment in one
+     * of the requested bands, or null when no band filter is set.
+     *
+     * @return list<int>|null
+     */
+    private function employeeIdsWithLatestBand(int $companyEntityId): ?array
+    {
+        $bands = array_values(array_filter(explode(',', $this->band)));
+
+        if ($bands === []) {
+            return null;
+        }
+
+        $tenantId = app(TenantContext::class)->requireTenantId();
+
+        return SkillAssessment::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->where('status', 'finalized')
+            ->whereIn('result_band', $bands)
+            ->whereNotIn('id', SkillAssessment::query()->forCompany($tenantId, $companyEntityId)
+                ->whereNotNull('supersedes_assessment_id')->select('supersedes_assessment_id'))
+            ->distinct()
+            ->pluck('employee_entity_id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->all();
     }
 
     /**

@@ -2,14 +2,23 @@
 
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
+use App\Base\Authz\Models\PrincipalCapability;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
+use App\Base\Menu\Contracts\MenuAccessChecker;
+use App\Base\Menu\MenuItem;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
+use App\Core\Company\Models\Department;
+use App\Core\Company\Models\DepartmentType;
+use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
+use App\Domains\People\Skills\Models\SkillActorBinding;
 use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
@@ -55,6 +64,17 @@ function budgetUser(Company $company, string $roleCode): User
     return $user;
 }
 
+function budgetGrant(User $user, string $capability): void
+{
+    PrincipalCapability::query()->create([
+        'company_id' => $user->company_id,
+        'principal_type' => PrincipalType::USER->value,
+        'principal_id' => $user->id,
+        'capability_key' => $capability,
+        'is_allowed' => true,
+    ]);
+}
+
 /** @return array<string, mixed> */
 function budgetFixture(string $label = 'Budget'): array
 {
@@ -78,6 +98,49 @@ function budgetFixture(string $label = 'Budget'): array
     ]);
 
     return compact('tenantId', 'companyId', 'company', 'hr', 'viewer', 'approver', 'department');
+}
+
+function budgetBindHod(array $fixture): void
+{
+    $type = DepartmentType::query()->create([
+        'code' => 'budget-ops-'.$fixture['companyId'],
+        'name' => 'Budget operations',
+        'category' => 'operational',
+        'is_active' => true,
+    ]);
+    $department = Department::query()->create([
+        'company_id' => $fixture['companyId'],
+        'department_type_id' => $type->id,
+        'status' => 'active',
+    ]);
+    $head = Employee::factory()->create([
+        'company_id' => $fixture['companyId'],
+        'department_id' => $department->id,
+        'full_name' => 'Budget operations head',
+        'status' => 'active',
+    ]);
+    $department->update(['head_id' => $head->id]);
+    EmployeeWorkProfile::query()->create([
+        'employee_id' => $head->id,
+        'organization_unit_id' => $fixture['department']->id,
+    ]);
+    $fixture['viewer']->update(['employee_id' => $head->id]);
+    EmployeePortalAccess::query()->create([
+        'employee_id' => $head->id,
+        'user_id' => $fixture['viewer']->id,
+        'display_name' => $head->full_name,
+        'status' => EmployeePortalAccess::STATUS_ACTIVE,
+    ]);
+    SkillActorBinding::query()->create([
+        'tenant_id' => $fixture['tenantId'],
+        'company_entity_id' => $fixture['companyId'],
+        'platform_user_id' => $fixture['viewer']->id,
+        'employee_entity_id' => $head->id,
+        'user_entity_id' => $fixture['viewer']->id,
+        'confirmed_by_user_id' => $fixture['hr']->id,
+        'review_reference' => 'training-budget-test',
+        'confirmed_at' => now(),
+    ]);
 }
 
 /** A request at the given status, costing the given amount. */
@@ -216,6 +279,91 @@ test('a viewer without the manage capability cannot change the budget', function
         ->and(TrainingDepartmentBudget::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
 });
 
+test('a core administrator without a People audience cannot read or write budgets', function (): void {
+    $f = budgetFixture();
+    $platformAdmin = budgetUser($f['company'], 'core_admin');
+    $store = app(TrainingBudgetStore::class);
+
+    expect(fn () => $store->rollUp($platformAdmin, $f['companyId'], (int) now()->year))
+        ->toThrow(AuthorizationDeniedException::class)
+        ->and(fn () => $store->setBudget(
+            $platformAdmin,
+            $f['companyId'],
+            (int) $f['department']->id,
+            (int) now()->year,
+            '5000.0000',
+            'Platform administration is not HR authority.',
+        ))->toThrow(AuthorizationDeniedException::class)
+        ->and(TrainingDepartmentBudget::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
+
+    $this->actingAs($platformAdmin)
+        ->get(route('people.training.budget.index'))
+        ->assertForbidden();
+});
+
+test('a core administrator with an explicit People HR assignment retains budget authority', function (): void {
+    $f = budgetFixture();
+    $platformAdmin = budgetUser($f['company'], 'core_admin');
+    PrincipalRole::query()->create([
+        'company_id' => $f['companyId'],
+        'principal_type' => PrincipalType::USER->value,
+        'principal_id' => $platformAdmin->id,
+        'role_id' => Role::query()->whereNull('company_id')->where('code', 'people_hr')->sole()->id,
+    ]);
+    $store = app(TrainingBudgetStore::class);
+
+    $store->setBudget(
+        $platformAdmin,
+        $f['companyId'],
+        (int) $f['department']->id,
+        (int) now()->year,
+        '5000.0000',
+        'Explicit People HR authority.',
+    );
+
+    expect($store->rollUp($platformAdmin, $f['companyId'], (int) now()->year))
+        ->toHaveCount(1)
+        ->and($store->mayManage($platformAdmin, $f['companyId']))->toBeTrue();
+
+    $this->actingAs($platformAdmin)
+        ->get(route('people.training.budget.index'))
+        ->assertOk();
+});
+
+test('a HOD reads only budgets for departments they currently head', function (): void {
+    $f = budgetFixture();
+    budgetBindHod($f);
+    $otherDepartment = PeopleReferenceEntry::query()->create([
+        'company_id' => $f['companyId'],
+        'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+        'code' => 'FIN-Budget',
+        'name' => 'Finance Budget',
+        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+    ]);
+    $store = app(TrainingBudgetStore::class);
+    $store->setBudget($f['hr'], $f['companyId'], (int) $f['department']->id, (int) now()->year, '5000.0000', 'Operations allocation.');
+    $store->setBudget($f['hr'], $f['companyId'], (int) $otherDepartment->id, (int) now()->year, '9000.0000', 'Finance allocation.');
+
+    $rows = $store->rollUp($f['viewer'], $f['companyId'], (int) now()->year);
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows[0]->departmentEntityId)->toBe((int) $f['department']->id)
+        ->and($rows[0]->budget)->toBe('5000.0000');
+});
+
+test('the budget menu uses the same People audience boundary as the page', function (): void {
+    $f = budgetFixture();
+    $platformAdmin = budgetUser($f['company'], 'core_admin');
+    $item = collect((require __DIR__.'/../../Config/menu.php')['items'])
+        ->firstWhere('id', 'people.training-budget');
+    $menu = MenuItem::fromArray($item);
+    $checker = app(MenuAccessChecker::class);
+
+    expect($item['condition'] ?? null)->toBe('people.training.budget-audience')
+        ->and($checker->canView($menu, $platformAdmin))->toBeFalse()
+        ->and($checker->canView($menu, $f['hr']))->toBeTrue();
+});
+
 test("another company's requests never appear", function (): void {
     $f = budgetFixture();
     $other = budgetFixture('Other Budget');
@@ -236,6 +384,115 @@ test('the page renders the roll-up for a user who may view it', function (): voi
         ->assertOk()
         ->assertSee('Operations Budget')
         ->assertSee('3800');
+});
+
+test('HR sets the first allocation for an eligible department and then edits it from the roll-up', function (): void {
+    $f = budgetFixture();
+
+    $component = Livewire::actingAs($f['hr'])->test(Index::class, ['companyEntityId' => $f['companyId']])
+        ->assertSee('Set a department’s first allocation')
+        ->assertSee('Operations Budget')
+        ->assertSee('No department has an allocation or a training request for this year yet.')
+        ->assertDontSee('costed request')
+        ->set('newDepartmentEntityId', (int) $f['department']->id)
+        ->set('newAmount', '5000.0000')
+        ->set('newReason', 'Initial annual allocation.')
+        ->call('saveFirst')
+        ->assertHasNoErrors()
+        ->assertSee('5000.0000');
+
+    $component
+        ->set('amount.'.(int) $f['department']->id, '6500.0000')
+        ->set('reason.'.(int) $f['department']->id, 'Approved mid-year increase.')
+        ->call('save', (int) $f['department']->id)
+        ->assertHasNoErrors()
+        ->assertSee('6500.0000');
+
+    $budget = TrainingDepartmentBudget::query()->forCompany($f['tenantId'], $f['companyId'])->sole();
+    $audits = TrainingDepartmentBudgetAudit::query()->forCompany($f['tenantId'], $f['companyId'])->orderBy('id')->get();
+
+    expect($budget->amount)->toBe('6500.0000')
+        ->and($audits)->toHaveCount(2)
+        ->and($audits->first()->previous_amount)->toBeNull()
+        ->and($audits->last()->previous_amount)->toBe('5000.0000');
+});
+
+test('HR can allocate a new department while existing department rows remain visible', function (): void {
+    $f = budgetFixture();
+    app(TrainingBudgetStore::class)->setBudget(
+        $f['hr'], $f['companyId'], (int) $f['department']->id, (int) now()->year, '5000.0000', 'Operations allocation.',
+    );
+    $finance = PeopleReferenceEntry::query()->create([
+        'company_id' => $f['companyId'],
+        'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+        'code' => 'FIN-FIRST',
+        'name' => 'Finance First Allocation',
+        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+    ]);
+    PeopleReferenceEntry::query()->create([
+        'company_id' => $f['companyId'],
+        'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+        'code' => 'OLD-INACTIVE',
+        'name' => 'Inactive Department',
+        'status' => PeopleReferenceEntry::STATUS_INACTIVE,
+    ]);
+
+    Livewire::actingAs($f['hr'])->test(Index::class, ['companyEntityId' => $f['companyId']])
+        ->assertSee('Operations Budget')
+        ->assertSee('Finance First Allocation')
+        ->assertDontSee('Inactive Department')
+        ->set('newDepartmentEntityId', (int) $finance->id)
+        ->set('newAmount', '3200.0000')
+        ->set('newReason', 'Finance annual allocation.')
+        ->call('saveFirst')
+        ->assertHasNoErrors();
+
+    expect(TrainingDepartmentBudget::query()->forCompany($f['tenantId'], $f['companyId'])
+        ->where('department_entity_id', $finance->id)->value('amount'))->toBe('3200.0000');
+});
+
+test('the no-department state offers setup only to an authorized People Settings manager', function (): void {
+    $authorized = budgetFixture('Department Setup');
+    $authorized['department']->update(['status' => PeopleReferenceEntry::STATUS_INACTIVE]);
+    budgetGrant($authorized['hr'], 'people.settings.view');
+    budgetGrant($authorized['hr'], 'people.settings.manage');
+
+    Livewire::actingAs($authorized['hr'])->test(Index::class, ['companyEntityId' => $authorized['companyId']])
+        ->assertSee('No active departments are available for allocation.')
+        ->assertSee('Set up departments')
+        ->assertSeeHtml('href="'.route('people.settings.index').'"')
+        ->assertDontSee('Ask a People Settings administrator');
+
+    $restricted = budgetFixture('No Department Setup');
+    $restricted['department']->update(['status' => PeopleReferenceEntry::STATUS_INACTIVE]);
+
+    Livewire::actingAs($restricted['hr'])->test(Index::class, ['companyEntityId' => $restricted['companyId']])
+        ->assertSee('No active departments are available for allocation.')
+        ->assertSee('Ask a People Settings administrator to add an active department.')
+        ->assertDontSee('Set up departments');
+});
+
+test('the first-allocation action refuses unauthorized and cross-company department selection', function (): void {
+    $f = budgetFixture();
+
+    expect(fn () => Livewire::actingAs($f['viewer'])->test(Index::class, ['companyEntityId' => $f['companyId']])
+        ->set('newDepartmentEntityId', (int) $f['department']->id)
+        ->set('newAmount', '5000.0000')
+        ->set('newReason', 'Unauthorized allocation.')
+        ->call('saveFirst'))
+        ->toThrow(AuthorizationDeniedException::class);
+
+    $other = budgetFixture('Foreign First Allocation');
+    app(TenantContext::class)->set($f['tenantId']);
+
+    Livewire::actingAs($f['hr'])->test(Index::class, ['companyEntityId' => $f['companyId']])
+        ->set('newDepartmentEntityId', (int) $other['department']->id)
+        ->set('newAmount', '5000.0000')
+        ->set('newReason', 'Cross-company allocation.')
+        ->call('saveFirst')
+        ->assertHasErrors('budget');
+
+    expect(TrainingDepartmentBudget::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
 });
 
 test('a request nobody has priced adds nothing but still lists its department', function (): void {
@@ -327,4 +584,34 @@ test('company axis: a sibling company in the same tenant is not rolled up', func
         ->and($rows[0]->departmentEntityId)->toBe((int) $f['department']->id)
         ->and($rows[0]->approved)->toBe('100.0000')
         ->and($rows[0]->budget)->toBeNull();
+});
+
+test('budget history names the actor and stays company-scoped for HR and HOD', function (): void {
+    $f = budgetFixture();
+    budgetBindHod($f);
+    $otherDepartment = PeopleReferenceEntry::query()->create([
+        'company_id' => $f['companyId'],
+        'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+        'code' => 'FIN-Hist',
+        'name' => 'Finance History',
+        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+    ]);
+    $store = app(TrainingBudgetStore::class);
+    $store->setBudget($f['hr'], $f['companyId'], (int) $f['department']->id, (int) now()->year, '5000.0000', 'Operations allocation.');
+    $store->setBudget($f['hr'], $f['companyId'], (int) $otherDepartment->id, (int) now()->year, '9000.0000', 'Finance allocation.');
+
+    $hrHistory = $store->allocationHistory($f['hr'], $f['companyId'], (int) now()->year);
+    expect($hrHistory)->toHaveCount(2)
+        ->and($hrHistory[(int) $f['department']->id]->sole()->reason)->toBe('Operations allocation.')
+        ->and((int) $hrHistory[(int) $f['department']->id]->sole()->actor_user_id)->toBe((int) $f['hr']->id);
+
+    $hodHistory = $store->allocationHistory($f['viewer'], $f['companyId'], (int) now()->year);
+    expect($hodHistory)->toHaveCount(1)
+        ->and($hodHistory->keys()->all())->toBe([(int) $f['department']->id]);
+
+    $this->actingAs($f['hr'])
+        ->get(route('people.training.budget.index'))
+        ->assertOk()
+        ->assertSee('Operations allocation.')
+        ->assertSee(__('by :actor', ['actor' => $f['hr']->name]));
 });

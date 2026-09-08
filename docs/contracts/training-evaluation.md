@@ -1,6 +1,6 @@
 # Participant training evaluation contract
 
-**Status:** Record and visibility contract from [issue #163](https://github.com/BelimbingApp/blb-people/issues/163); employee self-service criteria version `0012-a.v1` delivered by issue #273.
+**Status:** Record and visibility contract from [issue #163](https://github.com/BelimbingApp/blb-people/issues/163); employee self-service criteria version `0012-a.v1` delivered by issue #273, `0012-g.v1` by issue #360.
 **Owner:** People Training.
 **Sources:** [0003 training planning and delivery](../plans/0003-people-training-planning-and-delivery.md), [0008 retained 0012 scope](../plans/0008-people-existing-work-and-backlog-reconciliation.md), [0006 workbook parity](../plans/0006-people-data-migration-and-workbook-parity.md), and [issue #35](https://github.com/BelimbingApp/blb-people/issues/35).
 
@@ -26,6 +26,8 @@ Preserve all eight workbook/0012 criteria, with 1–5 ratings:
 | Overall satisfaction | Overall satisfaction with the training |
 
 The first employee self-service form pins criteria version `0012-a.v1`: relevance, trainer effectiveness, materials/exercises, pace/duration and practical usefulness are its five mandatory 1–5 responses, and `issues_or_improvements` is its one optional comment. The other retained workbook criteria and free-text columns remain explicitly unanswered for this version rather than being filled with invented defaults. A later criteria version may expose more retained questions without reinterpreting these submissions.
+
+Criteria version `0012-g.v1` (issue #360) is the current self-service form: all eight workbook ratings and the free-text answers `most_useful_learning`, `application_commitment`, `support_needed`, `recommendation` and `issues_or_improvements`. Completion requires the eight ratings and `application_commitment`; the other free text is optional and stays null when unanswered. A draft keeps any subset of answers under this version without completing, and a completed evaluation is not reopened into a draft. Both versions and their mandatory sets live in `Training/Config/training.php` (`people-training.evaluation.criteria_versions`), keyed by the version string a row stores; `current_criteria_version` names the version new rows are pinned to. Renaming a configured version never reinterprets a stored row: readers look the stored version up, and a row pinned to `0012-a.v1` still reads and aggregates as it did. Rating means are computed per criterion over the rows that answered it, with the answered count reported beside each mean, so a criterion an older version never asked reads as unanswered rather than hidden.
 
 Do not invent verbal rating anchors, weights or a pass threshold from these labels. Retain unanswered questions explicitly; zero is outside the 1–5 response scale and is not a replacement for missing input. A not-applicable response, if permitted by the approved form, is distinct from an unanswered question and requires defined calculation treatment.
 
@@ -78,7 +80,7 @@ Workbook sheet 12 and Form 2 in sheet 16 use the same canonical evaluation recor
 
 ## Implementation boundary and acceptance
 
-Training provides the participant-evaluation model and visibility reader. Criteria version `0012-a.v1` also provides an authenticated employee Livewire form for five fixed ratings and one comment on the employee's own attended event, with update-in-place behavior until the 14-day window closes. Assisted entry, HR follow-up, aggregate reporting, broader criteria versions and correction/reopening after closure remain undelivered.
+Training provides the participant-evaluation model and visibility reader. Criteria version `0012-a.v1` also provides an authenticated employee Livewire form for five fixed ratings and one comment on the employee's own attended event, with update-in-place behavior until the 14-day window closes. Criteria version `0012-g.v1` adds the remaining ratings and free-text answers with a draft state and mandatory-question completion (issue #360). HR assisted (paper) entry for a named participant is delivered under `people.training.evaluation.assign` and completes under the current criteria version with the same mandatory set: the row keeps the participant as employee subject, names the HR user as `submitted_by_user_id`, is marked `entry_source = assisted_paper` (a database guard refuses that source without an entering actor), keeps the paper reference in `notes`, follows the same 14-day window, and never replaces a completed evaluation. HR follow-up, aggregate reporting and correction/reopening after closure remain undelivered.
 
 Implementation must prove all eight criteria, rating bounds, missing/optional responses and mandatory completion; criteria-version retention; due/overdue behavior; self and assisted submission provenance; HR follow-up without answer replacement; employee/HOD/HR/trainer disclosure limits; tenant/company denials; and authorized aggregate/drill-through behavior. Prove that evaluation completion cannot close effectiveness or change competence.
 

@@ -28,3 +28,27 @@ Values retain source text (including zero and blank optional values). The reader
 does not resolve business IDs, coerce domain enums, validate policy, deduplicate
 categories, execute formulas, write database records or expose a UI. It uses the
 platform's existing ZIP and DOM extensions and bounds archive/XML size.
+
+The export command people:skills-workbook-export writes this same layout from
+the company's live catalogue: headers and table positions come from
+SkillWorkbookReader::TABLES so the file cannot drift from what the dry run
+accepts, and the written file reads back with zero defects. This fixture stays
+the reader-side synthetic source and is still never modified in place.
+
+## Assessment-log fixture
+
+skill-assessment-log.xlsx is the same synthetic two-sheet workbook plus a
+third sheet, `04 Assessment Log` (A5:L, data from row 6), holding three
+invented assessment rows over the two invented skills and two invented Staff
+IDs (EMP-00001, EMP-00002). No source assessment rows were copied. The sheet
+is opt-in: `SkillWorkbookReader::read($path, [SkillWorkbookReader::ASSESSMENT_LOG])`
+reads it and refuses a workbook without it; a plain `read($path)` never looks
+for it, so skill-catalogue.xlsx keeps reading as before. Blank Staff ID or
+Skill ID cells, formulas, error cells and merges are defects exactly as on
+the catalogue sheet.
+
+`people:skills-assessment-log-dry-run` resolves those rows against one
+company (Staff ID by employee number through the workforce directory, Skill
+ID by catalogue code, level by the published standard scale, dates against
+today) and reports reason codes with cell references. It writes nothing.
+Tests alter copies of this fixture the same way as the catalogue tests.

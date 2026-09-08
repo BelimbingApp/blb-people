@@ -30,6 +30,21 @@
             </div>
         @endif
 
+        @unless ($hasPublishedScale)
+            <x-ui.alert variant="info">
+                <div class="space-y-2">
+                    <p class="font-medium text-ink">{{ __('Assessments cannot be submitted until a proficiency scale is published.') }}</p>
+                    <p>{{ __('The scale defines what scores 0–5 mean and keeps every assessment tied to the meaning used at submission.') }}</p>
+                    @if ($canManageCatalog)
+                        <x-ui.link :href="route('people.skill.catalog.index', ['tab' => 'scale'])" kind="internal">
+                            {{ __('Set up the proficiency scale') }}
+                        </x-ui.link>
+                    @else
+                        <p>{{ __('Ask People HR to publish the proficiency scale before entering scores.') }}</p>
+                    @endif
+                </div>
+            </x-ui.alert>
+        @else
         <div class="flex flex-wrap gap-3 text-sm">
             <label>{{ __('Cycle') }}
                 <select wire:model="cycle" class="ms-1">
@@ -120,5 +135,6 @@
                 <x-ui.button wire:click="saveMatrix">{{ __('Submit scored rows for HOD verification') }}</x-ui.button>
             @endif
         @endif
+        @endunless
     @endif
 </div>

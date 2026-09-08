@@ -1,8 +1,12 @@
 <?php
 
+use App\Domains\People\Training\Http\Controllers\TrainingPassportDocumentController;
 use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingAudience;
+use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingBudgetAudience;
 use App\Domains\People\Training\Livewire\Budget\Index as BudgetIndex;
 use App\Domains\People\Training\Livewire\Calendar\Index as CalendarIndex;
+use App\Domains\People\Training\Livewire\Catalog\Create as CatalogCreate;
+use App\Domains\People\Training\Livewire\Catalog\Edit as CatalogEdit;
 use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
 use App\Domains\People\Training\Livewire\Effectiveness\Index as EffectivenessIndex;
 use App\Domains\People\Training\Livewire\EffectivenessAggregate\Index as EffectivenessAggregateIndex;
@@ -10,9 +14,11 @@ use App\Domains\People\Training\Livewire\Evaluation\Index as EvaluationIndex;
 use App\Domains\People\Training\Livewire\Event\Index;
 use App\Domains\People\Training\Livewire\Evidence\Index as EvidenceIndex;
 use App\Domains\People\Training\Livewire\HrGovernance\Index as HrGovernanceIndex;
+use App\Domains\People\Training\Livewire\Migration\Index as MigrationIndex;
 use App\Domains\People\Training\Livewire\Request\Index as RequestIndex;
 use App\Domains\People\Training\Livewire\Requests\Register as RequestsRegister;
 use App\Domains\People\Training\Livewire\TeamPassports;
+use App\Domains\People\Training\Livewire\TrainingKpi\Index as TrainingKpiIndex;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function (): void {
@@ -20,9 +26,26 @@ Route::middleware(['auth'])->group(function (): void {
         ->middleware('authz:'.TeamPassports::VIEW_CAPABILITY)
         ->name('people.training.team-passports');
 
+    // Download of a generated passport PDF (0014-a). The capability gets a
+    // caller to the door; the store decides whether this document is theirs
+    // (the employee it describes, or HR of the company) and still retained.
+    Route::get('people/training/passport/documents/{documentId}', TrainingPassportDocumentController::class)
+        ->where('documentId', '[0-9]+')
+        ->middleware('authz:people.training.passport.view')
+        ->name('people.training.passport.document');
+
     Route::get('people/training-catalog', CatalogIndex::class)
         ->middleware('authz:people.training.event.view', AuthorizeTrainingAudience::class)
         ->name('people.training.catalog.index');
+
+    Route::get('people/training-catalog/create', CatalogCreate::class)
+        ->middleware('authz:people.training.event.manage', AuthorizeTrainingAudience::class)
+        ->name('people.training.catalog.create');
+
+    Route::get('people/training-catalog/{courseId}/edit', CatalogEdit::class)
+        ->where('courseId', '[0-9]+')
+        ->middleware('authz:people.training.event.manage', AuthorizeTrainingAudience::class)
+        ->name('people.training.catalog.edit');
 
     Route::get('people/training-events', Index::class)
         ->middleware('authz:people.training.event.view', AuthorizeTrainingAudience::class)
@@ -55,10 +78,10 @@ Route::middleware(['auth'])->group(function (): void {
         ->name('people.training.evidence.index');
 
     // HR sets the allocation; a HOD reads their own department's position.
-    // Both are the same page and the same capability to reach it — only
-    // people.training.budget.manage decides who may change an amount.
+    // The audience middleware rejects broad platform grants before mount, and
+    // the store repeats that boundary while manage decides who may write.
     Route::get('people/training/budget', BudgetIndex::class)
-        ->middleware('authz:'.BudgetIndex::VIEW_CAPABILITY)
+        ->middleware('authz:'.BudgetIndex::VIEW_CAPABILITY, AuthorizeTrainingBudgetAudience::class)
         ->name('people.training.budget.index');
 
     // The HOD's own 30/60/90-day questions. The department check lives in the
@@ -71,6 +94,19 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/training/effectiveness-summary', EffectivenessAggregateIndex::class)
         ->middleware('authz:'.EffectivenessAggregateIndex::VIEW_CAPABILITY)
         ->name('people.training.effectiveness.summary');
+
+    // HR training KPI dashboard (0007-f). The HR audience is asserted inside
+    // the component (SkillAudience), as the governance queue does.
+    Route::get('people/training/kpi', TrainingKpiIndex::class)
+        ->middleware('authz:'.TrainingKpiIndex::VIEW_CAPABILITY)
+        ->name('people.training.kpi');
+
+    // The signed migration source inventory (0015-a). HR and HOD read; only
+    // people.training.migration.manage records, updates and signs, and the
+    // store decides that, not the page.
+    Route::get('people/training/migration-sources', MigrationIndex::class)
+        ->middleware('authz:'.MigrationIndex::VIEW_CAPABILITY)
+        ->name('people.training.migration.index');
 
     Route::get('people/training-evaluations', EvaluationIndex::class)
         ->middleware('authz:'.EvaluationIndex::CAPABILITY)

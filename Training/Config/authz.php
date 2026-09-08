@@ -22,6 +22,7 @@ return [
         'people.training.request.approve',
         'people.training.participation.manage',
         'people.training.participation.verify',
+        'people.training.participation.rework',
         'people.training.participation.evidence.assign',
         'people.training.participation.evidence.submit',
 
@@ -31,10 +32,28 @@ return [
          * 'confirm' is not declared there.
          */
         'people.training.participation.evidence.verify',
+
+        /*
+         * The event attendance register as a CSV (0011-f). HR only: the file
+         * carries every participant's scores and certificates for an event,
+         * which is wider than the single-session recording a trainer holds
+         * through participation.manage, so teaching the event grants nothing
+         * here. `export` is a declared platform verb.
+         */
+        'people.training.participation.export',
         'people.training.passport.view',
         'people.training.passport.view-team',
         'people.training.effectiveness.review',
         'people.training.effectiveness.close',
+
+        /*
+         * Setting the per-company 30/60/90-day checkpoint offsets (0013-e).
+         * Separate from effectiveness.review on purpose: a HOD who answers the
+         * questions must not be able to move the day they are asked, which is
+         * the governance the contract asks for. HR holds it; the reviewer
+         * capability does not imply it.
+         */
+        'people.training.effectiveness-policy.manage',
 
         /*
          * Participant evaluation access has capabilities of its own rather than
@@ -61,7 +80,27 @@ return [
          */
         'people.training.calendar.view',
         'people.training.evaluation.submit',
+
+        /*
+         * HR assisted (paper) entry of a participant's evaluation (0012-f).
+         * A capability of its own rather than a widening of submit, which is
+         * employee-only: the store binds the actual entering actor and marks
+         * the row entry_source = assisted_paper, so the grant is what makes
+         * "entered by HR on the participant's behalf" a fact the record can
+         * show, not a second way to look like the participant. The verb is
+         * `assign` because `enter` is not in the platform's declared verb
+         * list and an undeclared verb is filtered rather than refused.
+         */
+        'people.training.evaluation.assign',
         'people.training.evaluation-aggregate.view',
+
+        /*
+         * HR follow-up on evaluation support requests and provider concerns
+         * (0012-c). HR-only on purpose: HOD keeps read-only visibility through
+         * evaluation.view, and the participant's answers are never editable
+         * through a follow-up, so no other role needs this.
+         */
+        'people.training.evaluation.followup.manage',
 
         /*
          * The department budget (0010-a). Viewing is separate from changing
@@ -97,6 +136,23 @@ return [
          * for everybody, quietly. Recorded on the issue.
          */
         'people.training.effectiveness-aggregate.view',
+
+        /*
+         * The HR training KPI dashboard (0007-f, #389): the workbook's
+         * training controls per company and department. HR-only on purpose;
+         * a HOD reads their department through the evaluations dashboard and
+         * the effectiveness form, never company-level rates.
+         */
+        'people.training.kpi.view',
+
+        /*
+         * The migration source inventory (0015-a): the signed list of legacy
+         * sources a production import may read from. HR records and signs;
+         * HODs read, so a department can see what of its own records is on the
+         * list. Later import lanes consult signedInventory() and nothing else.
+         */
+        'people.training.migration.view',
+        'people.training.migration.manage',
     ],
 
     'roles' => [
@@ -105,6 +161,8 @@ return [
                 'people.training.calendar.view',
                 'people.training.event.view',
                 'people.training.evaluation.view',
+                'people.training.evaluation.assign',
+                'people.training.evaluation.followup.manage',
                 'people.training.event.manage',
                 'people.training.plan.approve',
                 'people.training.request.submit',
@@ -112,14 +170,20 @@ return [
                 'people.training.request.review',
                 'people.training.participation.manage',
                 'people.training.participation.verify',
+                'people.training.participation.rework',
                 'people.training.participation.evidence.assign',
                 'people.training.participation.evidence.verify',
+                'people.training.participation.export',
                 'people.training.passport.view',
                 'people.training.effectiveness.close',
+                'people.training.effectiveness-policy.manage',
                 'people.training.evaluation-aggregate.view',
                 'people.training.budget.view',
                 'people.training.budget.manage',
                 'people.training.effectiveness-aggregate.view',
+                'people.training.kpi.view',
+                'people.training.migration.view',
+                'people.training.migration.manage',
             ],
         ],
         'people_training_trainer' => [
@@ -140,6 +204,7 @@ return [
                 'people.training.passport.view',
                 'people.training.passport.view-team',
                 'people.training.budget.view',
+                'people.training.migration.view',
             ],
         ],
         'people_employee' => [

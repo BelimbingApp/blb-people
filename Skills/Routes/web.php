@@ -2,8 +2,10 @@
 
 use App\Domains\People\Skills\Livewire\Assessment\Matrix;
 use App\Domains\People\Skills\Livewire\BackupCoverage\Index as BackupCoverageIndex;
+use App\Domains\People\Skills\Livewire\Catalog\Import as CatalogImport;
 use App\Domains\People\Skills\Livewire\Catalog\Index;
 use App\Domains\People\Skills\Livewire\DevelopmentAction\Index as DevelopmentActionIndex;
+use App\Domains\People\Skills\Livewire\HrDashboard\Index as HrDashboardIndex;
 use App\Domains\People\Skills\Livewire\MyHistory\Index as MyHistoryIndex;
 use App\Domains\People\Skills\Livewire\Planning\Index as HodPlanningIndex;
 use App\Domains\People\Skills\Livewire\RequirementProfile\Show as RequirementProfileShow;
@@ -15,9 +17,17 @@ Route::middleware(['auth'])->group(function (): void {
         ->middleware('authz:people.skill.catalog.view')
         ->name('people.skill.catalog.index');
 
+    Route::get('people/skills/import', CatalogImport::class)
+        ->middleware('authz:'.CatalogImport::CAPABILITY)
+        ->name('people.skill.catalog.import');
+
     Route::get('people/skills/backup-coverage', BackupCoverageIndex::class)
         ->middleware('authz:'.BackupCoverageIndex::VIEW_CAPABILITY)
         ->name('people.skill.backup-coverage.index');
+
+    Route::get('people/skills/hr-dashboard', HrDashboardIndex::class)
+        ->middleware('authz:'.HrDashboardIndex::VIEW_CAPABILITY)
+        ->name('people.skill.hr-dashboard');
 
     Route::get('people/skills/team-gaps', TeamGapsIndex::class)
         ->middleware('authz:'.TeamGapsIndex::VIEW_CAPABILITY)

@@ -33,6 +33,21 @@
                             <option value="{{ $entityId }}">{{ $name }}</option>
                         @endforeach
                     </x-ui.select>
+                    {{-- Who attends. The store decides whether this actor may
+                         ask for each; the page only offers the choice. --}}
+                    <x-ui.select wire:model.live="subjectMode" :label="__('Training is for')">
+                        <option value="self">{{ __('The requestor') }}</option>
+                        <option value="member">{{ __('A member of the department') }}</option>
+                        <option value="department">{{ __('The whole department') }}</option>
+                    </x-ui.select>
+                    @if ($subjectMode === 'member')
+                        <x-ui.select wire:model="subjectEmployeeEntityId" :label="__('Department member')">
+                            <option value="">{{ __('Choose an employee') }}</option>
+                            @foreach ($employees as $entityId => $name)
+                                <option value="{{ $entityId }}">{{ $name }}</option>
+                            @endforeach
+                        </x-ui.select>
+                    @endif
                     <x-ui.select wire:model="needSource" :label="__('Need source')">
                         @foreach ($needSources as $source)
                             <option value="{{ $source->value }}">{{ __(str_replace('_', ' ', ucfirst($source->value))) }}</option>
@@ -61,7 +76,7 @@
             @if ($requests->isEmpty())
                 <p class="text-sm text-muted">{{ __('No training request yet.') }}</p>
             @else
-                <x-ui.table>
+                <x-ui.table :caption="__('Your training requests')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Need') }}</x-ui.th>

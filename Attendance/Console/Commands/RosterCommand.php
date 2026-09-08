@@ -2,13 +2,13 @@
 
 namespace App\Domains\People\Attendance\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Domains\People\Attendance\Models\AttendanceRosterAssignment;
-use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'blb:attendance:roster')]
-class RosterCommand extends Command
+class RosterCommand extends TenantScopedCommand
 {
     protected $signature = 'blb:attendance:roster
         {action : draft|validate|explain|publish-dry-run}

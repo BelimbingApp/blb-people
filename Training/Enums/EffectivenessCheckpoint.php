@@ -19,13 +19,39 @@ enum EffectivenessCheckpoint: string
     case Day60 = 'day_60';
     case Day90 = 'day_90';
 
-    public function days(): int
+    /**
+     * The workbook intervals, as the last-resort fallback behind the config
+     * file and the per-company policy. Not a standards requirement: see
+     * docs/contracts/training-effectiveness.md.
+     */
+    private const WORKBOOK_OFFSETS = ['day_30' => 30, 'day_60' => 60, 'day_90' => 90];
+
+    /**
+     * The governed offset for this checkpoint, in days after the event ended.
+     *
+     * @param  array<string, int>  $offsets  keyed by case value, from
+     *                                       TrainingEffectivenessPolicy
+     */
+    public function days(array $offsets): int
     {
-        return match ($this) {
-            self::Day30 => 30,
-            self::Day60 => 60,
-            self::Day90 => 90,
-        };
+        return (int) ($offsets[$this->value] ?? self::WORKBOOK_OFFSETS[$this->value]);
+    }
+
+    /**
+     * The workbook 30/60/90 defaults, for a company with no policy row.
+     *
+     * @return array{day_30: int, day_60: int, day_90: int}
+     */
+    public static function defaultOffsets(): array
+    {
+        /** @var array<string, int> $configured */
+        $configured = (array) config('people-training.effectiveness.checkpoint_days', []);
+
+        return [
+            self::Day30->value => (int) ($configured['day_30'] ?? self::WORKBOOK_OFFSETS['day_30']),
+            self::Day60->value => (int) ($configured['day_60'] ?? self::WORKBOOK_OFFSETS['day_60']),
+            self::Day90->value => (int) ($configured['day_90'] ?? self::WORKBOOK_OFFSETS['day_90']),
+        ];
     }
 
     public function label(): string
@@ -37,10 +63,16 @@ enum EffectivenessCheckpoint: string
         };
     }
 
-    /** The moment this checkpoint opens for an event that ended when it did. */
-    public function opensAfter(DateTimeInterface $eventEndedAt): CarbonImmutable
+    /**
+     * The moment this checkpoint opens for an event that ended when it did.
+     *
+     * @param  array<string, int>|null  $offsets  the company policy in force
+     *                                            when the event ended; null
+     *                                            takes the config defaults
+     */
+    public function opensAfter(DateTimeInterface $eventEndedAt, ?array $offsets = null): CarbonImmutable
     {
-        return CarbonImmutable::instance($eventEndedAt)->addDays($this->days());
+        return CarbonImmutable::instance($eventEndedAt)->addDays($this->days($offsets ?? self::defaultOffsets()));
     }
 
     /**
@@ -53,13 +85,19 @@ enum EffectivenessCheckpoint: string
      *
      * @return list<self>
      */
-    public static function elapsedAt(DateTimeInterface $eventEndedAt, DateTimeInterface $now): array
-    {
+    public static function elapsedAt(
+        DateTimeInterface $eventEndedAt,
+        DateTimeInterface $now,
+        ?array $offsets = null,
+    ): array {
         $moment = CarbonImmutable::instance($now);
+        $offsets ??= self::defaultOffsets();
 
         return array_values(array_filter(
             self::cases(),
-            static fn (self $checkpoint): bool => $moment->greaterThanOrEqualTo($checkpoint->opensAfter($eventEndedAt)),
+            static fn (self $checkpoint): bool => $moment->greaterThanOrEqualTo(
+                $checkpoint->opensAfter($eventEndedAt, $offsets),
+            ),
         ));
     }
 
@@ -71,13 +109,17 @@ enum EffectivenessCheckpoint: string
      * it, because an answer given at ninety days about the thirty-day mark is
      * not the thirty-day answer, it is a memory of one.
      */
-    public static function openAt(DateTimeInterface $eventEndedAt, DateTimeInterface $now): ?self
-    {
+    public static function openAt(
+        DateTimeInterface $eventEndedAt,
+        DateTimeInterface $now,
+        ?array $offsets = null,
+    ): ?self {
         $moment = CarbonImmutable::instance($now);
+        $offsets ??= self::defaultOffsets();
         $open = null;
 
         foreach (self::cases() as $checkpoint) {
-            if ($moment->greaterThanOrEqualTo($checkpoint->opensAfter($eventEndedAt))) {
+            if ($moment->greaterThanOrEqualTo($checkpoint->opensAfter($eventEndedAt, $offsets))) {
                 $open = $checkpoint;
             }
         }

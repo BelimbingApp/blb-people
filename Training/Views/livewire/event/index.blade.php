@@ -97,17 +97,32 @@
                                 <div><dt class="text-muted">{{ __('Trainer / provider') }}</dt><dd>{{ $event->external_trainer_name_snapshot ?: ($employees->firstWhere('workforce_entity_id', $event->internal_trainer_employee_entity_id)?->display_name ?? __('Unavailable')) }}</dd></div>
                                 <div><dt class="text-muted">{{ __('Venue') }}</dt><dd>{{ $event->venue ?: __('Not specified') }}</dd></div>
                                 <div><dt class="text-muted">{{ __('Ends') }}</dt><dd><x-ui.datetime :value="$event->ends_at" /></dd></div>
-                                <div><dt class="text-muted">{{ __('Participation') }}</dt><dd>@if ($summary->isAvailable()){{ __(':attended attended · :completed completed · :rate% pass', ['attended' => $summary->attended, 'completed' => $summary->completed, 'rate' => $summary->passRate() ?? '—']) }}@else{{ __('Not recorded by the participant register yet') }}@endif</dd></div>
+                                <div data-participation="{{ $event->id }}"><dt class="text-muted">{{ __('Participation') }}</dt><dd>@if ($summary->isAvailable()){{ __(':enrolled enrolled · :attended attended · :completed completed · :passed passed · pass rate :rate', ['enrolled' => $summary->enrolled, 'attended' => $summary->attended, 'completed' => $summary->completed, 'passed' => $summary->passed, 'rate' => $summary->passRate() === null ? __('n/a') : number_format($summary->passRate(), 1).'%']) }} <span class="text-muted">{{ __('as of :time', ['time' => now()->format('Y-m-d H:i')]) }}</span>@else{{ __('Participation unavailable: the participant register could not be read') }}@endif</dd></div>
                             </dl>
 
                             @if ($event->completion_evidence)<p class="text-sm"><span class="font-medium">{{ __('Completion evidence:') }}</span> {{ $event->completion_evidence }}</p>@endif
                             @if ($event->cancellation_reason)<p class="text-sm"><span class="font-medium">{{ __('Cancellation reason:') }}</span> {{ $event->cancellation_reason }}</p>@endif
 
-                            <x-ui.disclosure :title="__('History (:count)', ['count' => ($history[$event->id] ?? collect())->count()])" panel-id="training-event-{{ $event->id }}-history">
+                            @php($eventHistory = $history[$event->id] ?? collect())
+                            <x-ui.disclosure :title="__('History (:count)', ['count' => $eventHistory->count()])" panel-id="training-event-{{ $event->id }}-history">
                                 <ol class="space-y-2 text-sm">
-                                    @foreach ($history[$event->id] ?? [] as $record)
-                                        <li><span class="font-medium">{{ str($record->event_type)->replace('_', ' ')->title() }}</span> · <x-ui.datetime :value="$record->occurred_at" />@if ($record->comment)<p>{{ $record->comment }}</p>@endif @if ($record->evidence)<p class="text-muted">{{ $record->evidence }}</p>@endif</li>
-                                    @endforeach
+                                    @forelse ($eventHistory as $record)
+                                        @php($actorEmployee = $record->actor_employee_entity_id !== null ? $employees->firstWhere('workforce_entity_id', $record->actor_employee_entity_id) : null)
+                                        @php($actorUser = $record->actor_user_id !== null ? ($historyActors[$record->actor_user_id] ?? null) : null)
+                                        @php($actorLabel = $actorEmployee?->display_name ?? $actorUser?->name ?? ($record->actor_user_id === null && $record->actor_employee_entity_id === null ? __('System') : __('Unavailable')))
+                                        <li wire:key="training-event-{{ $event->id }}-history-{{ $record->id }}">
+                                            <span class="font-medium">{{ str($record->event_type)->replace('_', ' ')->title() }}</span>
+                                            · <x-ui.datetime :value="$record->occurred_at" />
+                                            · <span class="text-muted">{{ __('by :actor', ['actor' => $actorLabel]) }}</span>
+                                            @if ($record->from_status || $record->to_status)
+                                                <p class="text-muted">{{ __('Status :from → :to', ['from' => $record->from_status ?: __('none'), 'to' => $record->to_status ?: __('none')]) }}</p>
+                                            @endif
+                                            @if ($record->comment)<p>{{ $record->comment }}</p>@endif
+                                            @if ($record->evidence)<p class="text-muted">{{ $record->evidence }}</p>@endif
+                                        </li>
+                                    @empty
+                                        <li class="text-muted">{{ __('No history has been recorded for this event yet.') }}</li>
+                                    @endforelse
                                 </ol>
                             </x-ui.disclosure>
 
@@ -123,6 +138,9 @@
                                 @endif
                                 <div class="flex items-end gap-2"><x-ui.input id="training-event-{{ $event->id }}-reason" :label="__('Cancellation reason')" wire:model="reason.{{ $event->id }}" /><x-ui.button wire:click="cancel({{ $event->id }})">{{ __('Cancel event') }}</x-ui.button></div>
                             @endif
+                            @if ($canExport)
+                                <div><x-ui.button type="button" variant="secondary" wire:click="exportAttendance({{ $event->id }})">{{ __('Export attendance CSV') }}</x-ui.button></div>
+                            @endif
                             @if ($canManage)
                                 <div class="flex items-end gap-2"><x-ui.input id="training-event-{{ $event->id }}-comment" :label="__('Audit note')" wire:model="comment.{{ $event->id }}" /><x-ui.button wire:click="addComment({{ $event->id }})">{{ __('Add note') }}</x-ui.button></div>
                             @endif
@@ -131,5 +149,56 @@
                 @endforeach
             @endif
         </section>
+        @if ($canManage && $facts->isNotEmpty())
+            <x-ui.card>
+                <x-ui.table container="flush" :caption="__('Confirmed participation, as it currently stands')">
+                    <x-slot name="head">
+                        <tr>
+                            <x-ui.th>{{ __('Participant') }}</x-ui.th>
+                            <x-ui.th>{{ __('Attendance') }}</x-ui.th>
+                            <x-ui.th align="right">{{ __('Minutes') }}</x-ui.th>
+                            <x-ui.th>{{ __('Correction') }}</x-ui.th>
+                            <x-ui.th><span class="sr-only">{{ __('Actions') }}</span></x-ui.th>
+                        </tr>
+                    </x-slot>
+                    @foreach ($facts as $fact)
+                        <tr wire:key="fact-{{ $fact->id }}">
+                            <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $fact->participant }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $fact->attendance->value }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-ink">{{ $fact->actual_minutes }}</td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm text-muted">
+                                @if ($fact->corrected)
+                                    <x-ui.badge variant="warning">{{ __('Corrected') }}</x-ui.badge>
+                                    <span class="ml-2">{{ $fact->reason }}</span>
+                                @else
+                                    {{ __('As recorded') }}
+                                @endif
+                            </td>
+                            <td class="px-table-cell-x py-table-cell-y text-sm">
+                                <x-ui.button type="button" variant="secondary" wire:click="startCorrection({{ $fact->id }})">
+                                    {{ __('Correct') }}
+                                </x-ui.button>
+                            </td>
+                        </tr>
+                        @if ($correctingFactId === $fact->id)
+                            <tr wire:key="fact-{{ $fact->id }}-form">
+                                <td colspan="5" class="px-table-cell-x py-table-cell-y">
+                                    {{-- A correction is an append, so the reason is not optional:
+                                         it is the only record of why the earlier answer was wrong. --}}
+                                    <div class="flex flex-wrap items-end gap-2">
+                                        <x-ui.input id="correction-{{ $fact->id }}-attendance" :label="__('Attendance')" wire:model="correctionAttendance" />
+                                        <x-ui.input id="correction-{{ $fact->id }}-minutes" type="number" :label="__('Minutes')" wire:model="correctionMinutes" />
+                                        <x-ui.input id="correction-{{ $fact->id }}-reason" :label="__('Why the confirmed fact was wrong')" wire:model="correctionReason" />
+                                        <x-ui.button type="button" wire:click="saveCorrection">{{ __('Append correction') }}</x-ui.button>
+                                        <x-ui.button type="button" variant="secondary" wire:click="cancelCorrection">{{ __('Cancel') }}</x-ui.button>
+                                    </div>
+                                    @error('correctionReason')<p class="mt-2 text-sm text-danger">{{ $message }}</p>@enderror
+                                </td>
+                            </tr>
+                        @endif
+                    @endforeach
+                </x-ui.table>
+            </x-ui.card>
+        @endif
     @endif
 </div>

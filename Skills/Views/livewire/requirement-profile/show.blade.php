@@ -35,7 +35,7 @@
 
     <section class="space-y-3" aria-labelledby="requirements-heading">
         <h2 id="requirements-heading" class="text-lg font-semibold text-ink">{{ __('Skill requirements') }}</h2>
-        <x-ui.table>
+        <x-ui.table :caption="__('Skill requirements')">
             <x-slot:head>
                 <tr>
                     <x-ui.th>{{ __('Skill') }}</x-ui.th>

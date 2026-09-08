@@ -40,6 +40,7 @@ final class TrainingEffectivenessReview extends TenantOwnedModel implements Refe
             'improvement_rating' => 'integer',
             'impact_rating' => 'integer',
             'requirement_version' => 'integer',
+            'development_action_id' => 'integer',
             'reassessment_requirement_version' => 'integer',
             'outcome_recorded_at' => 'immutable_datetime',
             'closed_at' => 'immutable_datetime',

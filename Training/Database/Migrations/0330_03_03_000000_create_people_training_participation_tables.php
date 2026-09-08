@@ -60,7 +60,15 @@ return new class extends Migration
             $table->unsignedBigInteger('confirmed_by_user_id')->nullable();
             $table->string('confirmed_capability', 100)->nullable();
             $table->timestamp('confirmed_at')->nullable();
-            $table->unique(['tenant_id', 'participant_id', 'session_id'], 'ptf_session_uq');
+            // A confirmed fact is immutable (see the guards below), so a
+            // correction is a new row pointing at the one it replaces. Zero
+            // means "this is the original", which keeps the column NOT NULL
+            // and keeps the unique key below expressible: one original and at
+            // most one correction per superseded row. Correcting a correction
+            // supersedes the latest, so the chain stays linear.
+            $table->unsignedBigInteger('supersedes_fact_id')->default(0);
+            $table->string('correction_reason', 2000)->nullable();
+            $table->unique(['tenant_id', 'participant_id', 'session_id', 'supersedes_fact_id'], 'ptf_session_uq');
             $table->unique(['tenant_id', 'company_entity_id', 'source', 'source_reference'], 'ptf_source_uq');
             foreach (['participant_id' => 'people_training_participants', 'session_id' => 'people_training_sessions'] as $column => $parent) {
                 $table->foreign([$column, 'tenant_id', 'company_entity_id', 'event_id'], 'ptf_'.$column.'_fk')
@@ -107,7 +115,7 @@ return new class extends Migration
         $driver = DB::connection()->getDriverName();
         if ($driver === 'pgsql') {
             DB::unprepared(<<<'SQL'
-                CREATE FUNCTION pt_participation_immutable() RETURNS trigger AS $$
+                CREATE OR REPLACE FUNCTION pt_participation_immutable() RETURNS trigger AS $$
                 BEGIN
                     -- Statement-level branch first: this function is shared by
                     -- the sessions, participants and facts triggers, and only
