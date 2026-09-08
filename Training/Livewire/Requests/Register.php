@@ -298,6 +298,9 @@ final class Register extends Component
         }
 
         $sortColumn = self::SORTABLE[$this->sortBy] ?? self::SORTABLE['created_at'];
+        if ($sortColumn === 'estimated_cost') {
+            $query->orderByRaw('estimated_cost IS NULL');
+        }
 
         return $query->orderBy($sortColumn, $this->sortDir === 'asc' ? 'asc' : 'desc')
             ->orderByDesc('id');
