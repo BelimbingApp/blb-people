@@ -65,6 +65,7 @@ final class TrainingRequest extends TenantOwnedModel
     {
         return ['need_source' => TrainingNeedSource::class, 'priority' => TrainingPriority::class,
             'status' => TrainingRequestStatus::class, 'requirement_version' => 'integer',
+            'training_event_id' => 'integer', 'linked_by_user_id' => 'integer', 'linked_at' => 'immutable_datetime',
             'estimated_cost' => 'decimal:4'];
     }
 }

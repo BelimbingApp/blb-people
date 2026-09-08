@@ -176,10 +176,11 @@ test('the CSV export contains exactly the filtered rows and writes one audit act
     $csv = base64_decode($page->effects['download']['content']);
     $lines = array_values(array_filter(explode("\n", trim($csv))));
     expect($lines)->toHaveCount(2)
-        ->and($lines[0])->toBe('id,created_at,requestor,department,need,priority,status,estimated_cost,approver,decided_at')
+        ->and($lines[0])->toBe('id,created_at,requestor,subjects,department,need,priority,status,estimated_cost,approver,decided_at,linked_event_id,linked_event_title')
         ->and($lines[1])->toStartWith($f['approved']->id.',')
-        ->and($lines[1])->toContain('"Ops One"', 'Operations', '"Approved ops need"', 'approved', '1250.5000', '"Alpha Approver"', '2026-03-15')
-        ->and($csv)->not->toContain('Pending ops need', 'Beta need');
+        ->and($lines[1])->toContain('"Ops One",1,Operations', '"Approved ops need"', 'approved', '1250.5000', '"Alpha Approver"', '2026-03-15')
+        ->and($csv)->not->toContain('Pending ops need')
+        ->and($csv)->not->toContain('Beta need');
 
     expect(AuditAction::query()->count())->toBe($before + 1);
     $action = AuditAction::query()->latest('id')->first();

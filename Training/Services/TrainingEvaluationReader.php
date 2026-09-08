@@ -5,6 +5,7 @@ namespace App\Domains\People\Training\Services;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Training\Enums\TrainingEvaluationStatus;
 use App\Domains\People\Training\Models\TrainingEvaluation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
@@ -27,6 +28,24 @@ final class TrainingEvaluationReader
 {
     public const VIEW_CAPABILITY = 'people.training.evaluation.view';
 
+    /**
+     * The eight retained workbook criteria, in workbook order. A version that
+     * did not ask a criterion leaves it null, which the means below report
+     * as answered_count 0 rather than hiding the column (contract line 32).
+     *
+     * @var list<string>
+     */
+    public const RATINGS = [
+        'relevance',
+        'objectives_met',
+        'content_quality',
+        'trainer_effectiveness',
+        'materials_exercises',
+        'pace_duration',
+        'practical_usefulness',
+        'overall_satisfaction',
+    ];
+
     public function __construct(
         private readonly SkillAudience $audience,
         private readonly TenantContext $tenantContext,
@@ -40,6 +59,11 @@ final class TrainingEvaluationReader
      * unrelated employees/companies, private evidence, HR follow-up or export
      * solely by hierarchy." Ratings and completion state are departmental
      * management information; what someone wrote about their training is not.
+     *
+     * entry_source and submitted_by_user_id are deliberately not here: who
+     * entered an evaluation and whether it arrived on paper is provenance
+     * every audience gets, so the employee's own view and the HR dashboard
+     * can both say "entered from paper by HR" (0012-f).
      */
     private const FREE_TEXT_COLUMNS = [
         'most_useful_learning',
@@ -76,6 +100,33 @@ final class TrainingEvaluationReader
         // compiles to a false predicate, so a reader with no audience matches
         // nothing rather than falling through unfiltered.
         return $query->whereIn('employee_subject_id', array_map('strval', $employeeEntityIds));
+    }
+
+    /**
+     * Per-criterion mean over the answered values only, with the answered
+     * count beside it so a partial response cannot read as a full one. Only
+     * completed rows count: a draft is an unanswered form, whatever values
+     * it holds so far. Rows of any criteria version are read as stored — a
+     * criterion the version never asked is simply unanswered.
+     *
+     * @param  iterable<TrainingEvaluation>  $rows
+     * @return array<string, array{mean: float|null, answered_count: int}>
+     */
+    public function means(iterable $rows): array
+    {
+        $completed = collect($rows)->filter(
+            static fn (TrainingEvaluation $row): bool => $row->status === TrainingEvaluationStatus::Completed,
+        );
+        $means = [];
+        foreach (self::RATINGS as $criterion) {
+            $values = $completed->pluck($criterion)->filter(static fn (mixed $value): bool => $value !== null);
+            $means[$criterion] = [
+                'mean' => $values->isEmpty() ? null : round((float) $values->avg(), 2),
+                'answered_count' => $values->count(),
+            ];
+        }
+
+        return $means;
     }
 
     /**

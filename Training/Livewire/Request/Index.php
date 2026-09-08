@@ -11,6 +11,7 @@ use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
+use App\Domains\People\Training\Data\TrainingRequestSubjectsDraft;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingPriority;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
@@ -81,6 +82,15 @@ final class Index extends Component
         $this->requestorEntityId = (string) ($this->selfEntityId($companyEntityId) ?? '');
     }
 
+    /**
+     * Who the request is for: the requestor themselves, one named member of
+     * their department, or the whole department. The store decides whether
+     * this actor may ask for each; the page only offers the choice.
+     */
+    public string $subjectMode = 'self';
+
+    public ?int $subjectEmployeeEntityId = null;
+
     public function draft(): void
     {
         $companyEntityId = $this->requireCompany();
@@ -96,6 +106,8 @@ final class Index extends Component
             'need' => ['required', 'string', 'max:2000'],
             'learningObjective' => ['required', 'string', 'max:2000'],
             'expectedResult' => ['required', 'string', 'max:2000'],
+            'subjectMode' => ['required', 'in:self,member,department'],
+            'subjectEmployeeEntityId' => ['nullable', 'integer', 'required_if:subjectMode,member'],
         ]);
 
         // The requestor is client-chosen, so it is checked against the
@@ -112,6 +124,18 @@ final class Index extends Component
         }
 
         $tenantId = $this->tenantId();
+        $subjects = match ($this->subjectMode) {
+            'department' => TrainingRequestSubjectsDraft::forDepartmentCohort(),
+            'member' => TrainingRequestSubjectsDraft::forSubjects([
+                new WorkforceSubject($this->tenantId(), $companyEntityId, WorkforceResourceType::Employee,
+                    (string) $this->subjectEmployeeEntityId),
+            ]),
+            default => TrainingRequestSubjectsDraft::forSubjects([
+                new WorkforceSubject($this->tenantId(), $companyEntityId, WorkforceResourceType::Employee,
+                    $requestor->reference->externalId),
+            ]),
+        };
+
         $this->storeCall(fn () => app(TrainingRequestStore::class)->create($this->user(), $companyEntityId, new TrainingRequestDraft(
             requestor: new WorkforceSubject($tenantId, $companyEntityId, WorkforceResourceType::Employee, $requestor->reference->externalId),
             department: new WorkforceSubject($tenantId, $companyEntityId, WorkforceResourceType::OrganizationUnit, $requestor->organizationReference->externalId),
@@ -120,9 +144,9 @@ final class Index extends Component
             learningObjective: $this->learningObjective,
             expectedResult: $this->expectedResult,
             priority: TrainingPriority::from($this->priority),
-        )));
+        ), $subjects));
 
-        $this->reset('need', 'learningObjective', 'expectedResult');
+        $this->reset('need', 'learningObjective', 'expectedResult', 'subjectEmployeeEntityId');
     }
 
     public function submitRequest(int $requestId): void

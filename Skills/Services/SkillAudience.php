@@ -281,10 +281,61 @@ class SkillAudience
         return $audiences;
     }
 
+    /**
+     * Every HR user of a company who may open a page behind the capability:
+     * the set a company-wide notice (a critical coverage gap, 0009-i) goes to.
+     * Candidates come from the HR role; each is then asked the same question
+     * the page asks, so a stale role or a sibling-company grant is not a
+     * recipient.
+     *
+     * @return list<int>
+     */
+    public function hrUserIdsFor(string $functionalCapability, int $companyEntityId): array
+    {
+        $candidateIds = PrincipalRole::query()
+            ->where('principal_type', PrincipalType::USER->value)
+            ->where(function ($query) use ($companyEntityId): void {
+                $query->whereNull('company_id')->orWhere('company_id', $companyEntityId);
+            })
+            ->whereHas('role', fn ($query) => $query->where('code', self::ROLE_CODES[self::HR]))
+            ->pluck('principal_id')
+            ->map(intval(...))
+            ->unique();
+
+        return User::query()->whereKey($candidateIds)->orderBy('id')
+            ->get()
+            ->filter(function (User $user) use ($functionalCapability, $companyEntityId): bool {
+                try {
+                    return array_key_exists($companyEntityId, $this->allowedCompanies($user, $functionalCapability));
+                } catch (AuthorizationDeniedException) {
+                    return false;
+                }
+            })
+            ->pluck('id')->map(intval(...))->values()->all();
+    }
+
     public function mayAccess(User $user, string $functionalCapability): bool
     {
         try {
             $this->authorizeAudience($user, $functionalCapability);
+
+            return true;
+        } catch (AuthorizationDeniedException) {
+            return false;
+        }
+    }
+
+    public function authorizeAudienceAs(User $user, string $functionalCapability, string $requiredAudience): void
+    {
+        if (! in_array($requiredAudience, $this->authorizeAudience($user, $functionalCapability), true)) {
+            $this->deny();
+        }
+    }
+
+    public function mayAccessAs(User $user, string $functionalCapability, string $requiredAudience): bool
+    {
+        try {
+            $this->authorizeAudienceAs($user, $functionalCapability, $requiredAudience);
 
             return true;
         } catch (AuthorizationDeniedException) {

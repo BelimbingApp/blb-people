@@ -2,10 +2,10 @@
 
 namespace App\Domains\People\Training\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Training\Data\OpenEffectivenessCheckpoint;
 use App\Domains\People\Training\Services\TrainingEffectivenessCheckpoints;
-use Illuminate\Console\Command;
 
 /**
  * List the effectiveness checkpoints waiting on a HOD, and record that they
@@ -15,10 +15,9 @@ use Illuminate\Console\Command;
  * checkpoint, so running it twice in a day does not read as two questions
  * nobody answered.
  */
-final class EffectivenessDueCommand extends Command
+final class EffectivenessDueCommand extends TenantScopedCommand
 {
     protected $signature = 'people:training:effectiveness-due
-                            {--tenant= : Tenant to run for; defaults to the current tenant context}
                             {--company= : Company workforce entity to run for}
                             {--dry-run : List what is due and record nothing}';
 
@@ -26,11 +25,6 @@ final class EffectivenessDueCommand extends Command
 
     public function handle(TenantContext $tenants, TrainingEffectivenessCheckpoints $checkpoints): int
     {
-        $tenantOption = $this->option('tenant');
-
-        if ($tenantOption !== null && $tenantOption !== '') {
-            $tenants->set((int) $tenantOption);
-        }
 
         $company = $this->option('company');
 

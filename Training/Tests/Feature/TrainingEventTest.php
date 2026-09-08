@@ -2,6 +2,7 @@
 
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
+use App\Base\Authz\Models\PrincipalCapability;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
@@ -34,6 +35,7 @@ use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
 use App\Domains\People\Training\Livewire\Event\Index;
 use App\Domains\People\Training\Models\TrainingCourse;
 use App\Domains\People\Training\Models\TrainingEventAuditEvent;
+use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Services\TrainingAudience;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use App\Domains\People\Training\Services\TrainingEventStore;
@@ -220,7 +222,8 @@ test('training events preserve schedule snapshots and terminal audit history', f
         ->and($completed->completion_evidence)->toBe('Signed facilitator report')
         ->and($store->registerQuery((int) $fixture['company']->id)->pluck('id')->all())->toBe([(int) $event->id])
         ->and(TrainingEventAuditEvent::query()->forCompany($fixture['tenantId'], (int) $fixture['company']->id)->count())->toBe(4)
-        ->and(app(SummarizesTrainingParticipation::class)->forEvents((int) $fixture['company']->id, [(int) $event->id]))->toBe([]);
+        // The register derives counts (0011-e): an own event nobody joined is a zero summary, not absent.
+        ->and(app(SummarizesTrainingParticipation::class)->forEvents((int) $fixture['company']->id, [(int) $event->id])[(int) $event->id]->enrolled)->toBe(0);
 
     $audit = TrainingEventAuditEvent::query()->forCompany($fixture['tenantId'], (int) $fixture['company']->id)->firstOrFail();
     expect(fn () => $audit->update(['comment' => 'rewrite']))
@@ -238,6 +241,9 @@ test('HR can maintain the company-scoped course catalog without exposing a cours
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)
         ->call('startCourse')
+        ->assertSee('Skills covered')
+        ->assertSee('Select at least one skill')
+        ->assertSee('Select one or more active skills this course develops.')
         ->set('courseForm.code', 'confined.space')
         ->set('courseForm.title', 'Confined space entry')
         ->set('courseForm.delivery_mode', DeliveryMode::InternalOjt->value)
@@ -254,6 +260,47 @@ test('HR can maintain the company-scoped course catalog without exposing a cours
     $sibling = trainingEventCompany($fixture['tenantId']);
     expect(TrainingCourse::query()->forCompany($fixture['tenantId'], (int) $sibling->id)->where('code', 'confined.space')->exists())
         ->toBeFalse();
+});
+
+test('course creation explains the active-skill prerequisite before opening an unsaveable form', function (): void {
+    [$tenant, $company] = createTenantWithCompany(
+        ['name' => 'Empty Training Tenant'],
+        ['name' => 'Empty Training Company'],
+    );
+    app(TenantContext::class)->set((int) $tenant->id);
+    $hr = User::factory()->create(['company_id' => $company->id]);
+    trainingEventRole($hr, 'people_hr');
+
+    Livewire::actingAs($hr)->test(CatalogIndex::class)
+        ->assertSee('Add an active skill before defining a course.')
+        ->assertSee('Set up skills')
+        ->assertSeeHtml('href="'.route('people.skill.catalog.index').'"')
+        ->assertDontSee('New course')
+        ->call('startCourse')
+        ->assertHasErrors('courseForm')
+        ->assertDontSee('Define course');
+});
+
+test('course creation does not offer skill setup to an HR actor denied skill catalog management', function (): void {
+    [$tenant, $company] = createTenantWithCompany(
+        ['name' => 'Restricted Training Tenant'],
+        ['name' => 'Restricted Training Company'],
+    );
+    app(TenantContext::class)->set((int) $tenant->id);
+    $hr = User::factory()->create(['company_id' => $company->id]);
+    trainingEventRole($hr, 'people_hr');
+    PrincipalCapability::query()->create([
+        'company_id' => $company->id,
+        'principal_type' => PrincipalType::USER->value,
+        'principal_id' => $hr->id,
+        'capability_key' => 'people.skill.catalog.manage',
+        'is_allowed' => false,
+    ]);
+
+    Livewire::actingAs($hr)->test(CatalogIndex::class)
+        ->assertSee('Ask a People skills administrator to add an active skill.')
+        ->assertDontSee('Set up skills')
+        ->assertDontSee('New course');
 });
 
 test('catalog rejects a sibling-company trainer at the store boundary', function (): void {
@@ -469,7 +516,8 @@ test('the actual register gives HR company scope, HOD department scope, and reje
         ->assertDontSee('Finance room')
         ->assertSee('Company hall')
         ->assertSee('Company-wide')
-        ->assertSee('Not recorded by the participant register yet');
+        // The register now derives counts (0011-e): an event nobody joined is zeros, not 'unavailable'.
+        ->assertSee('0 enrolled · 0 attended · 0 completed · 0 passed · pass rate n/a');
 
     expect(fn () => Livewire::actingAs($hod)->test(Index::class)->call('start', (int) $operationsEvent->id))
         ->toThrow(AuthorizationDeniedException::class);
@@ -813,4 +861,77 @@ test('rescheduling creates a new event and keeps the old one', function (): void
         'startsAt' => now()->addDays(3)->setTime(9, 0),
         'endsAt' => now()->addDays(3)->setTime(17, 0),
     ])))->toThrow(InvalidTrainingEventException::class, 'scheduled event');
+});
+
+/** A confirmed participation fact on a finished event, for the correction tests. */
+function trainingEventConfirmedFact(array $fixture, User $hr): TrainingParticipationFact
+{
+    $store = app(TrainingParticipationStore::class);
+    $event = app(TrainingEventStore::class)->schedule((int) $fixture['company']->id, trainingEventDraft($fixture));
+    $session = $store->defineSession($hr, (int) $fixture['company']->id, (int) $event->id,
+        (string) Str::uuid(), $event->starts_at, $event->ends_at);
+    test()->travelTo($event->ends_at->addHour());
+    $subject = new WorkforceSubject(
+        $fixture['tenantId'], (int) $fixture['company']->id, WorkforceResourceType::Employee,
+        (string) $fixture['operations']->id,
+        new ExternalReference(WorkforceResourceType::Employee, (string) $fixture['operations']->id),
+    );
+    $fact = $store->recordAttendance($hr, (int) $fixture['company']->id, (int) $session->id, $subject, new ParticipationFactDraft(
+        attendance: AttendanceStatus::Present, actualMinutes: 90,
+        source: 'manual', sourceReference: (string) Str::uuid(),
+    ));
+    $store->confirm($hr, (int) $fixture['company']->id, (int) $fact->id);
+
+    return $fact->refresh();
+}
+
+test('HR appends a correction from the event page and the table shows it with its reason', function (): void {
+    $this->travelTo(new DateTimeImmutable('2026-09-30T12:00:00+00:00'));
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    $fact = trainingEventConfirmedFact($fixture, $hr);
+    $companyId = (int) $fixture['company']->id;
+
+    Livewire::actingAs($hr)->test(Index::class)
+        ->set('companyEntityId', $companyId)
+        ->assertSee('Confirmed participation, as it currently stands')
+        ->assertSee('As recorded')
+        ->call('startCorrection', (int) $fact->id)
+        ->assertSet('correctingFactId', (int) $fact->id)
+        ->set('correctionAttendance', AttendanceStatus::Absent->value)
+        ->set('correctionMinutes', 0)
+        ->set('correctionReason', 'Signed the sheet for a colleague.')
+        ->call('saveCorrection')
+        ->assertHasNoErrors()
+        ->assertSet('correctingFactId', null)
+        ->assertSee('Corrected')
+        ->assertSee('Signed the sheet for a colleague.');
+
+    // The original is still there, untouched; the table shows the correction.
+    expect($fact->refresh()->attendance)->toBe(AttendanceStatus::Present)
+        ->and(TrainingParticipationFact::query()->forCompany($fixture['tenantId'], $companyId)
+            ->where('supersedes_fact_id', (int) $fact->id)->count())->toBe(1);
+});
+
+test('the correction form refuses an empty reason and surfaces the store refusal as a field error', function (): void {
+    $this->travelTo(new DateTimeImmutable('2026-09-30T12:00:00+00:00'));
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    $fact = trainingEventConfirmedFact($fixture, $hr);
+    $companyId = (int) $fixture['company']->id;
+
+    Livewire::actingAs($hr)->test(Index::class)
+        ->set('companyEntityId', $companyId)
+        ->call('startCorrection', (int) $fact->id)
+        ->set('correctionAttendance', AttendanceStatus::Absent->value)
+        ->set('correctionMinutes', 0)
+        ->set('correctionReason', '')
+        ->call('saveCorrection')
+        ->assertHasErrors('correctionReason')
+        ->call('cancelCorrection')
+        ->assertSet('correctingFactId', null);
+
+    expect(TrainingParticipationFact::query()->forCompany($fixture['tenantId'], $companyId)->count())->toBe(1);
 });

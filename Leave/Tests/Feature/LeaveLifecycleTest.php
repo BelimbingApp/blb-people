@@ -679,11 +679,12 @@ test('balance statement aggregates ledger entries per leave type', function (): 
 });
 
 test('seed-sbg-pack command is idempotent and creates the expected cohort assignments', function (): void {
-    $code = $this->artisan('blb:leave:seed-sbg-pack')->run();
+    $tenantId = (int) Company::query()->orderBy('id')->firstOrFail()->tenant_id;
+    $code = $this->artisan('blb:leave:seed-sbg-pack', ['--tenant' => $tenantId])->run();
     expect($code)->toBe(0);
     $firstRun = LeaveAssignment::query()->count();
 
-    $this->artisan('blb:leave:seed-sbg-pack')->run();
+    $this->artisan('blb:leave:seed-sbg-pack', ['--tenant' => $tenantId])->run();
     expect(LeaveAssignment::query()->count())->toBe($firstRun);
 
     $codes = LeaveAssignment::query()->pluck('code')->all();

@@ -12,6 +12,16 @@ Retain the workbook's 30-Day, 60-Day and 90-Day stages, plus the Final stage fro
 
 These intervals are company/workbook defaults, not universal standards requirements or hardcoded calendar policy. Governed policy must settle the trigger date, calendar, permitted changes and final-review timing. Do not silently choose course start, completion or return-to-work as the due-date anchor. An overdue review remains distinguishable from a completed review with an unsuccessful outcome.
 
+### Settled: the anchor, the offsets and the policy in force ([#361](https://github.com/BelimbingApp/blb-people/issues/361))
+
+**Anchor.** The checkpoint clock runs from the training event's `ends_at` and from nothing else. Not the course start, not the return-to-work date, and not when attendance was recorded — a record entered late would otherwise push the question out until nobody remembers the training.
+
+**Offsets.** Each stage's distance from that anchor is governed per company, held as an append-only history of `(day_30, day_60, day_90)` offsets with an `effective_from` date, the HR actor who set them and their stated reason. Offsets are strictly increasing and at least one day; a company that has never set a policy runs on the workbook defaults of 30/60/90 days, which live in configuration rather than in code.
+
+**Policy in force.** The policy whose `effective_from` is the newest date on or before the event's end date governs that event's checkpoints, permanently. A later change never re-dates checkpoints of an event that has already ended: a question that opened, was asked and was answered cannot retroactively have been due on a different day, and an answer rate whose denominator moves is not a measurement. Setting a policy is therefore prospective and appends; the database refuses `UPDATE` and `DELETE` on the history.
+
+**Authority.** Setting the policy is HR governance under its own capability. Holding the reviewer capability answers the questions; it does not move the day they are asked.
+
 The following names describe logical facts and references, not new columns, enums or transport APIs.
 
 | Record element | Meaning and source |
@@ -33,7 +43,19 @@ Preserve the rating scale without inventing anchors or averaging it into a compe
 
 The accountable manager/reviewer records workplace observations and objective evidence. The HOD verifies the review within explicitly assigned scope and the approved assessor/HOD separation. HR governs follow-up and coordinates the approved procedure. A role title or reporting relationship alone grants no write, verification, closure or export authority.
 
-A reviewer must not self-verify outside the approved separation. Exact delegation and independence rules remain HR/HOD policy to confirm; this document does not nominate an additional approver or invent permission identifiers. Employee or trainer evidence can inform a review but does not become HOD verification or an official Skills reassessment merely because it was submitted.
+A reviewer must not self-verify outside the approved separation. Beyond the three shipped rules below, exact delegation and independence rules remain HR/HOD policy to confirm; this document does not nominate an additional approver or invent permission identifiers. Employee or trainer evidence can inform a review but does not become HOD verification or an official Skills reassessment merely because it was submitted.
+
+### Conflicts of interest
+
+Shipped behaviour, not policy to confirm. `TrainingEffectivenessStore` refuses each of the three, and the first is mirrored by a database guard on `people_training_effectiveness_reviews` so a write path that steps around the store is refused too.
+
+| Rule | Refused where |
+| --- | --- |
+| No self-review: the reviewer named on a stage cannot be the participant being reviewed | `openStage()`, plus an insert/update trigger joining the review to its participant |
+| No outcome or closure on your own training: the acting user's projected employee cannot be the reviewed participant | `openStage()`, `recordOutcome()`, `closeWithReassessment()`, `closeAsNonAssessable()`, `openFollowUpAction()` |
+| No closure on the reviewer's own reassessment: the linked reassessment's assessor cannot be the review's reviewer | `closeWithReassessment()` |
+
+A reviewer must also be an active employee of the company the review belongs to; an employee of a sibling company in the same tenant is refused.
 
 Skills performs and verifies reassessment through its own governed lifecycle. Training requests or links it and reads its result. HR coordination, an event status change or a high workplace rating cannot directly modify the skill score.
 
@@ -55,6 +77,37 @@ Verified post level and improvement are derived from the linked assessment. Part
 | Partially Effective | Some intended workplace result is supported, with remaining need | Keep explicit further action and subsequent review/development follow-up |
 | Not Yet Effective | Intended workplace result has not yet been established | Remain open, schedule another review or create/revise a development action |
 | Not Applicable | Applicability has been assessed and documented | Evidence is still required; this label is not automatic exemption from skill-gap closure |
+
+
+### The follow-up a review owes — shipped behaviour
+
+`further_action` is free text, so an outcome of Partially Effective or Not Yet
+Effective used to end in a sentence with nobody's name on it. `openFollowUpAction()`
+links the review to the Skills development action that carries an owner, a due
+date and a reassessment, and `people_training_effectiveness_reviews.development_action_id`
+records the link.
+
+The action's subject is never the caller's to choose: the employee comes from
+the reviewed participant, the starting level from the verified post-training
+level or else the review's baseline, the target level from the review, and the
+skill from the skills the participant's own course covers — named by the caller
+when the course covers more than one. The caller supplies only what a
+development action needs and a review cannot know, such as who owns the work
+and when it is due.
+
+| Rule | Refused where |
+| --- | --- |
+| Only Partially Effective and Not Yet Effective owe a follow-up | `openFollowUpAction()` |
+| One review carries one link; revise the action rather than opening a second | `openFollowUpAction()` |
+| A closed review is a historical fact: open the follow-up before closing | `openFollowUpAction()` |
+| A linked existing action must be open and belong to the same employee and a course skill | `openFollowUpAction()` |
+| A linked action must belong to the review's own tenant and company | `openFollowUpAction()`, plus an insert/update trigger on the review row |
+
+The effectiveness roll-up reports open follow-up per course as the linked
+actions whose closure status is `open`, `pending_reassessment` or
+`further_action_required`, read from the action rather than from the review:
+the review hands the work to Skills and stops being the authority on whether it
+is finished. The drill-through names exactly those action ids.
 
 The retained 0013 closure rule requires the participant evaluation, reviewed workplace evidence, a new evidence-backed verified assessment, and satisfaction of the applicable target/effectiveness rule before skill-linked training closes as effective. Missing or unverified evidence must remain explicit. Cancellation, passage of 90 days, a Final-stage label or delivery completion does not satisfy those gates.
 

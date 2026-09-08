@@ -21,6 +21,7 @@ use App\Domains\People\Training\Enums\TrainingPriority;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Livewire\Request\Index;
 use App\Domains\People\Training\Models\TrainingRequest;
+use App\Domains\People\Training\Models\TrainingRequestSubject;
 use App\Domains\People\Training\Services\TrainingRequestStore;
 use Illuminate\Support\Collection;
 use Livewire\Livewire;
@@ -266,6 +267,46 @@ test('the page and its route refuse a user outside the training audiences', func
     $this->actingAs($f['employee'])->get(route('people.training.requests.index'))->assertOk()->assertSee('Training requests');
 });
 
+/** @return list<string> */
+function trainingReqSubjectIds(array $f, TrainingRequest $request): array
+{
+    return TrainingRequestSubject::query()->forCompany($f['tenantId'], (int) $f['company']->id)
+        ->where('training_request_id', $request->id)
+        ->pluck('employee_subject_id')->sort()->values()->all();
+}
+
+test('the page offers self, one member, or the whole department, and the store decides who may', function (): void {
+    $f = trainingReqFixture();
+
+    // An employee gets themself and nothing else: choosing a colleague is a
+    // refusal from the store, surfaced on the form rather than as a crash.
+    Livewire::actingAs($f['employee'])->test(Index::class)
+        ->set('needSource', TrainingNeedSource::NewMachineTechnology->value)
+        ->set('priority', TrainingPriority::High->value)
+        ->set('need', 'Operate the new press safely.')
+        ->set('learningObjective', 'Run the press unsupervised.')
+        ->set('expectedResult', 'Zero unsafe starts.')
+        ->set('subjectMode', 'member')
+        ->set('subjectEmployeeEntityId', (int) $f['qaMember']->id)
+        ->call('draft')
+        ->assertHasErrors();
+
+    expect(trainingReqRows($f))->toHaveCount(0);
+
+    // Self is what the submit capability is for.
+    Livewire::actingAs($f['employee'])->test(Index::class)
+        ->set('needSource', TrainingNeedSource::NewMachineTechnology->value)
+        ->set('priority', TrainingPriority::High->value)
+        ->set('need', 'Operate the new press safely.')
+        ->set('learningObjective', 'Run the press unsupervised.')
+        ->set('expectedResult', 'Zero unsafe starts.')
+        ->set('subjectMode', 'self')
+        ->call('draft')
+        ->assertHasNoErrors();
+
+    $own = trainingReqRows($f)->sole();
+    expect(trainingReqSubjectIds($f, $own))->toBe([(string) $f['member']->id]);
+});
 function trainingReqRejected(array $f, Employee $requestor, PeopleReferenceEntry $unit, string $need): TrainingRequest
 {
     $store = app(TrainingRequestStore::class);

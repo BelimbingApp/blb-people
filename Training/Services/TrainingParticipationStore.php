@@ -14,11 +14,15 @@ use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Services\CompanyAttribution;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Skills\Services\SkillReassessmentStore;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\ParticipationFactDraft;
 use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingParticipationException;
+use App\Domains\People\Training\Models\TrainingCourseSkill;
 use App\Domains\People\Training\Models\TrainingEvent;
+use App\Domains\People\Training\Models\TrainingEventAuditEvent;
 use App\Domains\People\Training\Models\TrainingParticipant;
 use App\Domains\People\Training\Models\TrainingParticipationFact;
 use App\Domains\People\Training\Models\TrainingSession;
@@ -33,7 +37,17 @@ final class TrainingParticipationStore
 
     public const CONFIRM = 'people.training.participation.verify';
 
+    /**
+     * Correcting a confirmed fact is a separate authority from recording one:
+     * it rewrites what the company says happened, after somebody already
+     * signed it off. HR holds it; a trainer with MANAGE does not.
+     */
+    public const REWORK = 'people.training.participation.rework';
+
     public const EVIDENCE = 'people.training.participation.evidence.assign';
+
+    /** Audit row written once per confirmed fact that opened reassessment requests (0006-e). */
+    public const AUDIT_REASSESSMENT_REQUESTED = 'reassessment_requested';
 
     public function __construct(
         private readonly TenantContext $tenancy,
@@ -42,6 +56,8 @@ final class TrainingParticipationStore
         private readonly AuthorizationService $authorization,
         private readonly SkillAudience $audiences,
         private readonly TrainingAudience $calendar,
+        private readonly WorkforceSubjects $subjects,
+        private readonly SkillReassessmentStore $reassessments,
     ) {}
 
     public function defineSession(User $actor, int $companyId, int $eventId, string $reference, DateTimeInterface $startsAt, DateTimeInterface $endsAt): TrainingSession
@@ -116,16 +132,75 @@ final class TrainingParticipationStore
         return DB::transaction(function () use ($actor, $companyId, $factId, $tenant): TrainingParticipationFact {
             $fact = $this->fact($tenant, $companyId, $factId);
             $session = $this->session($tenant, $companyId, (int) $fact->session_id);
-            $this->authorizeEvent($actor, $this->event($tenant, $companyId, (int) $session->event_id), true);
+            $event = $this->event($tenant, $companyId, (int) $session->event_id);
+            $this->authorizeEvent($actor, $event, true);
             $this->requireUnconfirmed($fact);
             $this->authorizeEvidence($actor, $fact);
             $fact->update([
                 'confirmed_by_user_id' => $actor->getKey(), 'confirmed_capability' => self::CONFIRM,
                 'confirmed_at' => now(),
             ]);
+            $fact->refresh();
+            $this->openReassessments($actor, $tenant, $companyId, $event, $fact);
 
-            return $fact->refresh();
+            return $fact;
         });
+    }
+
+    /**
+     * A confirmed, attended fact with a passed post-test or a certificate
+     * opens one reassessment request per skill the event's course covers
+     * (0006-e). The request is the only thing that changes: attendance is
+     * never proof of competence, so no score moves here. An open request for
+     * the same employee and skill is skipped and counted, and one audit row
+     * per fact records what was opened and what was already open.
+     */
+    private function openReassessments(User $actor, int $tenant, int $companyId, TrainingEvent $event, TrainingParticipationFact $fact): void
+    {
+        $passed = ($fact->post_test['passed'] ?? null) === true;
+        if ($fact->attendance !== AttendanceStatus::Present || (! $passed && $fact->certificate_reference === null)) {
+            return;
+        }
+        // The course is pinned to the company through the event; the mapping
+        // inherits that ownership from course_id.
+        $skillIds = TrainingCourseSkill::query()->forTenant($tenant)
+            ->where('course_id', $event->course_id)->orderBy('skill_id')->pluck('skill_id')->map(intval(...))->all();
+        if ($skillIds === []) {
+            return;
+        }
+        $participant = TrainingParticipant::query()->forCompany($tenant, $companyId)->find($fact->participant_id);
+        if ($participant === null || $participant->provider_id !== ExternalReference::PROVIDER_ID
+            || ! ctype_digit((string) $participant->employee_subject_id)) {
+            return;
+        }
+        $employee = $this->subjects->resolve($tenant, $companyId, WorkforceResourceType::Employee, (int) $participant->employee_subject_id);
+        if (! $employee instanceof WorkforceEmployee || $employee->companyReference->externalId !== (string) $companyId) {
+            return;
+        }
+        $employeeEntityId = (int) $employee->reference->externalId;
+
+        $requested = $skipped = [];
+        foreach ($skillIds as $skillId) {
+            $request = $this->reassessments->requestFromTraining(
+                $actor, $companyId, $employeeEntityId, $skillId, (int) $fact->id, $fact->confirmed_at,
+            );
+            if ($request === null) {
+                $skipped[] = $skillId;
+            } else {
+                $requested[] = $skillId;
+            }
+        }
+
+        TrainingEventAuditEvent::query()->create([
+            'tenant_id' => $tenant, 'company_entity_id' => $companyId,
+            'training_event_id' => $event->id, 'event_type' => self::AUDIT_REASSESSMENT_REQUESTED,
+            'actor_user_id' => $actor->getKey(), 'actor_employee_entity_id' => $employeeEntityId,
+            'metadata' => [
+                'participation_fact_id' => (int) $fact->id, 'employee_entity_id' => $employeeEntityId,
+                'requested_skill_ids' => $requested, 'skipped_open_skill_ids' => $skipped,
+            ],
+            'occurred_at' => now(),
+        ]);
     }
 
     /**
@@ -134,6 +209,64 @@ final class TrainingParticipationStore
      * same seam the page reads — so the calendar never offers an event
      * this store would refuse.
      */
+    /**
+     * Enrol every subject of an approved request onto the event it was linked
+     * to, or none of them.
+     *
+     * Called by TrainingRequestStore::linkEvent(), which has already decided
+     * the request may be linked; this owns the participation rules. Capacity
+     * is checked once for the whole cohort: half a department enrolled and the
+     * rest silently dropped is worse than a refused link somebody can act on.
+     *
+     * Idempotent per event and subject, so linking, unlinking and linking
+     * again does not duplicate anybody.
+     *
+     * @param  list<array{provider_id: string, employee_subject_id: string}>  $subjects
+     * @return list<TrainingParticipant>
+     */
+    public function enrolFromRequest(User $actor, int $companyId, int $eventId, array $subjects): array
+    {
+        $tenant = $this->scope($actor, $companyId, self::MANAGE);
+
+        return DB::transaction(function () use ($companyId, $eventId, $subjects, $tenant): array {
+            $event = TrainingEvent::query()->forCompany($tenant, $companyId)->lockForUpdate()->find($eventId)
+                ?? throw new InvalidTrainingParticipationException('Training event was not found in this company.');
+
+            $existing = TrainingParticipant::query()->forCompany($tenant, $companyId)
+                ->where('event_id', $event->id)->get();
+            $alreadyOn = $existing->filter(fn (TrainingParticipant $p): bool => $p->withdrawn_at === null)
+                ->map(fn (TrainingParticipant $p): string => $p->provider_id.':'.$p->employee_subject_id)
+                ->all();
+
+            $wanted = [];
+            foreach ($subjects as $subject) {
+                $key = $subject['provider_id'].':'.$subject['employee_subject_id'];
+                if (! in_array($key, $alreadyOn, true)) {
+                    $wanted[$key] = $subject;
+                }
+            }
+
+            $seats = (int) $event->capacity - count($alreadyOn);
+            if (count($wanted) > $seats) {
+                throw new InvalidTrainingParticipationException('The training event does not have room for everybody the request names.');
+            }
+
+            $enrolled = [];
+            foreach ($wanted as $subject) {
+                $enrolled[] = TrainingParticipant::query()->forCompany($tenant, $companyId)->updateOrCreate(
+                    [
+                        'tenant_id' => $tenant, 'company_entity_id' => $companyId, 'event_id' => $event->id,
+                        'provider_id' => $subject['provider_id'],
+                        'employee_subject_id' => $subject['employee_subject_id'],
+                    ],
+                    ['withdrawn_at' => null, 'workforce_observed_at' => now()],
+                );
+            }
+
+            return $enrolled;
+        });
+    }
+
     public function enrolSelf(User $actor, int $companyId, int $eventId): TrainingParticipant
     {
         $tenant = $this->scope($actor, $companyId, TrainingAudience::CALENDAR_VIEW);
@@ -328,6 +461,57 @@ final class TrainingParticipationStore
     private function fact(int $tenant, int $companyId, int $id): TrainingParticipationFact
     {
         return TrainingParticipationFact::query()->forCompany($tenant, $companyId)->lockForUpdate()->find($id) ?? $this->deny();
+    }
+
+    /**
+     * Append a superseding fact, never an update.
+     *
+     * A confirmed fact is immutable at the database level, which is the point:
+     * what the company said happened is a record, not a draft. A correction is
+     * therefore a new row that names the one it replaces and carries the
+     * reason, so the original and the correction are both readable afterwards.
+     *
+     * The correction is confirmed by construction — HR is the confirming
+     * authority here, and an unconfirmed correction would leave the session
+     * with neither a current answer nor a pending one.
+     */
+    public function correct(User $actor, int $companyId, int $factId, ParticipationFactDraft $draft, string $reason): TrainingParticipationFact
+    {
+        $tenant = $this->scope($actor, $companyId, self::REWORK);
+
+        if (trim($reason) === '') {
+            throw new InvalidTrainingParticipationException('A correction records why the confirmed fact was wrong.');
+        }
+
+        return DB::transaction(function () use ($actor, $companyId, $factId, $draft, $reason, $tenant): TrainingParticipationFact {
+            $fact = $this->fact($tenant, $companyId, $factId);
+            $session = $this->session($tenant, $companyId, (int) $fact->session_id);
+            $this->authorizeEvent($actor, $this->event($tenant, $companyId, (int) $session->event_id), true);
+
+            if ($fact->confirmed_at === null) {
+                throw new InvalidTrainingParticipationException('Only a confirmed participation fact is corrected; revise the draft instead.');
+            }
+            if (TrainingParticipationFact::query()->forCompany($tenant, $companyId)
+                ->where('supersedes_fact_id', (int) $fact->id)->exists()) {
+                throw new InvalidTrainingParticipationException('This fact has already been corrected; correct the correction.');
+            }
+
+            $correction = TrainingParticipationFact::query()->forCompany($tenant, $companyId)->create([
+                ...$this->payload($actor, $session, $draft),
+                'tenant_id' => $tenant,
+                'company_entity_id' => $companyId,
+                'event_id' => (int) $fact->event_id,
+                'participant_id' => (int) $fact->participant_id,
+                'session_id' => (int) $fact->session_id,
+                'supersedes_fact_id' => (int) $fact->id,
+                'correction_reason' => trim($reason),
+                'confirmed_by_user_id' => $actor->getKey(),
+                'confirmed_capability' => self::REWORK,
+                'confirmed_at' => now(),
+            ]);
+
+            return $correction->refresh();
+        });
     }
 
     private function requireUnconfirmed(TrainingParticipationFact $fact): void

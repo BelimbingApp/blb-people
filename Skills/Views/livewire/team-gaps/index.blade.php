@@ -64,4 +64,39 @@
             @endforelse
         </x-ui.table>
     </x-ui.card>
+
+    <x-ui.card>
+        <x-ui.table container="flush" :caption="__('Backup coverage for your department')">
+            <x-slot name="head">
+                <tr>
+                    <x-ui.th>{{ __('Skill') }}</x-ui.th>
+                    <x-ui.th align="right">{{ __('Required level') }}</x-ui.th>
+                    <x-ui.th align="right">{{ __('Holders') }}</x-ui.th>
+                    <x-ui.th align="right">{{ __('Minimum') }}</x-ui.th>
+                    <x-ui.th>{{ __('Cover') }}</x-ui.th>
+                </tr>
+            </x-slot>
+            @forelse ($coverage as $row)
+                <tr wire:key="team-coverage-{{ $row['skill_id'] }}">
+                    <td class="px-table-cell-x py-table-cell-y text-sm font-medium text-ink">{{ $row['skill'] }}</td>
+                    <td class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-ink">{{ $row['required_level'] }}</td>
+                    <td class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-ink">{{ $row['holders'] }}</td>
+                    <td class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-muted">{{ $row['minimum'] }}</td>
+                    <td class="px-table-cell-x py-table-cell-y text-sm">
+                        @if ($row['covered'])
+                            <x-ui.badge variant="success">{{ __('Covered') }}</x-ui.badge>
+                        @else
+                            <x-ui.badge variant="danger">{{ __('Short of cover') }}</x-ui.badge>
+                        @endif
+                    </td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="5" class="px-table-cell-x py-10 text-center text-sm text-muted">
+                        {{ __('No critical skill has been assessed in your department.') }}
+                    </td>
+                </tr>
+            @endforelse
+        </x-ui.table>
+    </x-ui.card>
 </div>

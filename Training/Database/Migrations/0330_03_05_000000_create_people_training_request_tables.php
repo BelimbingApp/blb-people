@@ -62,7 +62,7 @@ return new class extends Migration
         }
         if (DB::connection()->getDriverName() === 'pgsql') {
             DB::unprepared(<<<'SQL'
-                CREATE FUNCTION ptr_decision_immutable() RETURNS trigger AS $$
+                CREATE OR REPLACE FUNCTION ptr_decision_immutable() RETURNS trigger AS $$
                 BEGIN RAISE EXCEPTION 'training request decisions are append-only'; END;
                 $$ LANGUAGE plpgsql;
                 CREATE TRIGGER ptr_decision_immutable BEFORE UPDATE OR DELETE ON people_training_request_decisions

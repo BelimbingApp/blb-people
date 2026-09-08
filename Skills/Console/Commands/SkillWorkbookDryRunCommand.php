@@ -2,14 +2,14 @@
 
 namespace App\Domains\People\Skills\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Domains\People\Skills\Import\SkillWorkbookReader;
 use App\Domains\People\Skills\Import\SkillWorkbookResult;
 use App\Domains\People\Skills\Import\UnreadableSkillWorkbook;
 use App\Domains\People\Skills\Import\WorkbookSource;
-use Illuminate\Console\Command;
 
 /** Parse and report the supported workbook records without persisting them. */
-final class SkillWorkbookDryRunCommand extends Command
+final class SkillWorkbookDryRunCommand extends TenantScopedCommand
 {
     protected $signature = 'people:skills-workbook-dry-run
                             {workbook : Path to the local XLSX workbook}';
