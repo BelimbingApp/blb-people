@@ -13,18 +13,35 @@ use Illuminate\Support\Facades\Schema;
  *
  * Keys match the connector's vocabulary: tenant id, owning company entity id,
  * and subject stable id as the employee entity id Skills stores. Catalog
- * tables are omitted — they are not about one person. Restorable is false:
- * Skills owns restore; the connector records the block as not_restored.
+ * tables are omitted — they are not about one person. Audience / delivery
+ * ledgers with employee_entity_id (portal bindings, assessor roster, reminder
+ * ticks) are deliberately excluded from the DSAR payload; they are named in
+ * DELIBERATE_EMPLOYEE_ENTITY_EXCLUSIONS so a coverage ratchet cannot forget
+ * them. Restorable is false: Skills owns restore; the connector records the
+ * block as not_restored.
  */
 final class SkillsSubjectExporter implements ExportsSupplementalSubjectRecords
 {
     /** @var list<string> subject-keyed tables with employee_entity_id */
-    private const EMPLOYEE_TABLES = [
+    public const EMPLOYEE_ENTITY_TABLES = [
         'people_connector_skill_assessments',
         'people_connector_skill_employee_scores',
         'people_connector_skill_reassessment_requests',
         'people_connector_skill_development_actions',
         'people_connector_skill_assessment_decisions',
+    ];
+
+    /**
+     * Audience / delivery ledgers with employee_entity_id that #410 left out of
+     * the DSAR payload on purpose (portal bindings, assessor roster, reminder
+     * delivery ticks). Named so the coverage ratchet cannot silently forget them.
+     *
+     * @var list<string>
+     */
+    public const DELIBERATE_EMPLOYEE_ENTITY_EXCLUSIONS = [
+        'people_connector_skill_actor_bindings',
+        'people_connector_skill_assessor_assignments',
+        'people_connector_skill_reminder_deliveries',
     ];
 
     public function name(): string
@@ -52,7 +69,7 @@ final class SkillsSubjectExporter implements ExportsSupplementalSubjectRecords
         $employeeEntityId = (int) $subject->stableId;
         $sections = [];
 
-        foreach (self::EMPLOYEE_TABLES as $table) {
+        foreach (self::EMPLOYEE_ENTITY_TABLES as $table) {
             if (! Schema::hasTable($table)) {
                 continue;
             }

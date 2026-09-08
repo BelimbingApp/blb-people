@@ -16,6 +16,7 @@ use App\Domains\People\Training\Services\TrainingEventStore;
 use App\Domains\People\Training\Services\TrainingSubjectExporter;
 use App\Domains\PeopleConnector\Connector\Contracts\ExportsSupplementalSubjectRecords;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /*
@@ -169,4 +170,28 @@ test('training export carries only the subject participant rows for that company
 
     $sibling = app(TrainingSubjectExporter::class)->sections($a['sibling'], $a['tenantId'], $a['companyId']);
     expect(array_column($sibling['people_training_participants'] ?? [], 'employee_subject_id'))->toBe([$a['sibling']->stableId]);
+});
+
+test('every Skills or Training table with employee_entity_id is claimed by an exporter list or a deliberate exclusion', function (): void {
+    $claimed = [
+        ...SkillsSubjectExporter::EMPLOYEE_ENTITY_TABLES,
+        ...SkillsSubjectExporter::DELIBERATE_EMPLOYEE_ENTITY_EXCLUSIONS,
+        ...TrainingSubjectExporter::EMPLOYEE_ENTITY_TABLES,
+        ...TrainingSubjectExporter::DELIBERATE_EMPLOYEE_ENTITY_EXCLUSIONS,
+    ];
+    $claimed = array_values(array_unique($claimed));
+    sort($claimed);
+
+    $found = [];
+    foreach (Schema::getTableListing(schemaQualified: false) as $table) {
+        if (! str_starts_with($table, 'people_connector_skill_') && ! str_starts_with($table, 'people_training_')) {
+            continue;
+        }
+        if (Schema::hasColumn($table, 'employee_entity_id')) {
+            $found[] = $table;
+        }
+    }
+    sort($found);
+
+    expect(array_values(array_diff($found, $claimed)))->toBe([]);
 });
