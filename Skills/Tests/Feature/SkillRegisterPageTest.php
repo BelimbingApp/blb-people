@@ -12,7 +12,6 @@ use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\AssessmentResultBand;
-use App\Domains\People\Skills\Enums\AssessmentStatus;
 use App\Domains\People\Skills\Livewire\Register\Index;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\AssessmentWorkflowContext;
