@@ -13,6 +13,7 @@ use App\Domains\People\Provider\Data\ExternalReference;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\DevelopmentActionClosure;
 use App\Domains\People\Skills\Enums\DevelopmentActionStatus;
@@ -430,4 +431,49 @@ test('the department filter narrows open follow-ups the way it narrows the rest 
     expect(aggregateRow($f, 'Filtered follow-up', (int) $f['department']->id)->openFollowUpActionIds)->toBe([$mine])
         ->and(aggregateRow($f, 'Filtered follow-up', (int) $elsewhere->id)->openFollowUpActionIds)->toBe([$theirs])
         ->and($all)->toBe($both);
+});
+
+test('the department filter offers the identity the roll-up attributes rows by', function (): void {
+    // #437: the buttons were built from PeopleReferenceEntry organization units
+    // while perCourse() compares Core Employee.department_id. Two identity
+    // spaces, so a match would have been a numeric coincidence.
+    $f = aggregateFixture('Aggregate Namespace');
+    $event = aggregateEvent($f, 'Namespace course', 31);
+    $participant = aggregateAttendee($f, $event, 'Namespace Attendee');
+    aggregateAnswer($f, $participant, EffectivenessCheckpoint::Day30, 5, 'Applied in full.');
+
+    // A People reference unit exists alongside the Core department, as it does
+    // in a real company. The ids have to be pushed apart deliberately: both
+    // tables start at 1 in a fresh test database, so the two identity spaces
+    // coincide by accident and the defect stays invisible -- which is why the
+    // existing filter test, which passes Core ids straight to the service,
+    // never saw it.
+    $unit = null;
+    foreach (range(1, 3) as $n) {
+        $unit = PeopleReferenceEntry::query()->create([
+            'company_id' => $f['companyId'], 'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+            'code' => 'agg-ns-unit-'.$n, 'name' => 'Namespace Learning Team '.$n,
+            'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+        ]);
+    }
+    expect((int) $unit->id)->not->toBe((int) $f['department']->id);
+
+    $options = Livewire::actingAs($f['hr'])->test(AggregateIndex::class)->viewData('departments');
+    $offered = array_keys($options);
+
+    // A button with no label is not a usable filter either.
+    expect($options)->not->toBeEmpty();
+    foreach ($options as $label) {
+        expect(trim((string) $label))->not->toBe('');
+    }
+
+    // Every offered option has to be an identity perCourse() can attribute a
+    // row by, or the button returns an empty roll-up for a department that has
+    // courses.
+    expect($offered)->toContain((int) $f['department']->id)
+        ->and($offered)->not->toContain((int) $unit->id);
+
+    foreach ($offered as $optionId) {
+        expect(aggregateRow($f, 'Namespace course', (int) $optionId))->not->toBeNull();
+    }
 });
