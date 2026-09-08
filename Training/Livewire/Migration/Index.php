@@ -36,7 +36,7 @@ use Livewire\WithPagination;
 /**
  * The migration source inventory page (0015-a), field/code mapping and writer
  * windows (0015-b), department pilot readiness and HOD/HR sign-off (0015-c),
- * and the rejected-row quarantine listing from {@see MigrationLedger} (0015-d).
+ * and the rejected-row quarantine listing from {@see MigrationLedger} (0015-d/e).
  *
  * Inventory mutations stay on {@see TrainingMigrationSourceStore}. Mapping and
  * writer windows stay on {@see TrainingMigrationMappingStore}. Pilot sign-off
