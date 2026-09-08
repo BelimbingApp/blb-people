@@ -4,15 +4,18 @@ namespace App\Domains\People\Training;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
+use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Menu\Services\MenuConditionRegistry;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Console\Commands\EffectivenessDueCommand;
 use App\Domains\People\Training\Console\Commands\EvaluationsDueCommand;
+use App\Domains\People\Training\Console\Commands\MigrationReconcileCommand;
 use App\Domains\People\Training\Console\Commands\PurgeTrainingPassportDocumentsCommand;
 use App\Domains\People\Training\Console\Commands\RequestsDueCommand;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
 use App\Domains\People\Training\Livewire\Effectiveness\Index as EffectivenessIndex;
+use App\Domains\People\Training\Livewire\Migration\Index as MigrationIndex;
 use App\Domains\People\Training\Services\DatabaseTrainingParticipationSummary;
 use App\Domains\People\Training\Services\TrainingBudgetStore;
 use App\Domains\People\Training\Services\TrainingSubjectExporter;
@@ -43,6 +46,7 @@ class ServiceProvider extends BaseServiceProvider
             $this->commands([
                 EffectivenessDueCommand::class,
                 EvaluationsDueCommand::class,
+                MigrationReconcileCommand::class,
                 PurgeTrainingPassportDocumentsCommand::class,
                 RequestsDueCommand::class,
             ]);
@@ -68,6 +72,27 @@ class ServiceProvider extends BaseServiceProvider
                 'people.training.calendar-audience',
                 static fn (Authenticatable $user): bool => $user instanceof User
                     && app(SkillAudience::class)->mayAccess($user, 'people.training.calendar.view'),
+            );
+            // The page refuses anyone outside HR or HOD after the capability
+            // passes, so grant_all alone reaches the link but not the page.
+            // Ask the page's question here rather than a weaker one (#457).
+            $registry->register(
+                'people.training.migration-audience',
+                static function (Authenticatable $user): bool {
+                    if (! $user instanceof User) {
+                        return false;
+                    }
+
+                    try {
+                        $audiences = app(SkillAudience::class)
+                            ->authorizeAudience($user, MigrationIndex::VIEW_CAPABILITY);
+                    } catch (AuthorizationDeniedException) {
+                        return false;
+                    }
+
+                    return in_array(SkillAudience::HR, $audiences, true)
+                        || in_array(SkillAudience::HOD, $audiences, true);
+                },
             );
             $registry->register(
                 'people.training.budget-audience',

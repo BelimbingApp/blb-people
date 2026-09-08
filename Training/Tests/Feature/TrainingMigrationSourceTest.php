@@ -4,6 +4,8 @@ use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
+use App\Base\Menu\Contracts\MenuAccessChecker;
+use App\Base\Menu\MenuItem;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
 use App\Core\Employee\Models\Employee;
@@ -308,4 +310,39 @@ test('a sign-off survives the query builder, not only the model', function (): v
     $row = DB::table($table)->where('id', $signoff->id)->first();
     expect($row)->not->toBeNull()
         ->and($row->note)->toBe('Inventoried.');
+});
+
+test('the migration sources menu uses the same HR-or-HOD boundary as the page', function (): void {
+    // #457: the entry declared only the functional capability, so a core_admin
+    // reached it through grant_all and was then refused at mount. The menu has
+    // to ask the question the page asks.
+    //
+    // Measured while writing this: the admin passes the menu's `permission`
+    // check but is refused inside authorizeAudience(), and only people_hr and
+    // people_hod hold the capability at all -- staff, approver and core_admin
+    // are all refused before the HR-or-HOD test is reached. So that branch is
+    // unreachable today and no case here exercises it. It stays because it
+    // mirrors the page's authorizeView() exactly: if the capability is ever
+    // granted to a third audience, page and menu still agree instead of
+    // drifting apart silently, which is the whole failure this issue is about.
+    $f = migSrcFixture('MigSrcMenu');
+    $a = $f['alpha'];
+    $platformAdmin = migSrcUser($a['company'], 'core_admin', 'MigSrcMenu Admin');
+
+    $item = collect((require __DIR__.'/../../Config/menu.php')['items'])
+        ->firstWhere('id', 'people.training-migration-sources');
+    $checker = app(MenuAccessChecker::class);
+    $menu = MenuItem::fromArray($item);
+
+    expect($item['condition'] ?? null)->toBe('people.training.migration-audience')
+        ->and($checker->canView($menu, $platformAdmin))->toBeFalse()
+        ->and($checker->canView($menu, $a['hr']))->toBeTrue()
+        ->and($checker->canView($menu, $a['hod']))->toBeTrue()
+        ->and($checker->canView($menu, $a['staff']))->toBeFalse();
+
+    // The route stays fail-closed for the same admin, so hiding the link is
+    // not the only thing standing between them and the page.
+    test()->actingAs($platformAdmin)
+        ->get(route('people.training.migration.index'))
+        ->assertForbidden();
 });

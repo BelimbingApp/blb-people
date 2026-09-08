@@ -76,8 +76,13 @@
                     <x-ui.input type="text" wire:model="need" :label="__('Training need')" />
                     <x-ui.input type="text" wire:model="learningObjective" :label="__('Learning objective')" />
                     <x-ui.input type="text" wire:model="expectedResult" :label="__('Expected result')" />
+                    <x-ui.input type="number" min="0" step="0.0001" wire:model="estimatedCost" :label="__('Estimated cost')" />
+                    <x-ui.input type="text" wire:model="proposedDeliveryMethod" :label="__('Proposed delivery method')" />
+                    <x-ui.input type="text" wire:model="proposedProvider" :label="__('Proposed trainer or provider')" />
+                    <x-ui.input type="date" wire:model="proposedStartDate" :label="__('Proposed start date')" />
+                    <x-ui.input type="date" wire:model="proposedEndDate" :label="__('Proposed end date')" />
                     <div class="md:col-span-2 space-y-2">
-                        @foreach (['requestorEntityId', 'needSource', 'priority', 'need', 'learningObjective', 'expectedResult', 'revisionNotes'] as $field)
+                        @foreach (['requestorEntityId', 'needSource', 'priority', 'need', 'learningObjective', 'expectedResult', 'estimatedCost', 'proposedDeliveryMethod', 'proposedProvider', 'proposedStartDate', 'proposedEndDate', 'revisionNotes'] as $field)
                             @error($field)<p class="text-sm text-danger">{{ $message }}</p>@enderror
                         @endforeach
                         @if ($revisingRequestId !== null)
