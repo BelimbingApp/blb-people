@@ -42,8 +42,8 @@ function calendarParticipantCount(int $tenantId, int $companyId, TrainingEvent $
 }
 
 /**
- * Training calendar page (0005-g): month view of scheduled events with
- * participant enrolment for authorized users.
+ * Training Schedule (0005-g): Calendar-first discovery with a shared Table
+ * alternate and participant enrolment for authorized users.
  */
 afterEach(function (): void {
     app(TenantContext::class)->clear();
@@ -126,7 +126,7 @@ function calendarFixture(): array
     ];
 }
 
-function calendarEvent(Company $company, Employee $organizer, string $title, int $capacity = 10, ?int $departmentEntityId = null): TrainingEvent
+function calendarEvent(Company $company, Employee $organizer, string $title, int $capacity = 10, ?int $departmentEntityId = null, ?DateTimeImmutable $startsAt = null): TrainingEvent
 {
     $catalog = app(SkillCatalogStore::class);
     $category = $catalog->defineCategory((int) $company->id, 'cal-'.Str::lower(Str::random(8)), 'Calendar');
@@ -138,8 +138,10 @@ function calendarEvent(Company $company, Employee $organizer, string $title, int
         skillIds: [(int) $skill->id], internalTrainerEmployeeEntityId: (int) $organizer->id,
     ));
 
+    $startsAt ??= new DateTimeImmutable(now()->addDays(3)->startOfHour()->format(DATE_ATOM));
+
     return app(TrainingEventStore::class)->schedule((int) $company->id, new TrainingEventDraft(
-        courseId: (int) $course->id, startsAt: now()->addDays(3)->startOfHour(), endsAt: now()->addDays(3)->startOfHour()->addHours(2),
+        courseId: (int) $course->id, startsAt: $startsAt, endsAt: $startsAt->modify('+2 hours'),
         capacity: $capacity, organizerEmployeeEntityId: (int) $organizer->id,
         targetDepartmentEntityId: $departmentEntityId,
     ));
@@ -308,19 +310,102 @@ it('navigates the calendar month forward and back', function (): void {
         ->assertSee($label);
 });
 
-it('switches the calendar between month and list modes', function (): void {
+it('lands on Calendar and switches to the filterable Table alternate', function (): void {
     $f = calendarFixture();
     calendarEvent($f['company'], $f['trainerEmployee'], 'Mode switch briefing');
 
     Livewire::actingAs($f['employee'])
         ->test(TrainingCalendar::class)
-        ->assertSet('mode', 'month')
-        ->call('showList')
-        ->assertSet('mode', 'list')
+        ->assertSet('view', 'calendar')
+        ->assertSee('Calendar')
+        ->assertSee('Table')
+        ->assertDontSee('List')
+        ->call('showTable')
+        ->assertSet('view', 'table')
         ->assertSee('Mode switch briefing')
-        ->assertSee('of 10 enrolled')
-        ->call('showMonth')
-        ->assertSet('mode', 'month');
+        ->assertSee('0 / 10')
+        ->call('showCalendar')
+        ->assertSet('view', 'calendar');
+});
+
+it('lets HR search and sort the schedule table without exposing a third list view', function (): void {
+    $f = calendarFixture();
+    calendarEvent($f['company'], $f['trainerEmployee'], 'Forklift refresh');
+    calendarEvent($f['company'], $f['trainerEmployee'], 'Safety briefing');
+
+    Livewire::actingAs($f['hr'])
+        ->test(TrainingCalendar::class)
+        ->assertSee('New schedule')
+        ->assertSee('Manage training records')
+        ->call('showTable')
+        ->set('search', 'FORKLIFT')
+        ->assertSee('Forklift refresh')
+        ->assertDontSee('Safety briefing')
+        ->call('sort', 'course_title_snapshot')
+        ->assertSet('sortBy', 'course_title_snapshot')
+        ->assertSet('sortDir', 'asc');
+});
+
+it('keeps the HR schedule return state in the New schedule link', function (): void {
+    $f = calendarFixture();
+    $event = calendarEvent(
+        $f['company'],
+        $f['trainerEmployee'],
+        'Forklift stateful revision',
+        departmentEntityId: $f['headEntryId'],
+        startsAt: new DateTimeImmutable('2026-10-10T09:00:00+00:00'),
+    );
+    $return = [
+        'company' => (int) $f['company']->id,
+        'view' => 'table',
+        'search' => 'Forklift',
+        'lifecycle' => 'scheduled',
+        'department' => (string) $f['headEntryId'],
+        'from' => '2026-10-01',
+        'until' => '2026-10-31',
+        'sortBy' => 'course_title_snapshot',
+        'sortDir' => 'desc',
+        'year' => 2026,
+        'month' => 10,
+        'page' => 1,
+    ];
+
+    $page = Livewire::actingAs($f['hr'])->test(TrainingCalendar::class)
+        ->call('showTable')
+        ->set('search', $return['search'])
+        ->set('lifecycle', $return['lifecycle'])
+        ->set('department', $return['department'])
+        ->set('from', $return['from'])
+        ->set('until', $return['until'])
+        ->set('sortBy', $return['sortBy'])
+        ->set('sortDir', $return['sortDir'])
+        ->set('year', $return['year'])
+        ->set('month', $return['month'])
+        ->call('setPage', $return['page']);
+
+    $html = html_entity_decode(html_entity_decode($page->html()));
+
+    expect($html)->toContain(route('people.training.events.index', ['return' => 'calendar'] + $return));
+
+    expect($html)->toContain(route('people.training.events.index', ['return' => 'calendar'] + $return + ['edit' => (int) $event->id]));
+
+    expect($page->instance()->scheduleEditorParameters((int) $event->id))
+        ->toBe(['return' => 'calendar'] + $return + ['edit' => (int) $event->id]);
+});
+
+it('keeps terminal events in HR Table while Calendar remains open-event discovery', function (): void {
+    $f = calendarFixture();
+    $open = calendarEvent($f['company'], $f['trainerEmployee'], 'Open calendar event');
+    $terminal = calendarEvent($f['company'], $f['trainerEmployee'], 'Cancelled table record');
+    app(TrainingEventStore::class)->cancel((int) $f['company']->id, (int) $terminal->id, 'Venue unavailable');
+
+    Livewire::actingAs($f['hr'])->test(TrainingCalendar::class)
+        ->assertSee($open->course_title_snapshot)
+        ->assertDontSee($terminal->course_title_snapshot)
+        ->call('showTable')
+        ->assertSee($open->course_title_snapshot)
+        ->assertSee($terminal->course_title_snapshot)
+        ->assertDontSee('Previous month');
 });
 
 it('refuses a calendar read for a company the actor may not act for', function (): void {

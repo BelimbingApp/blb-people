@@ -16,6 +16,7 @@ use App\Domains\People\Skills\Services\CompanyAttribution;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
 use App\Domains\People\Training\Data\TrainingRequestSubjectsDraft;
+use App\Domains\People\Training\Enums\CutoverWorkflow;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
@@ -45,6 +46,7 @@ final readonly class TrainingRequestStore
         private ResolvesWorkforceSubjects $subjects,
         private TrainingBudgetStore $budgets,
         private TrainingRequestNotifications $notifications,
+        private CutoverWriteGuard $cutover,
     ) {}
 
     /**
@@ -72,6 +74,10 @@ final readonly class TrainingRequestStore
                 'learning_objective' => trim($draft->learningObjective),
                 'expected_result' => trim($draft->expectedResult), 'priority' => $draft->priority,
                 'estimated_cost' => $draft->estimatedCost,
+                'proposed_delivery_method' => $this->optional($draft->proposedDeliveryMethod),
+                'proposed_provider' => $this->optional($draft->proposedProvider),
+                'proposed_start_date' => $draft->proposedStartDate,
+                'proposed_end_date' => $draft->proposedEndDate,
                 'skill_gap_assessment_id' => $draft->skillGapAssessmentId,
                 'requirement_version' => $draft->requirementVersion,
                 'status' => TrainingRequestStatus::Draft, 'created_by_user_id' => $actor->getKey(),
@@ -132,8 +138,18 @@ final readonly class TrainingRequestStore
         $tenantId = $this->authorize($actor, $companyId, self::APPROVE);
         $this->assertWithinBudget($tenantId, $companyId, $requestId, $actor, $budgetOverrideReason);
 
-        return $this->move($actor, $companyId, $requestId, TrainingRequestStatus::PendingApproval,
-            TrainingRequestStatus::Approved, 'approved', self::APPROVE, $notes);
+        return DB::transaction(function () use ($actor, $companyId, $requestId, $notes, $tenantId): TrainingRequest {
+            $request = $this->find($tenantId, $companyId, $requestId);
+            if ($request->status !== TrainingRequestStatus::PendingApproval) {
+                throw new InvalidTrainingRequestException('Request is not awaiting pending_approval.');
+            }
+
+            // The approved amount is a decision-time fact. Snapshotting it
+            // prevents a later allocation change from rewriting history.
+            $request->recordApprovedBudget($request->estimated_cost === null ? null : (string) $request->estimated_cost);
+
+            return $this->finish($request, TrainingRequestStatus::Approved, 'approved', $actor, $notes);
+        });
     }
 
     /**
@@ -222,8 +238,47 @@ final readonly class TrainingRequestStore
                 default => throw new InvalidTrainingRequestException('Only a pending training request can be rejected.'),
             };
             $this->authorization->authorize(Actor::forUser($actor), $capability);
+            $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
 
             return $this->finish($request, TrainingRequestStatus::Rejected, 'rejected', $actor, $notes);
+        });
+    }
+
+    /**
+     * Revise a rejected request back to draft with a new draft's substance.
+     *
+     * A revision is the same request, not a new one: the key, the requestor
+     * and the department never change (changing the person or the department
+     * is a new request), the rejected decision row is not touched, and one
+     * revised row records the notes. submit() still requires draft, so the
+     * revised request collects a fresh recommendation, review and approval
+     * while every earlier decision row stays put.
+     */
+    public function revise(User $actor, int $companyId, int $requestId, TrainingRequestDraft $draft, string $notes): TrainingRequest
+    {
+        $this->required($notes, 'Revision notes are required.');
+        $tenantId = $this->authorize($actor, $companyId, self::SUBMIT);
+        $this->validate($tenantId, $companyId, $draft);
+
+        return DB::transaction(function () use ($actor, $companyId, $requestId, $draft, $notes, $tenantId): TrainingRequest {
+            $request = $this->find($tenantId, $companyId, $requestId);
+            if ($request->status !== TrainingRequestStatus::Rejected) {
+                throw new InvalidTrainingRequestException('Only a rejected training request can be revised.');
+            }
+            $request->reviseFacts([
+                'need_source' => $draft->needSource, 'need' => trim($draft->need),
+                'learning_objective' => trim($draft->learningObjective),
+                'expected_result' => trim($draft->expectedResult), 'priority' => $draft->priority,
+                'estimated_cost' => $draft->estimatedCost,
+                'proposed_delivery_method' => $this->optional($draft->proposedDeliveryMethod),
+                'proposed_provider' => $this->optional($draft->proposedProvider),
+                'proposed_start_date' => $draft->proposedStartDate,
+                'proposed_end_date' => $draft->proposedEndDate,
+                'skill_gap_assessment_id' => $draft->skillGapAssessmentId,
+                'requirement_version' => $draft->requirementVersion,
+            ]);
+
+            return $this->finish($request, TrainingRequestStatus::Draft, 'revised', $actor, $notes);
         });
     }
 
@@ -328,6 +383,9 @@ final readonly class TrainingRequestStore
     {
         $tenantId = $this->scope($actor, $companyId);
         $this->authorization->authorize(Actor::forUser($actor), $capability);
+        // Capability first: cutover refusal discloses the legacy window and must
+        // not leak to callers who cannot perform the requested write.
+        $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
 
         return $tenantId;
     }
@@ -492,6 +550,20 @@ final readonly class TrainingRequestStore
         foreach ([$draft->need, $draft->learningObjective, $draft->expectedResult] as $text) {
             $this->required($text, 'The need, learning objective, and expected result are required.');
         }
+        if ($draft->estimatedCost !== null && ! preg_match('/^\d{1,15}(?:\.\d{1,4})?$/', $draft->estimatedCost)) {
+            throw new InvalidTrainingRequestException('The estimated cost must be a non-negative amount with at most four decimal places.');
+        }
+        foreach ([$draft->proposedStartDate, $draft->proposedEndDate] as $date) {
+            if ($date !== null && ! $this->validDate($date)) {
+                throw new InvalidTrainingRequestException('Proposed training dates must use YYYY-MM-DD.');
+            }
+        }
+        if (($draft->proposedStartDate === null) !== ($draft->proposedEndDate === null)) {
+            throw new InvalidTrainingRequestException('Proposed training dates must include both a start and an end date.');
+        }
+        if ($draft->proposedStartDate !== null && $draft->proposedEndDate < $draft->proposedStartDate) {
+            throw new InvalidTrainingRequestException('The proposed training end date cannot precede its start date.');
+        }
         $hasGap = $draft->skillGapAssessmentId !== null;
         $hasVersion = $draft->requirementVersion !== null;
         if ($hasGap !== $hasVersion || ($draft->needSource === TrainingNeedSource::SkillGap && ! $hasGap)
@@ -536,5 +608,21 @@ final readonly class TrainingRequestStore
         if (trim($value) === '') {
             throw new InvalidTrainingRequestException($message);
         }
+    }
+
+    private function optional(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
+    }
+
+    private function validDate(string $value): bool
+    {
+        if (! preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts)) {
+            return false;
+        }
+
+        return checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
     }
 }

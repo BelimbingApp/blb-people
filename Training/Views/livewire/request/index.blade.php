@@ -22,31 +22,46 @@
         @enderror
 
         <section class="space-y-4">
-            <h2 class="text-lg font-semibold">{{ __('New request') }}</h2>
+            <h2 class="text-lg font-semibold">
+                @if ($revisingRequestId !== null)
+                    {{ __('Revise rejected request #:id', ['id' => $revisingRequestId]) }}
+                @else
+                    {{ __('New request') }}
+                @endif
+            </h2>
             @if ($employees === [])
                 <p class="text-sm text-muted">{{ __('No employee record is bound to your account in this company, so there is nobody you may request training for.') }}</p>
             @else
                 <form wire:submit="draft" class="grid gap-4 md:grid-cols-2">
-                    <x-ui.select wire:model="requestorEntityId" :label="__('Requestor')">
-                        <option value="">{{ __('Choose an employee') }}</option>
-                        @foreach ($employees as $entityId => $name)
-                            <option value="{{ $entityId }}">{{ $name }}</option>
-                        @endforeach
-                    </x-ui.select>
-                    {{-- Who attends. The store decides whether this actor may
-                         ask for each; the page only offers the choice. --}}
-                    <x-ui.select wire:model.live="subjectMode" :label="__('Training is for')">
-                        <option value="self">{{ __('The requestor') }}</option>
-                        <option value="member">{{ __('A member of the department') }}</option>
-                        <option value="department">{{ __('The whole department') }}</option>
-                    </x-ui.select>
-                    @if ($subjectMode === 'member')
-                        <x-ui.select wire:model="subjectEmployeeEntityId" :label="__('Department member')">
+                    @if ($revisingRequest !== null)
+                        {{-- A revision never moves identity: requestor and
+                             department stay the row's, so the form names them
+                             as read-only copy instead of offering selects the
+                             save path would ignore. --}}
+                        <p class="text-sm text-ink">{{ __('Requestor') }}: <span class="font-medium">{{ $employees[(int) $revisingRequest->requestor_subject_id] ?? __('Employee :id', ['id' => $revisingRequest->requestor_subject_id]) }}</span></p>
+                        <p class="text-sm text-ink">{{ __('Department') }}: <span class="font-medium">{{ $departments[$revisingRequest->department_subject_id] ?? $revisingRequest->department_subject_id }}</span></p>
+                    @else
+                        <x-ui.select wire:model="requestorEntityId" :label="__('Requestor')">
                             <option value="">{{ __('Choose an employee') }}</option>
                             @foreach ($employees as $entityId => $name)
                                 <option value="{{ $entityId }}">{{ $name }}</option>
                             @endforeach
                         </x-ui.select>
+                        {{-- Who attends. The store decides whether this actor may
+                             ask for each; the page only offers the choice. --}}
+                        <x-ui.select wire:model.live="subjectMode" :label="__('Training is for')">
+                            <option value="self">{{ __('The requestor') }}</option>
+                            <option value="member">{{ __('A member of the department') }}</option>
+                            <option value="department">{{ __('The whole department') }}</option>
+                        </x-ui.select>
+                        @if ($subjectMode === 'member')
+                            <x-ui.select wire:model="subjectEmployeeEntityId" :label="__('Department member')">
+                                <option value="">{{ __('Choose an employee') }}</option>
+                                @foreach ($employees as $entityId => $name)
+                                    <option value="{{ $entityId }}">{{ $name }}</option>
+                                @endforeach
+                            </x-ui.select>
+                        @endif
                     @endif
                     <x-ui.select wire:model="needSource" :label="__('Need source')">
                         @foreach ($needSources as $source)
@@ -61,11 +76,24 @@
                     <x-ui.input type="text" wire:model="need" :label="__('Training need')" />
                     <x-ui.input type="text" wire:model="learningObjective" :label="__('Learning objective')" />
                     <x-ui.input type="text" wire:model="expectedResult" :label="__('Expected result')" />
+                    <x-ui.input type="number" min="0" step="0.0001" wire:model="estimatedCost" :label="__('Estimated cost')" />
+                    <x-ui.input type="text" wire:model="proposedDeliveryMethod" :label="__('Proposed delivery method')" />
+                    <x-ui.input type="text" wire:model="proposedProvider" :label="__('Proposed trainer or provider')" />
+                    <x-ui.input type="date" wire:model="proposedStartDate" :label="__('Proposed start date')" />
+                    <x-ui.input type="date" wire:model="proposedEndDate" :label="__('Proposed end date')" />
                     <div class="md:col-span-2 space-y-2">
-                        @foreach (['requestorEntityId', 'needSource', 'priority', 'need', 'learningObjective', 'expectedResult'] as $field)
+                        @foreach (['requestorEntityId', 'needSource', 'priority', 'need', 'learningObjective', 'expectedResult', 'estimatedCost', 'proposedDeliveryMethod', 'proposedProvider', 'proposedStartDate', 'proposedEndDate', 'revisionNotes'] as $field)
                             @error($field)<p class="text-sm text-danger">{{ $message }}</p>@enderror
                         @endforeach
-                        <x-ui.button type="submit" variant="primary">{{ __('Save draft') }}</x-ui.button>
+                        @if ($revisingRequestId !== null)
+                            <x-ui.input type="text" wire:model="revisionNotes" :label="__('What changed in this revision')" />
+                            <div class="flex flex-wrap gap-2">
+                                <x-ui.button type="submit" variant="primary">{{ __('Save revision') }}</x-ui.button>
+                                <x-ui.button type="button" variant="secondary" wire:click="cancelRevision">{{ __('Cancel revision') }}</x-ui.button>
+                            </div>
+                        @else
+                            <x-ui.button type="submit" variant="primary">{{ __('Save draft') }}</x-ui.button>
+                        @endif
                     </div>
                 </form>
             @endif
@@ -109,6 +137,8 @@
                                     @elseif (in_array($request->id, $recommendable, true))
                                         <x-ui.input type="text" wire:model="recommendNotes.{{ $request->id }}" :placeholder="__('Recommendation notes (optional)')" />
                                         <x-ui.button type="button" variant="primary" wire:click="recommend({{ $request->id }})">{{ __('Recommend') }}</x-ui.button>
+                                    @elseif (in_array($request->id, $revisable, true))
+                                        <x-ui.button type="button" variant="primary" wire:click="startRevision({{ $request->id }})">{{ __('Revise') }}</x-ui.button>
                                     @else
                                         <span class="text-muted">{{ __('Awaiting the next reviewer') }}</span>
                                     @endif

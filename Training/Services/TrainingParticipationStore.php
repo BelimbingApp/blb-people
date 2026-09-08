@@ -18,6 +18,7 @@ use App\Domains\People\Skills\Services\SkillReassessmentStore;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\ParticipationFactDraft;
 use App\Domains\People\Training\Enums\AttendanceStatus;
+use App\Domains\People\Training\Enums\CutoverWorkflow;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingParticipationException;
 use App\Domains\People\Training\Models\TrainingCourseSkill;
@@ -58,6 +59,7 @@ final class TrainingParticipationStore
         private readonly TrainingAudience $calendar,
         private readonly WorkforceSubjects $subjects,
         private readonly SkillReassessmentStore $reassessments,
+        private readonly CutoverWriteGuard $cutover,
     ) {}
 
     public function defineSession(User $actor, int $companyId, int $eventId, string $reference, DateTimeInterface $startsAt, DateTimeInterface $endsAt): TrainingSession
@@ -366,6 +368,8 @@ final class TrainingParticipationStore
             $this->deny();
         }
         $this->authorization->authorize(Actor::forUser($actor), $capability);
+        // Single choke point: defineSession, attendance, revise/confirm/enrol/correct enter here.
+        $this->cutover->assertWritable($companyId, CutoverWorkflow::Attendance);
 
         return $tenant;
     }
