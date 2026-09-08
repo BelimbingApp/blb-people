@@ -342,6 +342,45 @@ test('a HOD cannot reveal catalog management state or invoke catalog mutations',
         ->toThrow(AuthorizationDeniedException::class);
 });
 
+test('saved course History is available on the revise form for HR and withheld from HOD', function (): void {
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    $hod = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    trainingEventRole($hod, 'people_hod');
+    // History opens on the page capability alone (`require-audit-list-capability=false`
+    // after belimbing #926). Do not grant admin.audit.log.list — that would mask a broken
+    // local integration and contradict #433's "without granting broad admin audit access".
+    trainingEventBindHod($hr, $hod, $fixture, 'review:training-catalog-history');
+
+    $courseId = (int) $fixture['course']->id;
+
+    Livewire::actingAs($hr)->test(CatalogEdit::class, ['courseId' => $courseId])
+        ->assertSee('Revise course')
+        ->assertSee('History')
+        ->set('courseForm.title', 'Forklift induction (revised)')
+        ->call('saveCourse')
+        ->assertHasNoErrors()
+        ->assertRedirect(route('people.training.catalog.index', ['company' => $fixture['company']->id]));
+
+    expect(TrainingCourse::query()->forCompany($fixture['tenantId'], (int) $fixture['company']->id)->whereKey($courseId)->value('title'))
+        ->toBe('Forklift induction (revised)');
+
+    Livewire::actingAs($hr)->test(CatalogEdit::class, ['courseId' => $courseId])
+        ->assertSee('Revise course')
+        ->assertSee('History');
+
+    Livewire::actingAs($hod)->test(CatalogIndex::class)
+        ->assertSee('Forklift induction (revised)')
+        ->assertDontSee('Revise course')
+        ->assertDontSee('New course');
+
+    $this->withoutVite();
+    $this->actingAs($hod)
+        ->get(route('people.training.catalog.edit', ['courseId' => $courseId]))
+        ->assertForbidden();
+});
+
 test('skill and training catalog routes resolve their distinct Livewire components', function (): void {
     $fixture = trainingEventFixture();
     $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);

@@ -72,7 +72,42 @@
 
                 @foreach ($rows as $row)
                     <tr wire:key="budget-{{ $row->departmentEntityId }}">
-                        <td class="px-table-cell-x text-ink">{{ $row->departmentName }}</td>
+                        <td class="px-table-cell-x text-ink">
+                            <div class="space-y-2">
+                                <span>{{ $row->departmentName }}</span>
+                                @if ($row->budgetId !== null)
+                                    @php($departmentHistory = $history[$row->departmentEntityId] ?? collect())
+                                    <x-ui.disclosure
+                                        :title="__('History (:count)', ['count' => $departmentHistory->count()])"
+                                        panel-id="training-budget-{{ $row->departmentEntityId }}-history"
+                                    >
+                                        <ol class="space-y-2 text-sm">
+                                            @forelse ($departmentHistory as $record)
+                                                @php($actor = $historyActors[$record->actor_user_id] ?? null)
+                                                <li wire:key="training-budget-history-{{ $record->id }}">
+                                                    <span class="font-medium">{{ __($record->kind->label()) }}</span>
+                                                    · <x-ui.datetime :value="$record->occurred_at" />
+                                                    · <span class="text-muted">{{ __('by :actor', ['actor' => $actor?->name ?? __('Unavailable')]) }}</span>
+                                                    <p class="text-muted">
+                                                        @if ($record->previous_amount === null)
+                                                            {{ __('Set to :amount', ['amount' => $record->amount]) }}
+                                                        @else
+                                                            {{ __(':from → :to', ['from' => $record->previous_amount, 'to' => $record->amount]) }}
+                                                        @endif
+                                                        @if ($record->overage_amount !== null)
+                                                            · {{ __('overage :amount', ['amount' => $record->overage_amount]) }}
+                                                        @endif
+                                                    </p>
+                                                    @if ($record->reason)<p>{{ $record->reason }}</p>@endif
+                                                </li>
+                                            @empty
+                                                <li class="text-muted">{{ __('No budget changes have been recorded yet.') }}</li>
+                                            @endforelse
+                                        </ol>
+                                    </x-ui.disclosure>
+                                @endif
+                            </div>
+                        </td>
                         <td class="px-table-cell-x">
                             @if ($row->budget === null)
                                 {{-- Not allocated is not nought: say so rather than print a zero. --}}

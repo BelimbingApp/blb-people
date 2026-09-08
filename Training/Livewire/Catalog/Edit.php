@@ -22,6 +22,8 @@ final class Edit extends Component
 
     public int $courseId;
 
+    public TrainingCourse $course;
+
     public function mount(int $courseId, TrainingAudience $audience): void
     {
         $this->courseId = $courseId;
@@ -35,6 +37,7 @@ final class Edit extends Component
             ->find($courseId);
         abort_if($course === null, 404);
 
+        $this->course = $course;
         $this->courseForm = $this->courseFormFrom($course);
     }
 
