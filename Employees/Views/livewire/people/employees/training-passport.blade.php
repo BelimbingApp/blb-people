@@ -18,6 +18,17 @@ use App\Domains\People\Employees\Livewire\TrainingPassport;
             <span>{{ __('Read-only employee record') }}</span>
         </div>
 
+        {{-- Workforce context freshness (0014-d): who the record describes
+             and how fresh that description is. --}}
+        @if ($passport->context->unavailable)
+            <x-ui.alert variant="warning">{{ __('Workforce context unavailable') }}</x-ui.alert>
+        @else
+            <p class="text-xs text-muted">{{ __('Workforce context as of') }} <x-ui.datetime :value="$passport->context->observedAt" format="datetime" /> · {{ $passport->context->displayName }}@if ($passport->context->department !== null), {{ $passport->context->department }}@endif @if ($passport->context->manager !== null)· {{ __('Manager') }}: {{ $passport->context->manager }}@endif</p>
+            @if ($passport->context->stale)
+                <x-ui.alert variant="warning">{{ __('This workforce context may be out of date.') }}</x-ui.alert>
+            @endif
+        @endif
+
         <x-ui.card>
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
