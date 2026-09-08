@@ -366,6 +366,38 @@ test('a revision refuses a request that is not rejected, and refuses silence', f
     expect($foreign->fresh()->status)->toBe(TrainingRequestStatus::PendingHod);
 });
 
+test('an open revision names the row identity as read-only copy and never moves it', function (): void {
+    $f = trainingReqFixture();
+    $rejected = trainingReqRejected($f, $f['member'], $f['opsEntry'], 'Member request.');
+
+    // The HOD's own form defaults to themself; opening the member's
+    // revision must name the member, not the HOD.
+    $page = Livewire::actingAs($f['hod'])->test(Index::class)
+        ->assertSet('requestorEntityId', (string) $f['head']->id)
+        ->call('startRevision', $rejected->id)->assertHasNoErrors()
+        ->assertSet('revisingRequestId', $rejected->id)
+        ->assertSet('requestorEntityId', (string) $f['member']->id)
+        ->assertSeeHtml('Requestor: <span class="font-medium">Ops Member</span>')
+        ->assertSeeHtml('Department: <span class="font-medium">Operations</span>')
+        ->assertDontSeeHtml('wire:model="requestorEntityId"')
+        ->assertDontSeeHtml('wire:model.live="subjectMode"');
+
+    // Even client-tampered identity fields cannot move the request: the
+    // save path rebuilds identity from the row, never the form.
+    $page->set('requestorEntityId', (string) $f['qaMember']->id)
+        ->set('subjectMode', 'member')
+        ->set('subjectEmployeeEntityId', (int) $f['qaMember']->id)
+        ->set('need', 'Member request, narrowed to line 3.')
+        ->set('revisionNotes', 'Narrowed to line 3.')
+        ->call('draft')->assertHasNoErrors()
+        ->assertSeeHtml('data-status="draft"');
+
+    $rejected->refresh();
+    expect($rejected->status)->toBe(TrainingRequestStatus::Draft)
+        ->and($rejected->requestor_subject_id)->toBe((string) $f['member']->id)
+        ->and($rejected->department_subject_id)->toBe((string) $f['opsEntry']->id);
+});
+
 test('cancelling an open revision restores the new-request form and writes nothing', function (): void {
     $f = trainingReqFixture();
     $rejected = trainingReqRejected($f, $f['member'], $f['opsEntry'], 'Member request.');
