@@ -16,6 +16,11 @@ use App\Domains\People\Skills\Services\CompanyAttribution;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillReassessmentStore;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
+use App\Domains\People\Training\Data\AttendanceImportDefect;
+use App\Domains\People\Training\Data\AttendanceImportResult;
+use App\Domains\People\Training\Data\AttendanceSheet;
+use App\Domains\People\Training\Data\AttendanceSheetRow;
+use App\Domains\People\Training\Data\LearningTestResult;
 use App\Domains\People\Training\Data\ParticipationFactDraft;
 use App\Domains\People\Training\Enums\AttendanceStatus;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
@@ -45,6 +50,17 @@ final class TrainingParticipationStore
     public const REWORK = 'people.training.participation.rework';
 
     public const EVIDENCE = 'people.training.participation.evidence.assign';
+
+    /**
+     * Facts recorded through a bulk attendance-sheet import carry this
+     * source, with `<sha256 of the file>:<session id>:<row number>` as the
+     * reference: the triple names the exact cell a fact came from, so a
+     * second import of the same file is recognised row by row instead of
+     * duplicated. The session id is part of the key because the same sheet
+     * may be imported for two sessions of one event — without it the second
+     * import would collide on ptf_source_uq instead of recording.
+     */
+    public const SHEET_SOURCE = 'attendance_sheet';
 
     /** Audit row written once per confirmed fact that opened reassessment requests (0006-e). */
     public const AUDIT_REASSESSMENT_REQUESTED = 'reassessment_requested';
@@ -107,6 +123,216 @@ final class TrainingParticipationStore
         } catch (QueryException) {
             throw new InvalidTrainingParticipationException('The participation fact conflicts with retained session or source evidence.');
         }
+    }
+
+    /**
+     * Record one attendance sheet for a session (0011-c): every row is
+     * validated before anything is written, and on any defect the per-row
+     * defect list is returned with nothing written.
+     *
+     * Each row travels the recordAttendance path, so every fact keeps
+     * recorded_by_user_id and the manage capability, the session rules
+     * (ended session, minutes within its length), and the trainer's event
+     * assignment. A row whose source reference already exists — a second
+     * import of the same file — is reported as skipped, not an error.
+     * Capability problems stay denials, not defects: a trainer without the
+     * evidence grant cannot import certificate rows, and that fails closed.
+     */
+    public function importSheet(User $actor, int $companyId, int $sessionId, AttendanceSheet $sheet): AttendanceImportResult
+    {
+        $tenant = $this->scope($actor, $companyId, self::MANAGE);
+        $session = $this->session($tenant, $companyId, $sessionId);
+        $event = $this->event($tenant, $companyId, (int) $session->event_id);
+        $this->authorizeEvent($actor, $event, false);
+
+        $sessionMinutes = (int) $session->starts_at->diffInMinutes($session->ends_at);
+        $employees = [];
+        $ambiguous = [];
+        foreach ($this->directory->employees((string) $companyId) as $employee) {
+            if (! $employee->active || $employee->companyReference->externalId !== (string) $companyId
+                || $employee->employeeNumber === null || $employee->employeeNumber === '') {
+                continue;
+            }
+            if (isset($employees[$employee->employeeNumber])) {
+                $ambiguous[$employee->employeeNumber] = true;
+            }
+            $employees[$employee->employeeNumber] = $employee;
+        }
+        $subjects = TrainingParticipant::query()->forCompany($tenant, $companyId)
+            ->where('event_id', $event->id)->get()
+            ->mapWithKeys(fn (TrainingParticipant $participant): array => [(string) $participant->id => $participant->employee_subject_id]);
+        $recorded = TrainingParticipationFact::query()->forCompany($tenant, $companyId)
+            ->where('session_id', $session->id)->pluck('participant_id')
+            ->map(fn ($participantId): ?string => $subjects->get((string) $participantId))
+            ->filter()->values()->all();
+
+        $drafts = [];
+        $defects = [];
+        $seen = [];
+        $preskipped = 0;
+        foreach ($sheet->rows as $sheetRow) {
+            $sourceReference = $sheet->fileHash.':'.$sessionId.':'.$sheetRow->row;
+            if ($this->sheetFactExists($tenant, $companyId, $sourceReference)) {
+                $preskipped++;
+
+                continue;
+            }
+            $draft = $this->sheetDraft($tenant, $companyId, $event, $sessionId, $sheet->fileHash, $sheetRow, $sessionMinutes, $employees, $ambiguous, $recorded, $seen);
+            if ($draft instanceof AttendanceImportDefect) {
+                $defects[] = $draft;
+            } else {
+                $drafts[] = $draft;
+            }
+        }
+        if ($defects !== []) {
+            return new AttendanceImportResult(0, 0, count($defects), $defects);
+        }
+
+        return DB::transaction(function () use ($actor, $companyId, $sessionId, $drafts, $preskipped, $tenant): AttendanceImportResult {
+            $created = 0;
+            $skipped = $preskipped;
+            foreach ($drafts as $draft) {
+                if ($this->sheetFactExists($tenant, $companyId, $draft['reference'])) {
+                    $skipped++;
+
+                    continue;
+                }
+                try {
+                    $this->recordAttendance($actor, $companyId, $sessionId, $draft['subject'], $draft['draft']);
+                } catch (InvalidTrainingParticipationException $refused) {
+                    if (! $this->sheetFactExists($tenant, $companyId, $draft['reference'])) {
+                        throw $refused;
+                    }
+                    $skipped++;
+
+                    continue;
+                }
+                $created++;
+            }
+
+            return new AttendanceImportResult($created, $skipped, 0);
+        });
+    }
+
+    /**
+     * @param  array<string, WorkforceEmployee>  $employees  Active directory employees by number.
+     * @param  array<string, bool>  $ambiguous  Numbers shared by more than one active employee.
+     * @param  list<string>  $recorded  Employee subject ids with a fact for this session already.
+     * @param  array<string, int>  $seen  Sheet numbers already validated, with their first row.
+     * @return array{reference: string, subject: WorkforceSubject, draft: ParticipationFactDraft}|AttendanceImportDefect
+     */
+    private function sheetDraft(
+        int $tenant,
+        int $companyId,
+        TrainingEvent $event,
+        int $sessionId,
+        string $fileHash,
+        AttendanceSheetRow $sheetRow,
+        int $sessionMinutes,
+        array $employees,
+        array $ambiguous,
+        array $recorded,
+        array &$seen,
+    ): array|AttendanceImportDefect {
+        $number = $sheetRow->employeeNumber;
+        $employee = $employees[$number] ?? null;
+        if ($employee === null) {
+            return new AttendanceImportDefect($sheetRow->row, 'Unknown employee number ['.($number === '' ? 'blank' : $number).'].');
+        }
+        if (isset($ambiguous[$number])) {
+            return new AttendanceImportDefect($sheetRow->row, 'Employee number ['.$number.'] matches more than one employee.');
+        }
+        if (isset($seen[$number])) {
+            return new AttendanceImportDefect($sheetRow->row, 'Duplicate sheet row for employee ['.$number.'] (first at row '.$seen[$number].').');
+        }
+        $seen[$number] = $sheetRow->row;
+        if (in_array($employee->reference->externalId, $recorded, true)) {
+            return new AttendanceImportDefect($sheetRow->row, 'Employee ['.$number.'] already has a recorded fact for this session.');
+        }
+        if ($event->target_department_entity_id !== null
+            && $employee->organizationReference?->externalId !== (string) $event->target_department_entity_id) {
+            return new AttendanceImportDefect($sheetRow->row, 'Employee ['.$number.'] is outside the event target department.');
+        }
+
+        $attendance = AttendanceStatus::tryFrom(strtolower($sheetRow->attendance));
+        if ($attendance === null) {
+            return new AttendanceImportDefect($sheetRow->row, 'Unknown attendance ['.$sheetRow->attendance.']; use present, absent or cancelled.');
+        }
+        if ($sheetRow->actualMinutes === '') {
+            $minutes = 0;
+        } elseif (preg_match('/^\d+$/', $sheetRow->actualMinutes) !== 1) {
+            return new AttendanceImportDefect($sheetRow->row, 'Actual minutes ['.$sheetRow->actualMinutes.'] is not a whole number.');
+        } else {
+            $minutes = (int) $sheetRow->actualMinutes;
+        }
+        if ($minutes > $sessionMinutes) {
+            return new AttendanceImportDefect($sheetRow->row, 'Actual minutes ['.$minutes.'] exceed the session length of '.$sessionMinutes.' minutes.');
+        }
+        if ($attendance !== AttendanceStatus::Present && $minutes !== 0) {
+            return new AttendanceImportDefect($sheetRow->row, 'Only a present attendance records minutes.');
+        }
+
+        $preTest = $this->sheetScore($sheetRow->row, 'pre-test', $sheetRow->preTestScore);
+        $postTest = $this->sheetScore($sheetRow->row, 'post-test', $sheetRow->postTestScore);
+        if ($preTest instanceof AttendanceImportDefect || $postTest instanceof AttendanceImportDefect) {
+            return $preTest instanceof AttendanceImportDefect ? $preTest : $postTest;
+        }
+
+        $certificateReference = $sheetRow->certificateReference === '' ? null : $sheetRow->certificateReference;
+        $certificateValidUntil = null;
+        if ($sheetRow->certificateValidUntil !== '') {
+            try {
+                $certificateValidUntil = CarbonImmutable::parse($sheetRow->certificateValidUntil);
+            } catch (\InvalidArgumentException) {
+                return new AttendanceImportDefect($sheetRow->row, 'Certificate valid until ['.$sheetRow->certificateValidUntil.'] cannot be read as a date.');
+            }
+            // whereDate semantics: a value of today with a time component is
+            // still today, so only a date before today lies in the past.
+            if ($certificateValidUntil->startOfDay()->lessThan(CarbonImmutable::today())) {
+                return new AttendanceImportDefect($sheetRow->row, 'Certificate valid until ['.$sheetRow->certificateValidUntil.'] lies in the past.');
+            }
+        }
+        if ($certificateReference === null && $certificateValidUntil !== null) {
+            return new AttendanceImportDefect($sheetRow->row, 'Certificate dates need a certificate reference.');
+        }
+
+        return [
+            'reference' => $fileHash.':'.$sessionId.':'.$sheetRow->row,
+            'subject' => new WorkforceSubject($tenant, $companyId, WorkforceResourceType::Employee,
+                $employee->reference->externalId, $employee->reference),
+            'draft' => new ParticipationFactDraft(
+                attendance: $attendance,
+                actualMinutes: $minutes,
+                source: self::SHEET_SOURCE,
+                sourceReference: $fileHash.':'.$sessionId.':'.$sheetRow->row,
+                preTest: $preTest,
+                postTest: $postTest,
+                certificateReference: $certificateReference,
+                certificateValidUntil: $certificateValidUntil,
+            ),
+        ];
+    }
+
+    /**
+     * A blank score means no test; a present one is a percentage on the
+     * 0–100 scale with no declared pass mark, so it carries no verdict.
+     */
+    private function sheetScore(int $row, string $label, string $raw): LearningTestResult|AttendanceImportDefect|null
+    {
+        if ($raw === '') {
+            return null;
+        }
+        if (! is_numeric($raw) || (float) $raw < 0 || (float) $raw > 100) {
+            return new AttendanceImportDefect($row, 'The '.$label.' score ['.$raw.'] is outside 0 to 100.');
+        }
+
+        return new LearningTestResult(true, (float) $raw, 100);
+    }
+
+    private function sheetFactExists(int $tenant, int $companyId, string $sourceReference): bool
+    {
+        return TrainingParticipationFact::query()->forCompany($tenant, $companyId)
+            ->where('source', self::SHEET_SOURCE)->where('source_reference', $sourceReference)->exists();
     }
 
     public function revise(User $actor, int $companyId, int $factId, ParticipationFactDraft $draft): TrainingParticipationFact
