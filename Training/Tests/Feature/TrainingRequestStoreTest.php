@@ -79,7 +79,13 @@ function forgetRequestAuthorization(): void
 test('a request preserves its need and every recommendation through approval', function (): void {
     $f = requestFixture();
     $store = app(TrainingRequestStore::class);
-    $request = $store->create($f['actors']['hr'], (int) $f['company']->id, requestDraft($f));
+    $request = $store->create($f['actors']['hr'], (int) $f['company']->id, requestDraft($f, [
+        'estimatedCost' => '1250.5000',
+        'proposedDeliveryMethod' => 'Instructor-led workshop',
+        'proposedProvider' => 'Belimbing Safety Academy',
+        'proposedStartDate' => '2026-10-12',
+        'proposedEndDate' => '2026-10-14',
+    ]));
     $store->submit($f['actors']['hr'], (int) $f['company']->id, (int) $request->id);
     $store->recommend($f['actors']['hod'], (int) $f['company']->id, (int) $request->id, 'Technically relevant.');
     $store->review($f['actors']['hr'], (int) $f['company']->id, (int) $request->id, 'Policy checked.');
@@ -88,15 +94,35 @@ test('a request preserves its need and every recommendation through approval', f
     expect($approved->status)->toBe(TrainingRequestStatus::Approved)
         ->and($approved->need_source)->toBe(TrainingNeedSource::NewMachineTechnology)
         ->and($approved->priority)->toBe(TrainingPriority::High)
+        ->and($approved->proposed_delivery_method)->toBe('Instructor-led workshop')
+        ->and($approved->proposed_provider)->toBe('Belimbing Safety Academy')
+        ->and($approved->proposed_start_date->toDateString())->toBe('2026-10-12')
+        ->and($approved->proposed_end_date->toDateString())->toBe('2026-10-14')
+        ->and($approved->approved_budget)->toBe('1250.5000')
         ->and($approved->decisions()->pluck('decision')->all())
         ->toBe(['created', 'submitted', 'hod_recommended', 'hr_reviewed', 'approved']);
     expect(fn () => $approved->update(['need' => 'Rewrite approved history.']))
+        ->toThrow(InvalidTrainingRequestException::class, 'immutable');
+    expect(fn () => $approved->update(['approved_budget' => '1.0000']))
         ->toThrow(InvalidTrainingRequestException::class, 'immutable');
     $decision = $approved->decisions()->firstOrFail();
     expect(fn () => $decision->update(['notes' => 'Rewrite decision.']))
         ->toThrow(InvalidTrainingRequestException::class, 'append-only');
     expect(fn () => DB::table('people_training_request_decisions')->where('id', $decision->id)->delete())
         ->toThrow(QueryException::class);
+});
+
+test('a proposed training window is either complete and ordered or absent', function (): void {
+    $f = requestFixture();
+    $store = app(TrainingRequestStore::class);
+
+    expect(fn () => $store->create($f['actors']['hr'], (int) $f['company']->id, requestDraft($f, [
+        'proposedStartDate' => '2026-10-12',
+    ])))->toThrow(InvalidTrainingRequestException::class, 'both a start and an end')
+        ->and(fn () => $store->create($f['actors']['hr'], (int) $f['company']->id, requestDraft($f, [
+            'proposedStartDate' => '2026-10-14',
+            'proposedEndDate' => '2026-10-12',
+        ])))->toThrow(InvalidTrainingRequestException::class, 'cannot precede');
 });
 
 test('a skill-gap source requires its pinned requirement version', function (): void {

@@ -56,6 +56,16 @@ final class Index extends Component
 
     public string $priority = TrainingPriority::Medium->value;
 
+    public string $estimatedCost = '';
+
+    public string $proposedDeliveryMethod = '';
+
+    public string $proposedProvider = '';
+
+    public string $proposedStartDate = '';
+
+    public string $proposedEndDate = '';
+
     /** @var array<int, string> */
     public array $recommendNotes = [];
 
@@ -106,6 +116,11 @@ final class Index extends Component
             'need' => ['required', 'string', 'max:2000'],
             'learningObjective' => ['required', 'string', 'max:2000'],
             'expectedResult' => ['required', 'string', 'max:2000'],
+            'estimatedCost' => ['nullable', 'decimal:0,4', 'min:0'],
+            'proposedDeliveryMethod' => ['nullable', 'string', 'max:160'],
+            'proposedProvider' => ['nullable', 'string', 'max:160'],
+            'proposedStartDate' => ['nullable', 'date', 'required_with:proposedEndDate'],
+            'proposedEndDate' => ['nullable', 'date', 'required_with:proposedStartDate', 'after_or_equal:proposedStartDate'],
             'subjectMode' => ['required', 'in:self,member,department'],
             'subjectEmployeeEntityId' => ['nullable', 'integer', 'required_if:subjectMode,member'],
         ]);
@@ -144,9 +159,15 @@ final class Index extends Component
             learningObjective: $this->learningObjective,
             expectedResult: $this->expectedResult,
             priority: TrainingPriority::from($this->priority),
+            estimatedCost: $this->estimatedCost === '' ? null : $this->estimatedCost,
+            proposedDeliveryMethod: $this->proposedDeliveryMethod,
+            proposedProvider: $this->proposedProvider,
+            proposedStartDate: $this->proposedStartDate === '' ? null : $this->proposedStartDate,
+            proposedEndDate: $this->proposedEndDate === '' ? null : $this->proposedEndDate,
         ), $subjects));
 
-        $this->reset('need', 'learningObjective', 'expectedResult', 'subjectEmployeeEntityId');
+        $this->reset('need', 'learningObjective', 'expectedResult', 'estimatedCost', 'proposedDeliveryMethod',
+            'proposedProvider', 'proposedStartDate', 'proposedEndDate', 'subjectEmployeeEntityId');
     }
 
     public function submitRequest(int $requestId): void
@@ -195,6 +216,11 @@ final class Index extends Component
         $this->learningObjective = $request->learning_objective;
         $this->expectedResult = $request->expected_result;
         $this->priority = $request->priority->value;
+        $this->estimatedCost = $request->estimated_cost === null ? '' : (string) $request->estimated_cost;
+        $this->proposedDeliveryMethod = (string) $request->proposed_delivery_method;
+        $this->proposedProvider = (string) $request->proposed_provider;
+        $this->proposedStartDate = $request->proposed_start_date?->toDateString() ?? '';
+        $this->proposedEndDate = $request->proposed_end_date?->toDateString() ?? '';
         $this->revisionNotes = '';
     }
 
@@ -202,7 +228,8 @@ final class Index extends Component
     {
         $this->revisingRequestId = null;
         $this->revisionNotes = '';
-        $this->reset('need', 'learningObjective', 'expectedResult');
+        $this->reset('need', 'learningObjective', 'expectedResult', 'estimatedCost', 'proposedDeliveryMethod',
+            'proposedProvider', 'proposedStartDate', 'proposedEndDate');
         $this->needSource = TrainingNeedSource::NewMachineTechnology->value;
         $this->priority = TrainingPriority::Medium->value;
     }
@@ -223,6 +250,11 @@ final class Index extends Component
             'need' => ['required', 'string', 'max:2000'],
             'learningObjective' => ['required', 'string', 'max:2000'],
             'expectedResult' => ['required', 'string', 'max:2000'],
+            'estimatedCost' => ['nullable', 'decimal:0,4', 'min:0'],
+            'proposedDeliveryMethod' => ['nullable', 'string', 'max:160'],
+            'proposedProvider' => ['nullable', 'string', 'max:160'],
+            'proposedStartDate' => ['nullable', 'date', 'required_with:proposedEndDate'],
+            'proposedEndDate' => ['nullable', 'date', 'required_with:proposedStartDate', 'after_or_equal:proposedStartDate'],
             'revisionNotes' => ['required', 'string', 'max:2000'],
         ]);
 
@@ -239,7 +271,11 @@ final class Index extends Component
                 priority: TrainingPriority::from($this->priority),
                 skillGapAssessmentId: $request->skill_gap_assessment_id,
                 requirementVersion: $request->requirement_version,
-                estimatedCost: $request->estimated_cost === null ? null : (string) $request->estimated_cost,
+                estimatedCost: $this->estimatedCost === '' ? null : $this->estimatedCost,
+                proposedDeliveryMethod: $this->proposedDeliveryMethod,
+                proposedProvider: $this->proposedProvider,
+                proposedStartDate: $this->proposedStartDate === '' ? null : $this->proposedStartDate,
+                proposedEndDate: $this->proposedEndDate === '' ? null : $this->proposedEndDate,
             ), $this->revisionNotes));
 
         if (! $this->getErrorBag()->has('request')) {
