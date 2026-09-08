@@ -91,6 +91,7 @@ return [
         'icon' => 'heroicon-o-archive-box-arrow-down',
         'route' => 'people.training.migration.index',
         'permission' => 'people.training.migration.view',
+        'condition' => 'people.training.migration-audience',
         'parent' => 'people',
     ], [
         'id' => 'people.training-requests-register',

@@ -89,6 +89,8 @@ function tenantScopedArguments(string $name): array
         'people:skills-assessment-log-apply', 'people:skills-assessment-log-dry-run' => ['workbook' => __FILE__, '--company' => 1, '--as' => 1],
         'people:skills-workbook-dry-run' => ['workbook' => __FILE__],
         'people:skills-workbook-export' => ['output' => sys_get_temp_dir().'/tenant-scoped-export.xlsx'],
+        'people:migration:import' => ['path' => __FILE__, '--company' => 1, '--source' => 'fixture', '--as' => 1],
+        'people:migration:reconcile' => ['--company' => 1],
         'people:performance:cutover-check', 'people:performance:overdue', 'people:reminders-due',
         'people:training:effectiveness-due', 'people:training:evaluations-due' => ['--company' => 1],
         default => [],

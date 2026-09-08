@@ -14,6 +14,7 @@ use App\Domains\People\Skills\Services\DevelopmentActionStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Data\EffectivenessOutcomeDraft;
 use App\Domains\People\Training\Data\EffectivenessReviewDraft;
+use App\Domains\People\Training\Enums\CutoverWorkflow;
 use App\Domains\People\Training\Enums\EffectivenessClosureRoute;
 use App\Domains\People\Training\Enums\EffectivenessOutcome;
 use App\Domains\People\Training\Enums\EffectivenessReviewState;
@@ -48,12 +49,12 @@ final class TrainingEffectivenessStore
         private readonly SkillAudience $audiences,
         private readonly ReadsWorkforceDirectory $directory,
         private readonly DevelopmentActionStore $developmentActions,
+        private readonly CutoverWriteGuard $cutover,
     ) {}
 
     public function openStage(User $actor, int $companyEntityId, EffectivenessReviewDraft $draft): TrainingEffectivenessReview
     {
-        $tenantId = $this->scope($actor, $companyEntityId);
-        $this->authorize($actor, SkillAudience::HOD, self::REVIEW_CAPABILITY,
+        $tenantId = $this->beginWrite($actor, $companyEntityId, SkillAudience::HOD, self::REVIEW_CAPABILITY,
             'Only a HOD may review training effectiveness.');
 
         if (trim($draft->dueDatePolicy) === '') {
@@ -90,8 +91,7 @@ final class TrainingEffectivenessStore
         int $reviewId,
         EffectivenessOutcomeDraft $draft,
     ): TrainingEffectivenessReview {
-        $tenantId = $this->scope($actor, $companyEntityId);
-        $this->authorize($actor, SkillAudience::HOD, self::REVIEW_CAPABILITY,
+        $tenantId = $this->beginWrite($actor, $companyEntityId, SkillAudience::HOD, self::REVIEW_CAPABILITY,
             'Only a HOD may review training effectiveness.');
 
         foreach ([$draft->applicationRating, $draft->improvementRating, $draft->impactRating] as $rating) {
@@ -153,8 +153,7 @@ final class TrainingEffectivenessStore
         int $reviewId,
         DevelopmentActionDraft|int $action,
     ): TrainingEffectivenessReview {
-        $tenantId = $this->scope($actor, $companyEntityId);
-        $this->authorize($actor, SkillAudience::HOD, self::REVIEW_CAPABILITY,
+        $tenantId = $this->beginWrite($actor, $companyEntityId, SkillAudience::HOD, self::REVIEW_CAPABILITY,
             'Only a HOD may open a follow-up development action.');
 
         return DB::transaction(function () use ($tenantId, $companyEntityId, $reviewId, $action, $actor): TrainingEffectivenessReview {
@@ -316,8 +315,7 @@ final class TrainingEffectivenessStore
         int $reviewId,
         int $assessmentId,
     ): TrainingEffectivenessReview {
-        $tenantId = $this->scope($actor, $companyEntityId);
-        $this->authorize($actor, SkillAudience::HR, self::CLOSE_CAPABILITY,
+        $tenantId = $this->beginWrite($actor, $companyEntityId, SkillAudience::HR, self::CLOSE_CAPABILITY,
             'Only HR may close a training effectiveness review.');
 
         return DB::transaction(function () use ($tenantId, $companyEntityId, $reviewId, $assessmentId, $actor): TrainingEffectivenessReview {
@@ -364,8 +362,7 @@ final class TrainingEffectivenessStore
         int $reviewId,
         string $reason,
     ): TrainingEffectivenessReview {
-        $tenantId = $this->scope($actor, $companyEntityId);
-        $this->authorize($actor, SkillAudience::HR, self::CLOSE_CAPABILITY,
+        $tenantId = $this->beginWrite($actor, $companyEntityId, SkillAudience::HR, self::CLOSE_CAPABILITY,
             'Only HR may close a training effectiveness review.');
         if (trim($reason) === '') {
             throw new InvalidEffectivenessReviewException(
@@ -492,6 +489,24 @@ final class TrainingEffectivenessStore
         if (! in_array($audience, $audiences, true)) {
             throw new InvalidEffectivenessReviewException($message);
         }
+    }
+
+    /**
+     * Capability (and audience) before cutover so an unauthorized company member
+     * never learns the legacy window dates from CutoverWriteRefusedException.
+     */
+    private function beginWrite(
+        User $actor,
+        int $companyEntityId,
+        string $audience,
+        string $capability,
+        string $message,
+    ): int {
+        $tenantId = $this->scope($actor, $companyEntityId);
+        $this->authorize($actor, $audience, $capability, $message);
+        $this->cutover->assertWritable($companyEntityId, CutoverWorkflow::Effectiveness);
+
+        return $tenantId;
     }
 
     private function trimNullable(?string $value): ?string
