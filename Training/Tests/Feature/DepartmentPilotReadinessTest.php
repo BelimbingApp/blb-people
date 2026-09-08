@@ -1,6 +1,7 @@
 <?php
 
 use App\Base\Authz\Enums\PrincipalType;
+use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
@@ -406,6 +407,29 @@ test('HOD sign-off is refused while any check is red and by a user who is not th
     expect(fn () => $store->signAsHod($a['peerHod'], $a['companyId'], (int) $a['unit']->id))
         ->toThrow(InvalidPilotSignoffException::class);
     expect(TrainingPilotSignoff::query()->forCompany($a['tenantId'], $a['companyId'])->count())->toBe($before);
+});
+
+test('an outsider without migration capabilities is refused both HOD and HR sign-off with no ledger write', function (): void {
+    $f = pilotRdFixture('PilotAuthz');
+    $a = $f['alpha'];
+    pilotRdMakeGreen($a);
+    $store = app(PilotSignoffStore::class);
+    $before = TrainingPilotSignoff::query()->forCompany($a['tenantId'], $a['companyId'])->count();
+
+    // Capability outsider: same company, green readiness, but no hod-approve/approve grant.
+    // Red-readiness and non-unit-head cases can fail before AuthorizationService.
+    $outsider = pilotRdUser($a['company'], 'people_employee', 'PilotAuthz Outsider');
+
+    expect(fn () => $store->signAsHod($outsider, $a['companyId'], (int) $a['unit']->id))
+        ->toThrow(AuthorizationDeniedException::class);
+    expect(TrainingPilotSignoff::query()->forCompany($a['tenantId'], $a['companyId'])->count())->toBe($before);
+
+    $store->signAsHod($a['hod'], $a['companyId'], (int) $a['unit']->id);
+    $afterHod = TrainingPilotSignoff::query()->forCompany($a['tenantId'], $a['companyId'])->count();
+
+    expect(fn () => $store->signAsHr($outsider, $a['companyId'], (int) $a['unit']->id))
+        ->toThrow(AuthorizationDeniedException::class);
+    expect(TrainingPilotSignoff::query()->forCompany($a['tenantId'], $a['companyId'])->count())->toBe($afterHod);
 });
 
 test('HR sign-off is refused before the HOD sign-off and accepted after with the readiness snapshot', function (): void {
