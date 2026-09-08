@@ -129,7 +129,10 @@ test('the skill register uses the shared filter table sorting and pagination com
 
     expect($page->viewData('skills')->first()->name)->toBe('Skill 27');
 
-    $page->set('search', 'does not exist')
+    $page->call('setPage', 2)
+        ->assertSet('paginators.page', 2)
+        ->set('search', 'does not exist')
+        ->assertSet('paginators.page', 1)
         ->assertSee('No skills match your search and filters.')
         ->assertDontSee('No skills have been added yet.');
 });
@@ -140,6 +143,13 @@ test('skill and category forms replace the register and return to the owning tab
     $tenantId = (int) app(TenantContext::class)->currentTenantId();
     $companyEntityId = catalogPageCompanyEntity($tenantId, 'Separate Form Co', (int) $admin->company_id);
     app(SkillCatalogStore::class)->defineCategory($companyEntityId, 'operations', 'Operations');
+    PrincipalCapability::query()->create([
+        'company_id' => $admin->company_id,
+        'principal_type' => PrincipalType::USER->value,
+        'principal_id' => $admin->id,
+        'capability_key' => 'admin.audit.log.list',
+        'is_allowed' => true,
+    ]);
 
     Livewire::actingAs($admin)
         ->test(Index::class)
@@ -152,8 +162,49 @@ test('skill and category forms replace the register and return to the owning tab
         ->call('startCategory')
         ->assertSee('Create category')
         ->assertDontSee('Skill categories')
+        ->set('categoryForm.code', 'safety')
+        ->set('categoryForm.name', 'Safety')
+        ->call('saveCategory')
+        ->assertSee('Category created successfully.')
+        ->assertSee('Safety')
+        ->call('startCategory', (int) SkillCategory::query()->forCompany($tenantId, $companyEntityId)->where('code', 'operations')->valueOrFail('id'))
+        ->assertSee('Edit Operations')
+        ->assertSee('History')
         ->call('cancelForm')
         ->assertSee('Skill categories');
+
+    $this->actingAs($admin)
+        ->get(route('people.skill.catalog.index', ['view' => 'skill-form', 'company' => $companyEntityId]))
+        ->assertOk()
+        ->assertSee('Create skill');
+});
+
+test('the category register is server sorted and paginated with aggregate skill counts', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    $companyEntityId = catalogPageCompanyEntity($tenantId, 'Category Register Co', (int) $admin->company_id);
+
+    foreach (range(1, 27) as $number) {
+        app(SkillCatalogStore::class)->defineCategory(
+            $companyEntityId,
+            sprintf('category.%02d', $number),
+            sprintf('Category %02d', $number),
+        );
+    }
+
+    $page = Livewire::actingAs($admin)
+        ->test(Index::class)
+        ->set('tab', 'categories')
+        ->assertSeeHtml('id="categories-per-page"')
+        ->assertViewHas('categories', fn ($categories): bool => $categories instanceof LengthAwarePaginator
+            && $categories->total() === 27
+            && $categories->count() === 25)
+        ->call('sortCategories', 'code')
+        ->call('sortCategories', 'code');
+
+    expect($page->viewData('categories')->first()->code)->toBe('category.27')
+        ->and($page->viewData('categories')->first()->skills_count)->toBe(0);
 });
 
 test('HR can install the starter pack and administer the catalog end to end', function (): void {
@@ -313,10 +364,13 @@ test('a viewer can read the catalog but every manage action is refused', functio
     $refused('saveSkill');
     $refused('saveCategory');
     $refused('toggleSkillActive', [(int) $skill->id]);
-    $refused('renameCategory', [(int) $category->id, 'Renamed By Viewer']);
     $refused('toggleCategoryActive', [(int) $category->id]);
     $refused('publishScale', [(int) $draft->id]);
     $refused('draftNewScaleVersion', [(int) $scale->id]);
+
+    Livewire::actingAs($viewer)->test(Index::class)
+        ->set('catalogView', 'skill-form')
+        ->assertForbidden();
 
     expect($skill->refresh()->active)->toBeTrue()
         ->and($category->refresh()->name)->not->toBe('Renamed By Viewer')
@@ -476,7 +530,6 @@ test('every mutating catalog action refuses a company the actor may not act for'
     $refuses('saveSkill');
     $refuses('saveCategory');
     $refuses('toggleSkillActive', [(int) $betaSkill->id]);
-    $refuses('renameCategory', [(int) $betaCategory->id, 'Renamed By Alpha']);
     $refuses('toggleCategoryActive', [(int) $betaCategory->id]);
     $refuses('publishScale', [(int) $betaDraft->id]);
     $refuses('draftNewScaleVersion', [(int) $betaScale->id]);
