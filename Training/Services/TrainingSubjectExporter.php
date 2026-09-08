@@ -19,6 +19,20 @@ use Illuminate\Support\Facades\Schema;
  */
 final class TrainingSubjectExporter implements ExportsSupplementalSubjectRecords
 {
+    /**
+     * Tables that carry `employee_entity_id` for the subject. Participant-keyed
+     * tables use `employee_subject_id` instead and are not listed here.
+     *
+     * @var list<string>
+     */
+    public const EMPLOYEE_ENTITY_TABLES = [
+        'people_training_passport_documents',
+        'people_training_passport_document_audits',
+    ];
+
+    /** @var list<string> */
+    public const DELIBERATE_EMPLOYEE_ENTITY_EXCLUSIONS = [];
+
     public function name(): string
     {
         return 'people.training';

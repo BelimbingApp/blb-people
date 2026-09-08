@@ -19,12 +19,25 @@ use Illuminate\Support\Facades\Schema;
 final class SkillsSubjectExporter implements ExportsSupplementalSubjectRecords
 {
     /** @var list<string> subject-keyed tables with employee_entity_id */
-    private const EMPLOYEE_TABLES = [
+    public const EMPLOYEE_ENTITY_TABLES = [
         'people_connector_skill_assessments',
         'people_connector_skill_employee_scores',
         'people_connector_skill_reassessment_requests',
         'people_connector_skill_development_actions',
         'people_connector_skill_assessment_decisions',
+    ];
+
+    /**
+     * Audience / delivery ledgers with employee_entity_id that #410 left out of
+     * the DSAR payload on purpose (portal bindings, assessor roster, reminder
+     * delivery ticks). Named so #412's coverage ratchet cannot silently forget them.
+     *
+     * @var list<string>
+     */
+    public const DELIBERATE_EMPLOYEE_ENTITY_EXCLUSIONS = [
+        'people_connector_skill_actor_bindings',
+        'people_connector_skill_assessor_assignments',
+        'people_connector_skill_reminder_deliveries',
     ];
 
     public function name(): string
@@ -52,7 +65,7 @@ final class SkillsSubjectExporter implements ExportsSupplementalSubjectRecords
         $employeeEntityId = (int) $subject->stableId;
         $sections = [];
 
-        foreach (self::EMPLOYEE_TABLES as $table) {
+        foreach (self::EMPLOYEE_ENTITY_TABLES as $table) {
             if (! Schema::hasTable($table)) {
                 continue;
             }
