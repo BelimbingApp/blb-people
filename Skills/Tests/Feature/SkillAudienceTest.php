@@ -173,7 +173,12 @@ test('Skills menus are visible only to their deep People audiences', function ()
         ->and($checker->canView($skillItems->get('people.skills'), $users->get('assessor')))->toBeTrue()
         ->and($checker->canView($skillItems->get('people.skill-assessments'), $users->get('assessor')))->toBeTrue()
         ->and($checker->canView($skillItems->get('people.skills'), $users->get('employee')))->toBeTrue()
-        ->and($checker->canView($skillItems->get('people.skill-assessments'), $users->get('employee')))->toBeTrue();
+        ->and($checker->canView($skillItems->get('people.skill-assessments'), $users->get('employee')))->toBeTrue()
+        ->and($checker->canView($skillItems->get('people.skill-register'), $users->get('hr')))->toBeTrue()
+        ->and($checker->canView($skillItems->get('people.skill-register'), $users->get('hod')))->toBeFalse()
+        ->and($checker->canView($skillItems->get('people.skill-register'), $users->get('assessor')))->toBeFalse()
+        ->and($checker->canView($skillItems->get('people.skill-register'), $users->get('employee')))->toBeFalse()
+        ->and($checker->canView($skillItems->get('people.skill-register'), $users->get('platform')))->toBeFalse();
 });
 
 test('HOD assessor and employee audiences resolve department assignment and self without sibling leakage', function (): void {
