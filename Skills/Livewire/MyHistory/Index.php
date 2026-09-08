@@ -9,6 +9,7 @@ use App\Domains\People\Skills\Enums\AssessmentStatus;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Models\SkillReassessmentRequest;
+use App\Domains\People\Skills\Services\AssessmentLogImporter;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingParticipationFact;
@@ -76,8 +77,13 @@ final class Index extends Component
             ->map(static fn ($name): string => (string) $name)
             ->all();
 
-        $assessors = User::query()
-            ->whereIn('id', $assessments->pluck('assessor_user_id')->filter()->all())
+        $people = User::query()
+            ->where('company_id', $companyId)
+            ->whereIn('id', $assessments->pluck('assessor_user_id')
+                ->merge($assessments->whereNotNull('source')->pluck('finalized_by_user_id'))
+                ->filter()
+                ->unique()
+                ->all())
             ->pluck('name', 'id')
             ->map(static fn ($name): string => (string) $name)
             ->all();
@@ -90,7 +96,11 @@ final class Index extends Component
                     'id' => (int) $row->id,
                     'level' => (int) $row->assessed_level,
                     'assessedAt' => $row->assessed_at,
-                    'assessor' => $assessors[$row->assessor_user_id] ?? __('Unknown assessor'),
+                    'assessor' => $people[$row->assessor_user_id] ?? __('Unknown assessor'),
+                    'recordChannel' => self::recordChannel($row),
+                    'importedBy' => $row->source === null
+                        ? null
+                        : ($people[$row->finalized_by_user_id] ?? __('Unknown importer')),
                     'validUntil' => $row->valid_until,
                     'expired' => self::isExpired($row, $today),
                     'current' => (int) $row->id === (int) $currentId,
@@ -145,6 +155,17 @@ final class Index extends Component
         }
 
         abort_unless(in_array(SkillAudience::EMPLOYEE, $audiences, true), 403);
+    }
+
+    private static function recordChannel(SkillAssessment $assessment): string
+    {
+        if ($assessment->source === null) {
+            return __('Signed-in assessor submission');
+        }
+
+        return $assessment->source === AssessmentLogImporter::SOURCE
+            ? __('Verified assessment-log import')
+            : __('Governed import');
     }
 
     private static function isExpired(SkillAssessment $row, CarbonImmutable $today): bool
