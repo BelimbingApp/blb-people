@@ -17,6 +17,7 @@ use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\AssessmentWorkflowContext;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
 use App\Domains\People\Skills\Tests\Support\CompanyIsolationFixture;
+use App\Domains\People\Skills\Tests\Support\TwoCompanyTenant;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -176,7 +177,7 @@ test('the page and the export refuse a user without the register capability', fu
 
 test('rows from the sibling company and from another tenant never appear', function (): void {
     $f = skillRegFixture();
-    /** @var \App\Domains\People\Skills\Tests\Support\TwoCompanyTenant $tenant */
+    /** @var TwoCompanyTenant $tenant */
     $tenant = $f['tenant'];
 
     $sibling = skillRegPage($f, $f['siblingHr'])->assertOk()->assertSet('companyEntityId', $tenant->betaCompanyEntityId);
