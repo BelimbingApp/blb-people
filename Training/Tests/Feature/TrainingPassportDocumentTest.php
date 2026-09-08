@@ -109,7 +109,8 @@ function tpdFixture(): array
     $hod = tpdUser($tenantId, $company, $head, 'people_hod');
     $hr = tpdUser($tenantId, $company, null, 'people_hr');
 
-    $skillName = tpdTraining($tenantId, (int) $company->id, $employee, 'Own training', 'Own skill', 'CERT-OWN-EXPIRED', now()->subDay(), $user);
+    // Absolute past date: now()->subDay() before setTestNow drifts with the wall clock (failed from 2026-09-08).
+    $skillName = tpdTraining($tenantId, (int) $company->id, $employee, 'Own training', 'Own skill', 'CERT-OWN-EXPIRED', Carbon::parse('2020-01-01'), $user);
     tpdTraining($tenantId, (int) $company->id, $employee, 'Own current training', 'Own current skill', 'CERT-OWN-CURRENT', now()->addYear(), $user);
     tpdTraining($tenantId, (int) $company->id, $other, 'Other training', 'Other skill', 'CERT-OTHER', now()->addYear(), $otherUser);
     tpdTraining($tenantId, (int) $company->id, $member, 'Member training', 'Member skill', 'CERT-MEMBER', now()->addYear(), $hod);
