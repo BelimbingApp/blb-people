@@ -2,8 +2,6 @@
 
 namespace App\Domains\People\Training\Livewire\Budget;
 
-use App\Base\Authz\Contracts\AuthorizationService;
-use App\Base\Authz\DTO\Actor;
 use App\Domains\People\Training\Exceptions\InvalidTrainingBudgetException;
 use App\Domains\People\Training\Services\TrainingBudgetStore;
 use Illuminate\Contracts\View\View;
@@ -39,13 +37,13 @@ final class Index extends Component
         $this->year = $year ?? (int) now()->year;
     }
 
-    public function render(TrainingBudgetStore $budgets, AuthorizationService $authorization): View
+    public function render(TrainingBudgetStore $budgets): View
     {
         $rows = $budgets->rollUp(Auth::user(), (int) $this->companyEntityId, $this->year);
 
         return view('people::livewire.budget.index', [
             'rows' => $rows,
-            'mayManage' => $authorization->can(Actor::forUser(Auth::user()), TrainingBudgetStore::MANAGE)->allowed,
+            'mayManage' => $budgets->mayManage(Auth::user(), (int) $this->companyEntityId),
         ]);
     }
 

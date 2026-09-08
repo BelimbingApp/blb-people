@@ -15,7 +15,23 @@
             </div>
         @endif
 
-        @if ($canManage)
+        @if ($canManage && $skills->isEmpty())
+            <x-ui.alert variant="info">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="min-w-0">
+                        <p class="font-medium text-ink">{{ __('Add an active skill before defining a course.') }}</p>
+                        <p class="mt-1 text-sm text-muted">{{ __('Every course must cover at least one active company skill.') }}</p>
+                    </div>
+                    @if ($canManageSkills)
+                        <x-ui.button :href="route('people.skill.catalog.index')" variant="control" class="shrink-0 self-start sm:self-auto">
+                            {{ __('Set up skills') }}
+                        </x-ui.button>
+                    @else
+                        <p class="text-sm text-muted">{{ __('Ask a People skills administrator to add an active skill.') }}</p>
+                    @endif
+                </div>
+            </x-ui.alert>
+        @elseif ($canManage)
             <div class="flex justify-end"><x-ui.button wire:click="startCourse">{{ __('New course') }}</x-ui.button></div>
         @endif
 
@@ -33,7 +49,13 @@
                         @foreach ($employees as $employee)<option value="{{ $employee->workforce_entity_id }}">{{ $employee->display_name }}</option>@endforeach
                     </x-ui.select>
                 </div>
-                <x-ui.multi-select id="training-course-skills" :label="__('Skills covered')" :options="$skills->map(fn ($skill) => ['value' => $skill->id, 'label' => $skill->code.' · '.$skill->name])->all()" :selected="$courseForm['skill_ids'] ?? []" wire:model="courseForm.skill_ids" />
+                <div class="space-y-1">
+                    <span class="block text-[11px] font-semibold uppercase tracking-wider text-muted">
+                        {{ __('Skills covered') }} <span class="text-status-danger">*</span>
+                    </span>
+                    <x-ui.multi-select id="training-course-skills" :accessible-label="__('Skills covered (required)')" :placeholder="__('Select at least one skill')" :options="$skills->map(fn ($skill) => ['value' => $skill->id, 'label' => $skill->code.' · '.$skill->name])->all()" :selected="$courseForm['skill_ids'] ?? []" wire:model="courseForm.skill_ids" />
+                    <p class="text-sm text-muted">{{ __('Select one or more active skills this course develops.') }}</p>
+                </div>
                 @error('courseForm.skill_ids')<p class="text-sm text-status-danger">{{ $message }}</p>@enderror
                 <x-ui.textarea id="training-course-description" :label="__('Description')" :error="$errors->first('courseForm.description')" wire:model="courseForm.description" rows="3" />
                 <div class="flex gap-2"><x-ui.button type="submit">{{ __('Save course') }}</x-ui.button><x-ui.button type="button" variant="secondary" wire:click="cancelCourse">{{ __('Cancel') }}</x-ui.button></div>
