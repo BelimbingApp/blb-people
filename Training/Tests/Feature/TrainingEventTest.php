@@ -730,6 +730,23 @@ test('event selectCompany switches to an attributable company and refuses an unk
         ->assertStatus(404);
 });
 
+test('event editor route refuses a company query outside the HR attribution scope', function (): void {
+    $this->withoutVite();
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    $siblingCompany = trainingEventCompany($fixture['tenantId'], 'Unattributed Event Company');
+
+    $this->actingAs($hr)
+        ->get(route('people.training.events.index', ['company' => $fixture['company']->id]))
+        ->assertOk()
+        ->assertSee('Schedule an event');
+
+    $this->actingAs($hr)
+        ->get(route('people.training.events.index', ['company' => $siblingCompany->id]))
+        ->assertNotFound();
+});
+
 test('schedule editor returns to the combined schedule instead of rendering a register beneath the form', function (): void {
     $this->withoutVite();
     $fixture = trainingEventFixture();
