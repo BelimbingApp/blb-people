@@ -4,12 +4,20 @@ use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
+use App\Base\Menu\Contracts\MenuAccessChecker;
+use App\Base\Menu\MenuItem;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
+use App\Core\Company\Models\Department;
+use App\Core\Company\Models\DepartmentType;
+use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
+use App\Domains\People\Settings\Models\EmployeePortalAccess;
+use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
+use App\Domains\People\Skills\Models\SkillActorBinding;
 use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
@@ -78,6 +86,49 @@ function budgetFixture(string $label = 'Budget'): array
     ]);
 
     return compact('tenantId', 'companyId', 'company', 'hr', 'viewer', 'approver', 'department');
+}
+
+function budgetBindHod(array $fixture): void
+{
+    $type = DepartmentType::query()->create([
+        'code' => 'budget-ops-'.$fixture['companyId'],
+        'name' => 'Budget operations',
+        'category' => 'operational',
+        'is_active' => true,
+    ]);
+    $department = Department::query()->create([
+        'company_id' => $fixture['companyId'],
+        'department_type_id' => $type->id,
+        'status' => 'active',
+    ]);
+    $head = Employee::factory()->create([
+        'company_id' => $fixture['companyId'],
+        'department_id' => $department->id,
+        'full_name' => 'Budget operations head',
+        'status' => 'active',
+    ]);
+    $department->update(['head_id' => $head->id]);
+    EmployeeWorkProfile::query()->create([
+        'employee_id' => $head->id,
+        'organization_unit_id' => $fixture['department']->id,
+    ]);
+    $fixture['viewer']->update(['employee_id' => $head->id]);
+    EmployeePortalAccess::query()->create([
+        'employee_id' => $head->id,
+        'user_id' => $fixture['viewer']->id,
+        'display_name' => $head->full_name,
+        'status' => EmployeePortalAccess::STATUS_ACTIVE,
+    ]);
+    SkillActorBinding::query()->create([
+        'tenant_id' => $fixture['tenantId'],
+        'company_entity_id' => $fixture['companyId'],
+        'platform_user_id' => $fixture['viewer']->id,
+        'employee_entity_id' => $head->id,
+        'user_entity_id' => $fixture['viewer']->id,
+        'confirmed_by_user_id' => $fixture['hr']->id,
+        'review_reference' => 'training-budget-test',
+        'confirmed_at' => now(),
+    ]);
 }
 
 /** A request at the given status, costing the given amount. */
@@ -214,6 +265,62 @@ test('a viewer without the manage capability cannot change the budget', function
         $f['viewer'], $f['companyId'], (int) $f['department']->id, (int) now()->year, '5000.0000', 'Trying it on.',
     ))->toThrow(AuthorizationDeniedException::class)
         ->and(TrainingDepartmentBudget::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
+});
+
+test('a core administrator without a People audience cannot read or write budgets', function (): void {
+    $f = budgetFixture();
+    $platformAdmin = budgetUser($f['company'], 'core_admin');
+    $store = app(TrainingBudgetStore::class);
+
+    expect(fn () => $store->rollUp($platformAdmin, $f['companyId'], (int) now()->year))
+        ->toThrow(AuthorizationDeniedException::class)
+        ->and(fn () => $store->setBudget(
+            $platformAdmin,
+            $f['companyId'],
+            (int) $f['department']->id,
+            (int) now()->year,
+            '5000.0000',
+            'Platform administration is not HR authority.',
+        ))->toThrow(AuthorizationDeniedException::class)
+        ->and(TrainingDepartmentBudget::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(0);
+
+    $this->actingAs($platformAdmin)
+        ->get(route('people.training.budget.index'))
+        ->assertForbidden();
+});
+
+test('a HOD reads only budgets for departments they currently head', function (): void {
+    $f = budgetFixture();
+    budgetBindHod($f);
+    $otherDepartment = PeopleReferenceEntry::query()->create([
+        'company_id' => $f['companyId'],
+        'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+        'code' => 'FIN-Budget',
+        'name' => 'Finance Budget',
+        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+    ]);
+    $store = app(TrainingBudgetStore::class);
+    $store->setBudget($f['hr'], $f['companyId'], (int) $f['department']->id, (int) now()->year, '5000.0000', 'Operations allocation.');
+    $store->setBudget($f['hr'], $f['companyId'], (int) $otherDepartment->id, (int) now()->year, '9000.0000', 'Finance allocation.');
+
+    $rows = $store->rollUp($f['viewer'], $f['companyId'], (int) now()->year);
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows[0]->departmentEntityId)->toBe((int) $f['department']->id)
+        ->and($rows[0]->budget)->toBe('5000.0000');
+});
+
+test('the budget menu uses the same People audience boundary as the page', function (): void {
+    $f = budgetFixture();
+    $platformAdmin = budgetUser($f['company'], 'core_admin');
+    $item = collect((require __DIR__.'/../../Config/menu.php')['items'])
+        ->firstWhere('id', 'people.training-budget');
+    $menu = MenuItem::fromArray($item);
+    $checker = app(MenuAccessChecker::class);
+
+    expect($item['condition'] ?? null)->toBe('people.training.budget-audience')
+        ->and($checker->canView($menu, $platformAdmin))->toBeFalse()
+        ->and($checker->canView($menu, $f['hr']))->toBeTrue();
 });
 
 test("another company's requests never appear", function (): void {
