@@ -45,9 +45,40 @@ any existing event does not receive another on rerun, even if its event is now i
 the past. Reschedule through the normal workflow when needed. The seeder also
 adopts the same three courses created during the initial local walkthrough.
 
-No login, role grant, employee-account link, participant, completion history or
-notification is created. Access still requires an explicitly assigned People
-role in the relevant company; core administrator alone is not HR authority.
-The seed is for catalog and delivery walkthroughs. Request approvals and budget
-examples are not seeded: they need a deliberate department/requestor/approver
-scenario, not an invented approval history or automatic HR permission grant.
+The catalog seeder itself creates no login, role grants or participation.
+
+`DevTrainingGovernanceSeeder` depends on that catalog seeder and is also discovered
+by the normal local `--dev` flow. To restore both sets without rebuilding tables:
+
+```bash
+php artisan db:seed --class='App\Domains\People\Training\Database\Seeders\Dev\DevTrainingGovernanceSeeder'
+```
+
+It adds a small fictional story to **HR governance**:
+
+- **Training requests:** DEMO Training Learner requests incident-reporting practice
+  (estimated cost 250). A synthetic HOD submits a recommendation, leaving the
+  request pending HR review. Review/forward or reject it through the normal UI.
+- **Evidence submissions:** the same learner has 120 minutes of synthetic attendance
+  at a separate, completed DEMO Safety Reporting Practice event. A clearly labelled
+  plain-text document and reflection await HR confirmation or return. The certificate
+  marker explicitly says `DEMO-NOT-A-QUALIFICATION`; this is not real training.
+
+The seed creates three isolated DEMO actor accounts (learner, HOD, HR), company-scoped
+People roles, employee/portal bindings and one DEMO Learning Team reference. Addresses
+use `@demo.invalid`, passwords are random and unpublished. No real user gains roles
+or employee linkage. Notifications are suppressed only during fixture construction
+and the original dispatcher is restored; workflow audit/delivery bookkeeping can
+still describe these synthetic transitions, but no notification is delivered.
+
+The reserved `DEMO-TRAINING-*` employee numbers, `training-{companyId}-*@demo.invalid`
+addresses, `demo-training-team` reference and `demo-evidence-practice` course identify
+these fixtures. Existing actor/reference edits are preserved. Any retained request
+by the demo learner or event on the evidence course prevents recreating that scenario,
+so reviewed, rejected, returned or confirmed examples stay that way on rerun. Missing
+initial scenarios are added; rerunning is not a command to reset a demonstration.
+
+Requirement profiles, submitted plans, reassessments, escalations and budget allocations
+remain unseeded: the focused story demonstrates two legitimate HR decisions without
+inventing assessment or approval prerequisites. HR access still requires an explicit
+People HR role; core administrator authority alone remains insufficient.
