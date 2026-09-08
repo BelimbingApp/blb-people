@@ -176,7 +176,9 @@ final class Index extends Component
 
     /**
      * Open a rejected request for revision: its substance loads into the
-     * request form, and saving the form revises it back to draft.
+     * request form, and saving the form revises it back to draft. Identity
+     * loads too, so the form names the row's requestor even though a
+     * revision never moves it.
      */
     public function startRevision(int $requestId): void
     {
@@ -187,6 +189,7 @@ final class Index extends Component
         abort_unless($request->status === TrainingRequestStatus::Rejected, 403);
 
         $this->revisingRequestId = $request->id;
+        $this->requestorEntityId = $request->requestor_subject_id;
         $this->needSource = $request->need_source->value;
         $this->need = $request->need;
         $this->learningObjective = $request->learning_objective;
@@ -261,6 +264,7 @@ final class Index extends Component
             'editable' => $requests->filter(fn (TrainingRequest $r): bool => $r->status === TrainingRequestStatus::Draft)->pluck('id')->all(),
             'recommendable' => $requests->filter(fn (TrainingRequest $r): bool => $r->status === TrainingRequestStatus::PendingHod && in_array($r->department_subject_id, $hodDepartments, true))->pluck('id')->all(),
             'revisable' => $requests->filter(fn (TrainingRequest $r): bool => $r->status === TrainingRequestStatus::Rejected)->pluck('id')->all(),
+            'revisingRequest' => $this->revisingRequestId === null ? null : $requests->firstWhere('id', $this->revisingRequestId),
             'needSources' => TrainingNeedSource::cases(),
             'priorities' => TrainingPriority::cases(),
         ]);
