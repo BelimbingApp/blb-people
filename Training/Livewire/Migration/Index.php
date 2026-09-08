@@ -21,6 +21,7 @@ use App\Domains\People\Training\Exceptions\InvalidTrainingMigrationSourceExcepti
 use App\Domains\People\Training\Models\TrainingMigrationSource;
 use App\Domains\People\Training\Models\TrainingPilotSignoff;
 use App\Domains\People\Training\Services\DepartmentPilotReadiness;
+use App\Domains\People\Training\Services\MigrationLedger;
 use App\Domains\People\Training\Services\PilotSignoffStore;
 use App\Domains\People\Training\Services\TrainingMigrationMappingStore;
 use App\Domains\People\Training\Services\TrainingMigrationSourceStore;
@@ -34,7 +35,8 @@ use Livewire\WithPagination;
 
 /**
  * The migration source inventory page (0015-a), field/code mapping and writer
- * windows (0015-b), plus department pilot readiness and HOD/HR sign-off (0015-c).
+ * windows (0015-b), department pilot readiness and HOD/HR sign-off (0015-c),
+ * and the rejected-row quarantine listing from {@see MigrationLedger} (0015-d).
  *
  * Inventory mutations stay on {@see TrainingMigrationSourceStore}. Mapping and
  * writer windows stay on {@see TrainingMigrationMappingStore}. Pilot sign-off
@@ -157,6 +159,7 @@ final class Index extends Component
 
     public function render(
         TrainingMigrationSourceStore $store,
+        MigrationLedger $ledger,
         TrainingMigrationMappingStore $mappings,
         AuthorizationService $authorization,
         DepartmentPilotReadiness $readiness,
@@ -188,6 +191,7 @@ final class Index extends Component
             'inventoryEmpty' => $inventory->isEmpty(),
             'companies' => $companies,
             'sources' => $sources,
+            'rejected' => $companyEntityId === null ? collect() : $ledger->listRejected($companyEntityId),
             'kinds' => MigrationSourceKind::cases(),
             'mayManage' => $authorization->can($actor, TrainingMigrationSourceStore::MANAGE)->allowed,
             'signed' => $companyEntityId !== null && $store->signedInventory($companyEntityId),
