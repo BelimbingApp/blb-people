@@ -346,10 +346,9 @@ test('saved course History is available on the revise form for HR and withheld f
     $hod = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
     trainingEventRole($hr, 'people_hr');
     trainingEventRole($hod, 'people_hod');
-    trainingEventBindHod($hr, $hod, $fixture, 'review:training-catalog-history');
-    // Local-only History (:require-audit-list-capability="false") needs the platform
-    // gate on belimbing main; until that lands, grant the existing audit list so this
-    // control still proves on domain CI remounted against current main.
+    // Grant before any authorize() that warms GrantPolicy's per-actor EffectivePermissions
+    // cache — bindHod and Livewire otherwise keep a pre-grant snapshot and History stays empty
+    // on platform main (which still requires admin.audit.log.list until belimbing #926 lands).
     PrincipalCapability::query()->create([
         'company_id' => $hr->company_id,
         'principal_type' => PrincipalType::USER->value,
@@ -357,6 +356,7 @@ test('saved course History is available on the revise form for HR and withheld f
         'capability_key' => 'admin.audit.log.list',
         'is_allowed' => true,
     ]);
+    trainingEventBindHod($hr, $hod, $fixture, 'review:training-catalog-history');
 
     $courseId = (int) $fixture['course']->id;
 
