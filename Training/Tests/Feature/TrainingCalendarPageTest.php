@@ -358,8 +358,10 @@ it('keeps the HR schedule return state in the New schedule link', function (): v
         'sortDir' => 'desc',
         'year' => 2026,
         'month' => 10,
-        'page' => 2,
+        'page' => 1,
     ];
+
+    $event = calendarEvent($f['company'], $f['trainerEmployee'], 'State-preserving revision');
 
     $page = Livewire::actingAs($f['hr'])->test(TrainingCalendar::class)
         ->call('showTable')
@@ -374,7 +376,11 @@ it('keeps the HR schedule return state in the New schedule link', function (): v
         ->set('month', $return['month'])
         ->call('setPage', $return['page']);
 
-    expect(html_entity_decode($page->html()))->toContain(route('people.training.events.index', ['return' => 'calendar'] + $return));
+    $html = html_entity_decode(html_entity_decode($page->html()));
+
+    expect($html)->toContain(route('people.training.events.index', ['return' => 'calendar'] + $return));
+
+    expect($html)->toContain(route('people.training.events.index', ['return' => 'calendar'] + $return + ['edit' => (int) $event->id]));
 });
 
 it('keeps terminal events in HR Table while Calendar remains open-event discovery', function (): void {
