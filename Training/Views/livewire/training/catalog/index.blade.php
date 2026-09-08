@@ -37,7 +37,19 @@
 
         @if ($canManage && ($editingCourseId !== null || $courseForm !== []))
             <form wire:submit="saveCourse" class="space-y-3 rounded border border-edge p-4">
-                <h2 class="text-lg font-semibold">{{ $editingCourseId === null ? __('Define course') : __('Revise course') }}</h2>
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <h2 class="text-lg font-semibold">{{ $editingCourseId === null ? __('Define course') : __('Revise course') }}</h2>
+                    @if ($editingCourse !== null)
+                        <x-ui.record-history
+                            :title="__('History for :name', ['name' => $editingCourse->title])"
+                            :subjects="[['name' => 'training_course', 'id' => $editingCourse->id]]"
+                            :auditable-type="$editingCourse->getMorphClass()"
+                            :auditable-id="$editingCourse->id"
+                            :source-capability="\App\Domains\People\Training\Services\TrainingAudience::MANAGE"
+                            :require-audit-list-capability="false"
+                        />
+                    @endif
+                </div>
                 <div class="grid gap-3 md:grid-cols-2">
                     <x-ui.input id="training-course-code" :label="__('Training ID (stable code)')" :error="$errors->first('courseForm.code')" wire:model="courseForm.code" :disabled="$editingCourseId !== null" required />
                     <x-ui.input id="training-course-title" :label="__('Training title')" :error="$errors->first('courseForm.title')" wire:model="courseForm.title" required />

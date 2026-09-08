@@ -142,9 +142,15 @@ final class Index extends Component
         $canManage = $company !== null && $audience->canManage(Auth::user(), $company);
         $skills = ! $canManage ? collect() : $this->activeSkills($company);
 
+        $courses = $company === null ? collect() : $this->courses($company);
+        $editingCourse = $this->editingCourseId === null
+            ? null
+            : $courses->firstWhere('id', $this->editingCourseId);
+
         return view('people::livewire.training.catalog.index', [
             'companies' => $companies,
-            'courses' => $company === null ? collect() : $this->courses($company),
+            'courses' => $courses,
+            'editingCourse' => $editingCourse,
             'skills' => $skills,
             'employees' => ! $canManage ? collect() : $this->employeeOptions($company),
             'canManage' => $canManage,
