@@ -6,6 +6,7 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Livewire\Assessment\Matrix;
+use App\Domains\People\Skills\Services\SkillCatalogDefaults;
 use Livewire\Livewire;
 
 afterEach(function (): void {
@@ -135,4 +136,35 @@ test('an assessor without catalog authority receives HR guidance instead of a se
         ->assertSee('Ask People HR to publish the proficiency scale before entering scores.')
         ->assertDontSee('Set up the proficiency scale')
         ->assertDontSee('Select skills to open the matrix.');
+});
+
+test('the matrix names the signed-in assessor of record and refuses implied trainer entry', function (): void {
+    [$tenant, $company] = createTenantWithCompany(['name' => 'Assessor Identity Tenant'], ['name' => 'Assessor Identity Co']);
+    app(TenantContext::class)->set((int) $tenant->id);
+    $assessor = User::factory()->create([
+        'company_id' => $company->id,
+        'name' => 'Amina Signed In',
+    ]);
+    assessmentPageGrantHr($assessor);
+    assessmentPageCompanyEntity((int) $tenant->id, 'Assessor Identity Workforce', (int) $company->id);
+    app(SkillCatalogDefaults::class)->install((int) $company->id);
+
+    foreach (['people.skill.assessment.view', 'people.skill.assessment.manage'] as $capability) {
+        PrincipalCapability::query()->create([
+            'company_id' => $company->id,
+            'principal_type' => PrincipalType::USER->value,
+            'principal_id' => $assessor->id,
+            'capability_key' => $capability,
+            'is_allowed' => true,
+        ]);
+    }
+
+    Livewire::actingAs($assessor)
+        ->test(Matrix::class)
+        ->assertSee('Assessor of record')
+        ->assertSee('Amina Signed In')
+        ->assertSee('This signed-in account will be recorded as the assessor of record')
+        ->assertSee('do not enter their judgement under your account')
+        ->assertSee('their own authorized assessor access')
+        ->assertSee('governed assessment-log import');
 });
