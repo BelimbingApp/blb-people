@@ -11,6 +11,7 @@ use App\Domains\People\Training\Console\Commands\PurgeTrainingPassportDocumentsC
 use App\Domains\People\Training\Console\Commands\RequestsDueCommand;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
 use App\Domains\People\Training\Services\DatabaseTrainingParticipationSummary;
+use App\Domains\People\Training\Services\TrainingBudgetStore;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
 
@@ -57,6 +58,20 @@ class ServiceProvider extends BaseServiceProvider
                 'people.training.calendar-audience',
                 static fn (Authenticatable $user): bool => $user instanceof User
                     && app(SkillAudience::class)->mayAccess($user, 'people.training.calendar.view'),
+            );
+            $registry->register(
+                'people.training.budget-audience',
+                static fn (Authenticatable $user): bool => $user instanceof User
+                    && app(TrainingBudgetStore::class)->mayView($user, (int) $user->company_id),
+            );
+            $registry->register(
+                'people.training.hr-governance-audience',
+                static fn (Authenticatable $user): bool => $user instanceof User
+                    && app(SkillAudience::class)->mayAccessAs(
+                        $user,
+                        'people.skill.hr.view',
+                        SkillAudience::HR,
+                    ),
             );
         });
     }

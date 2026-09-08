@@ -225,7 +225,9 @@ test('an overdue score and an overdue action yield three reminders, one per rule
         'requirement_reference' => 'dev-action.ops',
         'requirement_version' => 2,
         'required_level' => 4,
-        'criticality' => 'critical',
+        // Essential, not critical: a lone critical holder is also a coverage
+        // gap (0009-i), and this file measures the action rule alone.
+        'criticality' => 'essential',
         'mandatory_gate' => true,
         'assessed_level' => 2,
         'gap' => 2,
@@ -248,7 +250,7 @@ test('an overdue score and an overdue action yield three reminders, one per rule
         'current_level' => 2,
         'gap' => 2,
         'mandatory_gate' => true,
-        'criticality' => 'critical',
+        'criticality' => 'essential',
         'assessed_at' => Carbon::now()->subYear(),
         'next_assessment_due' => Carbon::now()->subDays(3)->toDateString(),
         'valid_until' => Carbon::now()->addDays(10)->toDateString(),

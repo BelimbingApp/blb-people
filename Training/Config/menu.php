@@ -21,6 +21,7 @@ return [
         'icon' => 'heroicon-o-banknotes',
         'route' => 'people.training.budget.index',
         'permission' => 'people.training.budget.view',
+        'condition' => 'people.training.budget-audience',
         'parent' => 'people',
     ], [
         'id' => 'people.training-evaluations',
@@ -77,11 +78,19 @@ return [
         'condition' => 'people.training.kpi-audience',
         'parent' => 'people',
     ], [
+        'id' => 'people.training-migration-sources',
+        'label' => 'Migration sources',
+        'icon' => 'heroicon-o-archive-box-arrow-down',
+        'route' => 'people.training.migration.index',
+        'permission' => 'people.training.migration.view',
+        'parent' => 'people',
+    ], [
         'id' => 'people.hr-governance',
         'label' => 'HR governance',
         'icon' => 'heroicon-o-clipboard-document-check',
         'route' => 'people.hr-governance.index',
         'permission' => 'people.skill.hr.view',
+        'condition' => 'people.training.hr-governance-audience',
         'parent' => 'people',
     ]],
 ];

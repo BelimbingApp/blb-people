@@ -115,7 +115,7 @@ return new class extends Migration
         $driver = DB::connection()->getDriverName();
         if ($driver === 'pgsql') {
             DB::unprepared(<<<'SQL'
-                CREATE FUNCTION pt_participation_immutable() RETURNS trigger AS $$
+                CREATE OR REPLACE FUNCTION pt_participation_immutable() RETURNS trigger AS $$
                 BEGIN
                     -- Statement-level branch first: this function is shared by
                     -- the sessions, participants and facts triggers, and only

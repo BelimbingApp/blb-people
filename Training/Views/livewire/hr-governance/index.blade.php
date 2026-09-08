@@ -212,6 +212,7 @@
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $reassessmentSkills[$reassessment->skill_id] ?? __('Unknown skill') }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
                                     <span class="font-medium">{{ $reassessment->reason }}</span>
+                                    <span class="block text-muted">{{ $reassessmentSources[$reassessment->id] ?? __('From head of department') }}</span>
                                     <span class="block text-muted">{{ __('Due :date', ['date' => $reassessment->due_at->format('d M Y')]) }}</span>
                                 </td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm space-y-2">
@@ -310,6 +311,43 @@
             @endif
         </section>
 
+        <section class="space-y-4" data-coverage-gaps-section>
+            <h2 class="text-lg font-semibold">{{ __('Critical coverage gaps') }}</h2>
+            @if ($coverageGaps === [])
+                <p class="text-sm text-muted">{{ __('Every department covers its critical skills at the minimum.') }}</p>
+            @else
+                {{-- Render-only (0009-i): the reminder goes out monthly through
+                     people:reminders-send, and the plan is the HOD's and HR's
+                     to make on the coverage page, not a button here. --}}
+                <x-ui.table :caption="__('Critical coverage gaps')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Department') }}</x-ui.th>
+                            <x-ui.th>{{ __('Skill') }}</x-ui.th>
+                            <x-ui.th>{{ __('Level') }}</x-ui.th>
+                            <x-ui.th>{{ __('Holders') }}</x-ui.th>
+                            <x-ui.th>{{ __('Minimum') }}</x-ui.th>
+                            <x-ui.th>{{ __('Last delivery') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($coverageGaps as $gap)
+                            <tr wire:key="coverage-gap-{{ $gap['department_id'] ?? 0 }}-{{ $gap['skill_id'] }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
+                                    <a class="underline" href="{{ route('people.skill.backup-coverage.index', $gap['department_id'] === null ? [] : ['department' => $gap['department_id']]) }}">{{ $gap['department'] }}</a>
+                                </td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $gap['skill'] }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $gap['required_level'] }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums"><x-ui.badge variant="danger">{{ $gap['holders'] }}</x-ui.badge></td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $gap['minimum'] }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted">{{ $gap['last_delivery'] }}</td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </section>
+
         <section class="space-y-4" data-failed-deliveries-section>
             <h2 class="text-lg font-semibold">{{ __('Failed reminder deliveries') }}</h2>
             @if ($failedDeliveries->isEmpty())
@@ -334,7 +372,7 @@
                         @foreach ($failedDeliveries as $delivery)
                             <tr wire:key="failed-delivery-{{ $delivery->id }}">
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $delivery->rule->value }}</td>
-                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">#{{ $delivery->employee_entity_id }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">@if ($delivery->departmentId() !== null)<span class="text-muted">{{ __('department') }}</span> #{{ $delivery->departmentId() }}@else#{{ $delivery->employee_entity_id }}@endif</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">#{{ $delivery->skill_id }}@if ($delivery->developmentActionId() !== null) <span class="text-muted">{{ __('action') }} #{{ $delivery->developmentActionId() }}</span>@endif</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">#{{ $delivery->recipient_user_id }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-muted tabular-nums">{{ $delivery->period_key }}</td>

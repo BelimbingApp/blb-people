@@ -71,7 +71,7 @@ return new class extends Migration
 
         if ($driver === 'pgsql') {
             DB::unprepared(<<<'SQL'
-                CREATE FUNCTION ptep_policy_append_only() RETURNS trigger AS $$
+                CREATE OR REPLACE FUNCTION ptep_policy_append_only() RETURNS trigger AS $$
                 BEGIN
                     RAISE EXCEPTION 'training effectiveness policy rows are append-only';
                 END;

@@ -341,6 +341,73 @@ final class AssessmentStore
     }
 
     /**
+     * Import one already-verified assessment from a workbook log
+     * (blb-people#390 / [0008-d]) as a finalized row, walking the same
+     * lifecycle the matrix walks so every insert and transition guard still
+     * fires: submitted by the log's assessor, verified and finalized by the
+     * importing HR user, who attests the log's HOD decision. The assessor of
+     * record must be a different user from the importer, exactly as a live
+     * assessment's assessor and finalizer must differ. Provenance names the
+     * channel and the file row so a re-import finds the row and skips it.
+     *
+     * @param  array<string, mixed>  $employeeData
+     */
+    public function importFinalized(
+        User $actor,
+        int $companyEntityId,
+        AssessmentDraft $draft,
+        string $source,
+        string $sourceReference,
+        ?string $attestation = null,
+        array $employeeData = [],
+    ): SkillAssessment {
+        $importerId = $this->actorId($actor);
+        $this->audience->assertHr($actor, $companyEntityId);
+
+        if ($draft->assessorUserId === null || $draft->assessorUserId === $importerId) {
+            throw new InvalidAssessmentException('An imported assessment needs an assessor of record who is not the importing user.');
+        }
+
+        return DB::transaction(function () use ($importerId, $companyEntityId, $draft, $source, $sourceReference, $attestation, $employeeData): SkillAssessment {
+            $assessment = $this->write(
+                $companyEntityId,
+                $draft,
+                AssessmentStatus::Submitted,
+                employeeData: $employeeData,
+                assessorUserId: $draft->assessorUserId,
+                source: $source,
+                sourceReference: $sourceReference,
+            );
+            $this->recordDecision($assessment, 'submitted', $importerId, $attestation);
+            $this->queueHodVerification($assessment, $importerId);
+
+            $assessment->hod_verification = HodVerification::Verified;
+            $assessment->hod_verifier_user_id = $importerId;
+            $assessment->hod_verified_at = now();
+            $assessment->hod_decision_notes = $attestation;
+            $this->saveTransition($assessment);
+            $this->recordDecision($assessment, 'verified', $importerId, $attestation);
+
+            $assessment->status = AssessmentStatus::Finalized;
+            $assessment->finalized_at = now();
+            $assessment->finalized_by_user_id = $importerId;
+            $this->saveTransition($assessment);
+            $this->recordDecision($assessment, 'finalized', $importerId);
+
+            $this->projectCurrentScore($assessment);
+
+            Event::dispatch(new SkillAssessmentFinalized(
+                (int) $assessment->tenant_id,
+                (int) $assessment->getKey(),
+                (int) $assessment->employee_entity_id,
+                (int) $assessment->skill_id,
+            ));
+
+            return $assessment->refresh();
+        });
+    }
+
+    /**
      * Direct draft finalization is intentionally removed from the public
      * workflow. Keeping this method as a loud failure protects older callers
      * from silently bypassing HOD verification.
@@ -385,6 +452,8 @@ final class AssessmentStore
         ?int $supersedesAssessmentId = null,
         ?int $assessorUserId = null,
         bool $allowReturnedSupersession = false,
+        ?string $source = null,
+        ?string $sourceReference = null,
     ): SkillAssessment {
         $tenantId = $this->tenantContext->requireTenantId();
         $this->assertEntity($tenantId, $companyEntityId, $companyEntityId, WorkforceResourceType::Company);
@@ -484,6 +553,8 @@ final class AssessmentStore
             'valid_until' => $draft->validUntil,
             'next_assessment_due' => $nextDue,
             'supersedes_assessment_id' => $supersedesAssessmentId,
+            'source' => $source,
+            'source_reference' => $sourceReference,
             'finalized_at' => null,
             'finalized_by_user_id' => null,
         ]);

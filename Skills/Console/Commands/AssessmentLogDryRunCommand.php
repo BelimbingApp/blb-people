@@ -2,13 +2,11 @@
 
 namespace App\Domains\People\Skills\Console\Commands;
 
-use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Base\Tenancy\Contracts\TenantContext;
-use App\Core\User\Models\User;
+use App\Domains\People\Skills\Console\Concerns\AuthorizesAssessmentLogImport;
 use App\Domains\People\Skills\Exceptions\InvalidAssessmentException;
 use App\Domains\People\Skills\Import\UnreadableSkillWorkbook;
-use App\Domains\People\Skills\Livewire\Catalog\Import;
 use App\Domains\People\Skills\Services\AssessmentLogDryRun;
 use App\Domains\People\Skills\Services\SkillAudience;
 
@@ -21,6 +19,8 @@ use App\Domains\People\Skills\Services\SkillAudience;
  */
 final class AssessmentLogDryRunCommand extends TenantScopedCommand
 {
+    use AuthorizesAssessmentLogImport;
+
     protected $signature = 'people:skills-assessment-log-dry-run
                             {workbook : Path to the local XLSX workbook}
                             {--company= : Company workforce entity the log belongs to}
@@ -31,29 +31,11 @@ final class AssessmentLogDryRunCommand extends TenantScopedCommand
     public function handle(TenantContext $tenants, SkillAudience $audience, AssessmentLogDryRun $dryRun): int
     {
         $tenantId = $tenants->requireTenantId();
-        $company = $this->option('company');
-        $as = $this->option('as');
-
-        if (! is_scalar($company) || preg_match('/^\d+$/D', (string) $company) !== 1) {
-            $this->error('A dry run is per company: pass --company=<workforce company entity id>.');
-
+        $actor = $this->importActor($audience, $tenantId, 'A dry run');
+        if ($actor === null) {
             return self::FAILURE;
         }
-
-        if (! is_scalar($as) || preg_match('/^\d+$/D', (string) $as) !== 1) {
-            $this->error('A dry run is authorized as a user: pass --as=<platform user id>.');
-
-            return self::FAILURE;
-        }
-
-        $companyEntityId = (int) $company;
-        $user = User::query()->find((int) $as);
-
-        if ($user === null || (int) $user->tenant_id !== $tenantId || ! $this->authorized($audience, $user, $companyEntityId)) {
-            $this->error('User '.(string) $as.' is not authorized for '.Import::CAPABILITY.' in company '.(string) $company.'; the workbook was not opened.');
-
-            return self::FAILURE;
-        }
+        [, $companyEntityId] = $actor;
 
         try {
             $result = $dryRun->run($tenantId, $companyEntityId, (string) $this->argument('workbook'));
@@ -83,24 +65,5 @@ final class AssessmentLogDryRunCommand extends TenantScopedCommand
         $this->line('Database writes: 0');
 
         return $result->defects === [] ? self::SUCCESS : self::FAILURE;
-    }
-
-    /** The import page's funnel: capability, HR audience, and this company. */
-    private function authorized(SkillAudience $audience, User $user, int $companyEntityId): bool
-    {
-        try {
-            $audiences = $audience->authorizeAudience($user, Import::CAPABILITY);
-
-            if (! in_array(SkillAudience::HR, $audiences, true)
-                || ! array_key_exists($companyEntityId, $audience->allowedCompanies($user, Import::CAPABILITY))) {
-                return false;
-            }
-
-            $audience->assertHr($user, $companyEntityId);
-        } catch (AuthorizationDeniedException) {
-            return false;
-        }
-
-        return true;
     }
 }

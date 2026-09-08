@@ -5,7 +5,7 @@ namespace App\Domains\People\Training\Livewire\EffectivenessAggregate;
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
 use App\Base\Tenancy\Contracts\TenantContext;
-use App\Domains\People\Settings\Models\PeopleReferenceEntry;
+use App\Core\Company\Models\Department;
 use App\Domains\People\Training\Enums\EffectivenessCheckpoint;
 use App\Domains\People\Training\Services\TrainingEffectivenessAggregate;
 use Illuminate\Contracts\View\View;
@@ -51,13 +51,27 @@ final class Index extends Component
                 $this->departmentEntityId,
             ),
             'checkpoints' => EffectivenessCheckpoint::cases(),
-            'departments' => PeopleReferenceEntry::query()
-                ->where('company_id', $companyId)
-                ->where('type', PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT)
-                ->orderBy('name')
-                ->pluck('name', 'id')
-                ->all(),
+            // Core departments, not People reference units: perCourse()
+            // attributes a row by Employee.department_id, so an option from any
+            // other identity space filters to nothing unless the two ids happen
+            // to coincide (#437). DepartmentHeads and BackupCoverage already
+            // treat Core Department as the authoritative department identity.
+            'departments' => $this->departmentOptions($companyId),
         ]);
+    }
+
+    /** @return array<int, string> Core department id => display name, ordered by name */
+    private function departmentOptions(int $companyId): array
+    {
+        return Department::query()
+            ->where('company_id', $companyId)
+            ->with('type')
+            ->get()
+            ->mapWithKeys(static fn (Department $department): array => [
+                (int) $department->id => (string) ($department->name ?? __('Unnamed department')),
+            ])
+            ->sort()
+            ->all();
     }
 
     private function assertMayView(AuthorizationService $authorization): void

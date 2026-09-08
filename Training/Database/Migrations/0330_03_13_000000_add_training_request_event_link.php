@@ -43,7 +43,7 @@ return new class extends Migration
                     ->references(['id', 'tenant_id', 'company_entity_id'])->on('people_connector_training_events')->restrictOnDelete();
             });
             DB::unprepared(<<<'SQL'
-                CREATE FUNCTION ptr_request_link_guard() RETURNS trigger AS $$
+                CREATE OR REPLACE FUNCTION ptr_request_link_guard() RETURNS trigger AS $$
                 BEGIN
                     IF NEW.training_event_id IS NOT NULL AND NEW.status <> 'approved' THEN
                         RAISE EXCEPTION 'only an approved training request can be linked to an event';
