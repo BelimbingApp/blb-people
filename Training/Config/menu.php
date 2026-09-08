@@ -69,16 +69,8 @@ return [
         'condition' => 'people.training.event-audience',
         'parent' => 'people',
     ], [
-        'id' => 'people.training-events',
-        'label' => 'Training schedule',
-        'icon' => 'heroicon-o-calendar-days',
-        'route' => 'people.training.events.index',
-        'permission' => 'people.training.event.view',
-        'condition' => 'people.training.event-audience',
-        'parent' => 'people',
-    ], [
         'id' => 'people.training-calendar',
-        'label' => 'Training calendar',
+        'label' => 'Training schedule',
         'icon' => 'heroicon-o-calendar',
         'route' => 'people.training.calendar',
         'permission' => 'people.training.calendar.view',
