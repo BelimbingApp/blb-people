@@ -19,6 +19,10 @@ use App\Domains\People\Training\Exceptions\InvalidCutoverWindowException;
 use App\Domains\People\Training\Models\TrainingCutoverWindow;
 use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Services\CutoverWriteGuard;
+use App\Domains\People\Training\Data\EffectivenessReviewDraft;
+use App\Domains\People\Training\Enums\EffectivenessReviewStage;
+use App\Domains\People\Training\Services\TrainingEffectivenessStore;
+use App\Domains\People\Training\Services\TrainingParticipationStore;
 use App\Domains\People\Training\Services\TrainingRequestStore;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -218,4 +222,52 @@ test('a legacy window refuses every training-request write, not only create', fu
         ->toThrow(CutoverWriteRefusedException::class);
 
     expect($request->fresh()->status->value)->toBe('draft');
+});
+
+test('a legacy Effectiveness window refuses TrainingEffectivenessStore writes at the store, not only at the guard', function (): void {
+    // desktop-luna's [P1] on #420. The guard sits in three stores but only
+    // TrainingRequestStore had a test, so deleting assertWritable() from the
+    // other two left the suite green. #418's acceptance is one failing test
+    // per store: this is the Effectiveness one.
+    $f = cutWFixture('CutWEffStore');
+    app(CutoverWriteGuard::class)->declare(
+        $f['hr'], $f['companyId'], CutoverWorkflow::Effectiveness, CutoverWriter::Legacy,
+        new DateTimeImmutable('2026-09-01 00:00:00'), null, 'legacy effectiveness still authoritative',
+    );
+
+    $before = DB::table('people_training_effectiveness_reviews')->count();
+
+    expect(fn () => app(TrainingEffectivenessStore::class)->openStage($f['hr'], $f['companyId'], new EffectivenessReviewDraft(
+        participantId: 1,
+        stage: EffectivenessReviewStage::Day30,
+        dueOn: new DateTimeImmutable('2026-10-01 00:00:00'),
+        dueDatePolicy: 'cutover.guard.fixture',
+        reviewerEmployeeEntityId: (int) $f['employee']->id,
+    )))->toThrow(CutoverWriteRefusedException::class);
+
+    // Refused, and nothing written. A refusal asserted only by its exception
+    // type would still pass if the store wrote first and threw afterwards.
+    expect(DB::table('people_training_effectiveness_reviews')->count())->toBe($before);
+});
+
+test('a legacy Attendance window refuses TrainingParticipationStore writes at the store, not only at the guard', function (): void {
+    // The Attendance half of the same acceptance.
+    $f = cutWFixture('CutWAttStore');
+    app(CutoverWriteGuard::class)->declare(
+        $f['hr'], $f['companyId'], CutoverWorkflow::Attendance, CutoverWriter::Legacy,
+        new DateTimeImmutable('2026-09-01 00:00:00'), null, 'legacy attendance still authoritative',
+    );
+
+    $before = DB::table('people_training_sessions')->count();
+
+    expect(fn () => app(TrainingParticipationStore::class)->defineSession(
+        $f['hr'],
+        $f['companyId'],
+        1,
+        'CUTW-SESSION-1',
+        new DateTimeImmutable('2026-09-10 09:00:00'),
+        new DateTimeImmutable('2026-09-10 11:00:00'),
+    ))->toThrow(CutoverWriteRefusedException::class);
+
+    expect(DB::table('people_training_sessions')->count())->toBe($before);
 });
