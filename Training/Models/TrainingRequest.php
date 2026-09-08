@@ -16,6 +16,13 @@ final class TrainingRequest extends TenantOwnedModel
 
     protected $table = 'people_training_requests';
 
+    /**
+     * Set only through reviseFacts(): the one sanctioned rewrite of request
+     * facts (a rejected request's new draft substance). Everything else that
+     * dirties a fact is still refused.
+     */
+    public bool $allowFactsRevision = false;
+
     protected static function booted(): void
     {
         self::updating(function (self $request): void {
@@ -23,10 +30,29 @@ final class TrainingRequest extends TenantOwnedModel
                 'requestor_subject_id', 'department_provider_id', 'department_subject_id', 'need_source',
                 'need', 'learning_objective', 'expected_result', 'priority', 'skill_gap_assessment_id',
                 'requirement_version', 'estimated_cost', 'created_by_user_id'];
-            if ($request->isDirty($facts)) {
+            if (! $request->allowFactsRevision && $request->isDirty($facts)) {
                 throw new InvalidTrainingRequestException('Training request facts are immutable.');
             }
         });
+    }
+
+    /**
+     * Replace the draft substance on revision. The key, requestor, department
+     * and author are not fillable here by construction: callers pass only
+     * the substance columns, so a revision can never smuggle an identity
+     * change through this door.
+     *
+     * @param  array{need_source: TrainingNeedSource, need: string, learning_objective: string, expected_result: string, priority: TrainingPriority, estimated_cost: ?string, skill_gap_assessment_id: ?int, requirement_version: ?int}  $substance
+     */
+    public function reviseFacts(array $substance): void
+    {
+        $this->allowFactsRevision = true;
+        try {
+            $this->fill($substance);
+            $this->save();
+        } finally {
+            $this->allowFactsRevision = false;
+        }
     }
 
     public function decisions(): HasMany

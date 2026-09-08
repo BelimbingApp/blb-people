@@ -229,6 +229,40 @@ final readonly class TrainingRequestStore
         });
     }
 
+    /**
+     * Revise a rejected request back to draft with a new draft's substance.
+     *
+     * A revision is the same request, not a new one: the key, the requestor
+     * and the department never change (changing the person or the department
+     * is a new request), the rejected decision row is not touched, and one
+     * revised row records the notes. submit() still requires draft, so the
+     * revised request collects a fresh recommendation, review and approval
+     * while every earlier decision row stays put.
+     */
+    public function revise(User $actor, int $companyId, int $requestId, TrainingRequestDraft $draft, string $notes): TrainingRequest
+    {
+        $this->required($notes, 'Revision notes are required.');
+        $tenantId = $this->authorize($actor, $companyId, self::SUBMIT);
+        $this->validate($tenantId, $companyId, $draft);
+
+        return DB::transaction(function () use ($actor, $companyId, $requestId, $draft, $notes, $tenantId): TrainingRequest {
+            $request = $this->find($tenantId, $companyId, $requestId);
+            if ($request->status !== TrainingRequestStatus::Rejected) {
+                throw new InvalidTrainingRequestException('Only a rejected training request can be revised.');
+            }
+            $request->reviseFacts([
+                'need_source' => $draft->needSource, 'need' => trim($draft->need),
+                'learning_objective' => trim($draft->learningObjective),
+                'expected_result' => trim($draft->expectedResult), 'priority' => $draft->priority,
+                'estimated_cost' => $draft->estimatedCost,
+                'skill_gap_assessment_id' => $draft->skillGapAssessmentId,
+                'requirement_version' => $draft->requirementVersion,
+            ]);
+
+            return $this->finish($request, TrainingRequestStatus::Draft, 'revised', $actor, $notes);
+        });
+    }
+
     public function cancel(User $actor, int $companyId, int $requestId, string $notes): TrainingRequest
     {
         $this->required($notes, 'A cancellation reason is required.');
