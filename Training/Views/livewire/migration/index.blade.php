@@ -32,15 +32,22 @@
             @endif
         </x-ui.alert>
 
+        @if (! $showForm)
+        <div class="flex flex-wrap items-end gap-3">
+            <x-ui.input id="migration-source-search" type="search" wire:model.live.debounce.300ms="search" :label="__('Search sources')" :placeholder="__('Name, key or owner')" />
+            @if ($mayManage)
+                <x-ui.button type="button" wire:click="createSource">{{ __('New source') }}</x-ui.button>
+            @endif
+        </div>
         <x-ui.card>
             @if ($sources->isEmpty())
-                <p class="text-sm text-muted">{{ __('No migration source is recorded for this company yet.') }}</p>
+                <p class="text-sm text-muted">{{ $inventoryEmpty ? __('No migration source is recorded for this company yet.') : __('No sources match your search.') }}</p>
             @else
-                <x-ui.table :caption="__('Migration source inventory')">
+                <x-ui.table container="flush" :caption="__('Migration source inventory')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Key') }}</x-ui.th>
-                            <x-ui.th>{{ __('Source') }}</x-ui.th>
+                            <x-ui.sortable-th column="name" sort-by="name" :sort-dir="$sortDirection" action="sortSources">{{ __('Source') }}</x-ui.sortable-th>
                             <x-ui.th>{{ __('Kind') }}</x-ui.th>
                             <x-ui.th>{{ __('Owner') }}</x-ui.th>
                             <x-ui.th>{{ __('Format') }}</x-ui.th>
@@ -56,7 +63,7 @@
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink font-mono">{{ $source->source_key }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $source->name }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $source->kind->label() }}</td>
-                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $source->owner_employee_id ?? '—' }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $source->owner_employee_id === null ? __('Not assigned') : ($employees[$source->owner_employee_id] ?? __('Employee unavailable')) }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $source->format }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $source->estimated_volume ?? '—' }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-muted">{{ $source->retention_note ?? '—' }}</td>
@@ -84,12 +91,17 @@
                         @endforeach
                     </x-slot:body>
                 </x-ui.table>
+                {{ $sources->links() }}
             @endif
         </x-ui.card>
 
-        @if ($mayManage)
+        @endif
+
+        @if ($mayManage && $showForm)
             <x-ui.card>
                 <h2 class="text-lg font-semibold">{{ $editingId === null ? __('Record a source') : __('Edit source #:id', ['id' => $editingId]) }}</h2>
+                <p class="text-sm text-muted">{{ __('Recording a source describes its metadata. It does not upload or import records.') }}</p>
+                <form wire:submit="save" class="space-y-section-gap">
                 <div class="grid gap-3 md:grid-cols-2">
                     <x-ui.input type="text" wire:model="sourceKey" :label="__('Key')" :placeholder="__('e.g. legacy-portal')" />
                     <x-ui.input type="text" wire:model="name" :label="__('Name')" />
@@ -99,17 +111,19 @@
                         @endforeach
                     </x-ui.select>
                     <x-ui.input type="text" wire:model="format" :label="__('Format')" :placeholder="__('e.g. xlsx, csv, paper')" />
-                    <x-ui.input type="text" wire:model="ownerEmployeeEntityId" :label="__('Owner (employee id)')" />
+                    <x-ui.combobox id="migration-source-owner" wire:model="ownerEmployeeEntityId"
+                        :label="__('Owner')" :placeholder="__('Search employees')"
+                        :hint="__('Optional · employees in this company')"
+                        :options="$employees->map(fn ($name, $id) => ['value' => (string) $id, 'label' => $name])->values()->all()" />
                     <x-ui.input type="text" wire:model="estimatedVolume" :label="__('Estimated volume (records)')" />
                     <x-ui.input type="text" wire:model="retentionNote" :label="__('Retention')" />
                     <x-ui.input type="text" wire:model="dataQualityNote" :label="__('Data quality')" />
                 </div>
                 <div class="flex gap-2 pt-3">
-                    <x-ui.button type="button" variant="primary" wire:click="save">{{ $editingId === null ? __('Record') : __('Save') }}</x-ui.button>
-                    @if ($editingId !== null)
+                    <x-ui.button type="submit" variant="primary">{{ $editingId === null ? __('Record') : __('Save') }}</x-ui.button>
                         <x-ui.button type="button" variant="secondary" wire:click="cancelEdit">{{ __('Cancel') }}</x-ui.button>
-                    @endif
                 </div>
+                </form>
             </x-ui.card>
         @endif
     @endif
