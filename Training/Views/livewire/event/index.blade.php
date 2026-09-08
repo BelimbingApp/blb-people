@@ -103,22 +103,13 @@
                             @if ($event->completion_evidence)<p class="text-sm"><span class="font-medium">{{ __('Completion evidence:') }}</span> {{ $event->completion_evidence }}</p>@endif
                             @if ($event->cancellation_reason)<p class="text-sm"><span class="font-medium">{{ __('Cancellation reason:') }}</span> {{ $event->cancellation_reason }}</p>@endif
 
-                            <x-ui.disclosure :title="__('History (:count)', ['count' => ($history[$event->id] ?? collect())->count()])" panel-id="training-event-{{ $event->id }}-history">
+                            @php($eventHistory = $history[$event->id] ?? collect())
+                            <x-ui.disclosure :title="__('History (:count)', ['count' => $eventHistory->count()])" panel-id="training-event-{{ $event->id }}-history">
                                 <ol class="space-y-2 text-sm">
-                                    @forelse ($history[$event->id] ?? [] as $record)
-                                        @php
-                                            $actorEmployee = $record->actor_employee_entity_id !== null
-                                                ? $employees->firstWhere('workforce_entity_id', $record->actor_employee_entity_id)
-                                                : null;
-                                            $actorUser = $record->actor_user_id !== null
-                                                ? ($historyActors[$record->actor_user_id] ?? null)
-                                                : null;
-                                            $actorLabel = $actorEmployee?->display_name
-                                                ?? $actorUser?->name
-                                                ?? ($record->actor_user_id === null && $record->actor_employee_entity_id === null
-                                                    ? __('System')
-                                                    : __('Unavailable'));
-                                        @endphp
+                                    @forelse ($eventHistory as $record)
+                                        @php($actorEmployee = $record->actor_employee_entity_id !== null ? $employees->firstWhere('workforce_entity_id', $record->actor_employee_entity_id) : null)
+                                        @php($actorUser = $record->actor_user_id !== null ? ($historyActors[$record->actor_user_id] ?? null) : null)
+                                        @php($actorLabel = $actorEmployee?->display_name ?? $actorUser?->name ?? ($record->actor_user_id === null && $record->actor_employee_entity_id === null ? __('System') : __('Unavailable')))
                                         <li wire:key="training-event-{{ $event->id }}-history-{{ $record->id }}">
                                             <span class="font-medium">{{ str($record->event_type)->replace('_', ' ')->title() }}</span>
                                             · <x-ui.datetime :value="$record->occurred_at" />
