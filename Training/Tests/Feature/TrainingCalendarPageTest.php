@@ -42,8 +42,8 @@ function calendarParticipantCount(int $tenantId, int $companyId, TrainingEvent $
 }
 
 /**
- * Training calendar page (0005-g): month view of scheduled events with
- * participant enrolment for authorized users.
+ * Training Schedule (0005-g): Calendar-first discovery with a shared Table
+ * alternate and participant enrolment for authorized users.
  */
 afterEach(function (): void {
     app(TenantContext::class)->clear();
@@ -308,19 +308,37 @@ it('navigates the calendar month forward and back', function (): void {
         ->assertSee($label);
 });
 
-it('switches the calendar between month and list modes', function (): void {
+it('lands on Calendar and switches to the filterable Table alternate', function (): void {
     $f = calendarFixture();
     calendarEvent($f['company'], $f['trainerEmployee'], 'Mode switch briefing');
 
     Livewire::actingAs($f['employee'])
         ->test(TrainingCalendar::class)
-        ->assertSet('mode', 'month')
-        ->call('showList')
-        ->assertSet('mode', 'list')
+        ->assertSet('view', 'calendar')
+        ->assertSee('Calendar')
+        ->assertSee('Table')
+        ->call('showTable')
+        ->assertSet('view', 'table')
         ->assertSee('Mode switch briefing')
-        ->assertSee('of 10 enrolled')
-        ->call('showMonth')
-        ->assertSet('mode', 'month');
+        ->assertSee('0 / 10')
+        ->call('showCalendar')
+        ->assertSet('view', 'calendar');
+});
+
+it('lets HR search and sort the schedule table without exposing a third list view', function (): void {
+    $f = calendarFixture();
+    calendarEvent($f['company'], $f['trainerEmployee'], 'Forklift refresh');
+    calendarEvent($f['company'], $f['trainerEmployee'], 'Safety briefing');
+
+    Livewire::actingAs($f['hr'])
+        ->test(TrainingCalendar::class)
+        ->call('showTable')
+        ->set('search', 'forklift')
+        ->assertSee('Forklift refresh')
+        ->assertDontSee('Safety briefing')
+        ->call('sort', 'course_title_snapshot')
+        ->assertSet('sortBy', 'course_title_snapshot')
+        ->assertSet('sortDir', 'asc');
 });
 
 it('refuses a calendar read for a company the actor may not act for', function (): void {

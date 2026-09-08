@@ -617,6 +617,18 @@ test('event selectCompany switches to an attributable company and refuses an unk
         ->assertStatus(404);
 });
 
+test('schedule editor returns to the combined schedule instead of rendering a register beneath the form', function (): void {
+    $this->withoutVite();
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+
+    Livewire::withQueryParams(['return' => 'calendar'])->actingAs($hr)->test(Index::class)
+        ->assertSee('Schedule an event')
+        ->assertSee('Back to schedule')
+        ->assertDontSee('Event register');
+});
+
 test('event editEvent loads a scheduled event and refuses users without manage capability or a non-scheduled event', function (): void {
     $this->withoutVite();
     $fixture = trainingEventFixture();

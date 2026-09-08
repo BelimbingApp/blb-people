@@ -46,6 +46,13 @@ final class Index extends Component
 
     public ?int $companyEntityId = null;
 
+    /** The Schedule area opens this editor with an explicit return path. */
+    #[Url(as: 'edit')]
+    public ?int $requestedEditId = null;
+
+    #[Url(as: 'return')]
+    public string $returnTo = '';
+
     public ?int $editingEventId = null;
 
     /** The confirmed fact HR is correcting, if any. */
@@ -107,6 +114,10 @@ final class Index extends Component
         $this->companyEntityId = count($companies) > 0 ? (int) array_key_first($companies) : null;
         $this->startsAt = now()->addWeek()->startOfHour()->format('Y-m-d\TH:i');
         $this->endsAt = now()->addWeek()->addHours(2)->startOfHour()->format('Y-m-d\TH:i');
+
+        if ($this->requestedEditId !== null) {
+            $this->editEvent($this->requestedEditId, $audience);
+        }
     }
 
     public function selectCompany(int $companyEntityId, TrainingAudience $audience): void
@@ -179,6 +190,10 @@ final class Index extends Component
 
         $this->resetForm();
         session()->flash('status', __('Training event saved.'));
+
+        if ($this->returnTo === 'calendar') {
+            $this->redirectRoute('people.training.calendar');
+        }
     }
 
     public function start(int $eventId, TrainingAudience $audience, TrainingEventStore $store): void
@@ -586,6 +601,10 @@ final class Index extends Component
     public function cancelEdit(): void
     {
         $this->resetForm();
+
+        if ($this->returnTo === 'calendar') {
+            $this->redirectRoute('people.training.calendar');
+        }
     }
 
     private function resetForm(): void

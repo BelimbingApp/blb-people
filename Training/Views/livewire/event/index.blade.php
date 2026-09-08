@@ -1,7 +1,9 @@
 <div class="space-y-section-gap">
     <x-ui.page-header
         :title="__('Training schedule')"
-        :subtitle="__('Schedule connector-owned events and keep the complete event register available even when a provider is offline.')"
+        :subtitle="$returnTo === 'calendar'
+            ? __('Create or revise a schedule, then return to the calendar and table.')
+            : __('Schedule connector-owned events and keep the complete event register available even when a provider is offline.')"
     />
 
     @if (session('status'))
@@ -61,12 +63,17 @@
                     </div>
                     <div class="flex gap-2">
                         <x-ui.button wire:click="save">{{ $editingEventId === null ? __('Schedule event') : __('Save revision') }}</x-ui.button>
-                        @if ($editingEventId !== null)<x-ui.button variant="secondary" wire:click="cancelEdit">{{ __('Cancel editing') }}</x-ui.button>@endif
+                        @if ($returnTo === 'calendar')
+                            <x-ui.button type="button" variant="secondary" wire:click="cancelEdit">{{ __('Back to schedule') }}</x-ui.button>
+                        @elseif ($editingEventId !== null)
+                            <x-ui.button variant="secondary" wire:click="cancelEdit">{{ __('Cancel editing') }}</x-ui.button>
+                        @endif
                     </div>
                 </div>
             </x-ui.card>
         @endif
 
+        @if ($returnTo !== 'calendar')
         <section class="space-y-4">
             <div>
                 <h2 class="text-lg font-semibold">{{ __('Event register') }}</h2>
@@ -184,6 +191,7 @@
                     @endforeach
                 </x-ui.table>
             </x-ui.card>
+        @endif
         @endif
     @endif
 </div>
