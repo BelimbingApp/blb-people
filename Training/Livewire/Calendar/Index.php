@@ -228,10 +228,10 @@ final class Index extends Component
 
         return $query
             ->when($this->search !== '', function (Builder $builder): void {
-                $like = '%'.addcslashes($this->search, '%_\\').'%';
+                $like = '%'.addcslashes(mb_strtolower($this->search), '%_\\').'%';
                 // The company-scoped builder deliberately rejects orWhere;
                 // keep the two search columns one AND-safe predicate instead.
-                $builder->whereRaw('(course_title_snapshot like ? or course_code_snapshot like ?)', [$like, $like]);
+                $builder->whereRaw('(lower(course_title_snapshot) like ? or lower(course_code_snapshot) like ?)', [$like, $like]);
             })
             ->when($this->lifecycle !== '', fn (Builder $builder) => $builder->where('status', $this->lifecycle))
             ->when($canManage && $this->department !== '', fn (Builder $builder) => $builder->where('target_department_entity_id', $this->department))
