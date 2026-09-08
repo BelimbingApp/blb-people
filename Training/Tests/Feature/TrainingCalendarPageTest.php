@@ -388,6 +388,9 @@ it('keeps the HR schedule return state in the New schedule link', function (): v
     expect($html)->toContain(route('people.training.events.index', ['return' => 'calendar'] + $return));
 
     expect($html)->toContain(route('people.training.events.index', ['return' => 'calendar'] + $return + ['edit' => (int) $event->id]));
+
+    expect($page->instance()->scheduleEditorParameters((int) $event->id))
+        ->toBe(['return' => 'calendar'] + $return + ['edit' => (int) $event->id]);
 });
 
 it('keeps terminal events in HR Table while Calendar remains open-event discovery', function (): void {
