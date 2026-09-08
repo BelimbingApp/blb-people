@@ -14,3 +14,40 @@ git clone https://github.com/BelimbingApp/blb-people belimbing/app/Domains/Peopl
 ```
 
 Licensed under MIT, same as the framework.
+
+## Local Training examples
+
+`Training/Database/Seeders/Dev/DevTrainingSeeder.php` is discovered by the platform's
+normal `php artisan migrate --dev` flow when People is enabled. It runs only with
+`APP_ENV=local`, after the migrations, production reference seeds and operator
+company primitives. Following a disposable database reset, that development flow
+recreates the examples. Plain production migrations/startup do not run this seeder.
+
+To add missing examples to an already migrated local database without rebuilding
+tables, run from the **platform checkout root**:
+
+```bash
+php artisan db:seed --class='App\Domains\People\Training\Database\Seeders\Dev\DevTrainingSeeder'
+```
+
+The operator's primary company receives three active courses: **DEMO - Workplace
+Safety Induction** (internal classroom), **DEMO - Excel Fundamentals** (e-learning),
+and **DEMO - Customer Service Essentials** (coaching). They share one demo skill
+category and each covers one demo skill. A synthetic employee, **DEMO - Training
+Coordinator**, organizes a two-hour, twelve-place session for each course, seven
+to nine days after its initial seed at 09:00 company time. Schedule/calendar users
+can inspect these sessions without adding real participants.
+
+The company-scoped `demo-*` codes and `DEMO-TRAINING-ORGANIZER` employee number are
+reserved for these examples. Existing records with these identities are reused;
+edits, deactivation and existing event dates/statuses are preserved. A course with
+any existing event does not receive another on rerun, even if its event is now in
+the past. Reschedule through the normal workflow when needed. The seeder also
+adopts the same three courses created during the initial local walkthrough.
+
+No login, role grant, employee-account link, participant, completion history or
+notification is created. Access still requires an explicitly assigned People
+role in the relevant company; core administrator alone is not HR authority.
+The seed is for catalog and delivery walkthroughs. Request approvals and budget
+examples are not seeded: they need a deliberate department/requestor/approver
+scenario, not an invented approval history or automatic HR permission grant.
