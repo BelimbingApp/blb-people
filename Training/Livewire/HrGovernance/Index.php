@@ -619,12 +619,14 @@ final class Index extends Component
     private function authorizeView(): void
     {
         try {
-            $audiences = app(SkillAudience::class)->authorizeAudience($this->user(), self::VIEW_CAPABILITY);
+            app(SkillAudience::class)->authorizeAudienceAs(
+                $this->user(),
+                self::VIEW_CAPABILITY,
+                SkillAudience::HR,
+            );
         } catch (AuthorizationDeniedException) {
             abort(403);
         }
-
-        abort_unless(in_array(SkillAudience::HR, $audiences, true), 403);
     }
 
     /** @return array<int, string> */

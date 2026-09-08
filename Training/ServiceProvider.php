@@ -59,6 +59,15 @@ class ServiceProvider extends BaseServiceProvider
                 static fn (Authenticatable $user): bool => $user instanceof User
                     && app(TrainingBudgetStore::class)->mayView($user, (int) $user->company_id),
             );
+            $registry->register(
+                'people.training.hr-governance-audience',
+                static fn (Authenticatable $user): bool => $user instanceof User
+                    && app(SkillAudience::class)->mayAccessAs(
+                        $user,
+                        'people.skill.hr.view',
+                        SkillAudience::HR,
+                    ),
+            );
         });
     }
 }
