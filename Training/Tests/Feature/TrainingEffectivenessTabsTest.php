@@ -1,5 +1,7 @@
 <?php
 
+use App\Base\Authz\Contracts\AuthorizationService;
+use App\Base\Authz\DTO\Actor;
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
@@ -115,11 +117,14 @@ function tabsFixture(): array
     tabsRole($hr, 'people_hr');
     $employeeUser = User::factory()->create(['company_id' => $companyId]);
     tabsRole($employeeUser, 'people_employee');
+    $bothSections = User::factory()->create(['company_id' => $companyId]);
+    tabsRole($bothSections, 'people_hr');
+    tabsRole($bothSections, 'people_hod');
     $trainer = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, $companyId);
 
     return compact(
         'tenantId', 'companyId', 'company', 'hod', 'otherHod', 'hr', 'employeeUser',
-        'department', 'otherDepartment', 'trainer',
+        'bothSections', 'department', 'otherDepartment', 'trainer',
     );
 }
 
@@ -170,21 +175,25 @@ function tabsOpenCheckpointFor(array $f, Department $department): void
     Carbon::setTestNow();
 }
 
-test('the hub sends each actor to the section they already hold and refuses one who holds neither', function (): void {
+test('the area is reachable only through the capability that already opens each section', function (): void {
     $f = tabsFixture();
 
     test()->actingAs($f['hod'])
-        ->get(route('people.training.effectiveness.hub'))
-        ->assertRedirect(route('people.training.effectiveness.index'));
+        ->get(route('people.training.effectiveness.index'))
+        ->assertOk();
 
     test()->actingAs($f['hr'])
-        ->get(route('people.training.effectiveness.hub'))
-        ->assertRedirect(route('people.training.effectiveness.summary'));
+        ->get(route('people.training.effectiveness.summary'))
+        ->assertOk();
 
-    // The combination grants nothing: an actor with neither capability is
-    // refused at the hub exactly as they are at both destinations.
-    test()->actingAs($f['employeeUser'])
-        ->get(route('people.training.effectiveness.hub'))
+    // Combining the menu entries grants nothing: each page still refuses the
+    // actor who does not hold its own capability, and an actor holding neither
+    // is refused by both.
+    test()->actingAs($f['hr'])
+        ->get(route('people.training.effectiveness.index'))
+        ->assertForbidden();
+    test()->actingAs($f['hod'])
+        ->get(route('people.training.effectiveness.summary'))
         ->assertForbidden();
     test()->actingAs($f['employeeUser'])
         ->get(route('people.training.effectiveness.index'))
@@ -211,16 +220,15 @@ test('a tab is offered only to an actor who already holds that section', functio
 
 test('an actor holding both sections gets both tabs with the current one marked', function (): void {
     $f = tabsFixture();
-    tabsRole($f['hr'], 'people_hod');
 
-    $summary = Livewire::actingAs($f['hr'])->test(AggregateIndex::class)->assertOk();
+    $summary = Livewire::actingAs($f['bothSections'])->test(AggregateIndex::class)->assertOk();
     $summaryHtml = html_entity_decode($summary->html());
 
     expect($summaryHtml)->toContain('data-testid="effectiveness-tabs"')
         ->and($summaryHtml)->toContain(route('people.training.effectiveness.index'))
         ->and($summaryHtml)->toContain('Training effectiveness sections');
 
-    $review = Livewire::actingAs($f['hr'])->test(ReviewIndex::class)->assertOk();
+    $review = Livewire::actingAs($f['bothSections'])->test(ReviewIndex::class)->assertOk();
     $reviewHtml = html_entity_decode($review->html());
 
     expect($reviewHtml)->toContain('data-testid="effectiveness-tabs"')
@@ -249,29 +257,42 @@ function tabsCurrentHref(string $html): ?string
     return null;
 }
 
-test('one menu entry replaces the two, and it is offered to each section holder but not to an employee', function (): void {
+test('every actor is offered the Effectiveness area exactly once, or not at all', function (): void {
     $f = tabsFixture();
 
-    $items = collect(require dirname(__DIR__, 2).'/Config/menu.php')
-        ->get('items');
+    $items = collect(require dirname(__DIR__, 2).'/Config/menu.php')->get('items');
     $effectiveness = collect($items)->filter(
         static fn (array $item): bool => str_contains((string) $item['id'], 'effectiveness'),
     )->values();
 
-    expect($effectiveness)->toHaveCount(1);
-    expect($effectiveness->first())->toMatchArray([
-        'id' => 'people.training-effectiveness',
-        'route' => 'people.training.effectiveness.hub',
-        'condition' => 'people.training.effectiveness-audience',
-    ]);
-    // A single 'permission' key would hide the area from whoever holds the
-    // other section, which is the trap this consolidation has to avoid.
-    expect($effectiveness->first())->not->toHaveKey('permission');
+    // Two rows exist, but they are mutually exclusive: the point of #436 is
+    // that no actor sees two entries with the same label.
+    expect($effectiveness)->toHaveCount(2);
+    expect($effectiveness->pluck('label')->unique()->all())->toBe(['Training effectiveness']);
 
     $registry = app(MenuConditionRegistry::class);
-    expect($registry->allows('people.training.effectiveness-audience', $f['hod']))->toBeTrue();
-    expect($registry->allows('people.training.effectiveness-audience', $f['hr']))->toBeTrue();
-    expect($registry->allows('people.training.effectiveness-audience', $f['employeeUser']))->toBeFalse();
+    $authorization = app(AuthorizationService::class);
+
+    $offeredTo = static function (User $user) use ($effectiveness, $registry, $authorization): array {
+        return $effectiveness->filter(
+            static fn (array $item): bool => $registry->allows($item['condition'] ?? null, $user)
+                && (
+                    ! isset($item['permission'])
+                    || $authorization->can(Actor::forUser($user), $item['permission'])->allowed
+                ),
+        )->pluck('route')->values()->all();
+    };
+
+    expect($offeredTo($f['hod']))->toBe(['people.training.effectiveness.index']);
+    expect($offeredTo($f['hr']))->toBe(['people.training.effectiveness.summary']);
+    expect($offeredTo($f['employeeUser']))->toBe([]);
+
+    // An actor holding both sections is offered the Review entry alone, and
+    // reaches Summary through the tab rather than through a second menu row.
+    // Built with both roles from the start: GrantPolicy snapshots a per-actor
+    // permission set on first authorize(), so a role added after the checks
+    // above would not be seen here.
+    expect($offeredTo($f['bothSections']))->toBe(['people.training.effectiveness.index']);
 });
 
 test('review distinguishes a company with no open checkpoint from one where the open questions are another head\'s', function (): void {

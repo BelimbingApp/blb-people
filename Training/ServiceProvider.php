@@ -13,7 +13,6 @@ use App\Domains\People\Training\Console\Commands\PurgeTrainingPassportDocumentsC
 use App\Domains\People\Training\Console\Commands\RequestsDueCommand;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
 use App\Domains\People\Training\Livewire\Effectiveness\Index as EffectivenessIndex;
-use App\Domains\People\Training\Livewire\EffectivenessAggregate\Index as EffectivenessAggregateIndex;
 use App\Domains\People\Training\Services\DatabaseTrainingParticipationSummary;
 use App\Domains\People\Training\Services\TrainingBudgetStore;
 use App\Domains\People\Training\Services\TrainingSubjectExporter;
@@ -75,19 +74,16 @@ class ServiceProvider extends BaseServiceProvider
                 static fn (Authenticatable $user): bool => $user instanceof User
                     && app(TrainingBudgetStore::class)->mayView($user, (int) $user->company_id),
             );
+            // The Summary menu row exists only for an actor the Review row does
+            // not already serve, so the Effectiveness area appears exactly once
+            // for everybody (#436). The row's own `permission` still gates it.
             $registry->register(
-                'people.training.effectiveness-audience',
+                'people.training.effectiveness-summary-only',
                 static fn (Authenticatable $user): bool => $user instanceof User
-                    && (
-                        app(AuthorizationService::class)->can(
-                            Actor::forUser($user),
-                            EffectivenessIndex::VIEW_CAPABILITY,
-                        )->allowed
-                        || app(AuthorizationService::class)->can(
-                            Actor::forUser($user),
-                            EffectivenessAggregateIndex::VIEW_CAPABILITY,
-                        )->allowed
-                    ),
+                    && ! app(AuthorizationService::class)->can(
+                        Actor::forUser($user),
+                        EffectivenessIndex::VIEW_CAPABILITY,
+                    )->allowed,
             );
             $registry->register(
                 'people.training.hr-governance-audience',

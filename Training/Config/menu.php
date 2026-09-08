@@ -2,17 +2,34 @@
 
 return [
     'items' => [[
-        // One Effectiveness area with Review and Summary tabs (#436), replacing
-        // the two entries that both read "Training effectiveness" in the menu.
-        // No 'permission': the two sections are gated by different capabilities
-        // and a single key would hide the area from whoever holds the other one.
-        // The condition below is the disjunction of exactly those two grants,
-        // and the hub route re-checks them before it sends anybody anywhere.
+        // One Effectiveness area with Review and Summary tabs (#436). Two menu
+        // rows, but they are mutually exclusive conditions, so any one actor
+        // sees exactly one entry labelled "Training effectiveness" — never the
+        // two identically-named entries this issue was filed about.
+        //
+        // Why not a single row pointing at a disjunction route: every Domain
+        // route must carry `authz:<capability>` middleware, which
+        // `blb:domain-routes --audit` enforces on composed CI, and that
+        // middleware takes one capability. A route admitting "either of two"
+        // would either need a new capability of its own or an in-closure check
+        // the audit rightly refuses. Each row below therefore lands on the
+        // page the actor already holds, and the tab strip carries them across.
         'id' => 'people.training-effectiveness',
         'label' => 'Training effectiveness',
         'icon' => 'heroicon-o-clipboard-document-check',
-        'route' => 'people.training.effectiveness.hub',
-        'condition' => 'people.training.effectiveness-audience',
+        'route' => 'people.training.effectiveness.index',
+        'permission' => 'people.training.effectiveness.review',
+        'parent' => 'people',
+    ], [
+        // The same area for somebody who reads the roll-up but answers no
+        // checkpoints. `condition` excludes anyone the row above already
+        // serves, so the two are never offered together.
+        'id' => 'people.training-effectiveness-summary',
+        'label' => 'Training effectiveness',
+        'icon' => 'heroicon-o-clipboard-document-check',
+        'route' => 'people.training.effectiveness.summary',
+        'permission' => 'people.training.effectiveness-aggregate.view',
+        'condition' => 'people.training.effectiveness-summary-only',
         'parent' => 'people',
     ], [
         'id' => 'people.training-budget',
