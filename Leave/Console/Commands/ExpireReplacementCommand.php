@@ -2,13 +2,13 @@
 
 namespace App\Domains\People\Leave\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Domains\People\Leave\Services\ReplacementLeaveExpiryService;
 use DateTimeImmutable;
-use Illuminate\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'blb:leave:expire-replacement')]
-class ExpireReplacementCommand extends Command
+class ExpireReplacementCommand extends TenantScopedCommand
 {
     protected $description = 'Sweep replacement-leave ledger entries past their expiry and record expired reversals';
 

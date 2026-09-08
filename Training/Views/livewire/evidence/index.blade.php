@@ -24,7 +24,20 @@
             <x-ui.alert variant="danger">{{ $message }}</x-ui.alert>
         @enderror
 
-        @if ($events === [])
+        @if ($employeeIdentityMissing)
+            {{-- An identity failure is not an empty training list, and #434 is
+                 explicit that it must not be dressed as one. --}}
+            <x-ui.alert variant="warning">
+                <p class="font-medium">{{ __('Your account is not linked to an employee record in this company.') }}</p>
+                <p class="mt-1 text-sm">{{ __('Evidence is submitted against your own recorded attendance, so this page needs that link before it can show anything. Ask your HR administrator to link your account to your employee record if you expect to have one.') }}</p>
+                @if ($mayReviewEvidenceQueue)
+                    <p class="mt-3 text-sm">{{ __('Reviewing what employees have submitted is a separate page, and you already have access to it.') }}</p>
+                    <x-ui.button :href="route('people.hr-governance.index')" variant="control" class="mt-2">
+                        {{ __('Open evidence submissions') }}
+                    </x-ui.button>
+                @endif
+            </x-ui.alert>
+        @elseif ($events === [])
             <x-ui.alert variant="info">{{ __('No attended training is ready for evidence submission. Completed attendance will appear here after it is recorded.') }}</x-ui.alert>
         @else
             <section class="space-y-4">
@@ -58,7 +71,7 @@
 
             <section class="space-y-4">
                 <h2 class="text-lg font-semibold text-ink">{{ __('Attended training') }}</h2>
-                <x-ui.table>
+                <x-ui.table :caption="__('Attended training for evidence submission')">
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Training') }}</x-ui.th>

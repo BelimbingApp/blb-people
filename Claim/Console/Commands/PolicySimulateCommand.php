@@ -2,15 +2,15 @@
 
 namespace App\Domains\People\Claim\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Claim\Models\ClaimAssignmentLine;
 use App\Domains\People\Claim\Services\ClaimPolicySimulationService;
 use DateTimeImmutable;
-use Illuminate\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'blb:claim:policy:simulate')]
-class PolicySimulateCommand extends Command
+class PolicySimulateCommand extends TenantScopedCommand
 {
     protected $description = 'Simulate a Claim policy evaluation for an (employee, assignment line, date, amount) tuple';
 

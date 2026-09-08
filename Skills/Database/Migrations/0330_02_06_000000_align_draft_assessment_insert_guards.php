@@ -1,5 +1,6 @@
 <?php
 
+use App\Base\Database\Concerns\IncubatingSchema;
 use App\Domains\People\Skills\Exceptions\InvalidAssessmentException;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Query\Builder;
@@ -7,6 +8,8 @@ use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
+    use IncubatingSchema;
+
     public function up(): void
     {
         $invalidDraftExists = DB::table('people_connector_skill_assessments')

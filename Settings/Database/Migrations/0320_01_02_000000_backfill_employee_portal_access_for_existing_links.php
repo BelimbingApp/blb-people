@@ -1,5 +1,6 @@
 <?php
 
+use App\Base\Database\Concerns\ReplaysAfterIncubatingSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -19,9 +20,15 @@ use Illuminate\Support\Facades\DB;
  * gate becomes effective only for links made from this point forward. Rows
  * this migration creates are tagged in `metadata` so `down()` can remove
  * exactly them and nothing an HR administrator created deliberately.
+ *
+ * Declares ReplaysAfterIncubatingSchema because up() is idempotent and
+ * data-only: after a local rebuild of the incubating portal-access table,
+ * the same missing employee-user links must be grandfathered again.
  */
 return new class extends Migration
 {
+    use ReplaysAfterIncubatingSchema;
+
     private const BACKFILL_TAG = '0320_01_02_000000';
 
     public function up(): void

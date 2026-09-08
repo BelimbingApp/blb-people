@@ -7,22 +7,35 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Employee\Models\Employee;
 use App\Core\User\Models\User;
 use App\Domains\People\Performance\Models\PerformanceReviewEscalation;
+use App\Domains\People\Provider\Data\WorkforceSubject;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
+use App\Domains\People\Skills\Enums\ReminderDeliveryState;
+use App\Domains\People\Skills\Enums\ReminderRule;
 use App\Domains\People\Skills\Enums\RequirementProfileStatus;
 use App\Domains\People\Skills\Exceptions\InvalidReassessmentRequestException;
 use App\Domains\People\Skills\Models\RequirementProfile;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillReassessmentRequest;
+use App\Domains\People\Skills\Models\SkillReminderDelivery;
+use App\Domains\People\Skills\Services\CriticalSkillBackupCoverage;
 use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillReassessmentStore;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
+use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingPlanStatus;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEvidenceSubmissionException;
+use App\Domains\People\Training\Exceptions\TrainingPassportDenied;
+use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingEvidenceSubmission;
 use App\Domains\People\Training\Models\TrainingParticipant;
+use App\Domains\People\Training\Models\TrainingParticipationFact;
+use App\Domains\People\Training\Models\TrainingPassportDocument;
 use App\Domains\People\Training\Models\TrainingPlan;
 use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Services\TrainingEvidenceSubmissionStore;
+use App\Domains\People\Training\Services\TrainingPassportDocumentStore;
 use App\Domains\People\Training\Services\TrainingPlanStore;
 use App\Domains\People\Training\Services\TrainingRequestStore;
 use Illuminate\Contracts\View\View;
@@ -109,6 +122,33 @@ final class Index extends Component
         });
     }
 
+    /** Event chosen per approved request, keyed by request id (0010-d). */
+    public array $linkEventId = [];
+
+    public function linkEvent(int $requestId): void
+    {
+        $companyEntityId = $this->requireCompany();
+        $eventId = (int) ($this->linkEventId[$requestId] ?? 0);
+        if ($eventId < 1) {
+            $this->addError('link.'.$requestId, __('Choose the event that satisfies this request.'));
+
+            return;
+        }
+        $this->denialIs403(function () use ($companyEntityId, $requestId, $eventId): void {
+            app(TrainingRequestStore::class)->linkEvent($this->user(), $companyEntityId, $requestId, $eventId);
+            unset($this->linkEventId[$requestId]);
+        });
+    }
+
+    public function unlinkEvent(int $requestId): void
+    {
+        $companyEntityId = $this->requireCompany();
+        $this->denialIs403(function () use ($companyEntityId, $requestId): void {
+            app(TrainingRequestStore::class)->unlinkEvent($this->user(), $companyEntityId, $requestId, $this->notes($requestId));
+            unset($this->requestNotes[$requestId]);
+        });
+    }
+
     public function reviewRequest(int $requestId): void
     {
         $companyEntityId = $this->requireCompany();
@@ -192,6 +232,31 @@ final class Index extends Component
         }
     }
 
+    /**
+     * Generate the printable training passport for an employee listed in the
+     * selected company's directory (0014-a). The id must be one this page
+     * lists: a request-supplied id outside the company is a 404 before the
+     * store is asked, and the store then applies its own HR check.
+     */
+    public function generatePassportPdf(int $employeeId): void
+    {
+        $companyEntityId = $this->requireCompany();
+        abort_unless(array_key_exists($employeeId, $this->passportEmployees($companyEntityId)), 404);
+
+        $subject = new WorkforceSubject(
+            $this->tenantId(),
+            $companyEntityId,
+            WorkforceResourceType::Employee,
+            (string) $employeeId,
+        );
+
+        try {
+            app(TrainingPassportDocumentStore::class)->generate($this->user(), $subject);
+        } catch (TrainingPassportDenied) {
+            abort(403);
+        }
+    }
+
     public function render(): View
     {
         $this->authorizeView();
@@ -208,14 +273,116 @@ final class Index extends Component
             'companies' => $companies,
             'profiles' => $companyEntityId === null ? collect() : $this->pendingProfiles($companyEntityId),
             'requests' => $companyEntityId === null ? collect() : $this->pendingRequests($companyEntityId),
+            'approvedUnlinked' => $companyEntityId === null ? collect() : app(TrainingRequestStore::class)->approvedUnlinkedQuery($this->tenantId(), $companyEntityId)->get(),
+            'approvedLinked' => $companyEntityId === null ? collect() : $this->approvedLinked($companyEntityId),
+            'linkableEvents' => $companyEntityId === null ? [] : $this->linkableEvents($companyEntityId),
+            'eventTitles' => $companyEntityId === null ? [] : $this->eventTitles($companyEntityId),
             'plans' => $companyEntityId === null ? collect() : $this->pendingPlans($companyEntityId),
             'reassessments' => $reassessments,
             'reassessmentSkills' => $this->reassessmentSkillNames($companyEntityId, $reassessments),
             'reassessmentEmployees' => $this->reassessmentEmployeeNames($companyEntityId, $reassessments),
+            'reassessmentSources' => $this->reassessmentSourceLabels($companyEntityId, $reassessments),
             'evidenceSubmissions' => $evidence,
             'evidenceEmployees' => $this->evidenceEmployeeNames($companyEntityId, $evidence),
             'escalations' => $companyEntityId === null ? collect() : $this->escalatedReviews($companyEntityId),
+            'failedDeliveries' => $companyEntityId === null ? collect() : $this->failedDeliveries($companyEntityId),
+            'coverageGaps' => $companyEntityId === null ? [] : $this->coverageGaps($companyEntityId),
+            'passportEmployees' => $companyEntityId === null ? [] : $this->passportEmployees($companyEntityId),
+            'passportDocuments' => $companyEntityId === null ? [] : $this->passportDocuments($companyEntityId),
         ]);
+    }
+
+    /**
+     * Departments short of cover for a critical skill (0009-i), worst first,
+     * with the last thing the delivery ledger did about each. Render-only:
+     * the remedy is the HOD's and HR's plan, and the drill-down is the
+     * backup coverage page pinned to the department.
+     *
+     * @return list<array{department_id: int|null, department: string, skill_id: int, skill: string, required_level: int, holders: int, minimum: int, last_delivery: string}>
+     */
+    private function coverageGaps(int $companyEntityId): array
+    {
+        $gaps = array_values(array_filter(
+            app(CriticalSkillBackupCoverage::class)->rows($this->tenantId(), $companyEntityId),
+            static fn (array $row): bool => ! $row['covered'],
+        ));
+
+        if ($gaps === []) {
+            return [];
+        }
+
+        // Latest attempt per department and skill, any recipient: the state
+        // HR wants is "was anybody told this month", not one row per head.
+        $latest = SkillReminderDelivery::query()
+            ->forCompany($this->tenantId(), $companyEntityId)
+            ->where('rule', ReminderRule::CriticalCoverageGap->value)
+            ->orderByDesc('attempted_at')
+            ->orderByDesc('id')
+            ->get()
+            ->unique(static fn (SkillReminderDelivery $row): string => $row->department_id.':'.$row->skill_id)
+            ->keyBy(static fn (SkillReminderDelivery $row): string => $row->department_id.':'.$row->skill_id);
+
+        return array_map(static function (array $row) use ($latest): array {
+            $delivery = $latest->get(($row['department_id'] ?? SkillReminderDelivery::NO_DEPARTMENT).':'.$row['skill_id']);
+            unset($row['covered']);
+            $row['last_delivery'] = match (true) {
+                $delivery === null => (string) __('never delivered'),
+                $delivery->state === ReminderDeliveryState::Sent => (string) __('sent :period', ['period' => $delivery->period_key]),
+                default => (string) __('failed :period: :failure', ['period' => $delivery->period_key, 'failure' => (string) $delivery->failure]),
+            };
+
+            return $row;
+        }, $gaps);
+    }
+
+    /**
+     * Skill reminder deliveries that failed (0009-g), newest first, the acting
+     * company only. Listed for visibility; the retry is the operator's
+     * `people:reminders-send --retry`, not a page action.
+     *
+     * @return Collection<int, SkillReminderDelivery>
+     */
+    private function failedDeliveries(int $companyEntityId): Collection
+    {
+        return SkillReminderDelivery::query()
+            ->forCompany($this->tenantId(), $companyEntityId)
+            ->where('state', ReminderDeliveryState::Failed->value)
+            ->orderByDesc('attempted_at')
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    /**
+     * Employees of the selected company as the directory lists them, keyed by
+     * employee entity id: the set an HR user may generate a passport for.
+     *
+     * @return array<int, string>
+     */
+    private function passportEmployees(int $companyEntityId): array
+    {
+        return collect(app(WorkforceSubjects::class)->employees($companyEntityId))
+            ->filter(fn ($employee): bool => $employee->active)
+            ->sortBy(fn ($employee): string => $employee->displayName)
+            ->mapWithKeys(fn ($employee): array => [(int) $employee->reference->externalId => (string) $employee->displayName])
+            ->all();
+    }
+
+    /**
+     * Latest retained passport document per employee of the company.
+     *
+     * @return array<int, TrainingPassportDocument>
+     */
+    private function passportDocuments(int $companyEntityId): array
+    {
+        return TrainingPassportDocument::query()
+            ->forCompany($this->tenantId(), $companyEntityId)
+            ->whereNotNull('media_asset_id')
+            ->unexpired()
+            ->orderByDesc('id')
+            ->get()
+            ->unique('employee_entity_id')
+            ->keyBy('employee_entity_id')
+            ->all();
     }
 
     /**
@@ -261,6 +428,35 @@ final class Index extends Component
             ->where('status', TrainingRequestStatus::PendingHr->value)
             ->orderBy('id')
             ->get();
+    }
+
+    /** @return Collection<int, TrainingRequest> approved requests already linked, newest link first */
+    private function approvedLinked(int $companyEntityId): Collection
+    {
+        return TrainingRequest::query()->forCompany($this->tenantId(), $companyEntityId)
+            ->where('status', TrainingRequestStatus::Approved->value)
+            ->whereNotNull('training_event_id')
+            ->orderByDesc('linked_at')->orderByDesc('id')
+            ->get();
+    }
+
+    /** @return array<int, string> scheduled or in-progress events of the company, id => title and date */
+    private function linkableEvents(int $companyEntityId): array
+    {
+        return TrainingEvent::query()->forCompany($this->tenantId(), $companyEntityId)
+            ->whereIn('status', [TrainingEventStatus::Scheduled->value, TrainingEventStatus::InProgress->value])
+            ->orderBy('starts_at')->get()
+            ->mapWithKeys(static fn (TrainingEvent $e): array => [(int) $e->id => $e->course_title_snapshot.' · '.$e->starts_at?->format('Y-m-d')])
+            ->all();
+    }
+
+    /** @return array<int, string> every event of the company, id => title */
+    private function eventTitles(int $companyEntityId): array
+    {
+        return TrainingEvent::query()->forCompany($this->tenantId(), $companyEntityId)
+            ->pluck('course_title_snapshot', 'id')
+            ->mapWithKeys(static fn (string $title, int $id): array => [$id => $title])
+            ->all();
     }
 
     /** @return Collection<int, TrainingPlan> */
@@ -345,6 +541,37 @@ final class Index extends Component
         return $labeled;
     }
 
+    /**
+     * Where each pending reassessment came from (0006-e): the HOD request,
+     * or the confirmed training event whose fact opened it. Keyed by
+     * request id; the fact and event are read on the company axis.
+     *
+     * @return array<int, string>
+     */
+    private function reassessmentSourceLabels(?int $companyEntityId, Collection $reassessments): array
+    {
+        if ($companyEntityId === null || $reassessments->isEmpty()) {
+            return [];
+        }
+        $factIds = $reassessments->pluck('source_participation_fact_id')->filter()->map(intval(...))->unique()->values()->all();
+        $eventOfFact = $factIds === [] ? collect() : TrainingParticipationFact::query()
+            ->forCompany($this->tenantId(), $companyEntityId)->whereIn('id', $factIds)->pluck('event_id', 'id');
+        $eventTitles = $eventOfFact->isEmpty() ? collect() : TrainingEvent::query()
+            ->forCompany($this->tenantId(), $companyEntityId)->whereIn('id', $eventOfFact->values()->all())->pluck('course_title_snapshot', 'id');
+
+        $labels = [];
+        foreach ($reassessments as $request) {
+            $event = $request->isFromTraining()
+                ? $eventTitles[$eventOfFact[(int) $request->source_participation_fact_id] ?? 0] ?? null
+                : null;
+            $labels[(int) $request->id] = $event === null
+                ? __('From head of department')
+                : __('From training :event', ['event' => $event]);
+        }
+
+        return $labels;
+    }
+
     /** @return array<int, string> */
     private function reassessmentEmployeeNames(?int $companyEntityId, Collection $reassessments): array
     {
@@ -392,12 +619,14 @@ final class Index extends Component
     private function authorizeView(): void
     {
         try {
-            $audiences = app(SkillAudience::class)->authorizeAudience($this->user(), self::VIEW_CAPABILITY);
+            app(SkillAudience::class)->authorizeAudienceAs(
+                $this->user(),
+                self::VIEW_CAPABILITY,
+                SkillAudience::HR,
+            );
         } catch (AuthorizationDeniedException) {
             abort(403);
         }
-
-        abort_unless(in_array(SkillAudience::HR, $audiences, true), 403);
     }
 
     /** @return array<int, string> */

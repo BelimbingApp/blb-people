@@ -1,5 +1,6 @@
 <?php
 
+use App\Base\Database\Concerns\IncubatingSchema;
 use App\Base\Database\Concerns\RegistersTables;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -7,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    use IncubatingSchema;
     use RegistersTables;
 
     public function up(): void
@@ -24,6 +26,9 @@ return new class extends Migration
             $table->string('status', 24)->default('pending');
             $table->unsignedBigInteger('submitted_by_user_id');
             $table->timestamp('submitted_at');
+            $table->unsignedBigInteger('decided_by_user_id')->nullable();
+            $table->timestamp('decided_at')->nullable();
+            $table->string('decision_note', 2000)->nullable();
             $table->timestamps();
 
             $table->unique(['id', 'tenant_id', 'company_entity_id'], 'ptes_owner_uq');

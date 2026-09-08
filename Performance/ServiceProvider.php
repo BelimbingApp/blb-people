@@ -3,6 +3,7 @@
 namespace App\Domains\People\Performance;
 
 use App\Domains\People\Organisation\Contracts\ContributesOrganisationRecordDetail;
+use App\Domains\People\Performance\Console\Commands\CutoverCheckCommand;
 use App\Domains\People\Performance\Console\Commands\OverdueReviewsCommand;
 use App\Domains\People\Performance\Services\OrganisationPerformanceDetail;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
@@ -15,6 +16,7 @@ final class ServiceProvider extends BaseServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->commands([
+                CutoverCheckCommand::class,
                 OverdueReviewsCommand::class,
             ]);
         }

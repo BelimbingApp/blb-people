@@ -7,20 +7,38 @@ use DOMElement;
 use DOMXPath;
 use ZipArchive;
 
-/** Reads only the catalogue and explicit guide table mapped by plan 0006-a. */
+/**
+ * Reads the catalogue and explicit guide table mapped by plan 0006-a, plus any
+ * optional sheet a caller asks for by name. Each table spec is
+ * [header row, last row or null, headers, key columns]; a blank key column
+ * excludes the row with a coordinate-bearing defect.
+ */
 final class SkillWorkbookReader
 {
     private const string MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
     private const string REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 
-    private const array TABLES = [
-        '02 Skill Catalogue' => [5, null, ['Skill ID', 'Department / Shared', 'Category', 'Skill / Competency', 'Definition / Standard', 'Safety or Quality Critical?', 'Minimum Evidence Guide', 'Default Assessment Method', 'Default Reassessment (Months)', 'Skill Owner', 'Active?']],
-        '00 Guide' => [24, 30, ['Level', 'Name', 'Observable Standard', 'Independent Work', 'Train Others', 'Normal Decision']],
+    public const array TABLES = [
+        '02 Skill Catalogue' => [5, null, ['Skill ID', 'Department / Shared', 'Category', 'Skill / Competency', 'Definition / Standard', 'Safety or Quality Critical?', 'Minimum Evidence Guide', 'Default Assessment Method', 'Default Reassessment (Months)', 'Skill Owner', 'Active?'], [1, 3]],
+        '00 Guide' => [24, 30, ['Level', 'Name', 'Observable Standard', 'Independent Work', 'Train Others', 'Normal Decision'], [1]],
     ];
 
-    public function read(string $path): SkillWorkbookResult
+    /** Sheets read only when named in read()'s $optional; a workbook without them still reads. */
+    public const array OPTIONAL_TABLES = [
+        self::ASSESSMENT_LOG => [5, null, ['Assessment ID', 'Cycle', 'Assessment Date', 'Staff ID', 'Skill ID', 'Assessed Level', 'Method', 'Evidence', 'Assessor Staff ID', 'HOD Verified?', 'Certificate No.', 'Valid Until'], [4, 5]],
+    ];
+
+    public const string ASSESSMENT_LOG = '04 Assessment Log';
+
+    /** @param  list<string>  $optional  Names from OPTIONAL_TABLES that must be present and are read. */
+    public function read(string $path, array $optional = []): SkillWorkbookResult
     {
+        foreach ($optional as $name) {
+            if (! isset(self::OPTIONAL_TABLES[$name])) {
+                throw new UnreadableSkillWorkbook('Unsupported optional sheet: '.$name);
+            }
+        }
         $local = realpath($path);
         if ($local === false || ! is_file($local) || ! is_readable($local) || filesize($local) > 16 * 1024 * 1024) {
             throw new UnreadableSkillWorkbook('A readable local workbook of at most 16 MiB is required.');
@@ -69,18 +87,21 @@ final class SkillWorkbookReader
                 }
                 $sheets[$name] = $parts[$sheet->getAttributeNS(self::REL, 'id')] ?? '';
             }
-            $skills = $categories = $levels = $defects = [];
-            foreach (self::TABLES as $name => [$header, $last, $headers]) {
+            $skills = $categories = $levels = $assessments = $defects = [];
+            $tables = self::TABLES + array_intersect_key(self::OPTIONAL_TABLES, array_flip($optional));
+            foreach ($tables as $name => [$header, $last, $headers, $keys]) {
                 if (empty($sheets[$name])) {
                     throw new UnreadableSkillWorkbook('Missing required sheet: '.$name);
                 }
-                [$rows, $problems] = $this->table($this->xml($zip, $sheets[$name]), $strings, $name, $hash, $header, $last, $headers);
+                [$rows, $problems] = $this->table($this->xml($zip, $sheets[$name]), $strings, $name, $hash, $header, $last, $headers, $keys);
                 array_push($defects, ...$problems);
                 foreach ($rows as $number => $values) {
                     $source = new WorkbookSource($hash, $name, $number);
                     if ($name === '02 Skill Catalogue') {
                         $skills[] = new CatalogueSkillRow(...[...$values, $source]);
                         $categories[] = new CatalogueCategoryRow($values[2], $source);
+                    } elseif ($name === self::ASSESSMENT_LOG) {
+                        $assessments[] = new AssessmentLogRow(...[...$values, $source]);
                     } else {
                         $levels[] = new CatalogueLevelRow(...[...$values, $source]);
                     }
@@ -91,7 +112,7 @@ final class SkillWorkbookReader
                 throw new UnreadableSkillWorkbook('The workbook changed while it was being read.');
             }
 
-            return new SkillWorkbookResult($skills, $categories, $levels, $defects);
+            return new SkillWorkbookResult($skills, $categories, $levels, $defects, $assessments);
         } finally {
             $zip->close();
         }
@@ -130,8 +151,11 @@ final class SkillWorkbookReader
         return $text;
     }
 
-    /** @return array{array<int, list<string>>, list<WorkbookDefect>} */
-    private function table(DOMXPath $sheet, array $strings, string $name, string $hash, int $header, ?int $last, array $headers): array
+    /**
+     * @param  list<int>  $keys  One-based columns that must not be blank.
+     * @return array{array<int, list<string>>, list<WorkbookDefect>}
+     */
+    private function table(DOMXPath $sheet, array $strings, string $name, string $hash, int $header, ?int $last, array $headers, array $keys): array
     {
         $rows = $defects = $unsafe = [];
         $width = count($headers);
@@ -196,7 +220,7 @@ final class SkillWorkbookReader
             if ($last === null && count(array_filter($values, fn ($value) => trim($value) !== '')) === 0 && ! isset($unsafe[$number])) {
                 continue;
             }
-            foreach ($last === null ? [1, 3] : [1] as $key) {
+            foreach ($keys as $key) {
                 if (trim($values[$key - 1]) === '' && ! isset($unsafe[$number])) {
                     $defects[] = new WorkbookDefect('blank_key', chr(64 + $key).$number, new WorkbookSource($hash, $name, $number));
                     $unsafe[$number] = true;

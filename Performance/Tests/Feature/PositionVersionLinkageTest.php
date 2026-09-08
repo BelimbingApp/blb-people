@@ -311,6 +311,62 @@ test('an interval that ends before it starts is refused for both versions and as
     )))->toThrow(InvalidPositionDirectoryException::class, 'cannot end before it starts');
 });
 
+test('a version and assignment resolve on their own start and end days', function (): void {
+    // #446: bare Y-m-d compare against immutable_date 'Y-m-d 00:00:00' misses
+    // the start day; prove both ends of the inclusive window.
+    $f = positionFixture();
+    $directory = app(PositionDirectory::class);
+    $directory->recordVersion($f['company'], positionVersionDraft($f, 'ENG', 1, '2026-01-01', '2026-06-30'));
+    $directory->assign($f['company'], new PositionAssignmentDraft(
+        positionStableId: (string) $f['positions']['ENG'], employeeEntityId: $f['employee'],
+        type: PositionAssignmentType::Substantive,
+        effectiveFrom: new DateTimeImmutable('2026-01-01'),
+        effectiveTo: new DateTimeImmutable('2026-06-30'),
+    ));
+    $start = new DateTimeImmutable('2026-01-01');
+    $end = new DateTimeImmutable('2026-06-30');
+
+    expect($directory->versionAt($f['company'], (string) $f['positions']['ENG'], $start)?->version)->toBe(1)
+        ->and($directory->versionAt($f['company'], (string) $f['positions']['ENG'], $end)?->version)->toBe(1)
+        ->and($directory->assignmentsAt($f['company'], (string) $f['positions']['ENG'], $start))->toHaveCount(1)
+        ->and($directory->assignmentsAt($f['company'], (string) $f['positions']['ENG'], $end))->toHaveCount(1)
+        ->and($directory->assignmentsForEmployee($f['company'], $f['employee'], $start))->toHaveCount(1)
+        ->and($directory->assignmentsForEmployee($f['company'], $f['employee'], $end))->toHaveCount(1);
+});
+
+test('recordVersion refuses a new version that ends on an existing version start day', function (): void {
+    $f = positionFixture();
+    $directory = app(PositionDirectory::class);
+    $directory->recordVersion($f['company'], positionVersionDraft($f, 'ENG', 1, '2026-03-01'));
+
+    expect(fn () => $directory->recordVersion(
+        $f['company'],
+        positionVersionDraft($f, 'ENG', 2, '2026-01-01', '2026-03-01'),
+    ))->toThrow(InvalidPositionDirectoryException::class, 'overlaps');
+});
+
+test('assign refuses a second substantive holder that ends on the incumbent start day', function (): void {
+    $f = positionFixture();
+    $directory = app(PositionDirectory::class);
+    $directory->recordVersion($f['company'], positionVersionDraft($f, 'ENG', 1, '2026-03-01'));
+    $other = (int) Employee::factory()->create([
+        'company_id' => $f['company'], 'full_name' => 'Boundary Holder',
+        'status' => 'active', 'employee_type' => 'full_time',
+    ])->id;
+    $directory->assign($f['company'], new PositionAssignmentDraft(
+        positionStableId: (string) $f['positions']['ENG'], employeeEntityId: $f['employee'],
+        type: PositionAssignmentType::Substantive,
+        effectiveFrom: new DateTimeImmutable('2026-03-01'), effectiveTo: null,
+    ));
+
+    expect(fn () => $directory->assign($f['company'], new PositionAssignmentDraft(
+        positionStableId: (string) $f['positions']['ENG'], employeeEntityId: $other,
+        type: PositionAssignmentType::Substantive,
+        effectiveFrom: new DateTimeImmutable('2026-01-01'),
+        effectiveTo: new DateTimeImmutable('2026-03-01'),
+    )))->toThrow(InvalidPositionDirectoryException::class, 'substantive');
+});
+
 test('an assignment filed under another tenant\'s company is refused by the owner key', function (): void {
     $f = positionFixture();
     [, $otherCompany] = createTenantWithCompany(['name' => 'Other Tenant']);

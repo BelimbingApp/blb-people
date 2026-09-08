@@ -2,9 +2,9 @@
 
 namespace App\Domains\People\Payroll\Console\Commands;
 
+use App\Base\Tenancy\Console\TenantScopedCommand;
 use App\Domains\People\Payroll\Models\PayrollRun;
 use App\Domains\People\Payroll\Services\PayrollContributionIntake;
-use Illuminate\Console\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
@@ -19,7 +19,7 @@ use Symfony\Component\Console\Attribute\AsCommand;
  * See docs/architecture/payroll-intake.md.
  */
 #[AsCommand(name: 'blb:payroll:materialize-pending')]
-class MaterializePendingContributionsCommand extends Command
+class MaterializePendingContributionsCommand extends TenantScopedCommand
 {
     protected $description = 'Sweep pending payroll contributions into open runs that cover their period anchor';
 

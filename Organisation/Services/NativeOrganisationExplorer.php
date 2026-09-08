@@ -33,6 +33,22 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
 {
     private const AUDIENCES = ['executive', 'hod', 'employee', 'hr', 'auditor'];
 
+    /**
+     * Audience scope as a capability key: "view the organisation as this
+     * audience".
+     *
+     * The platform grammar is domain.resource.action with the action last, so
+     * the audience has to sit in the resource path and the verb has to end the
+     * key: `people.organisation.hod.view`. The spelling that reads better in
+     * English, `people.organisation.audience.hod`, ends on the audience name —
+     * not a declared verb — so CapabilityCatalog drops it and
+     * KnownCapabilityPolicy then denies it as unknown.
+     */
+    private static function audienceCapability(string $audience): string
+    {
+        return 'people.organisation.'.$audience.'.view';
+    }
+
     public function __construct(
         private readonly TenantContext $tenantContext,
         private readonly AuthorizationService $authorization,
@@ -239,7 +255,7 @@ final class NativeOrganisationExplorer implements ReadsOrganisationExplorer
             self::AUDIENCES,
             fn (string $audience): bool => $this->explicitlyHas(
                 $actor,
-                'people.organisation.audience.'.$audience,
+                self::audienceCapability($audience),
             ),
         ));
 

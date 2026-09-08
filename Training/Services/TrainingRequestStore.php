@@ -13,12 +13,18 @@ use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Enums\AssessmentStatus;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\CompanyAttribution;
+use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
+use App\Domains\People\Training\Data\TrainingRequestSubjectsDraft;
+use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingRequestException;
+use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Models\TrainingRequestDecision;
+use App\Domains\People\Training\Models\TrainingRequestSubject;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -38,14 +44,23 @@ final readonly class TrainingRequestStore
         private CompanyAttribution $companies,
         private ResolvesWorkforceSubjects $subjects,
         private TrainingBudgetStore $budgets,
+        private TrainingRequestNotifications $notifications,
     ) {}
 
-    public function create(User $actor, int $companyId, TrainingRequestDraft $draft): TrainingRequest
+    /**
+     * @param  TrainingRequestSubjectsDraft|null  $subjects  who the request is
+     *                                                       for; null means the requestor themselves, which is what a request has
+     *                                                       always meant here. An explicitly empty list is refused rather than
+     *                                                       silently treated the same way.
+     */
+    public function create(User $actor, int $companyId, TrainingRequestDraft $draft, ?TrainingRequestSubjectsDraft $subjects = null): TrainingRequest
     {
         $tenantId = $this->authorize($actor, $companyId, self::SUBMIT);
         $this->validate($tenantId, $companyId, $draft);
+        $resolved = $this->resolveSubjects($actor, $tenantId, $companyId, $draft,
+            $subjects ?? TrainingRequestSubjectsDraft::forSubjects([$draft->requestor]));
 
-        return DB::transaction(function () use ($actor, $companyId, $draft, $tenantId): TrainingRequest {
+        return DB::transaction(function () use ($actor, $companyId, $draft, $tenantId, $resolved): TrainingRequest {
             $request = TrainingRequest::query()->forCompany($tenantId, $companyId)->create([
                 'tenant_id' => $tenantId, 'company_entity_id' => $companyId,
                 'request_key' => (string) Str::uuid(),
@@ -61,6 +76,17 @@ final readonly class TrainingRequestStore
                 'requirement_version' => $draft->requirementVersion,
                 'status' => TrainingRequestStatus::Draft, 'created_by_user_id' => $actor->getKey(),
             ]);
+            foreach ($resolved as $subject) {
+                TrainingRequestSubject::query()->forCompany($tenantId, $companyId)->create([
+                    'tenant_id' => $tenantId, 'company_entity_id' => $companyId,
+                    'training_request_id' => $request->id,
+                    'provider_id' => $subject['provider_id'],
+                    'employee_subject_id' => $subject['employee_subject_id'],
+                    'workforce_observed_at' => $subject['workforce_observed_at'],
+                    'source' => $subject['source'],
+                    'cohort_reference' => $subject['cohort_reference'],
+                ]);
+            }
             $this->record($request, 'created', $actor);
 
             return $request;
@@ -108,6 +134,78 @@ final readonly class TrainingRequestStore
 
         return $this->move($actor, $companyId, $requestId, TrainingRequestStatus::PendingApproval,
             TrainingRequestStatus::Approved, 'approved', self::APPROVE, $notes);
+    }
+
+    /**
+     * Link an approved request to the scheduled event that satisfies it
+     * (0010-d). The event must be in this company and still ahead (scheduled
+     * or in progress); the link is a fact on the request plus one decision
+     * row, so the trail keeps every link and unlink ever made.
+     */
+    public function linkEvent(User $actor, int $companyId, int $requestId, int $eventId): TrainingRequest
+    {
+        $tenantId = $this->authorize($actor, $companyId, self::HR_REVIEW);
+
+        return DB::transaction(function () use ($actor, $companyId, $requestId, $eventId, $tenantId): TrainingRequest {
+            $request = $this->find($tenantId, $companyId, $requestId);
+            if ($request->status !== TrainingRequestStatus::Approved) {
+                throw new InvalidTrainingRequestException('Only an approved training request can be linked to an event.');
+            }
+            $event = TrainingEvent::query()->forCompany($tenantId, $companyId)->whereKey($eventId)->first()
+                ?? throw new InvalidTrainingRequestException('Training event was not found in this company.');
+            if (! in_array($event->status, [TrainingEventStatus::Scheduled, TrainingEventStatus::InProgress], true)) {
+                throw new InvalidTrainingRequestException('Only a scheduled or in-progress training event can satisfy a request.');
+            }
+
+            // Everyone the request named becomes a participant, or the link
+            // is refused: an approved request that enrols nobody is a promise
+            // the calendar does not keep.
+            $subjects = TrainingRequestSubject::query()->forCompany($tenantId, $companyId)
+                ->where('training_request_id', $request->id)
+                ->get(['provider_id', 'employee_subject_id'])
+                ->map(static fn (TrainingRequestSubject $subject): array => [
+                    'provider_id' => (string) $subject->provider_id,
+                    'employee_subject_id' => (string) $subject->employee_subject_id,
+                ])
+                ->all();
+            $enrolled = app(TrainingParticipationStore::class)
+                ->enrolFromRequest($actor, $companyId, (int) $event->id, $subjects);
+
+            $request->update(['training_event_id' => $event->id, 'linked_by_user_id' => $actor->getKey(), 'linked_at' => now()]);
+            $this->record($request, 'linked', $actor, "Linked to event {$event->id}: {$event->course_title_snapshot}; enrolled ".count($enrolled));
+
+            return $request->refresh();
+        });
+    }
+
+    public function unlinkEvent(User $actor, int $companyId, int $requestId, ?string $notes = null): TrainingRequest
+    {
+        $tenantId = $this->authorize($actor, $companyId, self::HR_REVIEW);
+
+        return DB::transaction(function () use ($actor, $companyId, $requestId, $notes, $tenantId): TrainingRequest {
+            $request = $this->find($tenantId, $companyId, $requestId);
+            if ($request->training_event_id === null) {
+                throw new InvalidTrainingRequestException('The training request is not linked to an event.');
+            }
+            $eventId = (int) $request->training_event_id;
+            $request->update(['training_event_id' => null, 'linked_by_user_id' => null, 'linked_at' => null]);
+            // Participants stay: somebody may already have attended, and a
+            // withdrawal is a decision about that person, not a side effect of
+            // HR rearranging which event satisfies the paperwork.
+            $this->record($request, 'unlinked', $actor,
+                trim("Unlinked from event {$eventId}; participants remain enrolled. ".(string) $notes));
+
+            return $request->refresh();
+        });
+    }
+
+    /** Approved requests no scheduled event satisfies yet: the HR queue's "approved, not linked" section. */
+    public function approvedUnlinkedQuery(int $tenantId, int $companyId): Builder
+    {
+        return TrainingRequest::query()->forCompany($tenantId, $companyId)
+            ->where('status', TrainingRequestStatus::Approved->value)
+            ->whereNull('training_event_id')
+            ->orderBy('id');
     }
 
     public function reject(User $actor, int $companyId, int $requestId, string $notes): TrainingRequest
@@ -218,7 +316,10 @@ final readonly class TrainingRequestStore
         User $actor, ?string $notes): TrainingRequest
     {
         $request->update(['status' => $status]);
-        $this->record($request, $decision, $actor, $notes);
+        $row = $this->record($request, $decision, $actor, $notes);
+        // Inside the caller's transaction, after the decision row: a refused
+        // transition rolls the messages back with the row (0010-g).
+        $this->notifications->notify($request, $row, $actor);
 
         return $request->refresh();
     }
@@ -239,6 +340,144 @@ final readonly class TrainingRequestStore
         }
 
         return $tenantId;
+    }
+
+    /**
+     * The people a request is for, as rows ready to store.
+     *
+     * Resolved now and frozen: an approval months later enrols the roster the
+     * approver saw. A request that resolves to nobody is refused rather than
+     * stored empty, because an empty request is one nobody can act on and
+     * everybody has to read twice.
+     *
+     * @return list<array{provider_id: string, employee_subject_id: string, workforce_observed_at: string, source: string, cohort_reference: string|null}>
+     */
+    private function resolveSubjects(User $actor, int $tenantId, int $companyId, TrainingRequestDraft $draft, TrainingRequestSubjectsDraft $subjects): array
+    {
+        $rows = $subjects->cohort
+            ? $this->cohortRows($companyId, $draft)
+            : $this->namedRows($tenantId, $companyId, $subjects->subjects);
+
+        $this->authorizeSubjects($actor, $companyId, $draft, $rows, $subjects->cohort);
+
+        if ($rows === []) {
+            throw new InvalidTrainingRequestException('A training request names at least one person who will attend.');
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Who this actor may put on a request.
+     *
+     * A head of department speaks for the department: they may name its
+     * members, or take the whole cohort. Anybody else speaks only for
+     * themselves, which is what the submit capability means — it is a request
+     * for training, not an instruction that somebody else attend.
+     *
+     * @param  list<array{employee_subject_id: string, ...}>  $rows
+     */
+    private function authorizeSubjects(User $actor, int $companyId, TrainingRequestDraft $draft, array $rows, bool $cohort): void
+    {
+        if ($this->authorization->can(Actor::forUser($actor), self::HOD_RECOMMEND)->allowed) {
+            $this->authorizeDepartmentSubjects($companyId, $draft, $rows);
+
+            return;
+        }
+
+        if ($cohort) {
+            throw new InvalidTrainingRequestException('Only a head of department may request training for a whole department.');
+        }
+
+        $self = (string) ($draft->requestor->stableId);
+        foreach ($rows as $row) {
+            if ($row['employee_subject_id'] !== $self) {
+                throw new InvalidTrainingRequestException('Request training for yourself, or ask the head of department to request it for somebody else.');
+            }
+        }
+    }
+
+    /**
+     * A head of department names their own department's people, not a peer's.
+     *
+     * @param  list<array{employee_subject_id: string, ...}>  $rows
+     */
+    private function authorizeDepartmentSubjects(int $companyId, TrainingRequestDraft $draft, array $rows): void
+    {
+        $department = $draft->department->stableId;
+        $members = [];
+        foreach (app(WorkforceSubjects::class)->employees($companyId) as $employee) {
+            if ($employee->organizationReference?->externalId === $department) {
+                $members[(string) $employee->reference->externalId] = true;
+            }
+        }
+
+        foreach ($rows as $row) {
+            if (! isset($members[$row['employee_subject_id']])) {
+                throw new InvalidTrainingRequestException('A subject must belong to the department the request names.');
+            }
+        }
+    }
+
+    /**
+     * @param  list<WorkforceSubject>  $subjects
+     * @return list<array{provider_id: string, employee_subject_id: string, workforce_observed_at: string, source: string, cohort_reference: string|null}>
+     */
+    private function namedRows(int $tenantId, int $companyId, array $subjects): array
+    {
+        $rows = [];
+
+        foreach ($subjects as $subject) {
+            if ($subject->tenantId !== $tenantId || $subject->companyId !== $companyId
+                || $subject->type !== WorkforceResourceType::Employee
+                || $this->subjects->resolve($subject)->record === null) {
+                throw new InvalidTrainingRequestException('Every named subject must be an active employee of this company.');
+            }
+
+            $rows[] = [
+                'provider_id' => $this->provider($subject),
+                'employee_subject_id' => $subject->stableId,
+                'workforce_observed_at' => now()->toDateTimeString(),
+                'source' => TrainingRequestSubject::SOURCE_INDIVIDUAL,
+                'cohort_reference' => null,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The request's own department, as it stands right now.
+     *
+     * Inactive employees are left out: a cohort is who would attend, and
+     * somebody who has left the company would not.
+     *
+     * @return list<array{provider_id: string, employee_subject_id: string, workforce_observed_at: string, source: string, cohort_reference: string|null}>
+     */
+    private function cohortRows(int $companyId, TrainingRequestDraft $draft): array
+    {
+        $department = $draft->department->stableId;
+        $rows = [];
+
+        foreach (app(WorkforceSubjects::class)->employees($companyId) as $employee) {
+            // The native directory only returns active employees, but the
+            // seam is provider-neutral and WorkforceEmployee carries the flag,
+            // so a connector that reports leavers is answered here rather than
+            // silently enrolling them.
+            if (! $employee->active || $employee->organizationReference?->externalId !== $department) {
+                continue;
+            }
+
+            $rows[] = [
+                'provider_id' => $employee->reference->providerId,
+                'employee_subject_id' => (string) $employee->reference->externalId,
+                'workforce_observed_at' => now()->toDateTimeString(),
+                'source' => TrainingRequestSubject::SOURCE_COHORT,
+                'cohort_reference' => $department,
+            ];
+        }
+
+        return $rows;
     }
 
     private function validate(int $tenantId, int $companyId, TrainingRequestDraft $draft): void
@@ -272,9 +511,9 @@ final readonly class TrainingRequestStore
             ?? throw new InvalidTrainingRequestException('Training request was not found in this company.');
     }
 
-    private function record(TrainingRequest $request, string $decision, User $actor, ?string $notes = null): void
+    private function record(TrainingRequest $request, string $decision, User $actor, ?string $notes = null): TrainingRequestDecision
     {
-        TrainingRequestDecision::query()->forCompany((int) $request->tenant_id, (int) $request->company_entity_id)->create([
+        return TrainingRequestDecision::query()->forCompany((int) $request->tenant_id, (int) $request->company_entity_id)->create([
             'tenant_id' => $request->tenant_id, 'company_entity_id' => $request->company_entity_id,
             'training_request_id' => $request->id, 'decision' => $decision,
             'actor_user_id' => $actor->getKey(), 'notes' => trim((string) $notes) ?: null, 'occurred_at' => now(),

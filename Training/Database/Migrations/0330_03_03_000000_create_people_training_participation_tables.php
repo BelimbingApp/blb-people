@@ -34,6 +34,8 @@ return new class extends Migration
             $table->string('provider_id', 80);
             $table->string('employee_subject_id', 160);
             $table->timestamp('workforce_observed_at');
+            $table->timestamp('withdrawn_at')->nullable();
+            $table->unsignedBigInteger('withdrawn_by_user_id')->nullable();
             $table->unique(['tenant_id', 'event_id', 'provider_id', 'employee_subject_id'], 'ptp_subject_uq');
             $this->parent($table, 'event_id', 'people_connector_training_events', 'ptp_event_fk');
         });
@@ -58,7 +60,15 @@ return new class extends Migration
             $table->unsignedBigInteger('confirmed_by_user_id')->nullable();
             $table->string('confirmed_capability', 100)->nullable();
             $table->timestamp('confirmed_at')->nullable();
-            $table->unique(['tenant_id', 'participant_id', 'session_id'], 'ptf_session_uq');
+            // A confirmed fact is immutable (see the guards below), so a
+            // correction is a new row pointing at the one it replaces. Zero
+            // means "this is the original", which keeps the column NOT NULL
+            // and keeps the unique key below expressible: one original and at
+            // most one correction per superseded row. Correcting a correction
+            // supersedes the latest, so the chain stays linear.
+            $table->unsignedBigInteger('supersedes_fact_id')->default(0);
+            $table->string('correction_reason', 2000)->nullable();
+            $table->unique(['tenant_id', 'participant_id', 'session_id', 'supersedes_fact_id'], 'ptf_session_uq');
             $table->unique(['tenant_id', 'company_entity_id', 'source', 'source_reference'], 'ptf_source_uq');
             foreach (['participant_id' => 'people_training_participants', 'session_id' => 'people_training_sessions'] as $column => $parent) {
                 $table->foreign([$column, 'tenant_id', 'company_entity_id', 'event_id'], 'ptf_'.$column.'_fk')
@@ -105,8 +115,26 @@ return new class extends Migration
         $driver = DB::connection()->getDriverName();
         if ($driver === 'pgsql') {
             DB::unprepared(<<<'SQL'
-                CREATE FUNCTION pt_participation_immutable() RETURNS trigger AS $$
+                CREATE OR REPLACE FUNCTION pt_participation_immutable() RETURNS trigger AS $$
                 BEGIN
+                    -- Statement-level branch first: this function is shared by
+                    -- the sessions, participants and facts triggers, and only
+                    -- participants rows carry provider_id. Comparing
+                    -- participant identity columns inside a single AND chain
+                    -- lets PostgreSQL evaluate OLD.provider_id for sessions
+                    -- and facts rows (AND operand order is not guaranteed),
+                    -- raising 42703 instead of the intended verdict below.
+                    IF TG_OP = 'UPDATE' AND TG_TABLE_NAME = 'people_training_participants' THEN
+                        IF OLD.tenant_id IS NOT DISTINCT FROM NEW.tenant_id
+                            AND OLD.company_entity_id IS NOT DISTINCT FROM NEW.company_entity_id
+                            AND OLD.event_id IS NOT DISTINCT FROM NEW.event_id
+                            AND OLD.provider_id IS NOT DISTINCT FROM NEW.provider_id
+                            AND OLD.employee_subject_id IS NOT DISTINCT FROM NEW.employee_subject_id
+                            AND OLD.workforce_observed_at IS NOT DISTINCT FROM NEW.workforce_observed_at
+                            AND OLD.created_at IS NOT DISTINCT FROM NEW.created_at THEN
+                            RETURN NEW;
+                        END IF;
+                    END IF;
                     IF TG_TABLE_NAME <> 'people_training_participation_facts' THEN
                         RAISE EXCEPTION 'participation identity and sessions are immutable';
                     END IF;
@@ -131,6 +159,13 @@ return new class extends Migration
                 CREATE TRIGGER people_training_sessions_DELETE_guard BEFORE DELETE ON people_training_sessions
                 BEGIN SELECT RAISE(ABORT, 'participation identity and sessions are immutable'); END;
                 CREATE TRIGGER people_training_participants_UPDATE_guard BEFORE UPDATE ON people_training_participants
+                WHEN OLD.tenant_id IS NOT NEW.tenant_id
+                    OR OLD.company_entity_id IS NOT NEW.company_entity_id
+                    OR OLD.event_id IS NOT NEW.event_id
+                    OR OLD.provider_id IS NOT NEW.provider_id
+                    OR OLD.employee_subject_id IS NOT NEW.employee_subject_id
+                    OR OLD.workforce_observed_at IS NOT NEW.workforce_observed_at
+                    OR OLD.created_at IS NOT NEW.created_at
                 BEGIN SELECT RAISE(ABORT, 'participation identity and sessions are immutable'); END;
                 CREATE TRIGGER people_training_participants_DELETE_guard BEFORE DELETE ON people_training_participants
                 BEGIN SELECT RAISE(ABORT, 'participation identity and sessions are immutable'); END;

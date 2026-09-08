@@ -4,6 +4,7 @@ namespace App\Domains\People\Training\Livewire\Catalog;
 
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Models\Skill;
+use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\TrainingCourseDraft;
 use App\Domains\People\Training\Enums\DeliveryMode;
@@ -46,6 +47,13 @@ final class Index extends Component
 
     public function startCourse(TrainingAudience $audience): void
     {
+        $company = $this->managedCompany($audience);
+        if ($this->activeSkills($company)->isEmpty()) {
+            $this->addError('courseForm', __('Add an active skill before defining a course.'));
+
+            return;
+        }
+
         $this->openCourse(null, $audience);
     }
 
@@ -131,15 +139,16 @@ final class Index extends Component
         $companies = $this->allowedCompanies($audience);
         $company = $this->companyEntityId !== null && array_key_exists($this->companyEntityId, $companies)
             ? $this->companyEntityId : null;
-        $tenant = $company === null ? null : app(TenantContext::class)->requireTenantId();
         $canManage = $company !== null && $audience->canManage(Auth::user(), $company);
+        $skills = ! $canManage ? collect() : $this->activeSkills($company);
 
         return view('people::livewire.training.catalog.index', [
             'companies' => $companies,
             'courses' => $company === null ? collect() : $this->courses($company),
-            'skills' => ! $canManage ? collect() : Skill::query()->forCompany($tenant, $company)->where('active', true)->orderBy('name')->get(),
+            'skills' => $skills,
             'employees' => ! $canManage ? collect() : $this->employeeOptions($company),
             'canManage' => $canManage,
+            'canManageSkills' => $canManage && app(SkillAudience::class)->mayManageCatalog(Auth::user(), $company),
             'deliveryModes' => DeliveryMode::cases(),
         ]);
     }
@@ -182,6 +191,15 @@ final class Index extends Component
         return TrainingCourse::query()
             ->forCompany(app(TenantContext::class)->requireTenantId(), $companyEntityId)
             ->orderBy('code')
+            ->get();
+    }
+
+    private function activeSkills(int $companyEntityId): Collection
+    {
+        return Skill::query()
+            ->forCompany(app(TenantContext::class)->requireTenantId(), $companyEntityId)
+            ->where('active', true)
+            ->orderBy('name')
             ->get();
     }
 }

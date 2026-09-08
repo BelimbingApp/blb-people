@@ -8,9 +8,14 @@ use App\Core\User\Models\User;
 use App\Domains\People\Skills\Enums\AssessmentStatus;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillAssessment;
+use App\Domains\People\Skills\Models\SkillReassessmentRequest;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Training\Models\TrainingEvent;
+use App\Domains\People\Training\Models\TrainingParticipationFact;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -20,6 +25,10 @@ use Livewire\Component;
  * The subject is always the audience's bound employee, never request
  * input: there is no employee id to supply, so another employee's rows
  * cannot be reached by asking for them. Read-only: no actions.
+ *
+ * Reassessment requests opened for the employee (0006-b, 0006-e) are listed
+ * with their source, so a confirmed training that opened one is visible
+ * before any score moves.
  */
 final class Index extends Component
 {
@@ -54,9 +63,15 @@ final class Index extends Component
             ->first(static fn (SkillAssessment $row): bool => ! self::isExpired($row, $today))
             ?->getKey();
 
+        $requests = SkillReassessmentRequest::query()
+            ->forCompany($tenantId, $companyId)
+            ->where('employee_entity_id', $employeeId)
+            ->orderByDesc('id')
+            ->get();
+
         $skills = Skill::query()
             ->forCompany($tenantId, $companyId)
-            ->whereIn('id', $assessments->pluck('skill_id')->all())
+            ->whereIn('id', $assessments->pluck('skill_id')->merge($requests->pluck('skill_id'))->unique()->all())
             ->pluck('name', 'id')
             ->map(static fn ($name): string => (string) $name)
             ->all();
@@ -84,7 +99,38 @@ final class Index extends Component
             ->values()
             ->all();
 
-        return view('people::livewire.my-history.index', ['groups' => $groups]);
+        return view('people::livewire.my-history.index', [
+            'groups' => $groups,
+            'requests' => $this->requestRows($tenantId, $companyId, $requests, $skills),
+        ]);
+    }
+
+    /**
+     * @param  Collection<int, SkillReassessmentRequest>  $requests
+     * @param  array<int, string>  $skills
+     * @return list<array{id: int, skill: string, source: string, dueAt: CarbonInterface, status: string}>
+     */
+    private function requestRows(int $tenantId, int $companyId, Collection $requests, array $skills): array
+    {
+        $factIds = $requests->pluck('source_participation_fact_id')->filter()->map(intval(...))->unique()->values()->all();
+        $eventOfFact = $factIds === [] ? collect() : TrainingParticipationFact::query()
+            ->forCompany($tenantId, $companyId)->whereIn('id', $factIds)->pluck('event_id', 'id');
+        $eventTitles = $eventOfFact->isEmpty() ? collect() : TrainingEvent::query()
+            ->forCompany($tenantId, $companyId)->whereIn('id', $eventOfFact->values()->all())->pluck('course_title_snapshot', 'id');
+
+        return $requests->map(static function (SkillReassessmentRequest $request) use ($skills, $eventOfFact, $eventTitles): array {
+            $event = $request->isFromTraining()
+                ? $eventTitles[$eventOfFact[(int) $request->source_participation_fact_id] ?? 0] ?? null
+                : null;
+
+            return [
+                'id' => (int) $request->id,
+                'skill' => $skills[$request->skill_id] ?? __('Unknown skill'),
+                'source' => $event === null ? __('From head of department') : __('From training :event', ['event' => $event]),
+                'dueAt' => $request->due_at,
+                'status' => $request->status->label(),
+            ];
+        })->values()->all();
     }
 
     private function authorizeView(): void
