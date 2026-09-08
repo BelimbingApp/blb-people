@@ -82,3 +82,30 @@ Requirement profiles, submitted plans, reassessments, escalations and budget all
 remain unseeded: the focused story demonstrates two legitimate HR decisions without
 inventing assessment or approval prerequisites. HR access still requires an explicit
 People HR role; core administrator authority alone remains insufficient.
+
+
+`DevTrainingEffectivenessSeeder` restores all the above plus two synthetic historical
+courses for the same DEMO learner and HOD. Its targeted command is:
+
+```bash
+php artisan db:seed --class='App\Domains\People\Training\Database\Seeders\Dev\DevTrainingEffectivenessSeeder'
+```
+
+A Core DEMO Training Practice department establishes the real department-head
+relationship required by the checkpoint service; only missing links on the synthetic
+learner/HOD are initialized when that department is first created. Their People
+Learning Team work-profile references remain separate native directory records.
+
+One practice event ended 35 days before initial seeding and has a HOD answer of 4
+with clearly fictional feedback. Another ended 65 days earlier and is unanswered.
+Under the default policy this shows a 30-day answer and an actionable 60-day question,
+including the earlier missed 30-day denominator in the HR summary. Existing policy
+changes are respected; the seed never changes company checkpoint timing. Event dates
+and answers are retained on rerun, so checkpoints naturally age and eventually leave
+the summary's twelve-month window. No reminders are dispatched by this seeder.
+
+The real HR account can view the summary. The checkpoint task belongs to the DEMO
+HOD, not HR merely by role. Automated Livewire checks cover the HOD form and HR
+exclusion without adding a HOD role to a real account or publishing login credentials.
+No ineffective-result development action is invented: that separate workflow needs
+valid assessment/reassessment prerequisites, beyond these checkpoint examples.
