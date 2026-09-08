@@ -4,7 +4,6 @@ namespace App\Domains\People\Training\Livewire\Catalog\Concerns;
 
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Models\Skill;
-use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\TrainingCourseDraft;
 use App\Domains\People\Training\Enums\DeliveryMode;
@@ -13,7 +12,6 @@ use App\Domains\People\Training\Models\TrainingCourse;
 use App\Domains\People\Training\Services\TrainingAudience;
 use App\Domains\People\Training\Services\TrainingCatalogStore;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 /** Shared create/edit course form state for dedicated catalog form pages. */
@@ -130,10 +128,5 @@ trait SavesTrainingCourseForm
         session()->flash('status', __('Training course saved.'));
 
         return true;
-    }
-
-    protected function canManageSkillsFor(int $companyEntityId): bool
-    {
-        return app(SkillAudience::class)->mayManageCatalog(Auth::user(), $companyEntityId);
     }
 }
