@@ -6,6 +6,7 @@ use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEvidenceSubmissionException;
+use App\Domains\People\Training\Livewire\HrGovernance\Index as HrGovernanceIndex;
 use App\Domains\People\Training\Services\TrainingEvidenceSubmissionStore;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -86,7 +87,29 @@ final class Index extends Component
                 ? []
                 : app(TrainingEvidenceSubmissionStore::class)->visibleEvents($this->user(), $companyEntityId),
             'employeeIdentityMissing' => $identityMissing,
+            'mayReviewEvidenceQueue' => $identityMissing && $this->mayReviewEvidenceQueue(),
         ]);
+    }
+
+    /**
+     * Whether to offer the HR evidence queue as the next step.
+     *
+     * #434's explicit expectation: an HR manager with no personal employee
+     * linkage is not stuck. The queue they want already exists at
+     * people.hr-governance.index, so this points at it rather than implying
+     * personal submission is the only door -- and it asks with that page's own
+     * gate, capability plus HR audience, so the link never appears to someone
+     * who would be refused on arrival.
+     */
+    private function mayReviewEvidenceQueue(): bool
+    {
+        try {
+            $audiences = app(SkillAudience::class)->authorizeAudience($this->user(), HrGovernanceIndex::VIEW_CAPABILITY);
+        } catch (AuthorizationDeniedException) {
+            return false;
+        }
+
+        return in_array(SkillAudience::HR, $audiences, true);
     }
 
     /**

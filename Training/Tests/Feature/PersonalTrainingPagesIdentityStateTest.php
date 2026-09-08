@@ -17,7 +17,7 @@ use App\Core\User\Models\User;
  * that the page has to say so in words the operator can act on, and must not
  * describe an identity failure as an empty training list.
  */
-function personalPagesActor(): User
+function personalPagesActor(string ...$extraRoles): User
 {
     [$tenant, $company] = createTenantWithCompany(
         ['name' => 'Identity State Tenant'],
@@ -35,6 +35,15 @@ function personalPagesActor(): User
         'principal_id' => $actor->id,
         'role_id' => Role::query()->whereNull('company_id')->where('code', 'people_employee')->sole()->id,
     ]);
+
+    foreach ($extraRoles as $code) {
+        PrincipalRole::query()->create([
+            'company_id' => $company->id,
+            'principal_type' => PrincipalType::USER->value,
+            'principal_id' => $actor->id,
+            'role_id' => Role::query()->whereNull('company_id')->where('code', $code)->sole()->id,
+        ]);
+    }
 
     // Deliberately no EmployeePortalAccess row and no employee_id: the role
     // carries the capability, the identity binding is absent.
@@ -65,4 +74,27 @@ test('the personal evidence page explains a missing employee identity instead of
         ->assertSee('Evidence is submitted against your own recorded attendance', false)
         ->assertDontSee('No attended training is ready for evidence submission.')
         ->assertDontSee('unavailable in the current scope');
+});
+
+test('an unlinked employee is not offered the HR evidence queue they cannot open', function (): void {
+    $actor = personalPagesActor();
+
+    $this->actingAs($actor)
+        ->get(route('people.training.evidence.index'))
+        ->assertOk()
+        ->assertDontSee('Open evidence submissions');
+});
+
+test('an unlinked actor who also holds HR is pointed at the evidence queue', function (): void {
+    // An HR-only actor never reaches this page -- the route answers 403 on
+    // TrainingEvidenceSubmissionStore::SUBMIT -- so the next-step offer only
+    // arises for someone who holds both, which is the case tested here.
+    $actor = personalPagesActor('people_hr');
+
+    $this->actingAs($actor)
+        ->get(route('people.training.evidence.index'))
+        ->assertOk()
+        ->assertSee('Your account is not linked to an employee record in this company.')
+        ->assertSee('Open evidence submissions')
+        ->assertSeeHtml('href="'.route('people.hr-governance.index').'"');
 });
