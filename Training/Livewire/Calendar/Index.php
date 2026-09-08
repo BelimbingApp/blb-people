@@ -27,10 +27,13 @@ final class Index extends Component
 
     private const PER_PAGE = 15;
 
+    #[Url(as: 'company')]
     public ?int $companyEntityId = null;
 
+    #[Url]
     public int $year = 0;
 
+    #[Url]
     public int $month = 0;
 
     /** Calendar is the landing view; the register is its alternate, not a third list. */
@@ -64,10 +67,14 @@ final class Index extends Component
     public function mount(TrainingAudience $audience): void
     {
         $companies = $this->allowedCompanies($audience);
-        $this->companyEntityId = count($companies) > 0 ? (int) array_key_first($companies) : null;
+        if ($this->companyEntityId === null) {
+            $this->companyEntityId = count($companies) > 0 ? (int) array_key_first($companies) : null;
+        } else {
+            abort_unless(array_key_exists($this->companyEntityId, $companies), 404);
+        }
         $now = now();
-        $this->year = $now->year;
-        $this->month = $now->month;
+        $this->year = $this->year === 0 ? $now->year : $this->year;
+        $this->month = $this->month === 0 ? $now->month : $this->month;
     }
 
     public function selectCompany(int $companyEntityId, TrainingAudience $audience): void
@@ -94,6 +101,11 @@ final class Index extends Component
     public function showCalendar(): void
     {
         $this->view = 'calendar';
+        // Table filters are intentionally table-only: keeping them silently
+        // active on the filter-free month view makes discovery deceptive.
+        $this->reset('search', 'lifecycle', 'department', 'from', 'until');
+        $this->sortBy = 'starts_at';
+        $this->sortDir = 'asc';
         $this->resetPage();
     }
 
@@ -181,7 +193,7 @@ final class Index extends Component
 
         if ($company !== null && array_key_exists($company, $companies)) {
             $canManage = $audience->canManage(Auth::user(), $company);
-            $query = $this->filteredEvents($audience, $company, $canManage);
+            $query = $this->filteredEvents($audience, $company, $canManage, $this->view === 'calendar');
             $events = $this->view === 'calendar'
                 ? (clone $query)->orderBy('starts_at')->get()
                 : collect();
@@ -218,13 +230,47 @@ final class Index extends Component
         ]);
     }
 
-    private function filteredEvents(TrainingAudience $audience, int $company, bool $canManage): Builder
+    /** @return array<string, int|string> */
+    public function scheduleEditorParameters(?int $eventId = null): array
     {
-        // HR's Table is the schedule register, including completed and cancelled
-        // records; employee discovery remains deliberately limited to the calendar seam.
-        $query = $canManage
+        $parameters = [
+            'return' => 'calendar',
+            'company' => $this->companyEntityId,
+            'view' => $this->view,
+            'search' => $this->search,
+            'lifecycle' => $this->lifecycle,
+            'department' => $this->department,
+            'from' => $this->from,
+            'until' => $this->until,
+            'sortBy' => $this->sortBy,
+            'sortDir' => $this->sortDir,
+            'year' => $this->year,
+            'month' => $this->month,
+            'page' => $this->getPage(),
+        ];
+
+        if ($eventId !== null) {
+            $parameters['edit'] = $eventId;
+        }
+
+        return $parameters;
+    }
+
+    private function filteredEvents(TrainingAudience $audience, int $company, bool $canManage, bool $forCalendar): Builder
+    {
+        // The month calendar is discovery, not the HR register: it remains on
+        // the open-event seam even for HR. Table is where terminal records live.
+        $query = $forCalendar
+            ? $audience->visibleCalendarEvents(Auth::user(), $company)
+            : ($canManage
             ? $audience->visibleEvents(Auth::user(), $company)
-            : $audience->visibleCalendarEvents(Auth::user(), $company);
+            : $audience->visibleCalendarEvents(Auth::user(), $company));
+
+        if ($forCalendar) {
+            $monthStart = CarbonImmutable::create($this->year, $this->month, 1)->startOfMonth();
+
+            return $query->whereBetween('starts_at', [$monthStart, $monthStart->endOfMonth()]);
+        }
 
         return $query
             ->when($this->search !== '', function (Builder $builder): void {

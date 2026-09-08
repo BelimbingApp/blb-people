@@ -334,6 +334,7 @@ it('lets HR search and sort the schedule table without exposing a third list vie
     Livewire::actingAs($f['hr'])
         ->test(TrainingCalendar::class)
         ->assertSee('New schedule')
+        ->assertSee('Manage training records')
         ->call('showTable')
         ->set('search', 'FORKLIFT')
         ->assertSee('Forklift refresh')
@@ -341,6 +342,54 @@ it('lets HR search and sort the schedule table without exposing a third list vie
         ->call('sort', 'course_title_snapshot')
         ->assertSet('sortBy', 'course_title_snapshot')
         ->assertSet('sortDir', 'asc');
+});
+
+it('keeps the HR schedule return state in the New schedule link', function (): void {
+    $f = calendarFixture();
+    $return = [
+        'company' => (int) $f['company']->id,
+        'view' => 'table',
+        'search' => 'Forklift',
+        'lifecycle' => 'scheduled',
+        'department' => (string) $f['headEntryId'],
+        'from' => '2026-10-01',
+        'until' => '2026-10-31',
+        'sortBy' => 'course_title_snapshot',
+        'sortDir' => 'desc',
+        'year' => 2026,
+        'month' => 10,
+        'page' => 2,
+    ];
+
+    $page = Livewire::actingAs($f['hr'])->test(TrainingCalendar::class)
+        ->call('showTable')
+        ->set('search', $return['search'])
+        ->set('lifecycle', $return['lifecycle'])
+        ->set('department', $return['department'])
+        ->set('from', $return['from'])
+        ->set('until', $return['until'])
+        ->set('sortBy', $return['sortBy'])
+        ->set('sortDir', $return['sortDir'])
+        ->set('year', $return['year'])
+        ->set('month', $return['month'])
+        ->call('setPage', $return['page']);
+
+    expect(html_entity_decode($page->html()))->toContain(route('people.training.events.index', ['return' => 'calendar'] + $return));
+});
+
+it('keeps terminal events in HR Table while Calendar remains open-event discovery', function (): void {
+    $f = calendarFixture();
+    $open = calendarEvent($f['company'], $f['trainerEmployee'], 'Open calendar event');
+    $terminal = calendarEvent($f['company'], $f['trainerEmployee'], 'Cancelled table record');
+    app(TrainingEventStore::class)->cancel((int) $f['company']->id, (int) $terminal->id, 'Venue unavailable');
+
+    Livewire::actingAs($f['hr'])->test(TrainingCalendar::class)
+        ->assertSee($open->course_title_snapshot)
+        ->assertDontSee($terminal->course_title_snapshot)
+        ->call('showTable')
+        ->assertSee($open->course_title_snapshot)
+        ->assertSee($terminal->course_title_snapshot)
+        ->assertDontSee('Previous month');
 });
 
 it('refuses a calendar read for a company the actor may not act for', function (): void {

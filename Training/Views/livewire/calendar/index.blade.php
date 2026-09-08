@@ -2,7 +2,8 @@
     <x-ui.page-header :title="__('Training schedule')" :subtitle="__('Find, join, and coordinate training in one place. Attendance and results are recorded separately.')">
         @if ($canManage)
             <x-slot name="actions">
-                <x-ui.link href="{{ route('people.training.events.index', ['return' => 'calendar']) }}" wire:navigate>{{ __('New schedule') }}</x-ui.link>
+                <x-ui.link href="{{ route('people.training.events.index', $this->scheduleEditorParameters()) }}" wire:navigate>{{ __('New schedule') }}</x-ui.link>
+                <x-ui.link href="{{ route('people.training.events.index', ['company' => $companyEntityId]) }}" wire:navigate>{{ __('Manage training records') }}</x-ui.link>
             </x-slot>
         @endif
     </x-ui.page-header>
@@ -25,10 +26,12 @@
         @endif
 
         <div class="flex flex-wrap items-center gap-2">
-            <x-ui.button type="button" wire:click="previousMonth" variant="secondary" aria-label="{{ __('Previous month') }}">&larr;</x-ui.button>
-            <h2 class="text-lg font-semibold">{{ $monthLabel }}</h2>
-            <x-ui.button type="button" wire:click="nextMonth" variant="secondary" aria-label="{{ __('Next month') }}">&rarr;</x-ui.button>
-            <span class="flex gap-2 ml-auto">
+            @if ($view === 'calendar')
+                <x-ui.button type="button" wire:click="previousMonth" variant="secondary" aria-label="{{ __('Previous month') }}">&larr;</x-ui.button>
+                <h2 class="text-lg font-semibold">{{ $monthLabel }}</h2>
+                <x-ui.button type="button" wire:click="nextMonth" variant="secondary" aria-label="{{ __('Next month') }}">&rarr;</x-ui.button>
+            @endif
+            <span class="flex gap-2 {{ $view === 'calendar' ? 'ml-auto' : '' }}">
                 <x-ui.button type="button" wire:click="showCalendar" :variant="$view === 'calendar' ? 'primary' : 'secondary'">{{ __('Calendar') }}</x-ui.button>
                 <x-ui.button type="button" wire:click="showTable" :variant="$view === 'table' ? 'primary' : 'secondary'">{{ __('Table') }}</x-ui.button>
             </span>
