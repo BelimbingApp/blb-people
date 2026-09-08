@@ -16,6 +16,7 @@ use App\Domains\People\Skills\Services\CompanyAttribution;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
 use App\Domains\People\Training\Data\TrainingRequestSubjectsDraft;
+use App\Domains\People\Training\Enums\CutoverWorkflow;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
@@ -45,6 +46,7 @@ final readonly class TrainingRequestStore
         private ResolvesWorkforceSubjects $subjects,
         private TrainingBudgetStore $budgets,
         private TrainingRequestNotifications $notifications,
+        private CutoverWriteGuard $cutover,
     ) {}
 
     /**
@@ -236,6 +238,7 @@ final readonly class TrainingRequestStore
                 default => throw new InvalidTrainingRequestException('Only a pending training request can be rejected.'),
             };
             $this->authorization->authorize(Actor::forUser($actor), $capability);
+            $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
 
             return $this->finish($request, TrainingRequestStatus::Rejected, 'rejected', $actor, $notes);
         });
@@ -380,6 +383,9 @@ final readonly class TrainingRequestStore
     {
         $tenantId = $this->scope($actor, $companyId);
         $this->authorization->authorize(Actor::forUser($actor), $capability);
+        // Capability first: cutover refusal discloses the legacy window and must
+        // not leak to callers who cannot perform the requested write.
+        $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
 
         return $tenantId;
     }
