@@ -180,14 +180,41 @@ test('the HR queue lists only the acting company\'s pending items, and nothing o
 
     expect($page->viewData('profiles')->pluck('id')->all())->toBe([$f['alpha']['profile']->id])
         ->and($page->viewData('requests')->pluck('id')->all())->toBe([$f['alpha']['request']->id])
-        ->and($page->viewData('plans')->pluck('id')->all())->toBe([$f['alpha']['plan']->id]);
+        ->and($page->viewData('plans')->pluck('id')->all())->toBe([$f['alpha']['plan']->id])
+        ->and($page->viewData('decisionCount'))->toBe(3)
+        ->and($page->viewData('overdueCount'))->toBe(0);
 
-    $page->assertSee('Governed profile Alpha')
+    $page->assertSee('HR work queue')
+        ->assertSee('Decisions (3)')
+        ->assertSee('Risks (0)')
+        ->assertSeeHtml('role="tablist"')
+        ->assertSeeHtml('id="hr-work-queue-tabs-panel-decisions"')
+        ->assertSeeHtml('id="hr-work-queue-tabs-panel-risks"')
+        ->assertSeeHtml('id="hr-work-queue-tabs-panel-passports"')
+        ->assertSee('Governed profile Alpha')
         ->assertSee('Need Alpha')
         ->assertSee('Objectives Alpha.')
         ->assertDontSee('Governed profile Beta')
         ->assertDontSee('Need Beta')
         ->assertDontSee('Objectives Beta.');
+});
+
+test('an empty work queue explains the clear state once instead of listing empty sections', function (): void {
+    [$tenant, $company] = createTenantWithCompany(
+        ['name' => 'Clear HR queue tenant'],
+        ['name' => 'Clear HR queue company'],
+    );
+    app(TenantContext::class)->set((int) $tenant->id);
+    setupAuthzRoles();
+    $hr = hrGovUser($company, 'people_hr');
+
+    Livewire::actingAs($hr)->test(Index::class)
+        ->assertOk()
+        ->assertSee('No decisions are waiting for HR in this company.')
+        ->assertSee('No follow-up risks need attention.')
+        ->assertDontSee('No requirement profile awaits HR review or publication.')
+        ->assertDontSee('No training request awaits HR review.')
+        ->assertDontSee('No submitted training plan awaits approval.');
 });
 
 test('HR approves a profile, forwards a request and approves a plan through the owning stores', function (): void {
