@@ -5,6 +5,8 @@ use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingAudience;
 use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingBudgetAudience;
 use App\Domains\People\Training\Livewire\Budget\Index as BudgetIndex;
 use App\Domains\People\Training\Livewire\Calendar\Index as CalendarIndex;
+use App\Domains\People\Training\Livewire\Catalog\Create as CatalogCreate;
+use App\Domains\People\Training\Livewire\Catalog\Edit as CatalogEdit;
 use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
 use App\Domains\People\Training\Livewire\Effectiveness\Index as EffectivenessIndex;
 use App\Domains\People\Training\Livewire\EffectivenessAggregate\Index as EffectivenessAggregateIndex;
@@ -34,6 +36,15 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/training-catalog', CatalogIndex::class)
         ->middleware('authz:people.training.event.view', AuthorizeTrainingAudience::class)
         ->name('people.training.catalog.index');
+
+    Route::get('people/training-catalog/create', CatalogCreate::class)
+        ->middleware('authz:people.training.event.manage', AuthorizeTrainingAudience::class)
+        ->name('people.training.catalog.create');
+
+    Route::get('people/training-catalog/{courseId}/edit', CatalogEdit::class)
+        ->where('courseId', '[0-9]+')
+        ->middleware('authz:people.training.event.manage', AuthorizeTrainingAudience::class)
+        ->name('people.training.catalog.edit');
 
     Route::get('people/training-events', Index::class)
         ->middleware('authz:people.training.event.view', AuthorizeTrainingAudience::class)
