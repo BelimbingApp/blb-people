@@ -5,7 +5,6 @@ namespace App\Domains\People\Training\Services;
 use App\Domains\People\Skills\Enums\DevelopmentActionClosure;
 use App\Domains\People\Skills\Models\DevelopmentAction;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
-use App\Domains\People\Training\Data\DueEvaluation;
 use App\Domains\People\Training\Data\OpenEffectivenessCheckpoint;
 use App\Domains\People\Training\Data\TrainingKpiSummaryResult;
 use App\Domains\People\Training\Enums\AttendanceStatus;
@@ -56,6 +55,9 @@ final class TrainingKpiSummary
         DevelopmentActionClosure::PendingReassessment->value,
         DevelopmentActionClosure::FurtherActionRequired->value,
     ];
+
+    /** The one drill target that filters by a different department identity. */
+    private const EFFECTIVENESS_SUMMARY = 'people.training.effectiveness.summary';
 
     /** @var list<string> */
     private const RATINGS = ['relevance', 'trainer_effectiveness', 'materials_exercises', 'pace_duration', 'practical_usefulness'];
@@ -146,10 +148,13 @@ final class TrainingKpiSummary
                 $bump($departmentId, 'rating_sum', array_sum($ratings) / count($ratings));
             }
         }
-        $company['pending_evaluations'] = count(array_filter(
-            $this->evaluationReminders->due($tenantId, $companyEntityId, $moment),
-            static fn (DueEvaluation $row): bool => $row->daysOverdue >= 0,
-        ));
+        // The same rule the evaluations dashboard's overdue panel and the
+        // reminder command run — DueEvaluation::overdue(), strictly past the
+        // due date. The KPI used to count a due-today row as pending, which
+        // put a row on the number that the drill target left out.
+        $company['pending_evaluations'] = count(
+            $this->evaluationReminders->overdue($tenantId, $companyEntityId, $moment),
+        );
 
         // Effectiveness: reviews of the company's participants, and the
         // checkpoints open on the as-of date that nobody answered.
@@ -239,6 +244,16 @@ final class TrainingKpiSummary
     /**
      * The existing page and filter that lists the records behind a metric.
      *
+     * A department only travels with a drill whose target filters by the same
+     * identity this summary counts by — the workforce organisation unit. The
+     * request register (department_subject_id) and the evaluations dashboard
+     * (the participant's organisation unit) do; the effectiveness summary does
+     * not, because #437 settled that page on Core Department, a different
+     * identity space with no mapping to a People reference unit. So the
+     * effectiveness metrics link to the company-wide summary and say nothing
+     * about a department, rather than carrying a filter that would silently
+     * list none of the rows behind the number.
+     *
      * @return array{route: string, params: array<string, string>}
      */
     private function drill(string $key, ?int $departmentId): array
@@ -249,9 +264,9 @@ final class TrainingKpiSummary
             'requests' => ['people.training.requests.register', []],
             'approved' => ['people.training.requests.register', ['status' => TrainingRequestStatus::Approved->value]],
             'attended', 'pending_evaluations', 'evaluation_completion', 'avg_evaluation', 'training_hours', 'certificates' => ['people.training.evaluations.index', []],
-            default => ['people.training.effectiveness.summary', []],
+            default => [self::EFFECTIVENESS_SUMMARY, []],
         };
-        if ($departmentId !== null) {
+        if ($departmentId !== null && $route !== self::EFFECTIVENESS_SUMMARY) {
             $params['department'] = (string) $departmentId;
         }
 

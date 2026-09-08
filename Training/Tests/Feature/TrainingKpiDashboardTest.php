@@ -24,6 +24,8 @@ use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingPriority;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
+use App\Domains\People\Training\Livewire\EffectivenessAggregate\Index as EffectivenessAggregateIndex;
+use App\Domains\People\Training\Livewire\Evaluations\Index as EvaluationsIndex;
 use App\Domains\People\Training\Livewire\Requests\Register;
 use App\Domains\People\Training\Livewire\TrainingKpi\Index;
 use App\Domains\People\Training\Models\TrainingCourse;
@@ -264,7 +266,7 @@ test('with two approved requests, one linked, approved-not-linked is 1 and its d
 
 // ─── Evaluations ─────────────────────────────────────────────────────────────
 
-test('pending evaluations counts a fact whose evaluation is due and not completed as of the date, and a day before the due date drops it to 0', function (): void {
+test('pending evaluations counts a fact whose evaluation is overdue and not completed as of the date, and on the due date itself it is 0', function (): void {
     $f = tkpiFixture();
     $due = tkpiAttendee($f, $f['o1']);
     $done = tkpiAttendee($f, $f['o2']);
@@ -274,8 +276,12 @@ test('pending evaluations counts a fact whose evaluation is due and not complete
     tkpiEvaluation($f, $due, TrainingEvaluationStatus::Draft, 3, '2026-08-15 00:30:00');
     expect(substr((string) DB::table('people_training_evaluations')->where('participant_id', $due->id)->value('due_on'), 0, 10))->toBe('2026-08-15');
 
-    // Guard: due on the as-of date and not completed counts; the completed one does not.
-    expect(tkpiSummary($f, '2026-08-15')->company['pending_evaluations']['value'])->toBe(1);
+    // Guard: overdue and not completed counts; the completed one does not.
+    expect(tkpiSummary($f, '2026-08-16')->company['pending_evaluations']['value'])->toBe(1);
+
+    // Guard: on the due date itself the row is not yet late, and the evaluations
+    // dashboard's overdue panel leaves it out too, so neither does the KPI.
+    expect(tkpiSummary($f, '2026-08-15')->company['pending_evaluations']['value'])->toBe(0);
 
     // Guard: a day before the due date, nothing is pending.
     expect(tkpiSummary($f, '2026-08-14')->company['pending_evaluations']['value'])->toBe(0);
@@ -422,4 +428,100 @@ test('every rendered table has a caption and each cell carries definition, as-of
     // Guard: the page is read-only.
     $page->call('selectCompany', $f['companyId'])->call('setAsOf', '2026-09-01');
     expect([DB::table('people_training_requests')->count(), DB::table('people_training_participation_facts')->count(), DB::table('people_training_evaluations')->count()])->toBe($before);
+});
+
+// ─── Drill honesty (review of 761615b) ───────────────────────────────────────
+
+/**
+ * The three findings both reviewers raised at 761615b: a drill link must land
+ * on a page whose filter reproduces the number that was clicked, or it must
+ * not carry that filter at all.
+ */
+test('the effectiveness drills carry no department, because the effectiveness summary filters by Core department and the KPI counts workforce organisation units', function (): void {
+    $f = tkpiFixture();
+    $o1 = tkpiAttendee($f, $f['o1']);
+    $q1 = tkpiAttendee($f, $f['q1']);
+    tkpiReview($f, $o1, EffectivenessReviewState::Closed, EffectivenessOutcome::Effective, ['baseline_level' => 2, 'post_level' => 3]);
+    tkpiReview($f, $q1, EffectivenessReviewState::Closed, EffectivenessOutcome::NotYetEffective);
+    $ops = tkpiDepartment(tkpiSummary($f), $f['ops']);
+
+    // The two identity spaces really are different: the KPI attributes the row
+    // to the workforce organisation unit, and perCourse() filtered by that same
+    // id returns nothing, because it compares Employee.department_id.
+    expect($ops['effectiveness_reviews']['value'])->toBe(1);
+    $unfiltered = app(TrainingEffectivenessAggregate::class)->perCourse($f['tenantId'], $f['companyId']);
+    $byOrgUnit = app(TrainingEffectivenessAggregate::class)->perCourse($f['tenantId'], $f['companyId'], (int) $f['ops']->id);
+    expect($unfiltered)->not->toBeEmpty();
+    expect($byOrgUnit)->toBe([]);
+
+    // Guard: so none of the four effectiveness metrics attaches a department.
+    foreach (['effectiveness_reviews', 'effective_pct', 'skill_improvement', 'open_followup'] as $key) {
+        expect($ops[$key]['drill']['route'])->toBe('people.training.effectiveness.summary');
+        expect($ops[$key]['drill']['params'])->not->toHaveKey('department');
+    }
+
+    // Guard: and the effectiveness summary no longer binds a department from
+    // the URL, so a stale link cannot silently filter to nothing.
+    Livewire::withQueryParams(['department' => (string) $f['ops']->id])
+        ->actingAs($f['hr'])->test(EffectivenessAggregateIndex::class)->assertOk()
+        ->assertSet('departmentEntityId', null);
+
+    // Guard: the rendered page links to the effectiveness summary without one.
+    expect(tkpiPage($f, $f['hr'])->assertOk()->html())
+        ->toContain('href="'.e(route('people.training.effectiveness.summary')).'"')
+        ->not->toContain(e(route('people.training.effectiveness.summary', ['department' => $f['ops']->id])));
+});
+
+test('the evaluations department drill scopes the events table, not only the overdue list, so attended and completion reproduce the department number', function (): void {
+    $f = tkpiFixture();
+    $o1 = tkpiAttendee($f, $f['o1']);
+    $q1 = tkpiAttendee($f, $f['q1']);
+    tkpiEvaluation($f, $o1, TrainingEvaluationStatus::Completed, 4);
+    tkpiEvaluation($f, $q1, TrainingEvaluationStatus::Completed, 2);
+    $ops = tkpiDepartment(tkpiSummary($f), $f['ops']);
+
+    expect($ops['attended']['value'])->toBe(1)
+        ->and($ops['evaluation_completion']['value'])->toBe(1.0)
+        ->and($ops['avg_evaluation']['value'])->toBe(4.0)
+        ->and($ops['attended']['drill'])->toBe(['route' => 'people.training.evaluations.index', 'params' => ['department' => (string) $f['ops']->id]]);
+
+    // Guard: unfiltered, the page shows both departments.
+    $whole = Livewire::actingAs($f['hr'])->test(EvaluationsIndex::class)->assertOk()->viewData('events');
+    expect(array_sum(array_column($whole, 'attended')))->toBe(2)
+        ->and(array_sum(array_column($whole, 'submitted')))->toBe(2);
+
+    $page = Livewire::withQueryParams($ops['attended']['drill']['params'])
+        ->actingAs($f['hr'])->test(EvaluationsIndex::class)->assertOk()
+        ->assertSet('department', (string) $f['ops']->id);
+    $rows = $page->viewData('events');
+
+    // Guard: the events table behind Attended / Completion / the means lists
+    // only the department's participants.
+    expect(array_sum(array_column($rows, 'attended')))->toBe($ops['attended']['value'])
+        ->and(array_sum(array_column($rows, 'submitted')))->toBe(1)
+        ->and($rows[0]['means']['relevance'])->toBe($ops['avg_evaluation']['value']);
+});
+
+test('pending evaluations counts only strictly overdue rows, the same rule the evaluations overdue panel runs, so a due-today row is on neither', function (): void {
+    $f = tkpiFixture();
+    $today = tkpiAttendee($f, $f['o1']);
+    $late = tkpiAttendee($f, $f['o2']);
+    tkpiEvaluation($f, $today, TrainingEvaluationStatus::Draft, 3, '2026-09-07');
+    tkpiEvaluation($f, $late, TrainingEvaluationStatus::Draft, 3, '2026-09-01');
+
+    $company = tkpiSummary($f)->company;
+    $panel = Livewire::withQueryParams($company['pending_evaluations']['drill']['params'])
+        ->actingAs($f['hr'])->test(EvaluationsIndex::class)->assertOk()->viewData('overdue');
+
+    // Guard: the KPI and its drill target agree — the drill's semantics won.
+    expect($company['pending_evaluations']['value'])->toBe(1)
+        ->and($panel['count'])->toBe(1)
+        ->and($company['pending_evaluations']['definition'])->toContain('overdue');
+
+    // Guard: on the due date itself neither counts the row.
+    Carbon::setTestNow('2026-09-01 10:00:00');
+    $onDueDay = tkpiSummary($f, '2026-09-01')->company;
+    $onDueDayPanel = Livewire::withQueryParams($onDueDay['pending_evaluations']['drill']['params'])
+        ->actingAs($f['hr'])->test(EvaluationsIndex::class)->assertOk()->viewData('overdue');
+    expect($onDueDay['pending_evaluations']['value'])->toBe(0)->and($onDueDayPanel['count'])->toBe(0);
 });

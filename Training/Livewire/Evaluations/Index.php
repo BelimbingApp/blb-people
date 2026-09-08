@@ -160,13 +160,17 @@ final class Index extends Component
         $this->authorizeView();
         $companyId = $this->companyId();
         $departments = $this->departmentNames($subjects, $companyId);
+        // One resolution of the department filter, used by every panel on the
+        // page. Null means "the whole company"; a list means exactly the
+        // employees of the selected organisation unit.
+        $scope = $this->departmentEmployeeSubjectIds($subjects, $companyId, $departments);
 
         return view('people::livewire.evaluations.index', [
-            'events' => $this->events($reader, $companyId),
+            'events' => $this->events($reader, $companyId, $scope),
             'paperCandidates' => $this->paperCandidates($this->tenantOf($reader), $companyId),
             'paperCriteria' => self::paperCriteria(),
             'canManageFollowups' => $this->canManageFollowups(),
-            'drillDown' => $this->drillDown($reader, $companyId),
+            'drillDown' => $this->drillDown($reader, $companyId, $scope),
             'departments' => $departments,
             'overdue' => $this->overdue($reminders, $subjects, $companyId, $departments),
         ]);
@@ -329,6 +333,48 @@ final class Index extends Component
         return ['count' => count($rows), 'rows' => $rows];
     }
 
+    /**
+     * The employees of the selected organisation unit, as the string subject
+     * ids the training tables store, or null for the whole company.
+     *
+     * The department filter has to reach the events table too, not only the
+     * overdue list: Attended, the response rate and the criterion means are
+     * all read from that table, and a drill-down that lands here with a
+     * department must show the rows behind the department's number (#389).
+     *
+     * @param  array<string, string>  $departments
+     * @return list<string>|null
+     */
+    private function departmentEmployeeSubjectIds(WorkforceSubjects $subjects, int $companyId, array $departments): ?array
+    {
+        if ($this->department === '' || ! array_key_exists($this->department, $departments)) {
+            return null;
+        }
+
+        $ids = [];
+        foreach ($subjects->employees($companyId) as $employee) {
+            if (($employee->organizationReference?->externalId ?? '') === $this->department) {
+                $ids[] = (string) $employee->reference->externalId;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param  Collection<int, TrainingEvaluation>  $rows
+     * @param  list<string>|null  $scope
+     * @return Collection<int, TrainingEvaluation>
+     */
+    private function inScope(Collection $rows, ?array $scope): Collection
+    {
+        if ($scope === null) {
+            return $rows;
+        }
+
+        return $rows->filter(static fn (TrainingEvaluation $evaluation): bool => in_array((string) $evaluation->employee_subject_id, $scope, true))->values();
+    }
+
     /** @return array<string, string> organization-unit stable id => name */
     private function departmentNames(WorkforceSubjects $subjects, int $companyId): array
     {
@@ -348,7 +394,7 @@ final class Index extends Component
      *
      * @return array{event_id: int, title: string, criterion: string|null, rows: list<array<string, mixed>>, mean: float|null, comment_columns: list<string>}|null
      */
-    private function drillDown(TrainingEvaluationReader $reader, int $companyId): ?array
+    private function drillDown(TrainingEvaluationReader $reader, int $companyId, ?array $scope = null): ?array
     {
         if ($this->openEventId === null) {
             return null;
@@ -359,6 +405,7 @@ final class Index extends Component
         abort_if($event === null, 404);
 
         $rows = $this->completed($reader->visibleTo(Auth::user(), $companyId)->where('event_id', $event->id)->orderBy('completed_at')->get());
+        $rows = $this->inScope($rows, $scope);
         if ($criterion !== null) {
             $rows = $rows->filter(static fn (TrainingEvaluation $e): bool => $e->{$criterion} !== null)->values();
         }
@@ -399,9 +446,9 @@ final class Index extends Component
     /**
      * @return list<array{event_id: int, title: string, attended: int, submitted: int, response_rate: int|null, means: array<string, float|null>, answered: array<string, int>, paper_entries: int, comments: list<array{participant: string, comment: string, from_paper: bool}>, flagged: list<array{evaluation_id: int, participant: string, support: array{id: int, status: string}|null, provider: array{id: int, status: string}|null}>}>
      */
-    private function events(TrainingEvaluationReader $reader, int $companyId): array
+    private function events(TrainingEvaluationReader $reader, int $companyId, ?array $scope = null): array
     {
-        $evaluations = $this->completed($reader->visibleTo(Auth::user(), $companyId)->get())->groupBy('event_id');
+        $evaluations = $this->inScope($this->completed($reader->visibleTo(Auth::user(), $companyId)->get()), $scope)->groupBy('event_id');
         $events = TrainingEvent::query()->forCompany($this->tenantOf($reader), $companyId)
             ->orderByDesc('starts_at')->get();
 
@@ -409,7 +456,7 @@ final class Index extends Component
             return [];
         }
 
-        $attended = $this->attendedCounts($this->tenantOf($reader), $companyId, $events->pluck('id')->all());
+        $attended = $this->attendedCounts($this->tenantOf($reader), $companyId, $events->pluck('id')->all(), $scope);
         $names = $this->participantNames($this->tenantOf($reader), $companyId, $events->pluck('id')->all());
         $followups = $this->followupStates($this->tenantOf($reader), $companyId, $evaluations->flatten()->all());
 
@@ -528,11 +575,16 @@ final class Index extends Component
      * @param  list<int>  $eventIds
      * @return array<int, int>
      */
-    private function attendedCounts(int $tenantId, int $companyId, array $eventIds): array
+    private function attendedCounts(int $tenantId, int $companyId, array $eventIds, ?array $scope = null): array
     {
         return TrainingParticipationFact::query()->forCompany($tenantId, $companyId)->current()
             ->whereIn('event_id', $eventIds)
             ->where('attendance', AttendanceStatus::Present->value)
+            ->when($scope !== null, fn ($query) => $query->whereIn(
+                'participant_id',
+                TrainingParticipant::query()->forCompany($tenantId, $companyId)
+                    ->whereIn('employee_subject_id', $scope)->select('id'),
+            ))
             ->get()
             ->groupBy('event_id')
             ->map(static fn ($facts): int => $facts->pluck('participant_id')->unique()->count())

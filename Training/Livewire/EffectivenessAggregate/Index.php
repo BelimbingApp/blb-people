@@ -10,7 +10,6 @@ use App\Domains\People\Training\Enums\EffectivenessCheckpoint;
 use App\Domains\People\Training\Services\TrainingEffectivenessAggregate;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
-use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
@@ -24,8 +23,12 @@ final class Index extends Component
 {
     public const VIEW_CAPABILITY = TrainingEffectivenessAggregate::VIEW;
 
-    /** URL-bound as `department` for the KPI drill-down (#389). */
-    #[Url(as: 'department')]
+    /**
+     * Deliberately not URL-bound. This page filters by Core Department
+     * (#437) and the training KPI dashboard counts by workforce organisation
+     * unit, so a `?department=` from there would filter to nothing; the KPI's
+     * effectiveness drills link here without one (#389).
+     */
     public ?int $departmentEntityId = null;
 
     public function mount(AuthorizationService $authorization): void

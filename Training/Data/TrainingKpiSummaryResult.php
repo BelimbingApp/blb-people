@@ -25,7 +25,7 @@ final readonly class TrainingKpiSummaryResult
         'pending_requests' => ['Pending Requests', 'Pending Requests counts training requests awaiting HOD, HR or final approval, raised on or before the as-of date.', 'count'],
         'approved_not_linked' => ['Approved — Not Linked', 'Approved — Not Linked counts approved requests that no scheduled training event satisfies yet (the register\'s approved_unlinked filter).', 'count'],
         'attended' => ['Attended Records', 'Attended Records counts enrolled participants with a current attendance fact of Present on an event that ended on or before the as-of date.', 'count'],
-        'pending_evaluations' => ['Pending Evaluations', 'Pending Evaluations counts attended participants whose evaluation is due on or before the as-of date and is not completed.', 'count'],
+        'pending_evaluations' => ['Pending Evaluations', 'Pending Evaluations counts attended participants whose evaluation was due before the as-of date and is not completed — overdue on the as-of date, the same rule the evaluations dashboard\'s overdue panel and the reminder command run. A row due on the as-of date itself is not yet late and is on neither.', 'count'],
         'overdue_effectiveness' => ['Overdue Effectiveness', 'Overdue Effectiveness counts 30/60/90-day checkpoints open on the as-of date that the HOD has not answered.', 'count'],
         'closed_effective' => ['Closed Effective Reviews', 'Closed Effective Reviews counts effectiveness reviews closed on or before the as-of date with outcome Effective.', 'count'],
     ];
