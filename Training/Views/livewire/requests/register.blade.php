@@ -162,6 +162,13 @@
                                 <div><dt class="text-muted">{{ __('Priority') }}</dt><dd class="mt-1 text-ink">{{ $selectedRequest['priority_label'] }}</dd></div>
                                 <div><dt class="text-muted">{{ __('Created') }}</dt><dd class="mt-1 text-ink tabular-nums"><x-ui.datetime :value="$selectedRequest['created_at_value']" format="date" /></dd></div>
                                 <div><dt class="text-muted">{{ __('Estimated cost') }}</dt><dd class="mt-1 text-ink tabular-nums">{{ $selectedRequest['estimated_cost_display'] ?? '—' }}</dd></div>
+                                <div><dt class="text-muted">{{ __('Approved budget') }}</dt><dd class="mt-1 text-ink tabular-nums">{{ $selectedRequest['approved_budget_display'] ?? '—' }}</dd></div>
+                                <div><dt class="text-muted">{{ __('Delivery method') }}</dt><dd class="mt-1 text-ink">{{ $selectedRequest['proposed_delivery_method'] ?: '—' }}</dd></div>
+                                <div><dt class="text-muted">{{ __('Trainer or provider') }}</dt><dd class="mt-1 text-ink">{{ $selectedRequest['proposed_provider'] ?: '—' }}</dd></div>
+                                @if ($selectedRequest['proposed_start_date_value'] !== null)
+                                    <div><dt class="text-muted">{{ __('Proposed start') }}</dt><dd class="mt-1 text-ink tabular-nums"><x-ui.datetime :value="$selectedRequest['proposed_start_date_value']" format="date" /></dd></div>
+                                    <div><dt class="text-muted">{{ __('Proposed end') }}</dt><dd class="mt-1 text-ink tabular-nums"><x-ui.datetime :value="$selectedRequest['proposed_end_date_value']" format="date" /></dd></div>
+                                @endif
                                 @if ($selectedRequest['linked_event_title'] !== '' || $selectedRequest['linked_event_id'] !== '')
                                     <div class="sm:col-span-2"><dt class="text-muted">{{ __('Linked event') }}</dt><dd class="mt-1 text-ink">{{ $selectedRequest['linked_event_title'] !== '' ? $selectedRequest['linked_event_title'] : __('Event :id', ['id' => $selectedRequest['linked_event_id']]) }}</dd></div>
                                 @endif

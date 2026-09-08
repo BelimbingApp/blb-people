@@ -209,9 +209,9 @@ final class Register extends Component
 
         return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'wb');
-            fputcsv($out, ['id', 'created_at', 'requestor', 'subjects', 'department', 'need', 'priority', 'status', 'estimated_cost', 'approver', 'decided_at', 'linked_event_id', 'linked_event_title']);
+            fputcsv($out, ['id', 'created_at', 'requestor', 'subjects', 'department', 'need', 'priority', 'status', 'estimated_cost', 'approved_budget', 'proposed_delivery_method', 'proposed_provider', 'proposed_start_date', 'proposed_end_date', 'approver', 'decided_at', 'linked_event_id', 'linked_event_title']);
             foreach ($rows as $row) {
-                fputcsv($out, [$row['id'], $row['created_at'], $row['requestor'], $row['subjects'], $row['department'], $row['need'], $row['priority'], $row['status'], $row['estimated_cost'], $row['approver'], $row['decided_at'], $row['linked_event_id'], $row['linked_event_title']]);
+                fputcsv($out, [$row['id'], $row['created_at'], $row['requestor'], $row['subjects'], $row['department'], $row['need'], $row['priority'], $row['status'], $row['estimated_cost'], $row['approved_budget'], $row['proposed_delivery_method'], $row['proposed_provider'], $row['proposed_start_date'], $row['proposed_end_date'], $row['approver'], $row['decided_at'], $row['linked_event_id'], $row['linked_event_title']]);
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);
@@ -282,7 +282,9 @@ final class Register extends Component
                 ->where(function ($query) use ($search, $matchingEmployees, $matchingDepartments, $matchingStatuses): void {
                     $query->whereLike('need', '%'.$search.'%')
                         ->orWhereLike('learning_objective', '%'.$search.'%')
-                        ->orWhereLike('expected_result', '%'.$search.'%');
+                        ->orWhereLike('expected_result', '%'.$search.'%')
+                        ->orWhereLike('proposed_delivery_method', '%'.$search.'%')
+                        ->orWhereLike('proposed_provider', '%'.$search.'%');
                     if ($matchingEmployees !== []) {
                         $query->orWhereIn('requestor_subject_id', $matchingEmployees);
                     }
@@ -344,6 +346,7 @@ final class Register extends Component
             $history = $decisions->get($request->id, collect());
             $finalDecision = $history->last(static fn (TrainingRequestDecision $decision): bool => in_array($decision->decision, self::FINAL_DECISIONS, true));
             $cost = $request->estimated_cost === null ? null : (float) $request->estimated_cost;
+            $approvedBudget = $request->approved_budget === null ? null : (float) $request->approved_budget;
 
             return [
                 'id' => (int) $request->id,
@@ -361,6 +364,14 @@ final class Register extends Component
                 'status_label' => $request->status->label(),
                 'estimated_cost' => $request->estimated_cost === null ? '' : (string) $request->estimated_cost,
                 'estimated_cost_display' => $cost === null ? null : $this->formatCost($cost, $currencyCode),
+                'approved_budget' => $request->approved_budget === null ? '' : (string) $request->approved_budget,
+                'approved_budget_display' => $approvedBudget === null ? null : $this->formatCost($approvedBudget, $currencyCode),
+                'proposed_delivery_method' => (string) $request->proposed_delivery_method,
+                'proposed_provider' => (string) $request->proposed_provider,
+                'proposed_start_date' => $request->proposed_start_date?->toDateString() ?? '',
+                'proposed_start_date_value' => $request->proposed_start_date,
+                'proposed_end_date' => $request->proposed_end_date?->toDateString() ?? '',
+                'proposed_end_date_value' => $request->proposed_end_date,
                 'approver' => $finalDecision === null ? '' : (string) ($actors->get((int) $finalDecision->actor_user_id)?->name ?? ''),
                 'decided_at' => $finalDecision === null ? '' : (string) $finalDecision->occurred_at?->toDateString(),
                 'decided_at_value' => $finalDecision?->occurred_at,

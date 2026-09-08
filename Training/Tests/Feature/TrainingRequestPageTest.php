@@ -300,12 +300,22 @@ test('the page offers self, one member, or the whole department, and the store d
         ->set('need', 'Operate the new press safely.')
         ->set('learningObjective', 'Run the press unsupervised.')
         ->set('expectedResult', 'Zero unsafe starts.')
+        ->set('estimatedCost', '1250.5000')
+        ->set('proposedDeliveryMethod', 'Instructor-led workshop')
+        ->set('proposedProvider', 'Belimbing Safety Academy')
+        ->set('proposedStartDate', '2026-10-12')
+        ->set('proposedEndDate', '2026-10-14')
         ->set('subjectMode', 'self')
         ->call('draft')
         ->assertHasNoErrors();
 
     $own = trainingReqRows($f)->sole();
-    expect(trainingReqSubjectIds($f, $own))->toBe([(string) $f['member']->id]);
+    expect(trainingReqSubjectIds($f, $own))->toBe([(string) $f['member']->id])
+        ->and($own->estimated_cost)->toBe('1250.5000')
+        ->and($own->proposed_delivery_method)->toBe('Instructor-led workshop')
+        ->and($own->proposed_provider)->toBe('Belimbing Safety Academy')
+        ->and($own->proposed_start_date->toDateString())->toBe('2026-10-12')
+        ->and($own->proposed_end_date->toDateString())->toBe('2026-10-14');
 });
 function trainingReqRejected(array $f, Employee $requestor, PeopleReferenceEntry $unit, string $need): TrainingRequest
 {
