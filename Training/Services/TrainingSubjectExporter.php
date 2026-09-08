@@ -55,29 +55,37 @@ final class TrainingSubjectExporter implements ExportsSupplementalSubjectRecords
         $subjectId = $subject->stableId;
         $sections = [];
 
-        if (! Schema::hasTable('people_training_participants')) {
-            return [];
+        // Participation gates only the participant-keyed children. The
+        // employee-keyed sections below must not depend on it: a passport
+        // document is written for an employee with no training events at all
+        // (TrainingPassportReader returns an empty passport in that case), and
+        // returning early here dropped that document from the export.
+        $participantIds = [];
+        if (Schema::hasTable('people_training_participants')) {
+            $participants = DB::table('people_training_participants')
+                ->where('tenant_id', $tenantId)
+                ->where('company_entity_id', $companyEntityId)
+                ->where('employee_subject_id', $subjectId)
+                ->orderBy('id')
+                ->get();
+            if ($participants->isNotEmpty()) {
+                $sections['people_training_participants'] = $participants->map(static fn (object $row): array => (array) $row)->all();
+                $participantIds = $participants->pluck('id')->all();
+            }
         }
 
-        $participants = DB::table('people_training_participants')
-            ->where('tenant_id', $tenantId)
-            ->where('company_entity_id', $companyEntityId)
-            ->where('employee_subject_id', $subjectId)
-            ->orderBy('id')
-            ->get();
-        if ($participants->isEmpty()) {
-            return [];
+        if ($participantIds !== []) {
+            $this->appendByParticipantIds($sections, 'people_training_participation_facts', $tenantId, $companyEntityId, $participantIds);
+            $this->appendByParticipantIds($sections, 'people_training_evidence_submissions', $tenantId, $companyEntityId, $participantIds);
+            $this->appendByParticipantIds($sections, 'people_training_evidence_decisions', $tenantId, $companyEntityId, $participantIds);
+            // This one keys training_participant_id, not participant_id. Passing
+            // the column explicitly rather than probing for it keeps the miss
+            // visible: a table named here with the wrong column exports nothing
+            // and says nothing, which is how these rows went missing.
+            $this->appendByParticipantIds($sections, 'people_training_effectiveness_reviews', $tenantId, $companyEntityId, $participantIds, 'training_participant_id');
+            $this->appendByParticipantIds($sections, 'people_training_effectiveness_answers', $tenantId, $companyEntityId, $participantIds);
+            $this->appendByParticipantIds($sections, 'people_training_effectiveness_reminders', $tenantId, $companyEntityId, $participantIds);
         }
-
-        $sections['people_training_participants'] = $participants->map(static fn (object $row): array => (array) $row)->all();
-        $participantIds = $participants->pluck('id')->all();
-
-        $this->appendByParticipantIds($sections, 'people_training_participation_facts', $tenantId, $companyEntityId, $participantIds);
-        $this->appendByParticipantIds($sections, 'people_training_evidence_submissions', $tenantId, $companyEntityId, $participantIds);
-        $this->appendByParticipantIds($sections, 'people_training_evidence_decisions', $tenantId, $companyEntityId, $participantIds);
-        $this->appendByParticipantIds($sections, 'people_training_effectiveness_reviews', $tenantId, $companyEntityId, $participantIds);
-        $this->appendByParticipantIds($sections, 'people_training_effectiveness_answers', $tenantId, $companyEntityId, $participantIds);
-        $this->appendByParticipantIds($sections, 'people_training_effectiveness_reminders', $tenantId, $companyEntityId, $participantIds);
 
         if (Schema::hasTable('people_training_evaluations')) {
             $rows = DB::table('people_training_evaluations')
@@ -133,13 +141,13 @@ final class TrainingSubjectExporter implements ExportsSupplementalSubjectRecords
      * @param  array<string, list<array<string, mixed>>>  $sections
      * @param  list<int|string>  $participantIds
      */
-    private function appendByParticipantIds(array &$sections, string $table, int $tenantId, int $companyEntityId, array $participantIds): void
+    private function appendByParticipantIds(array &$sections, string $table, int $tenantId, int $companyEntityId, array $participantIds, string $column = 'participant_id'): void
     {
-        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'participant_id')) {
+        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
             return;
         }
 
-        $query = DB::table($table)->where('tenant_id', $tenantId)->whereIn('participant_id', $participantIds);
+        $query = DB::table($table)->where('tenant_id', $tenantId)->whereIn($column, $participantIds);
         if (Schema::hasColumn($table, 'company_entity_id')) {
             $query->where('company_entity_id', $companyEntityId);
         }
