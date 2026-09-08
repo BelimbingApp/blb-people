@@ -17,7 +17,8 @@
                 "people/provider": "*"
             },
             "optional-modules": {
-                "people/organisation": "*"
+                "people/organisation": "*",
+                "people-connector/connector": "*"
             },
             "publishes-events": [
                 "App\\Domains\\People\\Skills\\Events\\SkillDefined",

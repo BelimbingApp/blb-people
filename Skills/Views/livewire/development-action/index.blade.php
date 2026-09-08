@@ -31,7 +31,23 @@
             </div>
 
             @if ($gaps->isEmpty())
-                <x-ui.alert variant="info">{{ __('No current assessed gaps need an action.') }}</x-ui.alert>
+                <x-ui.alert variant="info">
+                    <div class="space-y-2">
+                        @if ($hasFinalizedAssessments)
+                            <p>{{ __('Finalized assessments are available, but none shows a current skill gap that needs an action.') }}</p>
+                        @else
+                            <p>{{ __('No finalized assessments are available yet. This is not evidence that employees have no skill gaps.') }}</p>
+                            <p>{{ __('Development actions begin with an applicable requirement and a finalized assessment below that required level.') }}</p>
+                            @if ($mayViewAssessments)
+                                <x-ui.link :href="route('people.skill.assessment.matrix')" kind="internal">
+                                    {{ __('Open skill assessments') }}
+                                </x-ui.link>
+                            @else
+                                <p>{{ __('Ask an authorized assessor to complete the prerequisite assessment workflow.') }}</p>
+                            @endif
+                        @endif
+                    </div>
+                </x-ui.alert>
             @else
                 <x-ui.table :caption="__('Current assessed skill gaps')">
                     <x-slot:head><tr>
