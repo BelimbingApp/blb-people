@@ -94,6 +94,27 @@ final class MigrationLedger
             ->get();
     }
 
+    /**
+     * The durable identity an import uses for idempotence and resumption
+     * (0015-e): one ledger row per source digest + row number.
+     */
+    public function find(
+        int $companyEntityId,
+        string $sourceKey,
+        string $sourceSha256,
+        int $sourceRow,
+    ): ?TrainingMigrationLedgerEntry {
+        $tenantId = $this->tenants->requireTenantId();
+        $this->requireCompany($tenantId, $companyEntityId);
+
+        return TrainingMigrationLedgerEntry::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->where('source_key', $sourceKey)
+            ->where('source_sha256', $sourceSha256)
+            ->where('source_row', $sourceRow)
+            ->first();
+    }
+
     public function markReconciled(int $companyEntityId, int $ledgerId): TrainingMigrationLedgerEntry
     {
         return $this->mark($companyEntityId, $ledgerId, MigrationLedgerStatus::Reconciled);
