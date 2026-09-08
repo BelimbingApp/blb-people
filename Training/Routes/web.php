@@ -66,8 +66,8 @@ Route::middleware(['auth'])->group(function (): void {
         ->name('people.training.evidence.index');
 
     // HR sets the allocation; a HOD reads their own department's position.
-    // Both are the same page and the same capability to reach it — only
-    // people.training.budget.manage decides who may change an amount.
+    // The audience middleware rejects broad platform grants before mount, and
+    // the store repeats that boundary while manage decides who may write.
     Route::get('people/training/budget', BudgetIndex::class)
         ->middleware('authz:'.BudgetIndex::VIEW_CAPABILITY, AuthorizeTrainingBudgetAudience::class)
         ->name('people.training.budget.index');

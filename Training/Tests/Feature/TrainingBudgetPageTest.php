@@ -289,6 +289,35 @@ test('a core administrator without a People audience cannot read or write budget
         ->assertForbidden();
 });
 
+test('a core administrator with an explicit People HR assignment retains budget authority', function (): void {
+    $f = budgetFixture();
+    $platformAdmin = budgetUser($f['company'], 'core_admin');
+    PrincipalRole::query()->create([
+        'company_id' => $f['companyId'],
+        'principal_type' => PrincipalType::USER->value,
+        'principal_id' => $platformAdmin->id,
+        'role_id' => Role::query()->whereNull('company_id')->where('code', 'people_hr')->sole()->id,
+    ]);
+    $store = app(TrainingBudgetStore::class);
+
+    $store->setBudget(
+        $platformAdmin,
+        $f['companyId'],
+        (int) $f['department']->id,
+        (int) now()->year,
+        '5000.0000',
+        'Explicit People HR authority.',
+    );
+
+    expect($store->rollUp($platformAdmin, $f['companyId'], (int) now()->year))
+        ->toHaveCount(1)
+        ->and($store->mayManage($platformAdmin, $f['companyId']))->toBeTrue();
+
+    $this->actingAs($platformAdmin)
+        ->get(route('people.training.budget.index'))
+        ->assertOk();
+});
+
 test('a HOD reads only budgets for departments they currently head', function (): void {
     $f = budgetFixture();
     budgetBindHod($f);
