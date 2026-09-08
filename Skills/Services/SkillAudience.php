@@ -325,6 +325,24 @@ class SkillAudience
         }
     }
 
+    public function authorizeAudienceAs(User $user, string $functionalCapability, string $requiredAudience): void
+    {
+        if (! in_array($requiredAudience, $this->authorizeAudience($user, $functionalCapability), true)) {
+            $this->deny();
+        }
+    }
+
+    public function mayAccessAs(User $user, string $functionalCapability, string $requiredAudience): bool
+    {
+        try {
+            $this->authorizeAudienceAs($user, $functionalCapability, $requiredAudience);
+
+            return true;
+        } catch (AuthorizationDeniedException) {
+            return false;
+        }
+    }
+
     public function assertHr(User $user, int $companyEntityId): void
     {
         if (! $this->may($user, 'people.skill.catalog.manage', $companyEntityId, [self::HR])) {

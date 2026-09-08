@@ -92,7 +92,10 @@ it('returns only own published outcomes with versions and no private fields', fu
         ->and($result->trainingCertificates)->toBeNull()
         ->and($result->trainingAvailability->value)->toBe('unsupported');
     $serialized = json_encode($result, JSON_THROW_ON_ERROR);
-    expect($serialized)->not->toContain('PRIVATE', 'hod_decision_notes', 'assessor_user_id', 'evidence');
+    expect($serialized)->not->toContain('PRIVATE')
+        ->and($serialized)->not->toContain('hod_decision_notes')
+        ->and($serialized)->not->toContain('assessor_user_id')
+        ->and($serialized)->not->toContain('evidence');
 });
 
 it('refuses another employee even when the actor has HR authority', function () {

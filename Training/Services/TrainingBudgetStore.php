@@ -132,6 +132,35 @@ final class TrainingBudgetStore
         return $rows;
     }
 
+    /** @return array<int, string> department entity id => display name */
+    public function eligibleDepartments(User $actor, int $companyEntityId): array
+    {
+        $this->authorize($actor, $companyEntityId, self::MANAGE);
+
+        return PeopleReferenceEntry::query()
+            ->where('company_id', $companyEntityId)
+            ->where('type', PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT)
+            ->where('status', PeopleReferenceEntry::STATUS_ACTIVE)
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->mapWithKeys(static fn (string $name, int|string $id): array => [(int) $id => $name])
+            ->all();
+    }
+
+    /** @return array<int, string> department entity id => display name */
+    public function unallocatedDepartments(User $actor, int $companyEntityId, int $year): array
+    {
+        $departments = $this->eligibleDepartments($actor, $companyEntityId);
+        $allocated = TrainingDepartmentBudget::query()
+            ->forCompany($this->tenants->requireTenantId(), $companyEntityId)
+            ->where('budget_year', $year)
+            ->pluck('department_entity_id')
+            ->mapWithKeys(static fn (int|string $id): array => [(int) $id => true])
+            ->all();
+
+        return array_diff_key($departments, $allocated);
+    }
+
     /**
      * Set this year's amount for one department, recording how it changed.
      *
