@@ -126,10 +126,44 @@ final class TrainingBudgetStore
                 // Pending is shown but not deducted: it is not committed until
                 // somebody approves it.
                 remaining: $amount === null ? null : bcsub($amount, $approved, self::SCALE),
+                budgetId: $budget === null ? null : (int) $budget->id,
             );
         }
 
         return $rows;
+    }
+
+    /**
+     * Append-only allocation and override rows for the budgets visible on the
+     * roll-up page, keyed by department entity id.
+     *
+     * @return Collection<int, Collection<int, TrainingDepartmentBudgetAudit>>
+     */
+    public function allocationHistory(User $actor, int $companyEntityId, int $year): Collection
+    {
+        [$tenantId, $audiences] = $this->authorize($actor, $companyEntityId, self::VIEW);
+        $visibleDepartmentIds = in_array(SkillAudience::HR, $audiences, true)
+            ? null
+            : $this->audiences->visibleOrganizationUnitEntityIds($actor, $companyEntityId, self::VIEW);
+
+        $budgets = TrainingDepartmentBudget::query()->forCompany($tenantId, $companyEntityId)
+            ->when($visibleDepartmentIds !== null, fn ($query) => $query->whereIn('department_entity_id', $visibleDepartmentIds))
+            ->where('budget_year', $year)
+            ->get()
+            ->keyBy(static fn (TrainingDepartmentBudget $budget): int => (int) $budget->id);
+
+        if ($budgets->isEmpty()) {
+            return collect();
+        }
+
+        return TrainingDepartmentBudgetAudit::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->whereIn('training_department_budget_id', $budgets->keys()->all())
+            ->orderByDesc('occurred_at')
+            ->get()
+            ->groupBy(static function (TrainingDepartmentBudgetAudit $audit) use ($budgets): int {
+                return (int) $budgets->get((int) $audit->training_department_budget_id)?->department_entity_id;
+            });
     }
 
     /** @return array<int, string> department entity id => display name */
