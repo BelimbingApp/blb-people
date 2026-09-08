@@ -18,6 +18,7 @@ use App\Domains\People\Skills\Services\SkillReassessmentStore;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\ParticipationFactDraft;
 use App\Domains\People\Training\Enums\AttendanceStatus;
+use App\Domains\People\Training\Enums\CutoverWorkflow;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingParticipationException;
 use App\Domains\People\Training\Models\TrainingCourseSkill;
@@ -58,11 +59,13 @@ final class TrainingParticipationStore
         private readonly TrainingAudience $calendar,
         private readonly WorkforceSubjects $subjects,
         private readonly SkillReassessmentStore $reassessments,
+        private readonly CutoverWriteGuard $cutover,
     ) {}
 
     public function defineSession(User $actor, int $companyId, int $eventId, string $reference, DateTimeInterface $startsAt, DateTimeInterface $endsAt): TrainingSession
     {
         $tenant = $this->scope($actor, $companyId, self::MANAGE);
+        $this->cutover->assertWritable($companyId, CutoverWorkflow::Attendance);
         $event = $this->event($tenant, $companyId, $eventId);
         $this->authorizeEvent($actor, $event, false);
         $start = CarbonImmutable::instance($startsAt);
@@ -82,6 +85,7 @@ final class TrainingParticipationStore
     public function recordAttendance(User $actor, int $companyId, int $sessionId, WorkforceSubject $subject, ParticipationFactDraft $draft): TrainingParticipationFact
     {
         $tenant = $this->scope($actor, $companyId, self::MANAGE);
+        $this->cutover->assertWritable($companyId, CutoverWorkflow::Attendance);
         try {
             return DB::transaction(function () use ($actor, $companyId, $sessionId, $subject, $draft, $tenant): TrainingParticipationFact {
                 $session = $this->session($tenant, $companyId, $sessionId);

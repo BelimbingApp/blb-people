@@ -14,6 +14,7 @@ use App\Domains\People\Skills\Services\DevelopmentActionStore;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Data\EffectivenessOutcomeDraft;
 use App\Domains\People\Training\Data\EffectivenessReviewDraft;
+use App\Domains\People\Training\Enums\CutoverWorkflow;
 use App\Domains\People\Training\Enums\EffectivenessClosureRoute;
 use App\Domains\People\Training\Enums\EffectivenessOutcome;
 use App\Domains\People\Training\Enums\EffectivenessReviewState;
@@ -48,11 +49,13 @@ final class TrainingEffectivenessStore
         private readonly SkillAudience $audiences,
         private readonly ReadsWorkforceDirectory $directory,
         private readonly DevelopmentActionStore $developmentActions,
+        private readonly CutoverWriteGuard $cutover,
     ) {}
 
     public function openStage(User $actor, int $companyEntityId, EffectivenessReviewDraft $draft): TrainingEffectivenessReview
     {
         $tenantId = $this->scope($actor, $companyEntityId);
+        $this->cutover->assertWritable($companyEntityId, CutoverWorkflow::Effectiveness);
         $this->authorize($actor, SkillAudience::HOD, self::REVIEW_CAPABILITY,
             'Only a HOD may review training effectiveness.');
 

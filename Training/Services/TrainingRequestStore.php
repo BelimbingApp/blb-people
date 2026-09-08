@@ -16,6 +16,7 @@ use App\Domains\People\Skills\Services\CompanyAttribution;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
 use App\Domains\People\Training\Data\TrainingRequestSubjectsDraft;
+use App\Domains\People\Training\Enums\CutoverWorkflow;
 use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
@@ -45,6 +46,7 @@ final readonly class TrainingRequestStore
         private ResolvesWorkforceSubjects $subjects,
         private TrainingBudgetStore $budgets,
         private TrainingRequestNotifications $notifications,
+        private CutoverWriteGuard $cutover,
     ) {}
 
     /**
@@ -56,6 +58,7 @@ final readonly class TrainingRequestStore
     public function create(User $actor, int $companyId, TrainingRequestDraft $draft, ?TrainingRequestSubjectsDraft $subjects = null): TrainingRequest
     {
         $tenantId = $this->authorize($actor, $companyId, self::SUBMIT);
+        $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
         $this->validate($tenantId, $companyId, $draft);
         $resolved = $this->resolveSubjects($actor, $tenantId, $companyId, $draft,
             $subjects ?? TrainingRequestSubjectsDraft::forSubjects([$draft->requestor]));
@@ -301,6 +304,7 @@ final readonly class TrainingRequestStore
         TrainingRequestStatus $to, string $decision, string $capability, ?string $notes = null): TrainingRequest
     {
         $tenantId = $this->authorize($actor, $companyId, $capability);
+        $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
 
         return DB::transaction(function () use ($actor, $companyId, $requestId, $from, $to, $decision, $notes, $tenantId): TrainingRequest {
             $request = $this->find($tenantId, $companyId, $requestId);
