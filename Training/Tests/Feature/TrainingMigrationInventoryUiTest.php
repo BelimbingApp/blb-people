@@ -20,7 +20,7 @@ it('opens a separate source form with readable company-scoped owner choices', fu
         'principal_id' => $user->id,
         'role_id' => Role::query()->whereNull('company_id')->where('code', 'people_hr')->sole()->id,
     ]);
-    $owner = Employee::factory()->create(['company_id' => $company->id, 'full_name' => 'Mira Source Owner']);
+    $owner = Employee::factory()->create(['company_id' => $company->id, 'full_name' => 'Mira Source Owner', 'short_name' => null, 'status' => 'active']);
     Livewire::actingAs($user)->test(Index::class)
         ->assertDontSee('Owner (employee id)')
         ->assertDontSee('Estimated volume (records)')
