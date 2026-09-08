@@ -317,6 +317,7 @@ it('lands on Calendar and switches to the filterable Table alternate', function 
         ->assertSet('view', 'calendar')
         ->assertSee('Calendar')
         ->assertSee('Table')
+        ->assertDontSee('List')
         ->call('showTable')
         ->assertSet('view', 'table')
         ->assertSee('Mode switch briefing')
@@ -332,8 +333,9 @@ it('lets HR search and sort the schedule table without exposing a third list vie
 
     Livewire::actingAs($f['hr'])
         ->test(TrainingCalendar::class)
+        ->assertSee('New schedule')
         ->call('showTable')
-        ->set('search', 'forklift')
+        ->set('search', 'FORKLIFT')
         ->assertSee('Forklift refresh')
         ->assertDontSee('Safety briefing')
         ->call('sort', 'course_title_snapshot')
