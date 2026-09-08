@@ -23,6 +23,7 @@ use App\Domains\People\Skills\Enums\AssessmentMethod;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
 use App\Domains\People\Skills\Enums\SelectorType;
 use App\Domains\People\Skills\Livewire\MyHistory\Index as MySkillHistory;
+use App\Domains\People\Skills\Services\AssessmentLogImporter;
 use App\Domains\People\Skills\Services\AssessmentStore;
 use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\SkillAudienceAssignmentStore;
@@ -179,6 +180,9 @@ it('shows released history newest-first with the latest highlighted as current',
 
     $page = Livewire::actingAs($f['self'])->test(MySkillHistory::class);
     $page->assertSee('MH isolation')
+        ->assertSee('Assessor of record')
+        ->assertSee('History HR')
+        ->assertSee('Signed-in assessor submission')
         ->assertSeeInOrder([
             now()->subDays(2)->format('d M Y'),
             now()->subDays(9)->format('d M Y'),
@@ -188,6 +192,39 @@ it('shows released history newest-first with the latest highlighted as current',
     $entries = collect($page->viewData('groups')[0]['entries']);
     expect($entries->where('current', true)->count())->toBe(1)
         ->and($entries->firstWhere('current', true)['level'])->toBe(3);
+});
+
+it('distinguishes a verified historical import from a signed-in assessor submission', function (): void {
+    $this->withoutVite();
+    $f = mhFixture();
+    $skillId = mhSkill($f, 'imported-safety', 'Imported safety evidence');
+    mhRequirement($f, [$skillId]);
+
+    app(AssessmentStore::class)->importFinalized(
+        $f['hr'],
+        $f['companyId'],
+        new AssessmentDraft(
+            employeeEntityId: (int) $f['employee']->id,
+            skillId: $skillId,
+            assessedLevel: 3,
+            method: AssessmentMethod::DirectObservation,
+            cycle: AssessmentCycle::Annual,
+            assessedAt: now()->subDay(),
+            evidence: 'Verified historical observation.',
+            assessorUserId: (int) $f['hod']->id,
+        ),
+        AssessmentLogImporter::SOURCE,
+        'fixture-sha:7',
+        'Historical HOD verification attested.',
+    );
+
+    Livewire::actingAs($f['self'])
+        ->test(MySkillHistory::class)
+        ->assertSee('Imported safety evidence')
+        ->assertSee('History HOD')
+        ->assertSee('Verified assessment-log import')
+        ->assertSee('Imported by History HR')
+        ->assertDontSee('fixture-sha:7');
 });
 
 it('shows only the signed-in employee rows', function (): void {

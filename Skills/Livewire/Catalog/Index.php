@@ -3,10 +3,13 @@
 namespace App\Domains\People\Skills\Livewire\Catalog;
 
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
+use App\Base\Foundation\Livewire\Concerns\SelectsPerPage;
+use App\Base\Foundation\Livewire\Concerns\TogglesSort;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
 use App\Domains\People\Skills\Enums\CriticalClassification;
+use App\Domains\People\Skills\Enums\ProficiencyScaleStatus;
 use App\Domains\People\Skills\Enums\SkillScope;
 use App\Domains\People\Skills\Exceptions\InvalidSkillCatalogException;
 use App\Domains\People\Skills\Models\ProficiencyScale;
@@ -17,8 +20,12 @@ use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\SkillCatalogDefaults;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 /**
  * Catalog administration for HR (manage capability) with a read-only view for
@@ -31,8 +38,17 @@ use Livewire\Component;
  */
 class Index extends Component
 {
+    use SelectsPerPage;
+    use TogglesSort;
+    use WithPagination;
+
+    #[Url]
     public string $tab = 'skills';
 
+    #[Url(as: 'view', history: true)]
+    public string $catalogView = 'list';
+
+    #[Url(as: 'company')]
     public ?int $companyEntityId = null;
 
     public string $search = '';
@@ -43,15 +59,26 @@ class Index extends Component
 
     public bool $includeInactive = false;
 
+    public string $skillSortBy = 'code';
+
+    public string $skillSortDir = 'asc';
+
+    public string $categorySortBy = 'name';
+
+    public string $categorySortDir = 'asc';
+
     // Skill form state (null id = create).
+    #[Url(as: 'skill', history: true)]
     public ?int $editingSkillId = null;
 
     /** @var array<string, mixed> */
     public array $skillForm = [];
 
-    public ?string $newCategoryCode = null;
+    #[Url(as: 'category', history: true)]
+    public ?int $editingCategoryId = null;
 
-    public ?string $newCategoryName = null;
+    /** @var array<string, mixed> */
+    public array $categoryForm = [];
 
     /** @var array<int, string>|null */
     private ?array $allowedCompanies = null;
@@ -59,9 +86,24 @@ class Index extends Component
     public function mount(): void
     {
         $this->authorizeView();
+        if (! in_array($this->tab, ['skills', 'categories', 'scale'], true)) {
+            $this->tab = 'skills';
+        }
 
         $companies = $this->allowedCompanies();
-        $this->companyEntityId = count($companies) > 0 ? (int) array_key_first($companies) : null;
+        if ($this->companyEntityId === null) {
+            $this->companyEntityId = count($companies) > 0 ? (int) array_key_first($companies) : null;
+        } elseif (! array_key_exists($this->companyEntityId, $companies)) {
+            $this->companyEntityId = null;
+        }
+
+        if ($this->catalogView === 'skill-form') {
+            $this->startSkill($this->editingSkillId);
+        } elseif ($this->catalogView === 'category-form') {
+            $this->startCategory($this->editingCategoryId);
+        } else {
+            $this->catalogView = 'list';
+        }
     }
 
     public function selectCompany(int $companyEntityId): void
@@ -70,7 +112,10 @@ class Index extends Component
         abort_unless(array_key_exists($companyEntityId, $this->allowedCompanies()), 404);
 
         $this->companyEntityId = $companyEntityId;
-        $this->reset('editingSkillId', 'skillForm', 'filterCategoryId');
+        $this->reset('editingSkillId', 'skillForm', 'editingCategoryId', 'categoryForm', 'filterCategoryId');
+        $this->catalogView = 'list';
+        $this->resetPage();
+        $this->resetPage('categoriesPage');
     }
 
     public function installStarterPack(SkillCatalogDefaults $defaults): void
@@ -78,13 +123,14 @@ class Index extends Component
         $companyEntityId = $this->authorizedCompanyForManage();
 
         $defaults->install($companyEntityId);
+        session()->flash('status', __('The standard proficiency scale is published. Existing categories were preserved and missing standard categories were added.'));
     }
 
     public function startSkill(?int $skillId = null): void
     {
         $companyEntityId = $this->authorizedCompanyForManage();
 
-        $skill = $skillId === null ? null : $this->skills($companyEntityId)->firstWhere('id', $skillId);
+        $skill = $skillId === null ? null : $this->skillQuery($companyEntityId)->findOrFail($skillId);
         $this->editingSkillId = $skill?->id;
         $this->skillForm = [
             'code' => $skill->code ?? '',
@@ -97,11 +143,14 @@ class Index extends Component
             'default_assessment_method' => ($skill->default_assessment_method ?? AssessmentMethod::DirectObservation)->value,
             'default_reassessment_months' => $skill->default_reassessment_months ?? null,
         ];
+        $this->tab = 'skills';
+        $this->catalogView = 'skill-form';
     }
 
-    public function cancelSkill(): void
+    public function cancelForm(): void
     {
-        $this->reset('editingSkillId', 'skillForm');
+        $this->reset('editingSkillId', 'skillForm', 'editingCategoryId', 'categoryForm');
+        $this->catalogView = 'list';
     }
 
     public function saveSkill(SkillCatalogStore $store): void
@@ -139,14 +188,17 @@ class Index extends Component
             return;
         }
 
-        $this->reset('editingSkillId', 'skillForm');
+        session()->flash('status', $this->editingSkillId === null
+            ? __('Skill created successfully.')
+            : __('Skill updated successfully.'));
+        $this->cancelForm();
     }
 
     public function toggleSkillActive(int $skillId, SkillCatalogStore $store): void
     {
         $companyEntityId = $this->authorizedCompanyForManage();
 
-        $skill = $this->skills($companyEntityId)->firstWhere('id', $skillId);
+        $skill = $this->skillQuery($companyEntityId)->find($skillId);
         abort_if($skill === null, 404);
 
         try {
@@ -161,31 +213,40 @@ class Index extends Component
     public function saveCategory(SkillCatalogStore $store): void
     {
         $companyEntityId = $this->authorizedCompanyForManage();
+        $code = trim((string) ($this->categoryForm['code'] ?? ''));
+        $name = trim((string) ($this->categoryForm['name'] ?? ''));
 
         try {
-            $store->defineCategory(
-                $companyEntityId,
-                trim((string) $this->newCategoryCode),
-                trim((string) $this->newCategoryName),
-            );
+            if ($this->editingCategoryId === null) {
+                $store->defineCategory($companyEntityId, $code, $name);
+            } else {
+                $store->editCategory($companyEntityId, $this->editingCategoryId, $name);
+            }
         } catch (InvalidSkillCatalogException $exception) {
             $this->addError('categoryForm', $exception->getMessage());
 
             return;
         }
 
-        $this->reset('newCategoryCode', 'newCategoryName');
+        session()->flash('status', $this->editingCategoryId === null
+            ? __('Category created successfully.')
+            : __('Category updated successfully.'));
+        $this->cancelForm();
     }
 
-    public function renameCategory(int $categoryId, string $name, SkillCatalogStore $store): void
+    public function startCategory(?int $categoryId = null): void
     {
         $companyEntityId = $this->authorizedCompanyForManage();
+        $category = $categoryId === null ? null : $this->categories($companyEntityId)->firstWhere('id', $categoryId);
+        abort_if($categoryId !== null && $category === null, 404);
 
-        try {
-            $store->editCategory($companyEntityId, $categoryId, trim($name));
-        } catch (InvalidSkillCatalogException $exception) {
-            $this->addError('categoryForm', $exception->getMessage());
-        }
+        $this->editingCategoryId = $category?->id;
+        $this->categoryForm = [
+            'code' => $category->code ?? '',
+            'name' => $category->name ?? '',
+        ];
+        $this->tab = 'categories';
+        $this->catalogView = 'category-form';
     }
 
     public function toggleCategoryActive(int $categoryId, SkillCatalogStore $store): void
@@ -222,16 +283,49 @@ class Index extends Component
         $companyEntityId = $this->companyEntityId !== null && array_key_exists($this->companyEntityId, $companies)
             ? $this->companyEntityId
             : null;
+        $scales = $companyEntityId === null ? collect() : $this->scales($companyEntityId);
+        $categories = $companyEntityId === null ? collect() : $this->categories($companyEntityId);
+
+        if ($this->catalogView === 'skill-form') {
+            $companyEntityId = $this->authorizedCompanyForManage();
+
+            return view('people::livewire.catalog.skill-form', [
+                'categories' => $categories,
+                'scopeOptions' => SkillScope::cases(),
+                'methodOptions' => AssessmentMethod::cases(),
+                'classificationOptions' => CriticalClassification::cases(),
+                'skill' => $this->editingSkillId === null || $companyEntityId === null
+                    ? null
+                    : $this->skillQuery($companyEntityId)->findOrFail($this->editingSkillId),
+            ]);
+        }
+
+        if ($this->catalogView === 'category-form') {
+            $companyEntityId = $this->authorizedCompanyForManage();
+            $category = $this->editingCategoryId === null
+                ? null
+                : $categories->firstWhere('id', $this->editingCategoryId);
+            abort_if($this->editingCategoryId !== null && $category === null, 404);
+
+            return view('people::livewire.catalog.category-form', [
+                'category' => $category,
+            ]);
+        }
 
         return view('people::livewire.catalog.index', [
             'companies' => $companies,
-            'categories' => $companyEntityId === null ? collect() : $this->categories($companyEntityId),
-            'skills' => $companyEntityId === null ? collect() : $this->filteredSkills($companyEntityId),
-            'scales' => $companyEntityId === null ? collect() : $this->scales($companyEntityId),
+            'categoryOptions' => $categories,
+            'categories' => $companyEntityId === null ? $this->emptyPaginator('categoriesPage') : $this->paginatedCategories($companyEntityId),
+            'skills' => $companyEntityId === null ? $this->emptyPaginator() : $this->filteredSkills($companyEntityId),
+            'hasSkills' => $companyEntityId !== null && $this->skillQuery($companyEntityId)->exists(),
+            'scales' => $scales,
+            'hasPublishedScale' => $scales->contains(
+                fn (ProficiencyScale $scale): bool => $scale->status === ProficiencyScaleStatus::Published,
+            ),
+            'hasScaleDraft' => $scales->contains(
+                fn (ProficiencyScale $scale): bool => $scale->status === ProficiencyScaleStatus::Draft,
+            ),
             'canManage' => $this->canManage(),
-            'scopeOptions' => SkillScope::cases(),
-            'methodOptions' => AssessmentMethod::cases(),
-            'classificationOptions' => CriticalClassification::cases(),
         ]);
     }
 
@@ -282,31 +376,112 @@ class Index extends Component
      * anyone else simply does not load, and the view renders a blank cell
      * rather than another company's category name.
      */
-    private function skills(int $companyEntityId)
+    private function skillQuery(int $companyEntityId): Builder
     {
         $tenantId = app(TenantContext::class)->requireTenantId();
 
         return Skill::query()
             ->forCompany($tenantId, $companyEntityId)
-            ->with(['category' => fn ($query) => $query->forCompany($tenantId, $companyEntityId)])
-            ->orderBy('code')
-            ->get();
+            ->with(['category' => fn ($query) => $query->forCompany($tenantId, $companyEntityId)]);
     }
 
     private function filteredSkills(int $companyEntityId)
     {
-        return $this->skills($companyEntityId)
-            ->when($this->includeInactive === false, fn ($skills) => $skills->where('active', true))
-            ->when($this->filterCategoryId !== null, fn ($skills) => $skills->where('category_id', $this->filterCategoryId))
-            ->when($this->criticalOnly, fn ($skills) => $skills->filter->isCritical())
-            ->when(trim($this->search) !== '', function ($skills) {
-                $needle = mb_strtolower(trim($this->search));
+        $table = (new Skill)->getTable();
+        $sortColumn = [
+            'code' => $table.'.code',
+            'name' => $table.'.name',
+            'scope' => $table.'.scope',
+            'method' => $table.'.default_assessment_method',
+            'cadence' => $table.'.default_reassessment_months',
+        ][$this->skillSortBy] ?? $table.'.code';
 
-                return $skills->filter(
-                    fn (Skill $skill): bool => str_contains(mb_strtolower($skill->code.' '.$skill->name), $needle),
-                );
+        return $this->skillQuery($companyEntityId)
+            ->when(! $this->includeInactive, fn (Builder $query): Builder => $query->where($table.'.active', true))
+            ->when($this->filterCategoryId !== null, fn (Builder $query): Builder => $query->where($table.'.category_id', $this->filterCategoryId))
+            ->when($this->criticalOnly, fn (Builder $query): Builder => $query->whereNotNull($table.'.critical_classification'))
+            ->when(trim($this->search) !== '', function (Builder $query) use ($table): void {
+                $search = '%'.mb_strtolower(trim($this->search)).'%';
+                $query->whereRaw('(lower('.$table.'.code) like ? or lower('.$table.'.name) like ?)', [$search, $search]);
             })
-            ->values();
+            ->orderBy($sortColumn, $this->skillSortDir)
+            ->orderBy($table.'.id')
+            ->paginate($this->clampedPerPage());
+    }
+
+    private function paginatedCategories(int $companyEntityId)
+    {
+        $tenantId = app(TenantContext::class)->requireTenantId();
+        $table = (new SkillCategory)->getTable();
+        $skillTable = (new Skill)->getTable();
+        $skillCount = Skill::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->selectRaw('count(*)')
+            ->whereColumn($skillTable.'.category_id', $table.'.id');
+        $sortColumn = [
+            'code' => $table.'.code',
+            'name' => $table.'.name',
+            'skills' => 'skills_count',
+            'status' => $table.'.active',
+        ][$this->categorySortBy] ?? $table.'.name';
+
+        return SkillCategory::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->select($table.'.*')
+            ->selectSub($skillCount, 'skills_count')
+            ->orderBy($sortColumn, $this->categorySortDir)
+            ->orderBy($table.'.id')
+            ->paginate($this->clampedPerPage(), pageName: 'categoriesPage');
+    }
+
+    private function emptyPaginator(string $pageName = 'page'): LengthAwarePaginator
+    {
+        return new LengthAwarePaginator([], 0, $this->clampedPerPage(), 1, [
+            'path' => request()->url(),
+            'pageName' => $pageName,
+        ]);
+    }
+
+    public function sortSkills(string $column): void
+    {
+        $this->toggleSort($column, ['code', 'name', 'scope', 'method', 'cadence'], [
+            'code' => 'asc', 'name' => 'asc', 'scope' => 'asc', 'method' => 'asc', 'cadence' => 'asc',
+        ], 'skillSortBy', 'skillSortDir');
+    }
+
+    public function sortCategories(string $column): void
+    {
+        $this->toggleSort($column, ['code', 'name', 'skills', 'status'], [
+            'code' => 'asc', 'name' => 'asc', 'skills' => 'desc', 'status' => 'desc',
+        ], 'categorySortBy', 'categorySortDir', false);
+        $this->resetPage('categoriesPage');
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilterCategoryId(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedCriticalOnly(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedIncludeInactive(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedPerPage(mixed $value): void
+    {
+        $this->perPage = $this->clampedPerPage(is_numeric($value) ? (int) $value : null);
+        $this->resetPage();
+        $this->resetPage('categoriesPage');
     }
 
     private function scales(int $companyEntityId)

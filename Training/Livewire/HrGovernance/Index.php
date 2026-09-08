@@ -268,27 +268,49 @@ final class Index extends Component
 
         $reassessments = $companyEntityId === null ? collect() : $this->pendingReassessments($companyEntityId);
         $evidence = $companyEntityId === null ? collect() : $this->pendingEvidence($companyEntityId);
+        $profiles = $companyEntityId === null ? collect() : $this->pendingProfiles($companyEntityId);
+        $requests = $companyEntityId === null ? collect() : $this->pendingRequests($companyEntityId);
+        $approvedUnlinked = $companyEntityId === null ? collect() : app(TrainingRequestStore::class)->approvedUnlinkedQuery($this->tenantId(), $companyEntityId)->get();
+        $approvedLinked = $companyEntityId === null ? collect() : $this->approvedLinked($companyEntityId);
+        $plans = $companyEntityId === null ? collect() : $this->pendingPlans($companyEntityId);
+        $escalations = $companyEntityId === null ? collect() : $this->escalatedReviews($companyEntityId);
+        $failedDeliveries = $companyEntityId === null ? collect() : $this->failedDeliveries($companyEntityId);
+        $coverageGaps = $companyEntityId === null ? [] : $this->coverageGaps($companyEntityId);
+
+        $decisionCount = $profiles->count()
+            + $requests->count()
+            + $approvedUnlinked->count()
+            + $plans->count()
+            + $reassessments->count()
+            + $evidence->count();
+        $overdueCount = $reassessments
+            ->filter(static fn (SkillReassessmentRequest $request): bool => $request->due_at?->isBefore(today()) === true)
+            ->count();
+        $riskCount = $escalations->count() + count($coverageGaps) + $failedDeliveries->count();
 
         return view('people::livewire.hr-governance.index', [
             'companies' => $companies,
-            'profiles' => $companyEntityId === null ? collect() : $this->pendingProfiles($companyEntityId),
-            'requests' => $companyEntityId === null ? collect() : $this->pendingRequests($companyEntityId),
-            'approvedUnlinked' => $companyEntityId === null ? collect() : app(TrainingRequestStore::class)->approvedUnlinkedQuery($this->tenantId(), $companyEntityId)->get(),
-            'approvedLinked' => $companyEntityId === null ? collect() : $this->approvedLinked($companyEntityId),
+            'profiles' => $profiles,
+            'requests' => $requests,
+            'approvedUnlinked' => $approvedUnlinked,
+            'approvedLinked' => $approvedLinked,
             'linkableEvents' => $companyEntityId === null ? [] : $this->linkableEvents($companyEntityId),
             'eventTitles' => $companyEntityId === null ? [] : $this->eventTitles($companyEntityId),
-            'plans' => $companyEntityId === null ? collect() : $this->pendingPlans($companyEntityId),
+            'plans' => $plans,
             'reassessments' => $reassessments,
             'reassessmentSkills' => $this->reassessmentSkillNames($companyEntityId, $reassessments),
             'reassessmentEmployees' => $this->reassessmentEmployeeNames($companyEntityId, $reassessments),
             'reassessmentSources' => $this->reassessmentSourceLabels($companyEntityId, $reassessments),
             'evidenceSubmissions' => $evidence,
             'evidenceEmployees' => $this->evidenceEmployeeNames($companyEntityId, $evidence),
-            'escalations' => $companyEntityId === null ? collect() : $this->escalatedReviews($companyEntityId),
-            'failedDeliveries' => $companyEntityId === null ? collect() : $this->failedDeliveries($companyEntityId),
-            'coverageGaps' => $companyEntityId === null ? [] : $this->coverageGaps($companyEntityId),
+            'escalations' => $escalations,
+            'failedDeliveries' => $failedDeliveries,
+            'coverageGaps' => $coverageGaps,
             'passportEmployees' => $companyEntityId === null ? [] : $this->passportEmployees($companyEntityId),
             'passportDocuments' => $companyEntityId === null ? [] : $this->passportDocuments($companyEntityId),
+            'decisionCount' => $decisionCount,
+            'overdueCount' => $overdueCount,
+            'riskCount' => $riskCount,
         ]);
     }
 
@@ -619,12 +641,14 @@ final class Index extends Component
     private function authorizeView(): void
     {
         try {
-            $audiences = app(SkillAudience::class)->authorizeAudience($this->user(), self::VIEW_CAPABILITY);
+            app(SkillAudience::class)->authorizeAudienceAs(
+                $this->user(),
+                self::VIEW_CAPABILITY,
+                SkillAudience::HR,
+            );
         } catch (AuthorizationDeniedException) {
             abort(403);
         }
-
-        abort_unless(in_array(SkillAudience::HR, $audiences, true), 403);
     }
 
     /** @return array<int, string> */

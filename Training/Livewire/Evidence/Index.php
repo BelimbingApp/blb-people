@@ -6,6 +6,7 @@ use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEvidenceSubmissionException;
+use App\Domains\People\Training\Livewire\HrGovernance\Index as HrGovernanceIndex;
 use App\Domains\People\Training\Services\TrainingEvidenceSubmissionStore;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +20,9 @@ final class Index extends Component
     public const CAPABILITY = TrainingEvidenceSubmissionStore::SUBMIT;
 
     public ?int $companyEntityId = null;
+
+    /** Per-request memo; deliberately not Livewire state. */
+    private ?bool $identityMissing = null;
 
     public string $reflection = '';
 
@@ -75,11 +79,55 @@ final class Index extends Component
     public function render(): View
     {
         $companyEntityId = $this->companyEntityId === null ? null : $this->requireCompany();
+        $identityMissing = $this->employeeIdentityMissing();
 
         return view('people::livewire.evidence.index', [
             'companies' => $this->allowedCompanies(),
-            'events' => $companyEntityId === null ? [] : app(TrainingEvidenceSubmissionStore::class)->visibleEvents($this->user(), $companyEntityId),
+            'events' => $companyEntityId === null || $identityMissing
+                ? []
+                : app(TrainingEvidenceSubmissionStore::class)->visibleEvents($this->user(), $companyEntityId),
+            'employeeIdentityMissing' => $identityMissing,
+            'mayReviewEvidenceQueue' => $identityMissing && $this->mayReviewEvidenceQueue(),
         ]);
+    }
+
+    /**
+     * Whether to offer the HR evidence queue as the next step.
+     *
+     * #434's explicit expectation: an HR manager with no personal employee
+     * linkage is not stuck. The queue they want already exists at
+     * people.hr-governance.index, so this points at it rather than implying
+     * personal submission is the only door -- and it asks with that page's own
+     * gate, capability plus HR audience, so the link never appears to someone
+     * who would be refused on arrival.
+     */
+    private function mayReviewEvidenceQueue(): bool
+    {
+        try {
+            $audiences = app(SkillAudience::class)->authorizeAudience($this->user(), HrGovernanceIndex::VIEW_CAPABILITY);
+        } catch (AuthorizationDeniedException) {
+            return false;
+        }
+
+        return in_array(SkillAudience::HR, $audiences, true);
+    }
+
+    /**
+     * Whether this account is authorized here but has no employee identity.
+     *
+     * Asking before visibleEvents() is what keeps the first render from dying:
+     * the store denies inside scope(), and that exception used to escape
+     * render() as an unhandled 500 (#434). The action-level submit() catch
+     * never covered the initial GET.
+     */
+    private function employeeIdentityMissing(): bool
+    {
+        if ($this->companyEntityId === null) {
+            return false;
+        }
+
+        return $this->identityMissing ??= ! app(TrainingEvidenceSubmissionStore::class)
+            ->hasEmployeeIdentity($this->user(), $this->requireCompany());
     }
 
     private function resetForm(): void

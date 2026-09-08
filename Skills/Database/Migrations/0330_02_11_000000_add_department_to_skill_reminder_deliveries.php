@@ -1,5 +1,6 @@
 <?php
 
+use App\Base\Database\Concerns\IncubatingSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -19,9 +20,18 @@ use Illuminate\Support\Facades\Schema;
  * plan, so a weekly nag would arrive before anyone could have acted on the
  * last one. Both shapes are eight characters, and a rule's rows only ever
  * carry its own shape, so `retry()` matches on either key of the moment.
+ *
+ * Declares IncubatingSchema because it alters people_connector_skill_reminder_deliveries,
+ * which 0330_02_09 creates as incubating. A stable forward onto an incubating table
+ * is what IncubatingSchemaConflictException refuses: rebuilding the create alone
+ * would drop this column and unique key while the ledger still claimed they were
+ * applied. Joining the replay chain means they are dropped and recreated with the
+ * table they belong to.
  */
 return new class extends Migration
 {
+    use IncubatingSchema;
+
     public function up(): void
     {
         Schema::table('people_connector_skill_reminder_deliveries', function (Blueprint $table): void {

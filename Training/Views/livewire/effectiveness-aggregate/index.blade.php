@@ -4,6 +4,69 @@
         :subtitle="__('Applied-rating means and answer rates per course at each checkpoint, for events that ended in the last twelve months.')"
     />
 
+    @include('people::livewire.effectiveness.partials.tabs')
+
+    @if (session('effectiveness-policy-status'))
+        <x-ui.alert variant="success">{{ session('effectiveness-policy-status') }}</x-ui.alert>
+    @endif
+
+    @if ($mayManage)
+        <x-ui.card>
+            <div class="space-y-4">
+                <h2 class="text-lg font-semibold text-ink">{{ __('Set checkpoint policy') }}</h2>
+                <p class="text-sm text-muted">
+                    {{ __('How many days after an event ends each effectiveness question opens. Changes are prospective and append-only.') }}
+                </p>
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <x-ui.input type="number" min="1" wire:model="day30" :label="__('30-day offset (days)')" />
+                    <x-ui.input type="number" min="1" wire:model="day60" :label="__('60-day offset (days)')" />
+                    <x-ui.input type="number" min="1" wire:model="day90" :label="__('90-day offset (days)')" />
+                    <x-ui.input type="date" wire:model="effectiveFrom" :label="__('Effective from')" />
+                    <div class="sm:col-span-2">
+                        <x-ui.input type="text" wire:model="reason" :label="__('Reason')" />
+                    </div>
+                </div>
+                <x-ui.button type="button" variant="primary" wire:click="setPolicy">
+                    {{ __('Record policy') }}
+                </x-ui.button>
+            </div>
+        </x-ui.card>
+    @endif
+
+    <x-ui.card>
+        <div class="space-y-4">
+            <h2 class="text-lg font-semibold text-ink">{{ __('Checkpoint policy history') }}</h2>
+            @if ($policyHistory === [])
+                <p class="text-sm text-muted">{{ __('No company policy has been set; workbook defaults (30 / 60 / 90) apply.') }}</p>
+            @else
+                <x-ui.table :caption="__('Checkpoint policy history for this company')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Effective from') }}</x-ui.th>
+                            <x-ui.th>{{ __('30-day') }}</x-ui.th>
+                            <x-ui.th>{{ __('60-day') }}</x-ui.th>
+                            <x-ui.th>{{ __('90-day') }}</x-ui.th>
+                            <x-ui.th>{{ __('Set by') }}</x-ui.th>
+                            <x-ui.th>{{ __('Reason') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($policyHistory as $policy)
+                            <tr wire:key="policy-{{ $policy->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm tabular-nums">{{ $policy->effective_from->toDateString() }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm tabular-nums">{{ $policy->day_30_offset }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm tabular-nums">{{ $policy->day_60_offset }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm tabular-nums">{{ $policy->day_90_offset }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $setByNames[$policy->set_by_user_id] ?? __('Unknown') }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted">{{ $policy->reason }}</td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
+            @endif
+        </div>
+    </x-ui.card>
+
     @if ($departments !== [])
         <div class="flex flex-wrap items-center gap-2 text-sm">
             <x-ui.button type="button" wire:click="$set('departmentEntityId', null)" :variant="$departmentEntityId === null ? 'primary' : 'secondary'">
