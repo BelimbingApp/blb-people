@@ -47,7 +47,7 @@
                     <x-slot:head>
                         <tr>
                             <x-ui.th>{{ __('Key') }}</x-ui.th>
-                            <x-ui.th><button type="button" wire:click="sortSources" class="font-semibold underline underline-offset-4">{{ __('Source') }} {{ $sortDirection === 'asc' ? __('(A–Z)') : __('(Z–A)') }}</button></x-ui.th>
+                            <x-ui.sortable-th column="name" sort-by="name" :sort-dir="$sortDirection" action="sortSources">{{ __('Source') }}</x-ui.sortable-th>
                             <x-ui.th>{{ __('Kind') }}</x-ui.th>
                             <x-ui.th>{{ __('Owner') }}</x-ui.th>
                             <x-ui.th>{{ __('Format') }}</x-ui.th>
@@ -111,12 +111,10 @@
                         @endforeach
                     </x-ui.select>
                     <x-ui.input type="text" wire:model="format" :label="__('Format')" :placeholder="__('e.g. xlsx, csv, paper')" />
-                    <x-ui.select id="migration-source-owner" wire:model="ownerEmployeeEntityId" :label="__('Owner')">
-                        <option value="">{{ __('Not assigned') }}</option>
-                        @foreach ($employees as $employeeId => $employeeName)
-                            <option value="{{ $employeeId }}">{{ $employeeName }}</option>
-                        @endforeach
-                    </x-ui.select>
+                    <x-ui.combobox id="migration-source-owner" wire:model="ownerEmployeeEntityId"
+                        :label="__('Owner')" :placeholder="__('Search employees')"
+                        :hint="__('Optional · employees in this company')"
+                        :options="$employees->map(fn ($name, $id) => ['value' => (string) $id, 'label' => $name])->values()->all()" />
                     <x-ui.input type="text" wire:model="estimatedVolume" :label="__('Estimated volume (records)')" />
                     <x-ui.input type="text" wire:model="retentionNote" :label="__('Retention')" />
                     <x-ui.input type="text" wire:model="dataQualityNote" :label="__('Data quality')" />
