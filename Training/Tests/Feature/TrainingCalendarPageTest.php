@@ -126,7 +126,7 @@ function calendarFixture(): array
     ];
 }
 
-function calendarEvent(Company $company, Employee $organizer, string $title, int $capacity = 10, ?int $departmentEntityId = null): TrainingEvent
+function calendarEvent(Company $company, Employee $organizer, string $title, int $capacity = 10, ?int $departmentEntityId = null, ?DateTimeImmutable $startsAt = null): TrainingEvent
 {
     $catalog = app(SkillCatalogStore::class);
     $category = $catalog->defineCategory((int) $company->id, 'cal-'.Str::lower(Str::random(8)), 'Calendar');
@@ -138,8 +138,10 @@ function calendarEvent(Company $company, Employee $organizer, string $title, int
         skillIds: [(int) $skill->id], internalTrainerEmployeeEntityId: (int) $organizer->id,
     ));
 
+    $startsAt ??= new DateTimeImmutable(now()->addDays(3)->startOfHour()->format(DATE_ATOM));
+
     return app(TrainingEventStore::class)->schedule((int) $company->id, new TrainingEventDraft(
-        courseId: (int) $course->id, startsAt: now()->addDays(3)->startOfHour(), endsAt: now()->addDays(3)->startOfHour()->addHours(2),
+        courseId: (int) $course->id, startsAt: $startsAt, endsAt: $startsAt->modify('+2 hours'),
         capacity: $capacity, organizerEmployeeEntityId: (int) $organizer->id,
         targetDepartmentEntityId: $departmentEntityId,
     ));
@@ -346,7 +348,13 @@ it('lets HR search and sort the schedule table without exposing a third list vie
 
 it('keeps the HR schedule return state in the New schedule link', function (): void {
     $f = calendarFixture();
-    $event = calendarEvent($f['company'], $f['trainerEmployee'], 'Forklift stateful revision');
+    $event = calendarEvent(
+        $f['company'],
+        $f['trainerEmployee'],
+        'Forklift stateful revision',
+        departmentEntityId: $f['headEntryId'],
+        startsAt: new DateTimeImmutable('2026-10-10T09:00:00+00:00'),
+    );
     $return = [
         'company' => (int) $f['company']->id,
         'view' => 'table',
