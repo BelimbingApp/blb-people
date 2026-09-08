@@ -57,6 +57,11 @@ class ServiceProvider extends BaseServiceProvider
                     && app(SkillAudience::class)->mayAccess($user, 'people.training.event.view'),
             );
             $registry->register(
+                'people.training.kpi-audience',
+                static fn (Authenticatable $user): bool => $user instanceof User
+                    && app(SkillAudience::class)->mayAccess($user, 'people.training.kpi.view'),
+            );
+            $registry->register(
                 'people.training.calendar-audience',
                 static fn (Authenticatable $user): bool => $user instanceof User
                     && app(SkillAudience::class)->mayAccess($user, 'people.training.calendar.view'),
@@ -65,6 +70,15 @@ class ServiceProvider extends BaseServiceProvider
                 'people.training.budget-audience',
                 static fn (Authenticatable $user): bool => $user instanceof User
                     && app(TrainingBudgetStore::class)->mayView($user, (int) $user->company_id),
+            );
+            $registry->register(
+                'people.training.hr-governance-audience',
+                static fn (Authenticatable $user): bool => $user instanceof User
+                    && app(SkillAudience::class)->mayAccessAs(
+                        $user,
+                        'people.skill.hr.view',
+                        SkillAudience::HR,
+                    ),
             );
         });
     }

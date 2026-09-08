@@ -2,17 +2,13 @@
 
 namespace App\Domains\People\Training\Services;
 
-use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Data\WorkforceSubject;
-use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Models\Skill;
-use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Data\TrainingPassport;
 use App\Domains\People\Training\Data\TrainingPassportCertificate;
 use App\Domains\People\Training\Data\TrainingPassportEvent;
 use App\Domains\People\Training\Data\TrainingPassportSkill;
-use App\Domains\People\Training\Exceptions\TrainingPassportDenied;
 use App\Domains\People\Training\Models\TrainingCourseSkill;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingParticipant;
@@ -25,31 +21,13 @@ final class TrainingPassportReader
     public const VIEW_CAPABILITY = 'people.training.passport.view';
 
     public function __construct(
-        private readonly TenantContext $tenantContext,
-        private readonly SkillAudience $audience,
+        private readonly TrainingPassportAccess $access,
     ) {}
 
     public function read(User $actor, WorkforceSubject $subject): TrainingPassport
     {
-        $tenantId = $this->tenantContext->requireTenantId();
-        if ($subject->tenantId !== $tenantId
-            || $subject->companyId === null
-            || $actor->tenant_id !== $tenantId
-            || $actor->company_id !== $subject->companyId
-            || $subject->type !== WorkforceResourceType::Employee
-            || ! ctype_digit($subject->stableId)) {
-            throw new TrainingPassportDenied('The training passport is unavailable in the current scope.');
-        }
-
-        $visible = $this->audience->visibleEmployeeEntityIdsFor(
-            $actor,
-            (int) $subject->companyId,
-            self::VIEW_CAPABILITY,
-            includeSelf: true,
-        );
-        if (! in_array((int) $subject->stableId, $visible, true)) {
-            throw new TrainingPassportDenied('The training passport is unavailable in the current scope.');
-        }
+        $this->access->authorize($actor, $subject);
+        $tenantId = $subject->tenantId;
 
         $participants = TrainingParticipant::query()
             ->forCompany($tenantId, (int) $subject->companyId)

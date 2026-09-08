@@ -143,9 +143,13 @@ final class PositionDirectory
     {
         $fromDay = $this->day($from);
 
+        // Date predicates, not bare string compare: immutable_date columns
+        // store 'Y-m-d 00:00:00', and that string is not <= 'Y-m-d' (#446).
+        // Keep the null-or-end clause as one AND whereRaw — a nested
+        // orWhereDate would trip RequireCompanyScope's AND-only tree.
         return $query
-            ->whereRaw('(effective_to is null or effective_to >= ?)', [$fromDay])
-            ->when($to !== null, fn ($inner) => $inner->where('effective_from', '<=', $this->day($to)));
+            ->whereRaw('(effective_to is null or date(effective_to) >= ?)', [$fromDay])
+            ->when($to !== null, fn ($inner) => $inner->whereDate('effective_from', '<=', $this->day($to)));
     }
 
     /**
@@ -156,8 +160,8 @@ final class PositionDirectory
     {
         $day = $this->day($asOf);
 
-        return $query->where('effective_from', '<=', $day)
-            ->whereRaw('(effective_to is null or effective_to >= ?)', [$day]);
+        return $query->whereDate('effective_from', '<=', $day)
+            ->whereRaw('(effective_to is null or date(effective_to) >= ?)', [$day]);
     }
 
     private function day(DateTimeInterface $moment): string
