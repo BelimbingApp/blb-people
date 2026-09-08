@@ -4,7 +4,7 @@
 **Status:** Contract defined; implementation remains tracked by
 [plan 0003](../plans/0003-people-training-planning-and-delivery.md).
 **Issue:** BelimbingApp/blb-people#132
-**Last updated:** 2026-09-05
+**Last updated:** 2026-09-08
 
 This contract defines the governed plan that sits between identified training needs and
 training delivery. An approved request, a course catalogue entry, or an event register is
@@ -165,3 +165,12 @@ Plan objectives, actions, responsibilities, approval decisions, delivery records
 reviews, and competence evidence may satisfy different controls and therefore remain
 separately addressable. Applicability and interpretation belong to the QMS owner using
 authorized standards. The software and this contract do not claim ISO conformity.
+
+## Training request revision
+
+A rejected training request returns to `draft` only through revision
+(`TrainingRequestStore::revise()`): the request keeps its key, requestor,
+department and author, the `rejected` decision row is never rewritten, and one
+`revised` decision records the notes. Revision is the only way out of
+`rejected`; `cancelled` stays terminal and can never be revised or
+resubmitted.

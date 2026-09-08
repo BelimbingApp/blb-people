@@ -4,6 +4,7 @@ namespace App\Domains\People\Training\Livewire\Event;
 
 use App\Base\Foundation\Contracts\SemanticActionRecorder;
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
@@ -232,6 +233,7 @@ final class Index extends Component
         $departments = collect();
         $employees = collect();
         $history = collect();
+        $historyRows = collect();
         $summaries = [];
         $canManage = false;
         $canExport = false;
@@ -268,14 +270,32 @@ final class Index extends Component
                 ->whereIn('training_event_id', $events->pluck('id'))
                 ->orderByDesc('occurred_at')->get()->groupBy('training_event_id');
             $summaries = $participation->forEvents($company, $events->pluck('id')->map(intval(...))->all());
+
+            // History actors may not appear on the event itself (notes, system
+            // lifecycle). Widen the employee map and resolve user display names
+            // so the disclosure can name who acted without a second query in Blade.
+            $historyRows = $history->flatten(1);
+            $employees = $employees->merge(
+                $this->employeeOptions($company)->whereIn(
+                    'workforce_entity_id',
+                    $historyRows->pluck('actor_employee_entity_id')->filter()->unique(),
+                ),
+            )->unique('workforce_entity_id')->values();
         }
+
+        $historyActors = $historyRows->isEmpty()
+            ? collect()
+            : User::query()
+                ->whereIn('id', $historyRows->pluck('actor_user_id')->filter()->unique()->all())
+                ->get()
+                ->keyBy('id');
 
         $facts = $company !== null && array_key_exists($company, $companies)
             ? $this->confirmedFactRows($company, $events->modelKeys(), $employees)
             : collect();
 
         return view('people::livewire.event.index', compact(
-            'companies', 'events', 'courses', 'departments', 'employees', 'history', 'summaries', 'canManage', 'canExport', 'facts',
+            'companies', 'events', 'courses', 'departments', 'employees', 'history', 'historyActors', 'summaries', 'canManage', 'canExport', 'facts',
         ));
     }
 

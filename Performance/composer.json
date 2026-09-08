@@ -18,7 +18,9 @@
                 "people/provider": "*",
                 "people/skills": "*"
             },
-            "optional-modules": {},
+            "optional-modules": {
+                "people-connector/connector": "*"
+            },
             "publishes-events": [],
             "consumes-events": []
         }
