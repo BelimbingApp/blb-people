@@ -15,7 +15,8 @@
                         <tr>
                             <x-ui.th>{{ __('Assessed') }}</x-ui.th>
                             <x-ui.th>{{ __('Level') }}</x-ui.th>
-                            <x-ui.th>{{ __('Assessor') }}</x-ui.th>
+                            <x-ui.th>{{ __('Assessor of record') }}</x-ui.th>
+                            <x-ui.th>{{ __('Recorded through') }}</x-ui.th>
                             <x-ui.th>{{ __('Valid until') }}</x-ui.th>
                             <x-ui.th>{{ __('State') }}</x-ui.th>
                         </tr>
@@ -26,6 +27,12 @@
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $entry['assessedAt']->format('d M Y') }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $entry['level'] }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $entry['assessor'] }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
+                                    <span>{{ $entry['recordChannel'] }}</span>
+                                    @if ($entry['importedBy'] !== null)
+                                        <span class="block text-muted">{{ __('Imported by :name', ['name' => $entry['importedBy']]) }}</span>
+                                    @endif
+                                </td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $entry['validUntil'] === null ? __('No expiry') : $entry['validUntil']->format('d M Y') }}</td>
                                 <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
                                     @if ($entry['current'])
