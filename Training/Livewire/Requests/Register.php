@@ -47,10 +47,15 @@ final class Register extends Component
 
     public int $year;
 
-    /** URL-bound so a reminder can link straight to the approved-unlinked view (0009-h). */
+    /**
+     * URL-bound so a reminder can link straight to the approved-unlinked view
+     * (0009-h). A comma-separated list of statuses is honoured so the KPI
+     * dashboard's "pending" drill can name all three pending states (#389).
+     */
     #[Url]
     public string $status = '';
 
+    #[Url]
     public string $department = '';
 
     /** @var array<string, string>|null */
@@ -134,8 +139,11 @@ final class Register extends Component
             ->orderByDesc('id');
         if ($this->status === self::FILTER_APPROVED_UNLINKED) {
             $query->where('status', TrainingRequestStatus::Approved->value)->whereNull('training_event_id');
-        } elseif ($this->status !== '' && TrainingRequestStatus::tryFrom($this->status) !== null) {
-            $query->where('status', $this->status);
+        } elseif ($this->status !== '') {
+            $statuses = array_values(array_filter(explode(',', $this->status), static fn (string $s): bool => TrainingRequestStatus::tryFrom($s) !== null));
+            if ($statuses !== []) {
+                $query->whereIn('status', $statuses);
+            }
         }
         if ($this->department !== '' && array_key_exists($this->department, $departments)) {
             $query->where('department_subject_id', $this->department);

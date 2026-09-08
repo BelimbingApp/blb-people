@@ -52,6 +52,11 @@ class ServiceProvider extends BaseServiceProvider
                     && app(SkillAudience::class)->mayAccess($user, 'people.training.event.view'),
             );
             $registry->register(
+                'people.training.kpi-audience',
+                static fn (Authenticatable $user): bool => $user instanceof User
+                    && app(SkillAudience::class)->mayAccess($user, 'people.training.kpi.view'),
+            );
+            $registry->register(
                 'people.training.calendar-audience',
                 static fn (Authenticatable $user): bool => $user instanceof User
                     && app(SkillAudience::class)->mayAccess($user, 'people.training.calendar.view'),
