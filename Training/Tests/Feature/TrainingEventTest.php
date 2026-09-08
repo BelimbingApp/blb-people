@@ -346,16 +346,9 @@ test('saved course History is available on the revise form for HR and withheld f
     $hod = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
     trainingEventRole($hr, 'people_hr');
     trainingEventRole($hod, 'people_hod');
-    // Grant before any authorize() that warms GrantPolicy's per-actor EffectivePermissions
-    // cache — bindHod and Livewire otherwise keep a pre-grant snapshot and History stays empty
-    // on platform main (which still requires admin.audit.log.list until belimbing #926 lands).
-    PrincipalCapability::query()->create([
-        'company_id' => $hr->company_id,
-        'principal_type' => PrincipalType::USER->value,
-        'principal_id' => $hr->id,
-        'capability_key' => 'admin.audit.log.list',
-        'is_allowed' => true,
-    ]);
+    // History opens on the page capability alone (`require-audit-list-capability=false`
+    // after belimbing #926). Do not grant admin.audit.log.list — that would mask a broken
+    // local integration and contradict #433's "without granting broad admin audit access".
     trainingEventBindHod($hr, $hod, $fixture, 'review:training-catalog-history');
 
     $courseId = (int) $fixture['course']->id;
