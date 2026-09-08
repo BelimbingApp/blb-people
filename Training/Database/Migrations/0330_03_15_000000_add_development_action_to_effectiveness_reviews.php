@@ -47,7 +47,7 @@ return new class extends Migration
                     ->cascadeOnUpdate()->restrictOnDelete();
             });
             DB::unprepared(<<<'SQL'
-                CREATE FUNCTION pter_dev_action_company_guard() RETURNS trigger AS $$
+                CREATE OR REPLACE FUNCTION pter_dev_action_company_guard() RETURNS trigger AS $$
                 BEGIN
                     IF NEW.development_action_id IS NOT NULL AND NOT EXISTS (
                         SELECT 1 FROM people_connector_skill_development_actions a
