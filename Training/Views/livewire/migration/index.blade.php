@@ -40,6 +40,83 @@
             @endif
         </div>
         <x-ui.card>
+            <h2 class="text-lg font-semibold">{{ __('Department pilot readiness') }}</h2>
+            <p class="mt-1 text-sm text-muted">{{ __('One department at a time: published profile, assessors, gaps with open actions, action ownership, and a resolvable head.') }}</p>
+
+            @if ($units === [])
+                <p class="mt-3 text-sm text-muted">{{ __('No organisation unit is available in this company.') }}</p>
+            @else
+                <div class="mt-3 flex flex-wrap gap-2 text-sm">
+                    @foreach ($units as $unitId => $unitName)
+                        <x-ui.button type="button" wire:click="selectUnit({{ $unitId }})" :variant="$organizationUnitEntityId === $unitId ? 'primary' : 'secondary'">
+                            {{ $unitName }}
+                        </x-ui.button>
+                    @endforeach
+                </div>
+
+                @if ($organizationUnitEntityId !== null)
+                    <div class="mt-4">
+                        <x-ui.table :caption="__('Department pilot readiness')">
+                            <x-slot:head>
+                                <tr>
+                                    <x-ui.th>{{ __('Check') }}</x-ui.th>
+                                    <x-ui.th>{{ __('Status') }}</x-ui.th>
+                                    <x-ui.th>{{ __('Count') }}</x-ui.th>
+                                    <x-ui.th>{{ __('Detail') }}</x-ui.th>
+                                </tr>
+                            </x-slot:head>
+                            <x-slot:body>
+                                @foreach ($readinessRows as $row)
+                                    <tr wire:key="pilot-check-{{ $row['check'] }}">
+                                        <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['check'] }}</td>
+                                        <td class="px-table-cell-x py-table-cell-y text-sm">
+                                            <x-ui.badge :variant="$row['status'] === 'green' ? 'success' : 'danger'">{{ strtoupper($row['status']) }}</x-ui.badge>
+                                        </td>
+                                        <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $row['count'] }}</td>
+                                        <td class="px-table-cell-x py-table-cell-y text-sm text-muted">
+                                            @if (($row['check'] ?? '') === 'gaps')
+                                                {{ __('Open actions covering gaps: :n', ['n' => $row['with_open_action'] ?? 0]) }}
+                                            @elseif (($row['ids'] ?? []) !== [])
+                                                {{ implode(', ', $row['ids']) }}
+                                            @else
+                                                —
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </x-slot:body>
+                        </x-ui.table>
+                    </div>
+
+                    <div class="mt-4 space-y-2">
+                        @if ($pilotSignoffs->has('hod'))
+                            <x-ui.badge variant="success">{{ __('HOD signed :at', ['at' => $pilotSignoffs->get('hod')->signed_at->toDateString()]) }}</x-ui.badge>
+                        @endif
+                        @if ($pilotSignoffs->has('hr'))
+                            <x-ui.badge variant="success">{{ __('HR signed :at', ['at' => $pilotSignoffs->get('hr')->signed_at->toDateString()]) }}</x-ui.badge>
+                        @endif
+
+                        @error('pilot')
+                            <x-ui.alert variant="danger">{{ $message }}</x-ui.alert>
+                        @enderror
+
+                        @if (($maySignHod && ! $pilotSignoffs->has('hod')) || ($maySignHr && ! $pilotSignoffs->has('hr')))
+                            <x-ui.input type="text" wire:model="pilotSignNote" :label="__('Sign-off note (optional)')" />
+                            <div class="flex flex-wrap gap-2">
+                                @if ($maySignHod && ! $pilotSignoffs->has('hod'))
+                                    <x-ui.button type="button" variant="primary" wire:click="signAsHod">{{ __('Sign as HOD') }}</x-ui.button>
+                                @endif
+                                @if ($maySignHr && ! $pilotSignoffs->has('hr'))
+                                    <x-ui.button type="button" variant="primary" wire:click="signAsHr">{{ __('Sign as HR') }}</x-ui.button>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+                @endif
+            @endif
+        </x-ui.card>
+
+        <x-ui.card>
             @if ($sources->isEmpty())
                 <p class="text-sm text-muted">{{ $inventoryEmpty ? __('No migration source is recorded for this company yet.') : __('No sources match your search.') }}</p>
             @else
@@ -92,6 +169,35 @@
                     </x-slot:body>
                 </x-ui.table>
                 {{ $sources->links() }}
+            @endif
+        </x-ui.card>
+
+        <x-ui.card>
+            @if ($rejected->isEmpty())
+                <p class="text-sm text-muted">{{ __('No rejected migration rows are quarantined for this company.') }}</p>
+            @else
+                <x-ui.table :caption="__('Rejected migration rows')">
+                    <x-slot:head>
+                        <tr>
+                            <x-ui.th>{{ __('Source') }}</x-ui.th>
+                            <x-ui.th>{{ __('Row') }}</x-ui.th>
+                            <x-ui.th>{{ __('Reason') }}</x-ui.th>
+                            <x-ui.th>{{ __('Excerpt') }}</x-ui.th>
+                            <x-ui.th>{{ __('Recorded') }}</x-ui.th>
+                        </tr>
+                    </x-slot:head>
+                    <x-slot:body>
+                        @foreach ($rejected as $row)
+                            <tr wire:key="migration-rejected-{{ $row->id }}">
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink font-mono">{{ $row->source_key }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink tabular-nums">{{ $row->source_row }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row->reason }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted font-mono">{{ json_encode($row->payload_excerpt) }}</td>
+                                <td class="px-table-cell-x py-table-cell-y text-sm text-muted"><x-ui.datetime :value="$row->recorded_at" /></td>
+                            </tr>
+                        @endforeach
+                    </x-slot:body>
+                </x-ui.table>
             @endif
         </x-ui.card>
 

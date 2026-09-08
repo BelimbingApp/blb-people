@@ -56,8 +56,22 @@ final class Index extends Component
 
     public string $priority = TrainingPriority::Medium->value;
 
+    public string $estimatedCost = '';
+
+    public string $proposedDeliveryMethod = '';
+
+    public string $proposedProvider = '';
+
+    public string $proposedStartDate = '';
+
+    public string $proposedEndDate = '';
+
     /** @var array<int, string> */
     public array $recommendNotes = [];
+
+    public ?int $revisingRequestId = null;
+
+    public string $revisionNotes = '';
 
     /** @var array<string, string>|null */
     private ?array $allowedCompanies = null;
@@ -90,6 +104,11 @@ final class Index extends Component
     public function draft(): void
     {
         $companyEntityId = $this->requireCompany();
+        if ($this->revisingRequestId !== null) {
+            $this->revise($companyEntityId, $this->revisingRequestId);
+
+            return;
+        }
         $this->validate([
             'requestorEntityId' => ['required', 'integer'],
             'needSource' => ['required', Rule::enum(TrainingNeedSource::class)],
@@ -97,6 +116,11 @@ final class Index extends Component
             'need' => ['required', 'string', 'max:2000'],
             'learningObjective' => ['required', 'string', 'max:2000'],
             'expectedResult' => ['required', 'string', 'max:2000'],
+            'estimatedCost' => ['nullable', 'decimal:0,4', 'min:0'],
+            'proposedDeliveryMethod' => ['nullable', 'string', 'max:160'],
+            'proposedProvider' => ['nullable', 'string', 'max:160'],
+            'proposedStartDate' => ['nullable', 'date', 'required_with:proposedEndDate'],
+            'proposedEndDate' => ['nullable', 'date', 'required_with:proposedStartDate', 'after_or_equal:proposedStartDate'],
             'subjectMode' => ['required', 'in:self,member,department'],
             'subjectEmployeeEntityId' => ['nullable', 'integer', 'required_if:subjectMode,member'],
         ]);
@@ -135,9 +159,15 @@ final class Index extends Component
             learningObjective: $this->learningObjective,
             expectedResult: $this->expectedResult,
             priority: TrainingPriority::from($this->priority),
+            estimatedCost: $this->estimatedCost === '' ? null : $this->estimatedCost,
+            proposedDeliveryMethod: $this->proposedDeliveryMethod,
+            proposedProvider: $this->proposedProvider,
+            proposedStartDate: $this->proposedStartDate === '' ? null : $this->proposedStartDate,
+            proposedEndDate: $this->proposedEndDate === '' ? null : $this->proposedEndDate,
         ), $subjects));
 
-        $this->reset('need', 'learningObjective', 'expectedResult', 'subjectEmployeeEntityId');
+        $this->reset('need', 'learningObjective', 'expectedResult', 'estimatedCost', 'proposedDeliveryMethod',
+            'proposedProvider', 'proposedStartDate', 'proposedEndDate', 'subjectEmployeeEntityId');
     }
 
     public function submitRequest(int $requestId): void
@@ -165,6 +195,94 @@ final class Index extends Component
         });
     }
 
+    /**
+     * Open a rejected request for revision: its substance loads into the
+     * request form, and saving the form revises it back to draft. Identity
+     * loads too, so the form names the row's requestor even though a
+     * revision never moves it.
+     */
+    public function startRevision(int $requestId): void
+    {
+        $companyEntityId = $this->requireCompany();
+        $request = $this->trackedRequest($companyEntityId, $requestId);
+        // Only a rejected request can be revised: anything else is refused
+        // here as a denial, before its substance reaches the form.
+        abort_unless($request->status === TrainingRequestStatus::Rejected, 403);
+
+        $this->revisingRequestId = $request->id;
+        $this->requestorEntityId = $request->requestor_subject_id;
+        $this->needSource = $request->need_source->value;
+        $this->need = $request->need;
+        $this->learningObjective = $request->learning_objective;
+        $this->expectedResult = $request->expected_result;
+        $this->priority = $request->priority->value;
+        $this->estimatedCost = $request->estimated_cost === null ? '' : (string) $request->estimated_cost;
+        $this->proposedDeliveryMethod = (string) $request->proposed_delivery_method;
+        $this->proposedProvider = (string) $request->proposed_provider;
+        $this->proposedStartDate = $request->proposed_start_date?->toDateString() ?? '';
+        $this->proposedEndDate = $request->proposed_end_date?->toDateString() ?? '';
+        $this->revisionNotes = '';
+    }
+
+    public function cancelRevision(): void
+    {
+        $this->revisingRequestId = null;
+        $this->revisionNotes = '';
+        $this->reset('need', 'learningObjective', 'expectedResult', 'estimatedCost', 'proposedDeliveryMethod',
+            'proposedProvider', 'proposedStartDate', 'proposedEndDate');
+        $this->needSource = TrainingNeedSource::NewMachineTechnology->value;
+        $this->priority = TrainingPriority::Medium->value;
+    }
+
+    /**
+     * Save the open revision through the store. Identity stays the row's:
+     * requestor and department come from the tracked request, never the
+     * form, so a revision cannot move a request to another person or
+     * department. The row's skill-gap link and priced cost carry over: the
+     * form cannot pin a gap or price a request, and dropping them would
+     * silently unpick what the request already had.
+     */
+    private function revise(int $companyEntityId, int $requestId): void
+    {
+        $this->validate([
+            'needSource' => ['required', Rule::enum(TrainingNeedSource::class)],
+            'priority' => ['required', Rule::enum(TrainingPriority::class)],
+            'need' => ['required', 'string', 'max:2000'],
+            'learningObjective' => ['required', 'string', 'max:2000'],
+            'expectedResult' => ['required', 'string', 'max:2000'],
+            'estimatedCost' => ['nullable', 'decimal:0,4', 'min:0'],
+            'proposedDeliveryMethod' => ['nullable', 'string', 'max:160'],
+            'proposedProvider' => ['nullable', 'string', 'max:160'],
+            'proposedStartDate' => ['nullable', 'date', 'required_with:proposedEndDate'],
+            'proposedEndDate' => ['nullable', 'date', 'required_with:proposedStartDate', 'after_or_equal:proposedStartDate'],
+            'revisionNotes' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $request = $this->trackedRequest($companyEntityId, $requestId);
+        $tenantId = $this->tenantId();
+        $this->storeCall(fn () => app(TrainingRequestStore::class)->revise(
+            $this->user(), $companyEntityId, $requestId, new TrainingRequestDraft(
+                requestor: new WorkforceSubject($tenantId, $companyEntityId, WorkforceResourceType::Employee, $request->requestor_subject_id),
+                department: new WorkforceSubject($tenantId, $companyEntityId, WorkforceResourceType::OrganizationUnit, $request->department_subject_id),
+                needSource: TrainingNeedSource::from($this->needSource),
+                need: $this->need,
+                learningObjective: $this->learningObjective,
+                expectedResult: $this->expectedResult,
+                priority: TrainingPriority::from($this->priority),
+                skillGapAssessmentId: $request->skill_gap_assessment_id,
+                requirementVersion: $request->requirement_version,
+                estimatedCost: $this->estimatedCost === '' ? null : $this->estimatedCost,
+                proposedDeliveryMethod: $this->proposedDeliveryMethod,
+                proposedProvider: $this->proposedProvider,
+                proposedStartDate: $this->proposedStartDate === '' ? null : $this->proposedStartDate,
+                proposedEndDate: $this->proposedEndDate === '' ? null : $this->proposedEndDate,
+            ), $this->revisionNotes));
+
+        if (! $this->getErrorBag()->has('request')) {
+            $this->cancelRevision();
+        }
+    }
+
     public function render(): View
     {
         $this->authorizeView();
@@ -181,6 +299,8 @@ final class Index extends Component
             'requests' => $requests,
             'editable' => $requests->filter(fn (TrainingRequest $r): bool => $r->status === TrainingRequestStatus::Draft)->pluck('id')->all(),
             'recommendable' => $requests->filter(fn (TrainingRequest $r): bool => $r->status === TrainingRequestStatus::PendingHod && in_array($r->department_subject_id, $hodDepartments, true))->pluck('id')->all(),
+            'revisable' => $requests->filter(fn (TrainingRequest $r): bool => $r->status === TrainingRequestStatus::Rejected)->pluck('id')->all(),
+            'revisingRequest' => $this->revisingRequestId === null ? null : $requests->firstWhere('id', $this->revisingRequestId),
             'needSources' => TrainingNeedSource::cases(),
             'priorities' => TrainingPriority::cases(),
         ]);

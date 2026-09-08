@@ -63,7 +63,13 @@ class Import extends Component
         $name = (string) $file->getClientOriginalName();
 
         try {
-            $outcome = $importer->import($companyEntityId, $file->getRealPath(), $name);
+            $outcome = $importer->import(
+                $companyEntityId,
+                $file->getRealPath(),
+                $name,
+                StarterProfileImporter::SOURCE_KEY,
+                (int) Auth::id(),
+            );
         } catch (InvalidSkillCatalogException|InvalidRequirementProfileException $exception) {
             $this->addError('workbook', $exception->getMessage());
 

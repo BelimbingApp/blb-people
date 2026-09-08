@@ -35,6 +35,15 @@ return [
         'people.skill.coverage.view',
 
         /*
+         * Reading the HR-wide register of current released levels (0014-b).
+         * HR-only: the page and its CSV export share this gate because the
+         * file carries the same rows under the same filters, audited as one
+         * export action. Uses the platform 'view' verb: verbs are a closed
+         * platform vocabulary.
+         */
+        'people.skill.register.view',
+
+        /*
          * Requesting a reassessment for a direct report's skill (0006-b).
          * HOD-only: HR sees the resulting queue but does not request, and
          * requesting never confers a wider skill audience.
@@ -78,6 +87,7 @@ return [
                 'people.skill-requirement-publication.approve',
                 'people.skill-requirement-retirement.approve',
                 'people.skill.coverage.view',
+                'people.skill.register.view',
                 'people.skill.development-action.view',
                 'people.skill.development-action.manage',
                 'people.skill.assessment.submit',
