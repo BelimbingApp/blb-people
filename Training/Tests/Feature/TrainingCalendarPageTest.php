@@ -310,6 +310,20 @@ it('navigates the calendar month forward and back', function (): void {
         ->assertSee($label);
 });
 
+it('jumps directly to a selected calendar month and year', function (): void {
+    $f = calendarFixture();
+
+    Livewire::actingAs($f['employee'])
+        ->test(TrainingCalendar::class)
+        ->call('selectMonth', 2031, 2)
+        ->assertSet('year', 2031)
+        ->assertSet('month', 2)
+        ->assertSee('February 2031')
+        ->call('showTable')
+        ->assertSet('from', '2031-02-01')
+        ->assertSet('until', '2031-02-28');
+});
+
 it('lands on Calendar and switches to the filterable Table alternate', function (): void {
     $f = calendarFixture();
     calendarEvent($f['company'], $f['trainerEmployee'], 'Mode switch briefing');
