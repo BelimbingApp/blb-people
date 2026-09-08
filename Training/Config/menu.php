@@ -21,6 +21,7 @@ return [
         'icon' => 'heroicon-o-banknotes',
         'route' => 'people.training.budget.index',
         'permission' => 'people.training.budget.view',
+        'condition' => 'people.training.budget-audience',
         'parent' => 'people',
     ], [
         'id' => 'people.training-evaluations',
@@ -80,6 +81,7 @@ return [
         'icon' => 'heroicon-o-clipboard-document-check',
         'route' => 'people.hr-governance.index',
         'permission' => 'people.skill.hr.view',
+        'condition' => 'people.training.hr-governance-audience',
         'parent' => 'people',
     ]],
 ];

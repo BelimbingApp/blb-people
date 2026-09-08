@@ -20,9 +20,11 @@ use App\Domains\People\Training\Services\DepartmentPilotReadiness;
 use App\Domains\People\Training\Services\PilotSignoffStore;
 use App\Domains\People\Training\Services\TrainingMigrationSourceStore;
 use Illuminate\Contracts\View\View;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 /**
  * The migration source inventory page (0015-a) plus department pilot
@@ -34,6 +36,33 @@ use Livewire\Component;
  */
 final class Index extends Component
 {
+    use WithPagination;
+
+    public bool $showForm = false;
+
+    public string $search = '';
+
+    public string $sortDirection = 'asc';
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function sortSources(): void
+    {
+        $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        $this->resetPage();
+    }
+
+    public function createSource(): void
+    {
+        $this->requireCompany();
+        abort_unless(app(AuthorizationService::class)->can(Actor::forUser($this->user()), TrainingMigrationSourceStore::MANAGE)->allowed, 403);
+        $this->resetForm();
+        $this->showForm = true;
+    }
+
     public const VIEW_CAPABILITY = TrainingMigrationSourceStore::VIEW;
 
     public ?int $companyEntityId = null;
@@ -81,6 +110,8 @@ final class Index extends Component
         $this->authorizeView();
         abort_unless(array_key_exists($companyEntityId, $this->allowedCompanies()), 404);
         $this->companyEntityId = $companyEntityId;
+        $this->search = '';
+        $this->resetPage();
         $this->resetForm();
         $this->selectDefaultUnit();
     }
@@ -112,9 +143,21 @@ final class Index extends Component
 
         $actor = Actor::forUser($this->user());
 
+        $employees = $companyEntityId === null ? collect() : collect(app(WorkforceSubjects::class)->employees($companyEntityId))
+            ->mapWithKeys(fn ($employee): array => [(int) $employee->reference->externalId => $employee->displayName])
+            ->sort();
+        $inventory = $companyEntityId === null ? collect() : $store->inventory($this->user(), $companyEntityId);
+        $filtered = $inventory->filter(fn ($source): bool => $this->search === '' || str_contains(
+            mb_strtolower($source->name.' '.$source->source_key.' '.($employees[$source->owner_employee_id] ?? '')),
+            mb_strtolower(trim($this->search)),
+        ))->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE, $this->sortDirection === 'desc')->values();
+        $sources = new LengthAwarePaginator($filtered->forPage($this->getPage(), 15)->values(), $filtered->count(), 15, $this->getPage());
+
         return view('people::livewire.migration.index', [
+            'employees' => $employees,
+            'inventoryEmpty' => $inventory->isEmpty(),
             'companies' => $companies,
-            'sources' => $companyEntityId === null ? collect() : $store->inventory($this->user(), $companyEntityId),
+            'sources' => $sources,
             'kinds' => MigrationSourceKind::cases(),
             'mayManage' => $authorization->can($actor, TrainingMigrationSourceStore::MANAGE)->allowed,
             'signed' => $companyEntityId !== null && $store->signedInventory($companyEntityId),
@@ -177,6 +220,9 @@ final class Index extends Component
         $source = $store->inventory($this->user(), $companyEntityId)->firstWhere('id', $sourceId);
         abort_unless($source instanceof TrainingMigrationSource, 404);
 
+        abort_unless($source->signoff === null, 403);
+        abort_unless(app(AuthorizationService::class)->can(Actor::forUser($this->user()), TrainingMigrationSourceStore::MANAGE)->allowed, 403);
+        $this->showForm = true;
         $this->editingId = (int) $source->id;
         $this->sourceKey = (string) $source->source_key;
         $this->name = (string) $source->name;
@@ -292,7 +338,7 @@ final class Index extends Component
 
     private function resetForm(): void
     {
-        $this->reset('editingId', 'sourceKey', 'name', 'format', 'ownerEmployeeEntityId', 'estimatedVolume', 'retentionNote', 'dataQualityNote');
+        $this->reset('showForm', 'editingId', 'sourceKey', 'name', 'format', 'ownerEmployeeEntityId', 'estimatedVolume', 'retentionNote', 'dataQualityNote');
         $this->kind = MigrationSourceKind::Workbook->value;
     }
 
