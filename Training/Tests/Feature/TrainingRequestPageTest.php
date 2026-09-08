@@ -365,3 +365,19 @@ test('a revision refuses a request that is not rejected, and refuses silence', f
     Livewire::actingAs($f['employee'])->test(Index::class)->call('startRevision', $foreign->id)->assertNotFound();
     expect($foreign->fresh()->status)->toBe(TrainingRequestStatus::PendingHod);
 });
+
+test('cancelling an open revision restores the new-request form and writes nothing', function (): void {
+    $f = trainingReqFixture();
+    $rejected = trainingReqRejected($f, $f['member'], $f['opsEntry'], 'Member request.');
+
+    Livewire::actingAs($f['employee'])->test(Index::class)
+        ->call('startRevision', $rejected->id)->assertSet('revisingRequestId', $rejected->id)
+        ->set('need', 'Changed mind.')
+        ->call('cancelRevision')->assertHasNoErrors()
+        ->assertSet('revisingRequestId', null)
+        ->assertSet('need', '')
+        ->assertSee('New request');
+
+    expect($rejected->fresh()->status)->toBe(TrainingRequestStatus::Rejected)
+        ->and($rejected->fresh()->decisions()->count())->toBe(3);
+});
