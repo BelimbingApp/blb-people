@@ -142,6 +142,43 @@
                                 <div><x-ui.button type="button" variant="secondary" wire:click="exportAttendance({{ $event->id }})">{{ __('Export attendance CSV') }}</x-ui.button></div>
                             @endif
                             @if ($canManage)
+                                {{-- Bulk attendance import (0011-c): one CSV into the chosen
+                                     session, validated row by row before anything is written. --}}
+                                <div class="flex flex-wrap items-end gap-2">
+                                    <x-ui.select id="training-event-{{ $event->id }}-session" :label="__('Attendance session')" wire:model="importSession.{{ $event->id }}">
+                                        <option value="">{{ __('Choose a session') }}</option>
+                                        @foreach (($eventSessions[$event->id] ?? collect()) as $sessionOption)
+                                            <option value="{{ $sessionOption->id }}">{{ $sessionOption->session_reference }}</option>
+                                        @endforeach
+                                    </x-ui.select>
+                                    <label class="block text-sm">
+                                        <span class="block text-[11px] uppercase tracking-wider font-semibold text-muted">{{ __('Attendance sheet (CSV)') }}</span>
+                                        <input id="training-event-{{ $event->id }}-sheet" type="file" wire:model="attendanceSheet" accept=".csv,text/csv" class="mt-1 block text-sm" />
+                                    </label>
+                                    <x-ui.button type="button" wire:click="importAttendance({{ $event->id }})">{{ __('Import attendance CSV') }}</x-ui.button>
+                                </div>
+                                @error('attendanceSheet')<p class="text-sm text-danger">{{ $message }}</p>@enderror
+                                @if (isset($importOutcomes[$event->id]))
+                                    <p class="text-sm text-muted">{{ __(':created created, :skipped skipped, :refused refused', ['created' => $importOutcomes[$event->id]['created'], 'skipped' => $importOutcomes[$event->id]['skipped'], 'refused' => $importOutcomes[$event->id]['refused']]) }}</p>
+                                    @if (count($importOutcomes[$event->id]['defects']) > 0)
+                                        <x-ui.table :caption="__('Attendance sheet defects')">
+                                            <x-slot name="head">
+                                                <tr>
+                                                    <x-ui.th align="right">{{ __('Row') }}</x-ui.th>
+                                                    <x-ui.th>{{ __('Problem') }}</x-ui.th>
+                                                </tr>
+                                            </x-slot>
+                                            @foreach ($importOutcomes[$event->id]['defects'] as $defect)
+                                                <tr wire:key="import-defect-{{ $event->id }}-{{ $defect['row'] }}">
+                                                    <td class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-ink">{{ $defect['row'] }}</td>
+                                                    <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $defect['message'] }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </x-ui.table>
+                                    @endif
+                                @endif
+                            @endif
+                            @if ($canManage)
                                 <div class="flex items-end gap-2"><x-ui.input id="training-event-{{ $event->id }}-comment" :label="__('Audit note')" wire:model="comment.{{ $event->id }}" /><x-ui.button wire:click="addComment({{ $event->id }})">{{ __('Add note') }}</x-ui.button></div>
                             @endif
                         </article>
