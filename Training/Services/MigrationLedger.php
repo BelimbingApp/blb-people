@@ -12,6 +12,7 @@ use App\Domains\People\Training\Models\TrainingMigrationLedgerEntry;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Source provenance and quarantine for Training migration rows (0015-d).
@@ -272,6 +273,12 @@ final class MigrationLedger
     private function targetIntact(int $tenantId, int $companyEntityId, TrainingMigrationLedgerEntry $entry): bool
     {
         if ($entry->target_id === null || $entry->target_table === '') {
+            return false;
+        }
+
+        // A ledger outlives the schema it recorded: a renamed or dropped table
+        // is drift to report, not a QueryException that aborts the company.
+        if (! Schema::hasTable($entry->target_table)) {
             return false;
         }
 

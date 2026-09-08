@@ -319,6 +319,67 @@ test('a malformed row is quarantined with a reason code; the rest still imports;
     @unlink($path);
 });
 
+test('each classification rule quarantines with its own reason code', function (array $row, string $reason): void {
+    $f = migImpFixture();
+    $a = $f['alpha'];
+    migImpSign($a);
+    $path = migImpCsv([$row]);
+
+    $report = app(MigrationImport::class)->import($a['hr'], $a['companyId'], 'legacy-portal', $path);
+
+    expect($report->importedCount())->toBe(0)
+        ->and($report->rejectedCount())->toBe(1)
+        ->and($report->rejected[0]['reason'])->toBe($reason);
+
+    @unlink($path);
+})->with([
+    'blank department' => [['', 'Line Operator', 'Forklift Operation', '3', 'critical'], MigrationImport::REASON_BLANK_DEPARTMENT],
+    'blank role' => [['Operations', '', 'Forklift Operation', '3', 'critical'], MigrationImport::REASON_BLANK_ROLE],
+    'level above the scale' => [['Operations', 'Line Operator', 'Forklift Operation', '6', 'critical'], MigrationImport::REASON_INVALID_LEVEL],
+    'level not a number' => [['Operations', 'Line Operator', 'Forklift Operation', 'high', 'critical'], MigrationImport::REASON_INVALID_LEVEL],
+    'unknown criticality' => [['Operations', 'Line Operator', 'Forklift Operation', '3', 'urgent'], MigrationImport::REASON_INVALID_CRITICALITY],
+    'unknown department' => [['Nowhere', 'Line Operator', 'Forklift Operation', '3', 'critical'], MigrationImport::REASON_UNKNOWN_DEPARTMENT],
+]);
+
+test('a file with the wrong header columns is refused before any row is read', function (): void {
+    $f = migImpFixture();
+    $a = $f['alpha'];
+    migImpSign($a);
+    $path = tempnam(sys_get_temp_dir(), 'migimp-hdr');
+    file_put_contents($path, "dept,role,skill,level,crit\nOperations,Line Operator,Forklift Operation,3,critical\n");
+
+    expect(fn () => app(MigrationImport::class)->import($a['hr'], $a['companyId'], 'legacy-portal', $path))
+        ->toThrow(InvalidMigrationImportException::class);
+    expect(migImpWriteCounts($a))->toBe([
+        'ledger' => 0,
+        'profiles' => 0,
+        'skills' => 0,
+    ]);
+
+    @unlink($path);
+});
+
+test('a file one row over the bound is refused before any row is applied', function (): void {
+    $f = migImpFixture();
+    $a = $f['alpha'];
+    migImpSign($a);
+    $rows = [];
+    for ($i = 0; $i < 5001; $i++) {
+        $rows[] = ['Operations', 'Line Operator', 'Skill '.$i, '3', 'critical'];
+    }
+    $path = migImpCsv($rows);
+
+    expect(fn () => app(MigrationImport::class)->import($a['hr'], $a['companyId'], 'legacy-portal', $path))
+        ->toThrow(InvalidMigrationImportException::class, '5000');
+    expect(migImpWriteCounts($a))->toBe([
+        'ledger' => 0,
+        'profiles' => 0,
+        'skills' => 0,
+    ]);
+
+    @unlink($path);
+});
+
 test('an unsigned source inventory is refused before any read', function (): void {
     $f = migImpFixture();
     $a = $f['alpha'];

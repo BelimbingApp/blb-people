@@ -279,3 +279,20 @@ test('the rejected-rows table renders with a caption; a user without migration.v
 
     $this->actingAs($a['staff'])->get(route('people.training.migration.index'))->assertForbidden();
 });
+
+test('a ledger row whose target table no longer exists is marked drifted, not thrown on', function (): void {
+    $f = migLedFixture('MigLedGone');
+    $a = $f['alpha'];
+    $ledger = app(MigrationLedger::class);
+
+    // A migration ledger outlives the schema it recorded: a table renamed or
+    // dropped by a later migration is exactly the drift this command exists to
+    // report, not a reason for it to stop.
+    $ledger->recordMigrated($a['companyId'], 'starter.csv', str_repeat('a', 64), 1,
+        'people_training_table_that_was_dropped', 42, (int) $a['hr']->id);
+
+    $counts = $ledger->reconcile($a['companyId']);
+
+    expect($counts['drifted'])->toBe(1)
+        ->and($counts['migrated'])->toBe(0);
+});
