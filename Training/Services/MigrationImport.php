@@ -54,6 +54,8 @@ final class MigrationImport
 
     public const REASON_UNKNOWN_DEPARTMENT = 'unknown_department';
 
+    public const REASON_AMBIGUOUS_DEPARTMENT = 'ambiguous_department';
+
     public const REASON_DEPARTMENT_EMPTY = 'department_has_no_employees';
 
     public const REASON_UNUSABLE_CODES = 'unusable_skill_or_role_code';
@@ -235,7 +237,15 @@ final class MigrationImport
                 if (count($rows) >= self::MAX_ROWS) {
                     throw new InvalidMigrationImportException('Migration import refuses a source file larger than '.self::MAX_ROWS.' data rows.');
                 }
-                $cells = array_map(fn ($cell): string => trim((string) $cell), array_pad($cells, 5, ''));
+                // Strict starter-profile shape: every data row carries exactly the
+                // five header fields. Padding or truncating would silently invent
+                // blanks or discard trailing source columns.
+                if (count($cells) !== count(self::HEADER)) {
+                    throw new InvalidMigrationImportException(
+                        'Migration import refuses a source row whose field count does not match the starter-profile shape.',
+                    );
+                }
+                $cells = array_map(fn ($cell): string => trim((string) $cell), $cells);
                 $rows[] = [
                     'row' => $line,
                     'department' => $cells[0],
@@ -279,10 +289,12 @@ final class MigrationImport
             return self::REASON_UNUSABLE_CODES;
         }
 
-        $departments = $this->departments($companyEntityId);
-        $departmentId = $departments[mb_strtolower($row['department'])] ?? null;
+        $departmentId = $this->departmentId($companyEntityId, $row['department']);
         if ($departmentId === null) {
             return self::REASON_UNKNOWN_DEPARTMENT;
+        }
+        if ($departmentId === false) {
+            return self::REASON_AMBIGUOUS_DEPARTMENT;
         }
         if ($this->workforce->resolve(
             $this->tenants->requireTenantId(),
@@ -302,8 +314,10 @@ final class MigrationImport
     private function writeRow(int $companyEntityId, array $row): RequirementProfile
     {
         $tenantId = $this->tenants->requireTenantId();
-        $departments = $this->departments($companyEntityId);
-        $departmentId = $departments[mb_strtolower($row['department'])];
+        $departmentId = $this->departmentId($companyEntityId, $row['department']);
+        if (! is_int($departmentId)) {
+            throw new InvalidMigrationImportException('Migration import refuses a row whose department cannot be resolved uniquely.');
+        }
         $categoryId = $this->categoryId($tenantId, $companyEntityId);
         $skillCode = $this->skillCode($row['skill']);
 
@@ -334,15 +348,28 @@ final class MigrationImport
         ));
     }
 
-    /** @return array<string, int> */
-    private function departments(int $companyEntityId): array
+    /**
+     * Resolve a department name to its organization-unit id.
+     *
+     * @return int|false|null  int when unique, false when two+ active units share
+     *                         the case-insensitive name, null when none match
+     */
+    private function departmentId(int $companyEntityId, string $departmentName): int|false|null
     {
-        $names = [];
+        $needle = mb_strtolower($departmentName);
+        $match = null;
         foreach ($this->workforce->organizationUnits($companyEntityId) as $unit) {
-            $names[mb_strtolower($unit->name)] = (int) $unit->reference->externalId;
+            if (mb_strtolower($unit->name) !== $needle) {
+                continue;
+            }
+            $id = (int) $unit->reference->externalId;
+            if ($match !== null && $match !== $id) {
+                return false;
+            }
+            $match = $id;
         }
 
-        return $names;
+        return $match;
     }
 
     private function categoryId(int $tenantId, int $companyEntityId): int

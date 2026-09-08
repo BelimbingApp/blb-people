@@ -341,6 +341,70 @@ test('each classification rule quarantines with its own reason code', function (
     'unknown department' => [['Nowhere', 'Line Operator', 'Forklift Operation', '3', 'critical'], MigrationImport::REASON_UNKNOWN_DEPARTMENT],
 ]);
 
+test('a data row with an extra CSV field refuses the whole import before any write', function (): void {
+    $f = migImpFixture();
+    $a = $f['alpha'];
+    migImpSign($a);
+    $path = tempnam(sys_get_temp_dir(), 'migimp-extra');
+    file_put_contents(
+        $path,
+        implode(',', MigrationImport::HEADER)."\n".
+        "Operations,Line Operator,Forklift Operation,3,critical,sneaky-extra\n",
+    );
+
+    expect(fn () => app(MigrationImport::class)->import($a['hr'], $a['companyId'], 'legacy-portal', $path))
+        ->toThrow(InvalidMigrationImportException::class, 'field count');
+    expect(migImpWriteCounts($a))->toBe([
+        'ledger' => 0,
+        'profiles' => 0,
+        'skills' => 0,
+    ]);
+
+    @unlink($path);
+});
+
+test('a data row with too few CSV fields refuses the whole import before any write', function (): void {
+    $f = migImpFixture();
+    $a = $f['alpha'];
+    migImpSign($a);
+    $path = tempnam(sys_get_temp_dir(), 'migimp-short');
+    file_put_contents(
+        $path,
+        implode(',', MigrationImport::HEADER)."\n".
+        "Operations,Line Operator,Forklift Operation,3\n",
+    );
+
+    expect(fn () => app(MigrationImport::class)->import($a['hr'], $a['companyId'], 'legacy-portal', $path))
+        ->toThrow(InvalidMigrationImportException::class, 'field count');
+    expect(migImpWriteCounts($a))->toBe([
+        'ledger' => 0,
+        'profiles' => 0,
+        'skills' => 0,
+    ]);
+
+    @unlink($path);
+});
+
+test('an ambiguous department name is quarantined without creating a profile', function (): void {
+    $f = migImpFixture('MigAmb');
+    $a = $f['alpha'];
+    // Second active unit shares the case-insensitive name "Operations".
+    migImpUnit($a['company'], 'OPS2', 'operations');
+    migImpSign($a);
+    $path = migImpCsv([
+        ['Operations', 'Line Operator', 'Forklift Operation', '3', 'critical'],
+    ]);
+
+    $report = app(MigrationImport::class)->import($a['hr'], $a['companyId'], 'legacy-portal', $path);
+
+    expect($report->importedCount())->toBe(0)
+        ->and($report->rejected)->toHaveCount(1)
+        ->and($report->rejected[0]['reason'])->toBe(MigrationImport::REASON_AMBIGUOUS_DEPARTMENT);
+    expect(RequirementProfile::query()->forCompany($a['tenantId'], $a['companyId'])->count())->toBe(0);
+
+    @unlink($path);
+});
+
 test('a file with the wrong header columns is refused before any row is read', function (): void {
     $f = migImpFixture();
     $a = $f['alpha'];
