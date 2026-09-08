@@ -60,12 +60,12 @@ function cutWFixture(string $label = 'CutW'): array
 test('legacy window refuses TrainingRequestStore writes and leaves reads intact; system window allows writes', function (): void {
     $f = cutWFixture();
     $guard = app(CutoverWriteGuard::class);
-    $start = new \DateTimeImmutable('2026-09-01 00:00:00');
-    $end = new \DateTimeImmutable('2026-09-30 23:59:59');
+    $start = new DateTimeImmutable('2026-09-01 00:00:00');
+    $end = new DateTimeImmutable('2026-09-30 23:59:59');
 
     $guard->declare($f['hr'], $f['companyId'], CutoverWorkflow::TrainingRequests, CutoverWriter::Legacy, $start, $end, 'portal still live');
 
-    expect(fn () => $guard->assertWritable($f['companyId'], CutoverWorkflow::TrainingRequests, new \DateTimeImmutable('2026-09-15 12:00:00')))
+    expect(fn () => $guard->assertWritable($f['companyId'], CutoverWorkflow::TrainingRequests, new DateTimeImmutable('2026-09-15 12:00:00')))
         ->toThrow(CutoverWriteRefusedException::class, 'Training requests');
 
     // Reads unaffected: querying requests does not consult the guard.
@@ -76,19 +76,19 @@ test('legacy window refuses TrainingRequestStore writes and leaves reads intact;
         $f['companyId'],
         CutoverWorkflow::TrainingRequests,
         CutoverWriter::System,
-        new \DateTimeImmutable('2026-10-01 00:00:00'),
+        new DateTimeImmutable('2026-10-01 00:00:00'),
         null,
         'cutover complete',
     );
-    $guard->assertWritable($f['companyId'], CutoverWorkflow::TrainingRequests, new \DateTimeImmutable('2026-10-01 00:00:01'));
+    $guard->assertWritable($f['companyId'], CutoverWorkflow::TrainingRequests, new DateTimeImmutable('2026-10-01 00:00:01'));
     expect(true)->toBeTrue();
 });
 
 test('window edges: one second inside refuses, one second outside allows', function (): void {
     $f = cutWFixture('CutWEdge');
     $guard = app(CutoverWriteGuard::class);
-    $start = new \DateTimeImmutable('2026-09-08 10:00:00');
-    $end = new \DateTimeImmutable('2026-09-08 11:00:00');
+    $start = new DateTimeImmutable('2026-09-08 10:00:00');
+    $end = new DateTimeImmutable('2026-09-08 11:00:00');
     $guard->declare($f['hr'], $f['companyId'], CutoverWorkflow::Effectiveness, CutoverWriter::Legacy, $start, $end, 'edge pin');
 
     expect(fn () => $guard->assertWritable($f['companyId'], CutoverWorkflow::Effectiveness, $end))
@@ -104,8 +104,8 @@ test('overlapping windows for the same workflow are refused at declaration', fun
         $f['companyId'],
         CutoverWorkflow::Attendance,
         CutoverWriter::Legacy,
-        new \DateTimeImmutable('2026-09-01 00:00:00'),
-        new \DateTimeImmutable('2026-09-15 00:00:00'),
+        new DateTimeImmutable('2026-09-01 00:00:00'),
+        new DateTimeImmutable('2026-09-15 00:00:00'),
         'first',
     );
 
@@ -114,8 +114,8 @@ test('overlapping windows for the same workflow are refused at declaration', fun
         $f['companyId'],
         CutoverWorkflow::Attendance,
         CutoverWriter::System,
-        new \DateTimeImmutable('2026-09-10 00:00:00'),
-        new \DateTimeImmutable('2026-09-20 00:00:00'),
+        new DateTimeImmutable('2026-09-10 00:00:00'),
+        new DateTimeImmutable('2026-09-20 00:00:00'),
         'clash',
     ))->toThrow(InvalidCutoverWindowException::class, 'overlapping');
 });
@@ -128,7 +128,7 @@ test('cutover windows are append-only at the database', function (): void {
         $f['companyId'],
         CutoverWorkflow::TrainingRequests,
         CutoverWriter::Legacy,
-        new \DateTimeImmutable('2026-09-01 00:00:00'),
+        new DateTimeImmutable('2026-09-01 00:00:00'),
         null,
         'append-only',
     );
@@ -147,7 +147,7 @@ test('TrainingRequestStore create is refused under a legacy window (store-level 
         $f['companyId'],
         CutoverWorkflow::TrainingRequests,
         CutoverWriter::Legacy,
-        new \DateTimeImmutable('2026-01-01 00:00:00'),
+        new DateTimeImmutable('2026-01-01 00:00:00'),
         null,
         'portal owns requests',
     );
