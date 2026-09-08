@@ -85,6 +85,13 @@ return [
         'permission' => 'people.training.migration.view',
         'parent' => 'people',
     ], [
+        'id' => 'people.training-requests-register',
+        'label' => 'Training requests register',
+        'icon' => 'heroicon-o-clipboard-document-list',
+        'route' => 'people.training.requests.register',
+        'permission' => 'people.training.request.list',
+        'parent' => 'people',
+    ], [
         'id' => 'people.hr-governance',
         'label' => 'HR governance',
         'icon' => 'heroicon-o-clipboard-document-check',

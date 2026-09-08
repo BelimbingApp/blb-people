@@ -11,4 +11,17 @@ enum TrainingRequestStatus: string
     case Approved = 'approved';
     case Rejected = 'rejected';
     case Cancelled = 'cancelled';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::Draft => __('Draft'),
+            self::PendingHod => __('Pending HOD'),
+            self::PendingHr => __('Pending HR'),
+            self::PendingApproval => __('Pending approval'),
+            self::Approved => __('Approved'),
+            self::Rejected => __('Rejected'),
+            self::Cancelled => __('Cancelled'),
+        };
+    }
 }
