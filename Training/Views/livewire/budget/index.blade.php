@@ -11,8 +11,49 @@
         <x-ui.alert variant="danger">{{ $message }}</x-ui.alert>
     @enderror
 
+    @if ($mayManage && $unallocatedDepartments !== [])
+        <x-ui.card>
+            <div class="space-y-4">
+                <div class="max-w-3xl">
+                    <h2 class="text-lg font-semibold text-ink">{{ __('Set a department’s first allocation') }}</h2>
+                    <p class="mt-1 text-sm text-muted">{{ __('Choose an active department with no allocation for :year. The reason is retained in the budget audit.', ['year' => $year]) }}</p>
+                </div>
+                <form wire:submit="saveFirst" class="grid gap-4 lg:grid-cols-[minmax(14rem,1fr)_minmax(12rem,0.7fr)_minmax(16rem,1.3fr)_auto] lg:items-end">
+                    <x-ui.select id="training-budget-new-department" wire:model="newDepartmentEntityId" :label="__('Department')" required :error="$errors->first('newDepartmentEntityId')">
+                        <option value="">{{ __('Choose a department') }}</option>
+                        @foreach ($unallocatedDepartments as $departmentEntityId => $departmentName)
+                            <option value="{{ $departmentEntityId }}">{{ $departmentName }}</option>
+                        @endforeach
+                    </x-ui.select>
+                    <x-ui.input id="training-budget-new-amount" type="text" inputmode="decimal" wire:model="newAmount" :label="__('Annual allocation')" :placeholder="__('0.0000')" required :error="$errors->first('newAmount')" />
+                    <x-ui.input id="training-budget-new-reason" wire:model="newReason" :label="__('Reason')" :placeholder="__('Why this allocation is being set')" required :error="$errors->first('newReason')" />
+                    <x-ui.button type="submit" class="w-full lg:w-auto" wire:loading.attr="disabled" wire:target="saveFirst">
+                        <span wire:loading.remove wire:target="saveFirst">{{ __('Set allocation') }}</span>
+                        <span wire:loading wire:target="saveFirst">{{ __('Setting allocation…') }}</span>
+                    </x-ui.button>
+                </form>
+            </div>
+        </x-ui.card>
+    @elseif ($mayManage && $eligibleDepartments === [])
+        <x-ui.alert variant="info">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <p class="font-medium text-ink">{{ __('No active departments are available for allocation.') }}</p>
+                    <p class="mt-1 text-sm text-muted">{{ __('Add an active organization unit before setting a training budget.') }}</p>
+                </div>
+                @if ($mayManageDepartmentSetup)
+                    <x-ui.button :href="route('people.settings.index')" variant="control" class="shrink-0 self-start sm:self-auto">
+                        {{ __('Set up departments') }}
+                    </x-ui.button>
+                @else
+                    <p class="text-sm text-muted">{{ __('Ask a People Settings administrator to add an active department.') }}</p>
+                @endif
+            </div>
+        </x-ui.alert>
+    @endif
+
     @if ($rows === [])
-        <x-ui.alert variant="info">{{ __('No department has a training budget or a costed request for this year yet.') }}</x-ui.alert>
+        <x-ui.alert variant="info">{{ __('No department has an allocation or a training request for this year yet.') }}</x-ui.alert>
     @else
         <x-ui.card>
             <x-ui.table :caption="__('Training budget by department')">
