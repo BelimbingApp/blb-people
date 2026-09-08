@@ -2,6 +2,8 @@
 
 namespace App\Domains\People\Training\Livewire\Effectiveness;
 
+use App\Base\Authz\Contracts\AuthorizationService;
+use App\Base\Authz\DTO\Actor;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Employee\Models\Employee;
 use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
@@ -16,6 +18,7 @@ use App\Domains\People\Training\Enums\EffectivenessOutcome;
 use App\Domains\People\Training\Enums\EffectivenessReviewState;
 use App\Domains\People\Training\Exceptions\InvalidEffectivenessReviewException;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEffectivenessException;
+use App\Domains\People\Training\Livewire\EffectivenessAggregate\Index as AggregateIndex;
 use App\Domains\People\Training\Models\TrainingCourse;
 use App\Domains\People\Training\Models\TrainingEffectivenessAnswer;
 use App\Domains\People\Training\Models\TrainingEffectivenessReview;
@@ -66,8 +69,12 @@ final class Index extends Component
         $companyId = (int) $actor->company_id;
         $tenantId = $tenants->requireTenantId();
 
+        // Keep the unfiltered set: "nothing has reached a checkpoint yet" and
+        // "checkpoints are open, none of them yours" are different answers, and
+        // only the second one means the actor is not the assigned head (#436).
+        $open = $checkpoints->open($tenantId, $companyId);
         $mine = array_values(array_filter(
-            $checkpoints->open($tenantId, $companyId),
+            $open,
             static fn (OpenEffectivenessCheckpoint $row): bool => $row->hodUserId === (int) $actor->getKey(),
         ));
         $reviews = $this->followUpReviews($tenantId, $companyId, $directory);
@@ -84,7 +91,24 @@ final class Index extends Component
                 ->orderBy('full_name')->pluck('full_name', 'id')->all(),
             'followUpTypes' => DevelopmentActionType::cases(),
             'followUpCriticalities' => RequirementCriticality::cases(),
+            'companyHasOpenCheckpoints' => $open !== [],
+            'canReviewEffectiveness' => true,
+            'canSummarizeEffectiveness' => $this->mayReadAggregate(),
+            'activeEffectivenessTab' => 'review',
         ]);
+    }
+
+    /**
+     * Whether this actor may also read the company roll-up.
+     *
+     * Only decides whether the Summary tab is offered; the summary route keeps
+     * its own middleware, so a stale true here would still be refused there.
+     */
+    private function mayReadAggregate(): bool
+    {
+        return app(AuthorizationService::class)
+            ->can(Actor::forUser(Auth::user()), AggregateIndex::VIEW_CAPABILITY)
+            ->allowed;
     }
 
     public function save(int $participantId, TrainingEffectivenessCheckpoints $checkpoints, TenantContext $tenants): void

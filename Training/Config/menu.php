@@ -2,18 +2,17 @@
 
 return [
     'items' => [[
-        'id' => 'people.training-effectiveness-summary',
-        'label' => 'Training effectiveness summary',
-        'icon' => 'heroicon-o-presentation-chart-line',
-        'route' => 'people.training.effectiveness.summary',
-        'permission' => 'people.training.effectiveness-aggregate.view',
-        'parent' => 'people',
-    ], [
+        // One Effectiveness area with Review and Summary tabs (#436), replacing
+        // the two entries that both read "Training effectiveness" in the menu.
+        // No 'permission': the two sections are gated by different capabilities
+        // and a single key would hide the area from whoever holds the other one.
+        // The condition below is the disjunction of exactly those two grants,
+        // and the hub route re-checks them before it sends anybody anywhere.
         'id' => 'people.training-effectiveness',
         'label' => 'Training effectiveness',
         'icon' => 'heroicon-o-clipboard-document-check',
-        'route' => 'people.training.effectiveness.index',
-        'permission' => 'people.training.effectiveness.review',
+        'route' => 'people.training.effectiveness.hub',
+        'condition' => 'people.training.effectiveness-audience',
         'parent' => 'people',
     ], [
         'id' => 'people.training-budget',

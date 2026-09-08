@@ -1,5 +1,7 @@
 <?php
 
+use App\Base\Authz\Contracts\AuthorizationService;
+use App\Base\Authz\DTO\Actor;
 use App\Domains\People\Training\Http\Controllers\TrainingPassportDocumentController;
 use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingAudience;
 use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingBudgetAudience;
@@ -19,6 +21,7 @@ use App\Domains\People\Training\Livewire\Request\Index as RequestIndex;
 use App\Domains\People\Training\Livewire\Requests\Register as RequestsRegister;
 use App\Domains\People\Training\Livewire\TeamPassports;
 use App\Domains\People\Training\Livewire\TrainingKpi\Index as TrainingKpiIndex;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function (): void {
@@ -89,6 +92,25 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/training-effectiveness', EffectivenessIndex::class)
         ->middleware('authz:'.EffectivenessIndex::VIEW_CAPABILITY)
         ->name('people.training.effectiveness.index');
+
+    // One menu entry for the two Effectiveness sections (#436). This route
+    // renders nothing and grants nothing: it sends the actor to whichever tab
+    // they already hold, so a HOD lands on Review and an HR reader on Summary
+    // without either capability being widened. Holding neither is a 403 here,
+    // exactly as it is on both destinations.
+    Route::get('people/training/effectiveness', function (AuthorizationService $authorization) {
+        $actor = Actor::forUser(Auth::user());
+
+        if ($authorization->can($actor, EffectivenessIndex::VIEW_CAPABILITY)->allowed) {
+            return redirect()->route('people.training.effectiveness.index');
+        }
+
+        if ($authorization->can($actor, EffectivenessAggregateIndex::VIEW_CAPABILITY)->allowed) {
+            return redirect()->route('people.training.effectiveness.summary');
+        }
+
+        abort(403);
+    })->name('people.training.effectiveness.hub');
 
     // HR's roll-up of the same answers the HOD form records.
     Route::get('people/training/effectiveness-summary', EffectivenessAggregateIndex::class)

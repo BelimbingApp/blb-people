@@ -2,6 +2,8 @@
 
 namespace App\Domains\People\Training;
 
+use App\Base\Authz\Contracts\AuthorizationService;
+use App\Base\Authz\DTO\Actor;
 use App\Base\Menu\Services\MenuConditionRegistry;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
@@ -10,6 +12,8 @@ use App\Domains\People\Training\Console\Commands\EvaluationsDueCommand;
 use App\Domains\People\Training\Console\Commands\PurgeTrainingPassportDocumentsCommand;
 use App\Domains\People\Training\Console\Commands\RequestsDueCommand;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
+use App\Domains\People\Training\Livewire\Effectiveness\Index as EffectivenessIndex;
+use App\Domains\People\Training\Livewire\EffectivenessAggregate\Index as EffectivenessAggregateIndex;
 use App\Domains\People\Training\Services\DatabaseTrainingParticipationSummary;
 use App\Domains\People\Training\Services\TrainingBudgetStore;
 use App\Domains\People\Training\Services\TrainingSubjectExporter;
@@ -70,6 +74,20 @@ class ServiceProvider extends BaseServiceProvider
                 'people.training.budget-audience',
                 static fn (Authenticatable $user): bool => $user instanceof User
                     && app(TrainingBudgetStore::class)->mayView($user, (int) $user->company_id),
+            );
+            $registry->register(
+                'people.training.effectiveness-audience',
+                static fn (Authenticatable $user): bool => $user instanceof User
+                    && (
+                        app(AuthorizationService::class)->can(
+                            Actor::forUser($user),
+                            EffectivenessIndex::VIEW_CAPABILITY,
+                        )->allowed
+                        || app(AuthorizationService::class)->can(
+                            Actor::forUser($user),
+                            EffectivenessAggregateIndex::VIEW_CAPABILITY,
+                        )->allowed
+                    ),
             );
             $registry->register(
                 'people.training.hr-governance-audience',

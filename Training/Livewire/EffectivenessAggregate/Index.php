@@ -9,6 +9,7 @@ use App\Core\Company\Models\Department;
 use App\Core\User\Models\User;
 use App\Domains\People\Training\Enums\EffectivenessCheckpoint;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEffectivenessException;
+use App\Domains\People\Training\Livewire\Effectiveness\Index as ReviewIndex;
 use App\Domains\People\Training\Models\TrainingEffectivenessCheckpointPolicy;
 use App\Domains\People\Training\Services\TrainingEffectivenessAggregate;
 use App\Domains\People\Training\Services\TrainingEffectivenessPolicy;
@@ -91,6 +92,12 @@ final class Index extends Component
             'mayManage' => $mayManage,
             'policyHistory' => $policyHistory,
             'setByNames' => $this->setByNames($policyHistory),
+            'canReviewEffectiveness' => $authorization->can(
+                Actor::forUser(Auth::user()),
+                ReviewIndex::VIEW_CAPABILITY,
+            )->allowed,
+            'canSummarizeEffectiveness' => true,
+            'activeEffectivenessTab' => 'summary',
         ]);
     }
 
