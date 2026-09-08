@@ -135,7 +135,12 @@ it('returns own effectiveness outcomes per stage with state and date only', func
     $open = $result->effectivenessOutcomes[1];
     expect($open->state)->toBe('open')->and($open->outcome)->toBeNull()->and($open->reviewedOn)->toBeNull();
     $serialized = json_encode($result, JSON_THROW_ON_ERROR);
-    expect($serialized)->not->toContain('PRIVATE', 'reviewer_employee_entity_id', 'evidence', 'further_action', 'closure_reason', 'application_rating')
+    expect($serialized)->not->toContain('PRIVATE')
+        ->and($serialized)->not->toContain('reviewer_employee_entity_id')
+        ->and($serialized)->not->toContain('evidence')
+        ->and($serialized)->not->toContain('further_action')
+        ->and($serialized)->not->toContain('closure_reason')
+        ->and($serialized)->not->toContain('application_rating')
         ->and(array_keys(json_decode(json_encode($recorded, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR)))
         ->toBe(['stage', 'state', 'outcome', 'reviewedOn', 'outcomeRecordedAt']);
 });

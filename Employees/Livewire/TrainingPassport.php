@@ -3,10 +3,9 @@
 namespace App\Domains\People\Employees\Livewire;
 
 use App\Core\User\Models\User;
-use App\Domains\People\Provider\Data\ExternalReference;
 use App\Domains\People\Provider\Data\WorkforceSubject;
-use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Training\Exceptions\TrainingPassportDenied;
+use App\Domains\People\Training\Services\TrainingPassportAccess;
 use App\Domains\People\Training\Services\TrainingPassportDocumentStore;
 use App\Domains\People\Training\Services\TrainingPassportReader;
 use Illuminate\Contracts\View\View;
@@ -19,12 +18,16 @@ final class TrainingPassport extends Component
     #[Locked]
     public string $subjectId = '';
 
-    public function mount(): void
+    public function mount(TrainingPassportAccess $access): void
     {
         $actor = Auth::user();
-        abort_unless($actor instanceof User && $actor->employee_id !== null, 403);
+        abort_unless($actor instanceof User, 403);
 
-        $this->subjectId = (string) $actor->employee_id;
+        try {
+            $this->subjectId = $access->ownSubject($actor)->stableId;
+        } catch (TrainingPassportDenied) {
+            abort(403);
+        }
     }
 
     /**
@@ -70,14 +73,10 @@ final class TrainingPassport extends Component
 
     private function subject(User $actor): WorkforceSubject
     {
-        abort_unless($actor->tenant_id !== null && $actor->company_id !== null, 403);
-
-        return new WorkforceSubject(
-            (int) $actor->tenant_id,
-            (int) $actor->company_id,
-            WorkforceResourceType::Employee,
-            $this->subjectId,
-            new ExternalReference(WorkforceResourceType::Employee, $this->subjectId),
-        );
+        try {
+            return app(TrainingPassportAccess::class)->ownSubject($actor);
+        } catch (TrainingPassportDenied) {
+            abort(403);
+        }
     }
 }
