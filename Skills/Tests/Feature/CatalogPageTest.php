@@ -15,6 +15,7 @@ use App\Domains\People\Skills\Models\SkillCategory;
 use App\Domains\People\Skills\Services\ProficiencyScaleStore;
 use App\Domains\People\Skills\Services\SkillCatalogDefaults;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Livewire;
 
 afterEach(function (): void {
@@ -97,6 +98,62 @@ test('the catalog page uses the actor platform company through the native workfo
     Livewire::actingAs($admin)
         ->test(Index::class)
         ->assertViewHas('companies', [(int) $company->id => (string) $company->name]);
+});
+
+test('the skill register uses the shared filter table sorting and pagination composition', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    $companyEntityId = catalogPageCompanyEntity($tenantId, 'Sortable Catalog Co', (int) $admin->company_id);
+    $category = app(SkillCatalogStore::class)->defineCategory($companyEntityId, 'operations', 'Operations');
+
+    foreach (range(1, 27) as $number) {
+        app(SkillCatalogStore::class)->defineSkill($companyEntityId, new SkillDraft(
+            code: sprintf('skill.%02d', $number),
+            name: sprintf('Skill %02d', 28 - $number),
+            definition: 'A sortable and paginated catalog skill.',
+            categoryId: (int) $category->id,
+        ));
+    }
+
+    $page = Livewire::actingAs($admin)
+        ->test(Index::class)
+        ->assertSeeHtml('id="skills-search"')
+        ->assertSeeHtml('id="skills-per-page"')
+        ->assertSeeHtml('aria-label="Search skills"')
+        ->assertViewHas('skills', fn ($skills): bool => $skills instanceof LengthAwarePaginator
+            && $skills->total() === 27
+            && $skills->count() === 25)
+        ->call('sortSkills', 'name')
+        ->call('sortSkills', 'name');
+
+    expect($page->viewData('skills')->first()->name)->toBe('Skill 27');
+
+    $page->set('search', 'does not exist')
+        ->assertSee('No skills match your search and filters.')
+        ->assertDontSee('No skills have been added yet.');
+});
+
+test('skill and category forms replace the register and return to the owning tab', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    $companyEntityId = catalogPageCompanyEntity($tenantId, 'Separate Form Co', (int) $admin->company_id);
+    app(SkillCatalogStore::class)->defineCategory($companyEntityId, 'operations', 'Operations');
+
+    Livewire::actingAs($admin)
+        ->test(Index::class)
+        ->call('startSkill')
+        ->assertSee('Create skill')
+        ->assertDontSee('No skills have been added yet.')
+        ->call('cancelForm')
+        ->assertSee('No skills have been added yet.')
+        ->set('tab', 'categories')
+        ->call('startCategory')
+        ->assertSee('Create category')
+        ->assertDontSee('Skill categories')
+        ->call('cancelForm')
+        ->assertSee('Skill categories');
 });
 
 test('HR can install the starter pack and administer the catalog end to end', function (): void {
