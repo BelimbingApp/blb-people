@@ -288,6 +288,17 @@ test('the register uses shared list controls and human-readable locale-aware val
         ]);
 });
 
+test('a company with no authoritative currency shows costs without inventing one', function (): void {
+    $f = reqRegisterFixture();
+    // Deliberately no reqRegisterCompanyCurrency(): no country currency exists.
+
+    $html = html_entity_decode(Livewire::actingAs($f['hr'])->test(Register::class)->assertOk()->html());
+
+    expect($html)->toContain('Estimated cost (currency unavailable)')
+        ->and($html)->not->toContain('Estimated cost (USD)')
+        ->and($html)->not->toContain('Estimated cost (MYR)');
+});
+
 test('search sorting and pagination keep the register bounded to the selected company and year', function (): void {
     $f = reqRegisterFixture();
     $employee = reqRegisterEmployee($f['alpha'], $f['ops'], 'Paging Employee');
