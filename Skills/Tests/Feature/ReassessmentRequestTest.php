@@ -394,16 +394,19 @@ it('performs a reassessment from the HR governance queue', function (): void {
     $skillId = rrSkill($f);
     rrScore($f, $f['report'], $skillId);
     $request = rrPendingRequest($f, $skillId);
+    $request->forceFill(['due_at' => today()->subDay()])->save();
 
     Livewire::actingAs($f['hr'])
         ->test(HrGovernance::class)
+        ->assertViewHas('overdueCount', 1)
+        ->assertSee('1 skill reassessment is overdue.')
         ->assertSee('Reassess after retraining.')
         ->assertSee('Reassessment Report')
         ->set('reassessmentLevels.'.$request->id, 3)
         ->set('reassessmentDates.'.$request->id, now()->toDateString())
         ->set('reassessmentNotes.'.$request->id, 'Queue-recorded outcome.')
         ->call('performReassessment', $request->id)
-        ->assertSee('No skill reassessment awaits HR decision.')
+        ->assertSee('No decisions are waiting for HR in this company.')
         ->assertDontSee('Reassess after retraining.');
 
     expect($request->refresh()->status)->toBe(ReassessmentRequestStatus::Resolved);

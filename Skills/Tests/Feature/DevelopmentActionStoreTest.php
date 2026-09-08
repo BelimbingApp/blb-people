@@ -213,6 +213,25 @@ function developmentDraft(array $fixture, int $employeeId, array $overrides = []
     ], $overrides));
 }
 
+test('development actions distinguish missing assessment data from finalized assessments with no gaps', function (): void {
+    $fixture = developmentActionFixture(employeeCount: 2);
+    $hr = User::factory()->create(['company_id' => $fixture['platform_company']]);
+    developmentActionRole($hr, 'people_hr');
+
+    Livewire::actingAs($hr)
+        ->test(DevelopmentActionIndex::class)
+        ->assertSee('No finalized assessments are available yet. This is not evidence that employees have no skill gaps.')
+        ->assertSee('Open skill assessments')
+        ->assertSeeHtml('href="'.route('people.skill.assessment.matrix').'"');
+
+    developmentAssessment($fixture, $fixture['employees'][0], level: 4, gap: 0);
+
+    Livewire::actingAs($hr)
+        ->test(DevelopmentActionIndex::class)
+        ->assertSee('Finalized assessments are available, but none shows a current skill gap that needs an action.')
+        ->assertDontSee('No finalized assessments are available yet.');
+});
+
 test('priority is visible and mandatory gates sort independently', function (): void {
     $priority = app(DevelopmentActionPriority::class);
 

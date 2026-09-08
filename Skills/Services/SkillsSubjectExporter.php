@@ -34,7 +34,7 @@ final class SkillsSubjectExporter implements ExportsSupplementalSubjectRecords
     /**
      * Audience / delivery ledgers with employee_entity_id that #410 left out of
      * the DSAR payload on purpose (portal bindings, assessor roster, reminder
-     * delivery ticks). Named so the coverage ratchet cannot silently forget them.
+     * delivery ticks). Named so #412's coverage ratchet cannot silently forget them.
      *
      * @var list<string>
      */

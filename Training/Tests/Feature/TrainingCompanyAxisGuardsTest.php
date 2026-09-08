@@ -16,6 +16,7 @@ use App\Domains\People\Training\Data\TrainingCourseDraft;
 use App\Domains\People\Training\Data\TrainingEventDraft;
 use App\Domains\People\Training\Enums\DeliveryMode;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEventException;
+use App\Domains\People\Training\Livewire\Catalog\Edit as CatalogEdit;
 use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
 use App\Domains\People\Training\Livewire\Event\Index as EventIndex;
 use App\Domains\People\Training\Models\TrainingCourse;
@@ -216,8 +217,7 @@ test('the catalog page lists only the acting company and refuses to open or togg
         ->assertSee('Alpha Forklift Induction')
         ->assertDontSee('Beta Forklift Induction');
 
-    Livewire::actingAs($hr)->test(CatalogIndex::class)
-        ->call('editCourse', (int) $b['course']->id)
+    Livewire::actingAs($hr)->test(CatalogEdit::class, ['courseId' => (int) $b['course']->id])
         ->assertStatus(404);
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)

@@ -8,7 +8,9 @@ use App\Domains\People\Skills\Contracts\ResolvesSkillRequirements;
 use App\Domains\People\Skills\Data\AssessmentDraft;
 use App\Domains\People\Skills\Enums\AssessmentCycle;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
+use App\Domains\People\Skills\Enums\ProficiencyScaleStatus;
 use App\Domains\People\Skills\Exceptions\InvalidAssessmentException;
+use App\Domains\People\Skills\Models\ProficiencyScale;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\AssessmentStore;
@@ -161,7 +163,9 @@ class Matrix extends Component
         }
 
         $this->reset('scores', 'evidence');
-        session()->flash('status', __('Assessment matrix submitted for HOD verification.'));
+        session()->flash('status', __('Assessment matrix submitted by :name as assessor of record for HOD verification.', [
+            'name' => Auth::user()->name,
+        ]));
     }
 
     public function render(): View
@@ -172,11 +176,18 @@ class Matrix extends Component
         $skills = collect();
         $employees = collect();
         $requiredLevels = [];
+        $hasPublishedScale = false;
+        $canManageCatalog = false;
 
         if ($companyEntityId !== null && array_key_exists($companyEntityId, $companies)) {
             $skills = $this->skills($companyEntityId);
             $employees = $this->employees($companyEntityId);
             $requiredLevels = $this->requiredLevels($companyEntityId);
+            $hasPublishedScale = ProficiencyScale::query()
+                ->forCompany(app(TenantContext::class)->requireTenantId(), $companyEntityId)
+                ->where('status', ProficiencyScaleStatus::Published->value)
+                ->exists();
+            $canManageCatalog = app(SkillAudience::class)->mayManageCatalog(Auth::user(), $companyEntityId);
         }
 
         return view('people::livewire.assessment.matrix', [
@@ -185,6 +196,9 @@ class Matrix extends Component
             'employees' => $employees,
             'requiredLevels' => $requiredLevels,
             'canAssess' => $this->canAssess(),
+            'assessorName' => Auth::user()->name,
+            'hasPublishedScale' => $hasPublishedScale,
+            'canManageCatalog' => $canManageCatalog,
             'selectedSkills' => $skills->whereIn('id', $this->selectedSkillIds)->values(),
         ]);
     }

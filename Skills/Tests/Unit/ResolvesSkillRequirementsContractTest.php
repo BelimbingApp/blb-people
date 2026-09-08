@@ -152,12 +152,14 @@ test('assessment surface php sources never name requirement-profile tables', fun
         }
     }
 
+    expect($files)->not->toBeEmpty();
+
     foreach ($files as $file) {
         $contents = file_get_contents($file);
         expect($contents)->not->toBeFalse();
         foreach ($forbidden as $table) {
-            expect($contents)
-                ->not->toContain($table, "assessment surface must not name profile table [{$table}] in {$file}");
+            expect(str_contains($contents, $table))
+                ->toBeFalse("assessment surface must not name profile table [{$table}] in {$file}");
         }
     }
 });
