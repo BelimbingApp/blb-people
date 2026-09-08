@@ -42,5 +42,16 @@ return [
             'condition' => 'people.skill.hr-audience',
             'parent' => 'people',
         ],
+        [
+            // 0014-b (#319): HR-wide register of current released levels,
+            // gated on its own capability like the other Skills surfaces.
+            'id' => 'people.skill-register',
+            'label' => 'Skill register',
+            'icon' => 'heroicon-o-clipboard-document-list',
+            'route' => 'people.skill.register.index',
+            'permission' => 'people.skill.register.view',
+            'condition' => 'people.skill.register-audience',
+            'parent' => 'people',
+        ],
     ],
 ];
