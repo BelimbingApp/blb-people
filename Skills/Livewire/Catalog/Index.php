@@ -7,6 +7,7 @@ use App\Base\Tenancy\Contracts\TenantContext;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
 use App\Domains\People\Skills\Enums\CriticalClassification;
+use App\Domains\People\Skills\Enums\ProficiencyScaleStatus;
 use App\Domains\People\Skills\Enums\SkillScope;
 use App\Domains\People\Skills\Exceptions\InvalidSkillCatalogException;
 use App\Domains\People\Skills\Models\ProficiencyScale;
@@ -18,6 +19,7 @@ use App\Domains\People\Skills\Services\SkillCatalogDefaults;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
@@ -31,6 +33,7 @@ use Livewire\Component;
  */
 class Index extends Component
 {
+    #[Url]
     public string $tab = 'skills';
 
     public ?int $companyEntityId = null;
@@ -59,6 +62,9 @@ class Index extends Component
     public function mount(): void
     {
         $this->authorizeView();
+        if (! in_array($this->tab, ['skills', 'categories', 'scale'], true)) {
+            $this->tab = 'skills';
+        }
 
         $companies = $this->allowedCompanies();
         $this->companyEntityId = count($companies) > 0 ? (int) array_key_first($companies) : null;
@@ -78,6 +84,7 @@ class Index extends Component
         $companyEntityId = $this->authorizedCompanyForManage();
 
         $defaults->install($companyEntityId);
+        session()->flash('status', __('The standard proficiency scale is published. Existing categories were preserved and missing standard categories were added.'));
     }
 
     public function startSkill(?int $skillId = null): void
@@ -222,12 +229,19 @@ class Index extends Component
         $companyEntityId = $this->companyEntityId !== null && array_key_exists($this->companyEntityId, $companies)
             ? $this->companyEntityId
             : null;
+        $scales = $companyEntityId === null ? collect() : $this->scales($companyEntityId);
 
         return view('people::livewire.catalog.index', [
             'companies' => $companies,
             'categories' => $companyEntityId === null ? collect() : $this->categories($companyEntityId),
             'skills' => $companyEntityId === null ? collect() : $this->filteredSkills($companyEntityId),
-            'scales' => $companyEntityId === null ? collect() : $this->scales($companyEntityId),
+            'scales' => $scales,
+            'hasPublishedScale' => $scales->contains(
+                fn (ProficiencyScale $scale): bool => $scale->status === ProficiencyScaleStatus::Published,
+            ),
+            'hasScaleDraft' => $scales->contains(
+                fn (ProficiencyScale $scale): bool => $scale->status === ProficiencyScaleStatus::Draft,
+            ),
             'canManage' => $this->canManage(),
             'scopeOptions' => SkillScope::cases(),
             'methodOptions' => AssessmentMethod::cases(),

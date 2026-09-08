@@ -4,6 +4,10 @@
         :subtitle="__('Company skill catalog and proficiency scale.')"
     />
 
+    @if (session('status'))
+        <x-ui.alert variant="success">{{ session('status') }}</x-ui.alert>
+    @endif
+
     @if ($companies === [])
         <x-ui.alert variant="info">
             {{ __('No company workforce data is synchronized yet. Connect a People provider to start the skill catalog.') }}
@@ -33,15 +37,6 @@
                 >{{ $label }}</button>
             @endforeach
         </nav>
-
-        @if ($canManage && $categories->isEmpty() && $scales->isEmpty())
-            <x-ui.alert variant="info">
-                {{ __('This catalog is empty.') }}
-                <button type="button" wire:click="installStarterPack" class="font-medium underline">
-                    {{ __('Install the standard categories and 0–5 scale') }}
-                </button>
-            </x-ui.alert>
-        @endif
 
         @if ($tab === 'skills')
             <div class="flex flex-wrap items-center gap-3 text-sm">
@@ -237,6 +232,35 @@
                 </x-slot:body>
             </x-ui.table>
         @else
+            @unless ($hasPublishedScale)
+                <x-ui.alert variant="info">
+                    <div class="space-y-3">
+                        <div class="space-y-1">
+                            <p class="font-medium text-ink">{{ __('A published proficiency scale is required before assessments can be submitted.') }}</p>
+                            <p>{{ __('The standard scale defines six evidence-based levels from 0 (Not trained) to 5 (Expert / Authoriser).') }}</p>
+                        </div>
+
+                        @if ($canManage)
+                            @if ($hasScaleDraft)
+                                <p>{{ __('A scale draft is ready below. Review its meaning and publish it to open assessment submission.') }}</p>
+                            @else
+                                <div class="space-y-2">
+                                    <x-ui.button type="button" wire:click="installStarterPack" wire:loading.attr="disabled" wire:target="installStarterPack">
+                                        <span wire:loading.remove wire:target="installStarterPack">{{ __('Publish the standard 0–5 proficiency scale') }}</span>
+                                        <span wire:loading wire:target="installStarterPack">{{ __('Publishing standard scale…') }}</span>
+                                    </x-ui.button>
+                                    <p class="text-sm">{{ __('Adds any missing standard skill categories without changing existing categories.') }}</p>
+                                </div>
+                            @endif
+                        @else
+                            <p>{{ __('Ask a People HR administrator to publish the standard proficiency scale before assessments begin.') }}</p>
+                        @endif
+
+                        <p class="text-sm">{{ __('Level 0 is an assessed result; an employee with no score remains not yet assessed. Publishing the scale does not assess employees or grant qualifications.') }}</p>
+                    </div>
+                </x-ui.alert>
+            @endunless
+
             @foreach ($scales as $scale)
                 <section wire:key="scale-{{ $scale->id }}" class="space-y-2 rounded border border-edge p-4">
                     <header class="flex flex-wrap items-center gap-2">
@@ -277,10 +301,6 @@
                     </x-ui.table>
                 </section>
             @endforeach
-
-            @if ($scales->isEmpty())
-                <p class="text-sm text-muted">{{ __('No proficiency scale yet. Install the starter pack to ship the standard 0–5 scale.') }}</p>
-            @endif
         @endif
     @endif
 </div>
