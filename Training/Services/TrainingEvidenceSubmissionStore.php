@@ -266,6 +266,34 @@ final class TrainingEvidenceSubmissionStore
     /** @return array{0: int, 1: WorkforceEmployee} */
     private function scope(User $actor, int $companyId): array
     {
+        $tenant = $this->assertScope($actor, $companyId);
+        $employee = $this->employeeIdentity($actor, $companyId);
+        if ($employee === null) {
+            $this->deny();
+        }
+
+        return [$tenant, $employee];
+    }
+
+    /**
+     * Whether the actor has a usable employee identity in this company.
+     *
+     * scope() asks the same question by throwing, which is right for a write
+     * but wrong for a first page render: the page has to tell a missing
+     * identity apart from an empty attended-training list, and an exception
+     * says both at once (#434). The tenant, company and capability checks
+     * still run and still throw -- only the identity half answers with false.
+     */
+    public function hasEmployeeIdentity(User $actor, int $companyId): bool
+    {
+        $this->assertScope($actor, $companyId);
+
+        return $this->employeeIdentity($actor, $companyId) !== null;
+    }
+
+    /** The tenant this actor may act in for this company, or a refusal. */
+    private function assertScope(User $actor, int $companyId): int
+    {
         $tenant = $this->tenancy->currentTenantId();
         $currentActor = $actor->exists ? User::query()->find($actor->getKey()) : null;
         if ($tenant === null || $currentActor === null || $currentActor->getCompanyId() !== $actor->getCompanyId()
@@ -273,15 +301,25 @@ final class TrainingEvidenceSubmissionStore
             $this->deny();
         }
         $this->authorization->authorize(Actor::forUser($actor), self::SUBMIT);
+
+        return $tenant;
+    }
+
+    /**
+     * The identity half of scope(), answering with null instead of throwing so
+     * both callers share one copy of the rules and cannot drift.
+     */
+    private function employeeIdentity(User $actor, int $companyId): ?WorkforceEmployee
+    {
         $employee = $this->directory->employeeForUser((string) $companyId, (int) $actor->getKey());
         if ($employee === null || ! $employee->active || $employee->userReferenceRevoked
             || $employee->companyReference->externalId !== (string) $companyId
             || $employee->userReference?->providerId !== $employee->reference->providerId
             || $employee->userReference?->externalId !== (string) $actor->getKey()) {
-            $this->deny();
+            return null;
         }
 
-        return [$tenant, $employee];
+        return $employee;
     }
 
     private function participant(int $tenant, int $companyId, int $eventId, WorkforceEmployee $employee): TrainingParticipant

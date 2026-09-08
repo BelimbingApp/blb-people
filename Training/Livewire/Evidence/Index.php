@@ -20,6 +20,9 @@ final class Index extends Component
 
     public ?int $companyEntityId = null;
 
+    /** Per-request memo; deliberately not Livewire state. */
+    private ?bool $identityMissing = null;
+
     public string $reflection = '';
 
     public string $certificateNumber = '';
@@ -75,11 +78,33 @@ final class Index extends Component
     public function render(): View
     {
         $companyEntityId = $this->companyEntityId === null ? null : $this->requireCompany();
+        $identityMissing = $this->employeeIdentityMissing();
 
         return view('people::livewire.evidence.index', [
             'companies' => $this->allowedCompanies(),
-            'events' => $companyEntityId === null ? [] : app(TrainingEvidenceSubmissionStore::class)->visibleEvents($this->user(), $companyEntityId),
+            'events' => $companyEntityId === null || $identityMissing
+                ? []
+                : app(TrainingEvidenceSubmissionStore::class)->visibleEvents($this->user(), $companyEntityId),
+            'employeeIdentityMissing' => $identityMissing,
         ]);
+    }
+
+    /**
+     * Whether this account is authorized here but has no employee identity.
+     *
+     * Asking before visibleEvents() is what keeps the first render from dying:
+     * the store denies inside scope(), and that exception used to escape
+     * render() as an unhandled 500 (#434). The action-level submit() catch
+     * never covered the initial GET.
+     */
+    private function employeeIdentityMissing(): bool
+    {
+        if ($this->companyEntityId === null) {
+            return false;
+        }
+
+        return $this->identityMissing ??= ! app(TrainingEvidenceSubmissionStore::class)
+            ->hasEmployeeIdentity($this->user(), $this->requireCompany());
     }
 
     private function resetForm(): void

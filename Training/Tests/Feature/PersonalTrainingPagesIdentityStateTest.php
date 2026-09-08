@@ -46,7 +46,13 @@ test('the personal evaluation page explains a missing employee identity instead 
 
     $this->actingAs($actor)
         ->get(route('people.training.evaluations.index'))
-        ->assertOk();
+        ->assertOk()
+        ->assertSee('Your account is not linked to an employee record in this company.')
+        ->assertSee('Ask your HR administrator to link your account', false)
+        // The identity failure must not be dressed as an empty training list.
+        ->assertDontSee('No attended training is ready for evaluation.')
+        // And no technical detail leaks: the operator sees guidance, not the scope refusal.
+        ->assertDontSee('unavailable in the current scope');
 });
 
 test('the personal evidence page explains a missing employee identity instead of failing', function (): void {
@@ -54,5 +60,9 @@ test('the personal evidence page explains a missing employee identity instead of
 
     $this->actingAs($actor)
         ->get(route('people.training.evidence.index'))
-        ->assertOk();
+        ->assertOk()
+        ->assertSee('Your account is not linked to an employee record in this company.')
+        ->assertSee('Evidence is submitted against your own recorded attendance', false)
+        ->assertDontSee('No attended training is ready for evidence submission.')
+        ->assertDontSee('unavailable in the current scope');
 });
