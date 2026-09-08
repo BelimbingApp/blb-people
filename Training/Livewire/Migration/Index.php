@@ -372,7 +372,6 @@ final class Index extends Component
         return $date !== false && $date->format('Y-m-d') === trim($value) ? $date : null;
     }
 
-
     public function signAsHod(PilotSignoffStore $store): void
     {
         $companyEntityId = $this->requireCompany();
