@@ -753,7 +753,7 @@ test('schedule editor returns the Calendar table state after saving or cancellin
         'view' => 'table',
         'search' => 'Safety',
         'lifecycle' => TrainingEventStatus::Scheduled->value,
-        'department' => (string) $fixture['departments'][0]->id,
+        'department' => (string) $fixture['departments'][0],
         'from' => '2026-10-01',
         'until' => '2026-10-31',
         'sortBy' => 'course_title_snapshot',

@@ -346,6 +346,7 @@ it('lets HR search and sort the schedule table without exposing a third list vie
 
 it('keeps the HR schedule return state in the New schedule link', function (): void {
     $f = calendarFixture();
+    $event = calendarEvent($f['company'], $f['trainerEmployee'], 'Forklift stateful revision');
     $return = [
         'company' => (int) $f['company']->id,
         'view' => 'table',
@@ -358,7 +359,7 @@ it('keeps the HR schedule return state in the New schedule link', function (): v
         'sortDir' => 'desc',
         'year' => 2026,
         'month' => 10,
-        'page' => 2,
+        'page' => 1,
     ];
 
     $page = Livewire::actingAs($f['hr'])->test(TrainingCalendar::class)
@@ -374,7 +375,14 @@ it('keeps the HR schedule return state in the New schedule link', function (): v
         ->set('month', $return['month'])
         ->call('setPage', $return['page']);
 
-    expect(html_entity_decode($page->html()))->toContain(route('people.training.events.index', ['return' => 'calendar'] + $return));
+    $newSchedule = ['return' => 'calendar'] + $return;
+    $revise = $newSchedule;
+    $revise['edit'] = (int) $event->id;
+
+    expect($page->instance()->scheduleEditorParameters())->toBe($newSchedule)
+        ->and(html_entity_decode($page->html()))
+        ->toContain(route('people.training.events.index', $newSchedule, absolute: false))
+        ->toContain(route('people.training.events.index', $revise, absolute: false));
 });
 
 it('keeps terminal events in HR Table while Calendar remains open-event discovery', function (): void {

@@ -99,7 +99,7 @@
                             <td class="px-table-cell-x py-table-cell-y align-top text-sm tabular-nums">{{ ($counts[$event->id] ?? 0) . ' / ' . $event->capacity }}</td>
                             <td class="px-table-cell-x py-table-cell-y align-top text-sm"><div class="flex flex-wrap justify-end gap-2">
                                 @if ($canManage && $event->status === \App\Domains\People\Training\Enums\TrainingEventStatus::Scheduled)
-                                    <x-ui.link href="{{ route('people.training.events.index', ['edit' => $event->id, 'return' => 'calendar']) }}" wire:navigate>{{ __('Revise') }}</x-ui.link>
+                                    <x-ui.link href="{{ route('people.training.events.index', $this->scheduleEditorParameters((int) $event->id)) }}" wire:navigate>{{ __('Revise') }}</x-ui.link>
                                 @endif
                                 @include('people::livewire.calendar.event-actions', ['event' => $event])
                             </div></td>
