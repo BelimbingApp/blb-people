@@ -20,5 +20,6 @@ final readonly class DepartmentTrainingSpend
         public string $pending,
         public ?string $budget,
         public ?string $remaining,
+        public ?int $budgetId = null,
     ) {}
 }

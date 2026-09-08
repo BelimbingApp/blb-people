@@ -105,9 +105,33 @@
 
                             <x-ui.disclosure :title="__('History (:count)', ['count' => ($history[$event->id] ?? collect())->count()])" panel-id="training-event-{{ $event->id }}-history">
                                 <ol class="space-y-2 text-sm">
-                                    @foreach ($history[$event->id] ?? [] as $record)
-                                        <li><span class="font-medium">{{ str($record->event_type)->replace('_', ' ')->title() }}</span> · <x-ui.datetime :value="$record->occurred_at" />@if ($record->comment)<p>{{ $record->comment }}</p>@endif @if ($record->evidence)<p class="text-muted">{{ $record->evidence }}</p>@endif</li>
-                                    @endforeach
+                                    @forelse ($history[$event->id] ?? [] as $record)
+                                        @php
+                                            $actorEmployee = $record->actor_employee_entity_id !== null
+                                                ? $employees->firstWhere('workforce_entity_id', $record->actor_employee_entity_id)
+                                                : null;
+                                            $actorUser = $record->actor_user_id !== null
+                                                ? ($historyActors[$record->actor_user_id] ?? null)
+                                                : null;
+                                            $actorLabel = $actorEmployee?->display_name
+                                                ?? $actorUser?->name
+                                                ?? ($record->actor_user_id === null && $record->actor_employee_entity_id === null
+                                                    ? __('System')
+                                                    : __('Unavailable'));
+                                        @endphp
+                                        <li wire:key="training-event-{{ $event->id }}-history-{{ $record->id }}">
+                                            <span class="font-medium">{{ str($record->event_type)->replace('_', ' ')->title() }}</span>
+                                            · <x-ui.datetime :value="$record->occurred_at" />
+                                            · <span class="text-muted">{{ __('by :actor', ['actor' => $actorLabel]) }}</span>
+                                            @if ($record->from_status || $record->to_status)
+                                                <p class="text-muted">{{ __('Status :from → :to', ['from' => $record->from_status ?: __('none'), 'to' => $record->to_status ?: __('none')]) }}</p>
+                                            @endif
+                                            @if ($record->comment)<p>{{ $record->comment }}</p>@endif
+                                            @if ($record->evidence)<p class="text-muted">{{ $record->evidence }}</p>@endif
+                                        </li>
+                                    @empty
+                                        <li class="text-muted">{{ __('No history has been recorded for this event yet.') }}</li>
+                                    @endforelse
                                 </ol>
                             </x-ui.disclosure>
 
