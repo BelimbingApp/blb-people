@@ -138,6 +138,14 @@ return [
         'people.training.effectiveness-aggregate.view',
 
         /*
+         * The HR training KPI dashboard (0007-f, #389): the workbook's
+         * training controls per company and department. HR-only on purpose;
+         * a HOD reads their department through the evaluations dashboard and
+         * the effectiveness form, never company-level rates.
+         */
+        'people.training.kpi.view',
+
+        /*
          * The migration source inventory (0015-a): the signed list of legacy
          * sources a production import may read from. HR records and signs;
          * HODs read, so a department can see what of its own records is on the
@@ -173,6 +181,7 @@ return [
                 'people.training.budget.view',
                 'people.training.budget.manage',
                 'people.training.effectiveness-aggregate.view',
+                'people.training.kpi.view',
                 'people.training.migration.view',
                 'people.training.migration.manage',
             ],
