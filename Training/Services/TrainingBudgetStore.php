@@ -2,12 +2,14 @@
 
 namespace App\Domains\People\Training\Services;
 
-use App\Base\Authz\Contracts\AuthorizationService;
-use App\Base\Authz\DTO\Actor;
+use App\Base\Authz\DTO\AuthorizationDecision;
+use App\Base\Authz\Enums\AuthorizationReasonCode;
+use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\User\Models\User;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Services\CompanyAttribution;
+use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Training\Data\DepartmentTrainingSpend;
 use App\Domains\People\Training\Enums\BudgetAuditKind;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
@@ -60,8 +62,8 @@ final class TrainingBudgetStore
 
     public function __construct(
         private TenantContext $tenants,
-        private AuthorizationService $authorization,
         private CompanyAttribution $companies,
+        private SkillAudience $audiences,
     ) {}
 
     /**
@@ -71,20 +73,26 @@ final class TrainingBudgetStore
      */
     public function rollUp(User $actor, int $companyEntityId, int $year): array
     {
-        $tenantId = $this->authorize($actor, $companyEntityId, self::VIEW);
+        [$tenantId, $audiences] = $this->authorize($actor, $companyEntityId, self::VIEW);
+        $visibleDepartmentIds = in_array(SkillAudience::HR, $audiences, true)
+            ? null
+            : $this->audiences->visibleOrganizationUnitEntityIds($actor, $companyEntityId, self::VIEW);
 
         $requests = TrainingRequest::query()->forCompany($tenantId, $companyEntityId)
+            ->when($visibleDepartmentIds !== null, fn ($query) => $query->whereIn('department_subject_id', $visibleDepartmentIds))
             ->whereYear('created_at', $year)
             ->get();
 
         $budgets = TrainingDepartmentBudget::query()->forCompany($tenantId, $companyEntityId)
+            ->when($visibleDepartmentIds !== null, fn ($query) => $query->whereIn('department_entity_id', $visibleDepartmentIds))
             ->where('budget_year', $year)
             ->get()
             ->keyBy(static fn (TrainingDepartmentBudget $budget): int => (int) $budget->department_entity_id);
 
-        $departmentIds = $requests
+        $departmentIds = collect($requests
             ->map(static fn (TrainingRequest $request): int => (int) $request->department_subject_id)
-            ->merge($budgets->keys())
+            ->all())
+            ->merge($budgets->keys()->all())
             ->unique()
             ->sort()
             ->values();
@@ -139,7 +147,7 @@ final class TrainingBudgetStore
         string $amount,
         string $reason,
     ): TrainingDepartmentBudget {
-        $tenantId = $this->authorize($actor, $companyEntityId, self::MANAGE);
+        [$tenantId] = $this->authorize($actor, $companyEntityId, self::MANAGE);
 
         if (trim($reason) === '') {
             throw new InvalidTrainingBudgetException('Changing a training budget needs a stated reason.');
@@ -276,7 +284,30 @@ final class TrainingBudgetStore
         }
     }
 
-    private function authorize(User $actor, int $companyEntityId, string $capability): int
+    public function mayView(User $actor, int $companyEntityId): bool
+    {
+        try {
+            $this->authorize($actor, $companyEntityId, self::VIEW);
+
+            return true;
+        } catch (AuthorizationDeniedException|InvalidTrainingBudgetException) {
+            return false;
+        }
+    }
+
+    public function mayManage(User $actor, int $companyEntityId): bool
+    {
+        try {
+            $this->authorize($actor, $companyEntityId, self::MANAGE);
+
+            return true;
+        } catch (AuthorizationDeniedException|InvalidTrainingBudgetException) {
+            return false;
+        }
+    }
+
+    /** @return array{int, list<string>} */
+    private function authorize(User $actor, int $companyEntityId, string $capability): array
     {
         $tenantId = $this->tenants->currentTenantId()
             ?? throw new InvalidTrainingBudgetException('A tenant context is required for training budgets.');
@@ -284,8 +315,18 @@ final class TrainingBudgetStore
         if (! $this->companies->mayActFor($actor, $companyEntityId)) {
             throw new InvalidTrainingBudgetException('The training budget is unavailable in the current company scope.');
         }
-        $this->authorization->authorize(Actor::forUser($actor), $capability);
+        $audiences = $this->audiences->authorizeAudience($actor, $capability);
+        $required = $capability === self::MANAGE
+            ? [SkillAudience::HR]
+            : [SkillAudience::HR, SkillAudience::HOD];
 
-        return $tenantId;
+        if (array_intersect($required, $audiences) === []) {
+            throw new AuthorizationDeniedException(AuthorizationDecision::deny(
+                AuthorizationReasonCode::DENIED_MISSING_CAPABILITY,
+                ['people_training_budget_audience'],
+            ));
+        }
+
+        return [$tenantId, $audiences];
     }
 }

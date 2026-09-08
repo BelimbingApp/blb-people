@@ -99,6 +99,29 @@ test('HR sets a policy from the page and sees it in the history table', function
         ->and((int) $row->set_by_user_id)->toBe((int) $f['hr']->id);
 });
 
+test('a blank effectiveFrom defaults to today rather than refusing', function (): void {
+    Carbon::setTestNow('2026-09-08 10:00:00');
+    $f = effPolPageFixture();
+
+    Livewire::actingAs($f['hr'])->test(AggregateIndex::class)
+        ->set('day30', '30')
+        ->set('day60', '60')
+        ->set('day90', '90')
+        ->set('effectiveFrom', '')
+        ->set('reason', 'Blank date means today')
+        ->call('setPolicy')
+        ->assertHasNoErrors()
+        ->assertNotDispatched('notify')
+        ->assertSee('The checkpoint policy was recorded.');
+
+    $row = TrainingEffectivenessCheckpointPolicy::query()
+        ->forCompany($f['tenantId'], $f['companyId'])
+        ->sole();
+
+    expect($row->effective_from->toDateString())->toBe('2026-09-08')
+        ->and($row->reason)->toBe('Blank date means today');
+});
+
 test('service refusals reach the user as a notify toast', function (string $field, mixed $value, string $needle): void {
     Carbon::setTestNow('2026-09-08 10:00:00');
     $f = effPolPageFixture();
