@@ -33,6 +33,12 @@ final class Index extends Component
 {
     public const VIEW_CAPABILITY = TrainingEffectivenessAggregate::VIEW;
 
+    /**
+     * Deliberately not URL-bound. This page filters by Core Department
+     * (#437) and the training KPI dashboard counts by workforce organisation
+     * unit, so a `?department=` from there would filter to nothing; the KPI's
+     * effectiveness drills link here without one (#389).
+     */
     public ?int $departmentEntityId = null;
 
     public string $day30 = '30';
