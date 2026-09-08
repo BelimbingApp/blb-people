@@ -238,6 +238,7 @@ final readonly class TrainingRequestStore
                 default => throw new InvalidTrainingRequestException('Only a pending training request can be rejected.'),
             };
             $this->authorization->authorize(Actor::forUser($actor), $capability);
+            $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
 
             return $this->finish($request, TrainingRequestStatus::Rejected, 'rejected', $actor, $notes);
         });
@@ -382,6 +383,9 @@ final readonly class TrainingRequestStore
     {
         $tenantId = $this->scope($actor, $companyId);
         $this->authorization->authorize(Actor::forUser($actor), $capability);
+        // Capability first: cutover refusal discloses the legacy window and must
+        // not leak to callers who cannot perform the requested write.
+        $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
 
         return $tenantId;
     }
@@ -392,8 +396,6 @@ final readonly class TrainingRequestStore
         if (! $this->companies->mayActFor($actor, $companyId)) {
             throw new InvalidTrainingRequestException('The training request is unavailable in the current company scope.');
         }
-        // Single choke point: every write (create/move/reject/cancel/link) enters here.
-        $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
 
         return $tenantId;
     }

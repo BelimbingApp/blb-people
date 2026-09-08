@@ -51,6 +51,15 @@ final class CutoverWriteGuard
         }
 
         return DB::transaction(function () use ($tenantId, $companyEntityId, $actor, $workflow, $writer, $startsAt, $endsAt, $reason): TrainingCutoverWindow {
+            // Serialize declarations per company before the empty-set lock query:
+            // with no windows yet, lockForUpdate on the window table locks nothing,
+            // so two concurrent first declares could both insert overlapping ranges.
+            Company::query()
+                ->whereKey($companyEntityId)
+                ->where('tenant_id', $tenantId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $clash = TrainingCutoverWindow::query()
                 ->forCompany($tenantId, $companyEntityId)
                 ->where('workflow', $workflow->value)

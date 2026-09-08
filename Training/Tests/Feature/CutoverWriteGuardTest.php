@@ -230,6 +230,7 @@ test('a legacy Effectiveness window refuses TrainingEffectivenessStore writes at
     // other two left the suite green. #418's acceptance is one failing test
     // per store: this is the Effectiveness one.
     $f = cutWFixture('CutWEffStore');
+    $hod = cutWUser($f['company'], 'people_hod', 'CutWEffStore HOD');
     app(CutoverWriteGuard::class)->declare(
         $f['hr'], $f['companyId'], CutoverWorkflow::Effectiveness, CutoverWriter::Legacy,
         new DateTimeImmutable('2026-09-01 00:00:00'), null, 'legacy effectiveness still authoritative',
@@ -237,7 +238,7 @@ test('a legacy Effectiveness window refuses TrainingEffectivenessStore writes at
 
     $before = DB::table('people_training_effectiveness_reviews')->count();
 
-    expect(fn () => app(TrainingEffectivenessStore::class)->openStage($f['hr'], $f['companyId'], new EffectivenessReviewDraft(
+    expect(fn () => app(TrainingEffectivenessStore::class)->openStage($hod, $f['companyId'], new EffectivenessReviewDraft(
         participantId: 1,
         stage: EffectivenessReviewStage::Day30,
         dueOn: new DateTimeImmutable('2026-10-01 00:00:00'),
@@ -270,4 +271,88 @@ test('a legacy Attendance window refuses TrainingParticipationStore writes at th
     ))->toThrow(CutoverWriteRefusedException::class);
 
     expect(DB::table('people_training_sessions')->count())->toBe($before);
+});
+
+test('a company member without the request capability is denied before cutover state is revealed', function (): void {
+    $f = cutWFixture('CutWReqAuthz');
+    $member = User::factory()->create([
+        'company_id' => $f['company']->id,
+        'name' => 'CutWReqAuthz Member',
+    ]);
+
+    app(CutoverWriteGuard::class)->declare(
+        $f['hr'], $f['companyId'],
+        CutoverWorkflow::TrainingRequests, CutoverWriter::Legacy,
+        new DateTimeImmutable('2026-01-01 00:00:00'), null, 'portal owns requests',
+    );
+
+    expect(fn () => app(TrainingRequestStore::class)->create($member, $f['companyId'], cutWRequestDraft($f)))
+        ->toThrow(\App\Base\Authz\Exceptions\AuthorizationDeniedException::class);
+});
+
+test('a company member without effectiveness review capability is denied before cutover state is revealed', function (): void {
+    $f = cutWFixture('CutWEffAuthz');
+    // HR is in-company and can declare cutover, but lacks effectiveness.review (HOD-only).
+    app(CutoverWriteGuard::class)->declare(
+        $f['hr'], $f['companyId'],
+        CutoverWorkflow::Effectiveness, CutoverWriter::Legacy,
+        new DateTimeImmutable('2026-09-01 00:00:00'), null, 'legacy effectiveness still authoritative',
+    );
+
+    expect(fn () => app(TrainingEffectivenessStore::class)->openStage($f['hr'], $f['companyId'], new EffectivenessReviewDraft(
+        participantId: 1,
+        stage: EffectivenessReviewStage::Day30,
+        dueOn: new DateTimeImmutable('2026-10-01 00:00:00'),
+        dueDatePolicy: 'cutover.guard.fixture',
+        reviewerEmployeeEntityId: (int) $f['employee']->id,
+    )))->toThrow(\App\Domains\People\Training\Exceptions\InvalidEffectivenessReviewException::class);
+});
+
+test('overlapping first declares serialize on the company row under PostgreSQL', function (): void {
+    if (DB::connection()->getDriverName() !== 'pgsql') {
+        $this->markTestSkipped('Concurrent company-row lock proof needs PostgreSQL.');
+    }
+
+    $f = cutWFixture('CutWRace');
+    $default = config('database.default');
+    $base = config('database.connections.'.$default);
+    config(['database.connections.cutover_concurrent_b' => array_merge($base, ['name' => 'cutover_concurrent_b'])]);
+    DB::purge('cutover_concurrent_b');
+    $b = DB::connection('cutover_concurrent_b');
+
+    try {
+        $b->beginTransaction();
+        $b->table('companies')->where('id', $f['companyId'])->lockForUpdate()->first();
+        $b->statement("SET LOCAL lock_timeout = '750ms'");
+
+        $started = hrtime(true);
+        expect(fn () => app(CutoverWriteGuard::class)->declare(
+            $f['hr'],
+            $f['companyId'],
+            CutoverWorkflow::Attendance,
+            CutoverWriter::Legacy,
+            new DateTimeImmutable('2026-09-01 00:00:00'),
+            null,
+            'first declare under held company lock',
+        ))->toThrow(QueryException::class);
+        expect((hrtime(true) - $started) / 1e6)->toBeGreaterThan(500.0);
+
+        $b->rollBack();
+
+        app(CutoverWriteGuard::class)->declare(
+            $f['hr'],
+            $f['companyId'],
+            CutoverWorkflow::Attendance,
+            CutoverWriter::Legacy,
+            new DateTimeImmutable('2026-09-01 00:00:00'),
+            null,
+            'declare after company lock released',
+        );
+        expect(TrainingCutoverWindow::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(1);
+    } finally {
+        if ($b->transactionLevel() > 0) {
+            $b->rollBack();
+        }
+        DB::purge('cutover_concurrent_b');
+    }
 });
