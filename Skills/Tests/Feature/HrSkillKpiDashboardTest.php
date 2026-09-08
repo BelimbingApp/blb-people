@@ -4,6 +4,7 @@ use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\DateTime\Contracts\DateTimeDisplayService;
+use App\Base\DateTime\Enums\TimezoneMode;
 use App\Base\DateTime\Services\TimezoneSettings;
 use App\Base\Settings\Contracts\SettingsService;
 use App\Base\Settings\DTO\Scope;
@@ -387,7 +388,8 @@ test('every cell carries its value, definition and as-of, and count cells link t
     $f = hrKpiFixture();
     $page = hrKpiPage($f, $f['hr'])->assertOk();
     $html = $page->html();
-    $asOf = $page->viewData('summary')->asOf->format('Y-m-d H:i');
+    app()->forgetInstance(DateTimeDisplayService::class);
+    $asOf = app(DateTimeDisplayService::class)->formatDateTime($page->viewData('summary')->asOf);
 
     expect($html)->toContain('<caption')
         ->toContain('Company skill KPIs')
@@ -429,6 +431,29 @@ test('the KPI summary and cell titles render the same instant in the company tim
         ->toContain('title="'.e($definition.' '.__('As of :moment.', ['moment' => $displayed])).'"')
         ->toContain('data-kpi-as-of="'.e($summary->asOf->format(DATE_ATOM)).'"')
         ->not->toContain('As of 2026-09-08 03:55');
+});
+
+test('local display mode keeps KPI as-of text and titles on the shared browser formatter', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-09-08 03:55:00', 'UTC'));
+    $f = hrKpiFixture();
+    app(SettingsService::class)->set(
+        TimezoneSettings::MODE_KEY,
+        TimezoneMode::LOCAL->value,
+        Scope::user((int) $f['hr']->id, $f['companyId']),
+    );
+
+    $page = hrKpiPage($f, $f['hr'])->assertOk();
+    $asOf = $page->viewData('summary')->asOf;
+    $iso = Carbon::instance($asOf)->utc()->toIso8601String();
+    $html = $page->html();
+
+    expect($html)
+        ->toContain('data-kpi-as-of="'.e($iso).'"')
+        ->toContain('data-kpi-summary-moment')
+        ->toContain('aria-describedby="company-kpi-assessment_coverage-description"')
+        ->toContain('datetime="'.e($iso).'" data-format="datetime"')
+        ->toContain('new MutationObserver')
+        ->toContain('syncAsOfText()');
 });
 
 test('the drill-down pages honour the filters the dashboard links carry', function (): void {
