@@ -6,8 +6,14 @@ use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
 use App\Core\User\Models\User;
+use App\Domains\People\Provider\Data\WorkforceSubject;
+use App\Domains\People\Provider\Enums\WorkforceResourceType;
+use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
+use App\Domains\People\Training\Data\TrainingRequestDraft;
 use App\Domains\People\Training\Enums\CutoverWorkflow;
 use App\Domains\People\Training\Enums\CutoverWriter;
+use App\Domains\People\Training\Enums\TrainingNeedSource;
+use App\Domains\People\Training\Enums\TrainingPriority;
 use App\Domains\People\Training\Exceptions\CutoverWriteRefusedException;
 use App\Domains\People\Training\Exceptions\InvalidCutoverWindowException;
 use App\Domains\People\Training\Models\TrainingCutoverWindow;
@@ -40,7 +46,7 @@ function cutWUser(Company $company, string $roleCode, string $name): User
     return $user;
 }
 
-/** @return array{tenantId: int, companyId: int, hr: User, company: Company} */
+/** @return array{tenantId: int, companyId: int, hr: User, company: Company, employee: object, department: object, subject: callable} */
 function cutWFixture(string $label = 'CutW'): array
 {
     $tenant = createTenant(['name' => $label.' Tenant']);
@@ -48,13 +54,36 @@ function cutWFixture(string $label = 'CutW'): array
     app(TenantContext::class)->set($tenantId);
     setupAuthzRoles();
     $company = Company::factory()->create(['tenant_id' => $tenantId, 'name' => $label.' Co', 'status' => 'active']);
+    $employee = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, (int) $company->id);
+    $department = NativeWorkforceFixture::create($tenantId, WorkforceResourceType::OrganizationUnit, (int) $company->id);
+    $subject = fn ($record, WorkforceResourceType $type) => new WorkforceSubject(
+        $tenantId, (int) $company->id, $type, (string) $record->id,
+    );
 
     return [
         'tenantId' => $tenantId,
         'companyId' => (int) $company->id,
         'company' => $company,
         'hr' => cutWUser($company, 'people_hr', $label.' HR'),
+        'employee' => $employee,
+        'department' => $department,
+        'subject' => $subject,
     ];
+}
+
+function cutWRequestDraft(array $f): TrainingRequestDraft
+{
+    return new TrainingRequestDraft(
+        requestor: $f['subject']($f['employee'], WorkforceResourceType::Employee),
+        department: $f['subject']($f['department'], WorkforceResourceType::OrganizationUnit),
+        needSource: TrainingNeedSource::NewMachineTechnology,
+        need: 'Operators need safe control-system operation.',
+        learningObjective: 'Operate the new control system safely.',
+        expectedResult: 'Zero unsafe startup deviations.',
+        priority: TrainingPriority::High,
+        skillGapAssessmentId: null,
+        requirementVersion: null,
+    );
 }
 
 test('legacy window refuses TrainingRequestStore writes and leaves reads intact; system window allows writes', function (): void {
@@ -150,25 +179,43 @@ test('cutover windows are append-only at the database', function (): void {
     expect(TrainingCutoverWindow::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(1);
 });
 
-test('TrainingRequestStore create is refused under a legacy window (store-level guard)', function (): void {
-    $f = cutWFixture('CutWReq');
+test('create is refused while the legacy portal is the authoritative writer', function (): void {
+    $f = cutWFixture('CutWCreate');
+    $companyId = $f['companyId'];
+
     app(CutoverWriteGuard::class)->declare(
-        $f['hr'],
-        $f['companyId'],
-        CutoverWorkflow::TrainingRequests,
-        CutoverWriter::Legacy,
-        new DateTimeImmutable('2026-01-01 00:00:00'),
-        null,
-        'portal owns requests',
+        $f['hr'], $companyId,
+        CutoverWorkflow::TrainingRequests, CutoverWriter::Legacy,
+        new DateTimeImmutable('2026-01-01 00:00:00'), null, 'portal owns requests',
     );
 
-    // Direct assertWritable is what create() calls first; prove the store wires it.
-    $store = app(TrainingRequestStore::class);
-    $ref = new ReflectionClass($store);
-    $prop = $ref->getProperty('cutover');
-    $prop->setAccessible(true);
-    expect($prop->getValue($store))->toBeInstanceOf(CutoverWriteGuard::class);
-
-    expect(fn () => app(CutoverWriteGuard::class)->assertWritable($f['companyId'], CutoverWorkflow::TrainingRequests))
+    expect(fn () => app(TrainingRequestStore::class)->create($f['hr'], $companyId, cutWRequestDraft($f)))
         ->toThrow(CutoverWriteRefusedException::class);
+
+    expect(TrainingRequest::query()->forCompany($f['tenantId'], $companyId)->count())->toBe(0);
+});
+
+test('a legacy window refuses every training-request write, not only create', function (): void {
+    $f = cutWFixture('CutWCancel');
+    $companyId = $f['companyId'];
+    $store = app(TrainingRequestStore::class);
+
+    // A request that already exists when the cutover window opens.
+    $request = $store->create($f['hr'], $companyId, cutWRequestDraft($f));
+
+    app(CutoverWriteGuard::class)->declare(
+        $f['hr'], $companyId,
+        CutoverWorkflow::TrainingRequests, CutoverWriter::Legacy,
+        new DateTimeImmutable('2026-01-01 00:00:00'), null, 'portal owns requests',
+    );
+
+    // Control: create is guarded via scope().
+    expect(fn () => $store->create($f['hr'], $companyId, cutWRequestDraft($f)))
+        ->toThrow(CutoverWriteRefusedException::class);
+
+    // cancel() writes a status transition through finish(), never through move().
+    expect(fn () => $store->cancel($f['hr'], $companyId, (int) $request->id, 'withdrawn'))
+        ->toThrow(CutoverWriteRefusedException::class);
+
+    expect($request->fresh()->status->value)->toBe('draft');
 });

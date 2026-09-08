@@ -55,7 +55,6 @@ final class TrainingEffectivenessStore
     public function openStage(User $actor, int $companyEntityId, EffectivenessReviewDraft $draft): TrainingEffectivenessReview
     {
         $tenantId = $this->scope($actor, $companyEntityId);
-        $this->cutover->assertWritable($companyEntityId, CutoverWorkflow::Effectiveness);
         $this->authorize($actor, SkillAudience::HOD, self::REVIEW_CAPABILITY,
             'Only a HOD may review training effectiveness.');
 
@@ -481,6 +480,8 @@ final class TrainingEffectivenessStore
                 'The effectiveness review is unavailable in the current company scope.',
             );
         }
+        // Single choke point: openStage and every later write enter here first.
+        $this->cutover->assertWritable($companyEntityId, CutoverWorkflow::Effectiveness);
 
         return $tenantId;
     }

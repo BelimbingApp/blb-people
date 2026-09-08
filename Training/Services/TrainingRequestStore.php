@@ -58,7 +58,6 @@ final readonly class TrainingRequestStore
     public function create(User $actor, int $companyId, TrainingRequestDraft $draft, ?TrainingRequestSubjectsDraft $subjects = null): TrainingRequest
     {
         $tenantId = $this->authorize($actor, $companyId, self::SUBMIT);
-        $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
         $this->validate($tenantId, $companyId, $draft);
         $resolved = $this->resolveSubjects($actor, $tenantId, $companyId, $draft,
             $subjects ?? TrainingRequestSubjectsDraft::forSubjects([$draft->requestor]));
@@ -304,7 +303,6 @@ final readonly class TrainingRequestStore
         TrainingRequestStatus $to, string $decision, string $capability, ?string $notes = null): TrainingRequest
     {
         $tenantId = $this->authorize($actor, $companyId, $capability);
-        $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
 
         return DB::transaction(function () use ($actor, $companyId, $requestId, $from, $to, $decision, $notes, $tenantId): TrainingRequest {
             $request = $this->find($tenantId, $companyId, $requestId);
@@ -342,6 +340,8 @@ final readonly class TrainingRequestStore
         if (! $this->companies->mayActFor($actor, $companyId)) {
             throw new InvalidTrainingRequestException('The training request is unavailable in the current company scope.');
         }
+        // Single choke point: every write (create/move/reject/cancel/link) enters here.
+        $this->cutover->assertWritable($companyId, CutoverWorkflow::TrainingRequests);
 
         return $tenantId;
     }

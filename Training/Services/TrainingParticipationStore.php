@@ -65,7 +65,6 @@ final class TrainingParticipationStore
     public function defineSession(User $actor, int $companyId, int $eventId, string $reference, DateTimeInterface $startsAt, DateTimeInterface $endsAt): TrainingSession
     {
         $tenant = $this->scope($actor, $companyId, self::MANAGE);
-        $this->cutover->assertWritable($companyId, CutoverWorkflow::Attendance);
         $event = $this->event($tenant, $companyId, $eventId);
         $this->authorizeEvent($actor, $event, false);
         $start = CarbonImmutable::instance($startsAt);
@@ -85,7 +84,6 @@ final class TrainingParticipationStore
     public function recordAttendance(User $actor, int $companyId, int $sessionId, WorkforceSubject $subject, ParticipationFactDraft $draft): TrainingParticipationFact
     {
         $tenant = $this->scope($actor, $companyId, self::MANAGE);
-        $this->cutover->assertWritable($companyId, CutoverWorkflow::Attendance);
         try {
             return DB::transaction(function () use ($actor, $companyId, $sessionId, $subject, $draft, $tenant): TrainingParticipationFact {
                 $session = $this->session($tenant, $companyId, $sessionId);
@@ -370,6 +368,8 @@ final class TrainingParticipationStore
             $this->deny();
         }
         $this->authorization->authorize(Actor::forUser($actor), $capability);
+        // Single choke point: defineSession, attendance, revise/confirm/enrol/correct enter here.
+        $this->cutover->assertWritable($companyId, CutoverWorkflow::Attendance);
 
         return $tenant;
     }
