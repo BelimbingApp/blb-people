@@ -2,22 +2,36 @@
 
 namespace App\Domains\People\Training\Livewire\Requests;
 
+use App\Base\Authz\Contracts\AuthorizationService;
+use App\Base\Authz\DTO\Actor;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
 use App\Base\Foundation\Contracts\SemanticActionRecorder;
+use App\Base\Foundation\Livewire\Concerns\ResetsPaginationOnSearch;
+use App\Base\Foundation\Livewire\Concerns\SelectsPerPage;
+use App\Base\Foundation\Livewire\Concerns\TogglesSort;
+use App\Base\Locale\Contracts\CurrencyDisplayService;
+use App\Base\Locale\Contracts\NumberDisplayService;
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Core\Company\Models\Company;
 use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Enums\TrainingRequestStatus;
+use App\Domains\People\Training\Livewire\HrGovernance\Index as HrGovernanceIndex;
 use App\Domains\People\Training\Models\TrainingEvent;
 use App\Domains\People\Training\Models\TrainingRequest;
 use App\Domains\People\Training\Models\TrainingRequestDecision;
 use App\Domains\People\Training\Models\TrainingRequestSubject;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\WithPagination;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -33,6 +47,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 final class Register extends Component
 {
+    use ResetsPaginationOnSearch;
+    use SelectsPerPage;
+    use TogglesSort;
+    use WithPagination;
+
     public const VIEW_CAPABILITY = 'people.training.request.list';
 
     public const EXPORT_EVENT = 'people.training.requests.exported';
@@ -42,6 +61,13 @@ final class Register extends Component
 
     /** Final decisions, whose actor is the approver and whose time is the decision date. */
     private const FINAL_DECISIONS = ['approved', 'rejected'];
+
+    private const SORTABLE = [
+        'created_at' => 'created_at',
+        'need' => 'need',
+        'status' => 'status',
+        'estimated_cost' => 'estimated_cost',
+    ];
 
     public ?int $companyEntityId = null;
 
@@ -57,6 +83,17 @@ final class Register extends Component
 
     #[Url]
     public string $department = '';
+
+    #[Url]
+    public string $search = '';
+
+    #[Url]
+    public string $sortBy = 'created_at';
+
+    #[Url]
+    public string $sortDir = 'desc';
+
+    public ?int $selectedRequestId = null;
 
     /** @var array<string, string>|null */
     private ?array $allowedCompanies = null;
@@ -74,7 +111,44 @@ final class Register extends Component
         $this->authorizeView();
         abort_unless(array_key_exists($companyEntityId, $this->allowedCompanies()), 404);
         $this->companyEntityId = $companyEntityId;
-        $this->reset('status', 'department');
+        $this->reset('status', 'department', 'search', 'selectedRequestId');
+        $this->resetPage();
+    }
+
+    public function updatedStatus(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedDepartment(): void
+    {
+        $this->resetPage();
+    }
+
+    public function sort(string $column): void
+    {
+        $this->toggleSort(
+            column: $column,
+            allowedColumns: self::SORTABLE,
+            defaultDir: [
+                'created_at' => 'desc',
+                'need' => 'asc',
+                'status' => 'asc',
+                'estimated_cost' => 'desc',
+            ],
+        );
+    }
+
+    public function openDetails(int $requestId): void
+    {
+        $companyEntityId = $this->requireCompany();
+        abort_unless($this->baseRequestQuery($companyEntityId)->whereKey($requestId)->exists(), 404);
+        $this->selectedRequestId = $requestId;
+    }
+
+    public function closeDetails(): void
+    {
+        $this->selectedRequestId = null;
     }
 
     public function render(): View
@@ -83,12 +157,22 @@ final class Register extends Component
         $companies = $this->allowedCompanies();
         $companyEntityId = $this->companyEntityId === null ? null : $this->requireCompany();
         $departments = $companyEntityId === null ? [] : $this->departmentNames($companyEntityId);
+        $employees = $companyEntityId === null ? [] : $this->employeeNames($companyEntityId);
+        $rows = $companyEntityId === null
+            ? new LengthAwarePaginator([], 0, $this->clampedPerPage())
+            : $this->paginatedRows($companyEntityId, $departments, $employees);
+        $selectedRequest = $companyEntityId === null || $this->selectedRequestId === null
+            ? null
+            : $this->selectedRequest($companyEntityId, $departments, $employees);
 
         return view('people::livewire.requests.register', [
             'companies' => $companies,
             'departments' => $departments,
             'statuses' => TrainingRequestStatus::cases(),
-            'rows' => $companyEntityId === null ? collect() : $this->rows($companyEntityId, $departments),
+            'rows' => $rows,
+            'selectedRequest' => $selectedRequest,
+            'currencyCode' => $companyEntityId === null ? null : $this->companyCurrencyCode($companyEntityId),
+            'canUseGovernance' => $this->canUseGovernance(),
         ]);
     }
 
@@ -96,7 +180,14 @@ final class Register extends Component
     public function export(): StreamedResponse
     {
         $companyEntityId = $this->requireCompany();
-        $rows = $this->rows($companyEntityId, $this->departmentNames($companyEntityId));
+        $departments = $this->departmentNames($companyEntityId);
+        $employees = $this->employeeNames($companyEntityId);
+        $rows = $this->decorateRequests(
+            $companyEntityId,
+            $this->filteredRequestQuery($companyEntityId, $departments, $employees)->get(),
+            $departments,
+            $employees,
+        );
         $filename = sprintf('training-requests-%d-%d.csv', $companyEntityId, $this->year);
 
         app(SemanticActionRecorder::class)->record(
@@ -128,15 +219,31 @@ final class Register extends Component
 
     /**
      * @param  array<string, string>  $departments
-     * @return Collection<int, array{id: int, created_at: string, requestor: string, subjects: int, department: string, need: string, priority: string, status: string, estimated_cost: string, approver: string, decided_at: string}>
+     * @param  array<string, string>  $employees
+     * @return LengthAwarePaginator<int, array<string, mixed>>
      */
-    private function rows(int $companyEntityId, array $departments): Collection
+    private function paginatedRows(int $companyEntityId, array $departments, array $employees): LengthAwarePaginator
     {
-        $tenantId = $this->tenantId();
-        $query = TrainingRequest::query()
-            ->forCompany($tenantId, $companyEntityId)
-            ->whereBetween('created_at', [sprintf('%d-01-01 00:00:00', $this->year), sprintf('%d-12-31 23:59:59', $this->year)])
-            ->orderByDesc('id');
+        $paginator = $this->filteredRequestQuery($companyEntityId, $departments, $employees)
+            ->paginate($this->clampedPerPage());
+        $paginator->setCollection($this->decorateRequests(
+            $companyEntityId,
+            $paginator->getCollection(),
+            $departments,
+            $employees,
+        ));
+
+        return $paginator;
+    }
+
+    /**
+     * @param  array<string, string>  $departments
+     * @param  array<string, string>  $employees
+     */
+    private function filteredRequestQuery(int $companyEntityId, array $departments, array $employees): Builder
+    {
+        $query = $this->baseRequestQuery($companyEntityId);
+
         if ($this->status === self::FILTER_APPROVED_UNLINKED) {
             $query->where('status', TrainingRequestStatus::Approved->value)->whereNull('training_event_id');
         } elseif ($this->status !== '') {
@@ -148,51 +255,157 @@ final class Register extends Component
         if ($this->department !== '' && array_key_exists($this->department, $departments)) {
             $query->where('department_subject_id', $this->department);
         }
-        $requests = $query->get();
 
-        // Decisions and approver names from two more pinned queries: an eager
-        // load would build the relation on a blank model and pin company 0.
-        $decisions = $requests->isEmpty() ? collect() : TrainingRequestDecision::query()
+        $search = trim($this->search);
+        if ($search !== '') {
+            $matchingEmployees = array_keys(array_filter(
+                $employees,
+                static fn (string $name): bool => str_contains(Str::lower($name), Str::lower($search)),
+            ));
+            $matchingDepartments = array_keys(array_filter(
+                $departments,
+                static fn (string $name): bool => str_contains(Str::lower($name), Str::lower($search)),
+            ));
+            $matchingStatuses = array_values(array_map(
+                static fn (TrainingRequestStatus $status): string => $status->value,
+                array_filter(
+                    TrainingRequestStatus::cases(),
+                    static fn (TrainingRequestStatus $status): bool => str_contains(Str::lower($status->label()), Str::lower($search))
+                        || str_contains($status->value, Str::lower($search)),
+                ),
+            ));
+
+            $matches = DB::table('people_training_requests')
+                ->select('id')
+                ->where('tenant_id', $this->tenantId())
+                ->where('company_entity_id', $companyEntityId)
+                ->where(function ($query) use ($search, $matchingEmployees, $matchingDepartments, $matchingStatuses): void {
+                    $query->whereLike('need', '%'.$search.'%')
+                        ->orWhereLike('learning_objective', '%'.$search.'%')
+                        ->orWhereLike('expected_result', '%'.$search.'%');
+                    if ($matchingEmployees !== []) {
+                        $query->orWhereIn('requestor_subject_id', $matchingEmployees);
+                    }
+                    if ($matchingDepartments !== []) {
+                        $query->orWhereIn('department_subject_id', $matchingDepartments);
+                    }
+                    if ($matchingStatuses !== []) {
+                        $query->orWhereIn('status', $matchingStatuses);
+                    }
+                });
+
+            $query->whereIn('id', $matches);
+        }
+
+        $sortColumn = self::SORTABLE[$this->sortBy] ?? self::SORTABLE['created_at'];
+
+        return $query->orderBy($sortColumn, $this->sortDir === 'asc' ? 'asc' : 'desc')
+            ->orderByDesc('id');
+    }
+
+    private function baseRequestQuery(int $companyEntityId): Builder
+    {
+        return TrainingRequest::query()
+            ->forCompany($this->tenantId(), $companyEntityId)
+            ->whereBetween('created_at', [sprintf('%d-01-01 00:00:00', $this->year), sprintf('%d-12-31 23:59:59', $this->year)]);
+    }
+
+    /**
+     * @param  Collection<int, TrainingRequest>  $requests
+     * @param  array<string, string>  $departments
+     * @param  array<string, string>  $employees
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function decorateRequests(int $companyEntityId, Collection $requests, array $departments, array $employees): Collection
+    {
+        $tenantId = $this->tenantId();
+
+        $decisionRows = $requests->isEmpty() ? collect() : TrainingRequestDecision::query()
             ->forCompany($tenantId, $companyEntityId)
             ->whereIn('training_request_id', $requests->pluck('id')->all())
-            ->whereIn('decision', self::FINAL_DECISIONS)
-            ->orderBy('id')->get()->keyBy('training_request_id');
-        $approvers = $decisions->isEmpty() ? collect() : User::query()->whereIn('id', $decisions->pluck('actor_user_id')->unique()->all())->get()->keyBy('id');
+            ->orderBy('id')->get();
+        $decisions = $decisionRows->groupBy('training_request_id');
+        $actors = $decisionRows->isEmpty() ? collect() : User::query()
+            ->whereIn('id', $decisionRows->pluck('actor_user_id')->unique()->all())
+            ->get()->keyBy('id');
         $linkedIds = $requests->pluck('training_event_id')->filter()->unique()->all();
         $eventTitles = $linkedIds === [] ? collect() : TrainingEvent::query()->forCompany($tenantId, $companyEntityId)->whereIn('id', $linkedIds)->pluck('course_title_snapshot', 'id');
-        // How many people each request is for (0010-f). One more pinned
-        // query for the same reason as the two above: an eager load would
-        // build the relation on a blank model and pin company 0.
         $subjectCounts = $requests->isEmpty() ? collect() : TrainingRequestSubject::query()
             ->forCompany($tenantId, $companyEntityId)
             ->whereIn('training_request_id', $requests->pluck('id')->all())
             ->get(['training_request_id'])
             ->countBy('training_request_id');
-        $employees = [];
-        foreach (app(WorkforceSubjects::class)->employees($companyEntityId) as $employee) {
-            $employees[$employee->reference->externalId] = $employee->displayName;
-        }
+        $currencyCode = $this->companyCurrencyCode($companyEntityId);
 
-        return $requests->map(function (TrainingRequest $request) use ($decisions, $approvers, $employees, $departments, $eventTitles, $subjectCounts): array {
-            $decision = $decisions->get($request->id);
-            $approver = $decision === null ? null : $approvers->get((int) $decision->actor_user_id);
+        return $requests->map(function (TrainingRequest $request) use ($decisions, $actors, $employees, $departments, $eventTitles, $subjectCounts, $currencyCode): array {
+            $history = $decisions->get($request->id, collect());
+            $finalDecision = $history->last(static fn (TrainingRequestDecision $decision): bool => in_array($decision->decision, self::FINAL_DECISIONS, true));
+            $cost = $request->estimated_cost === null ? null : (float) $request->estimated_cost;
 
             return [
                 'id' => (int) $request->id,
                 'created_at' => (string) $request->created_at?->toDateString(),
+                'created_at_value' => $request->created_at,
                 'requestor' => $employees[$request->requestor_subject_id] ?? __('Employee :id', ['id' => $request->requestor_subject_id]),
                 'subjects' => (int) ($subjectCounts[$request->id] ?? 0),
                 'department' => $departments[$request->department_subject_id] ?? $request->department_subject_id,
                 'need' => (string) $request->need,
+                'learning_objective' => (string) $request->learning_objective,
+                'expected_result' => (string) $request->expected_result,
                 'priority' => $request->priority->value,
+                'priority_label' => Str::headline($request->priority->value),
                 'status' => $request->status->value,
+                'status_label' => $request->status->label(),
                 'estimated_cost' => $request->estimated_cost === null ? '' : (string) $request->estimated_cost,
-                'approver' => $approver?->name ?? '',
-                'decided_at' => $decision === null ? '' : (string) $decision->occurred_at?->toDateString(),
+                'estimated_cost_display' => $cost === null ? null : $this->formatCost($cost, $currencyCode),
+                'approver' => $finalDecision === null ? '' : (string) ($actors->get((int) $finalDecision->actor_user_id)?->name ?? ''),
+                'decided_at' => $finalDecision === null ? '' : (string) $finalDecision->occurred_at?->toDateString(),
+                'decided_at_value' => $finalDecision?->occurred_at,
                 'linked_event_id' => $request->training_event_id === null ? '' : (string) $request->training_event_id,
                 'linked_event_title' => $request->training_event_id === null ? '' : (string) ($eventTitles[(int) $request->training_event_id] ?? ''),
+                'decisions' => $history->map(static fn (TrainingRequestDecision $decision): array => [
+                    'decision' => (string) $decision->decision,
+                    'label' => Str::headline((string) $decision->decision),
+                    'actor' => (string) ($actors->get((int) $decision->actor_user_id)?->name ?? __('Unknown user')),
+                    'notes' => (string) ($decision->notes ?? ''),
+                    'occurred_at' => $decision->occurred_at,
+                ])->values(),
             ];
         })->values();
+    }
+
+    /**
+     * @param  array<string, string>  $departments
+     * @param  array<string, string>  $employees
+     * @return array<string, mixed>
+     */
+    private function selectedRequest(int $companyEntityId, array $departments, array $employees): array
+    {
+        $request = $this->baseRequestQuery($companyEntityId)->findOrFail($this->selectedRequestId);
+
+        return $this->decorateRequests($companyEntityId, collect([$request]), $departments, $employees)->sole();
+    }
+
+    private function formatCost(float $cost, ?string $currencyCode): string
+    {
+        return $currencyCode === null
+            ? app(NumberDisplayService::class)->format($cost, 2, 2)
+            : app(CurrencyDisplayService::class)->format($cost, $currencyCode);
+    }
+
+    private function companyCurrencyCode(int $companyEntityId): ?string
+    {
+        $company = Company::query()->forTenant($this->tenantId())->find($companyEntityId);
+        $currencyCode = strtoupper((string) ($company?->primaryAddress()?->country?->currency_code ?? ''));
+
+        return preg_match('/^[A-Z]{3}$/', $currencyCode) === 1 ? $currencyCode : null;
+    }
+
+    private function canUseGovernance(): bool
+    {
+        return app(AuthorizationService::class)
+            ->can(Actor::forUser($this->user()), HrGovernanceIndex::VIEW_CAPABILITY)
+            ->allowed;
     }
 
     /** @return array<string, string> organization-unit stable id => name */
@@ -201,6 +414,17 @@ final class Register extends Component
         $names = [];
         foreach (app(WorkforceSubjects::class)->organizationUnits($companyEntityId) as $unit) {
             $names[$unit->reference->externalId] = $unit->name;
+        }
+
+        return $names;
+    }
+
+    /** @return array<string, string> employee stable id => display name */
+    private function employeeNames(int $companyEntityId): array
+    {
+        $names = [];
+        foreach (app(WorkforceSubjects::class)->employees($companyEntityId) as $employee) {
+            $names[$employee->reference->externalId] = $employee->displayName;
         }
 
         return $names;
