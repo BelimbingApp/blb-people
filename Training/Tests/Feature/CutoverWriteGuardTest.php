@@ -133,10 +133,20 @@ test('cutover windows are append-only at the database', function (): void {
         'append-only',
     );
 
-    expect(fn () => DB::table('people_training_cutover_windows')->where('id', $window->id)->update(['reason' => 'nope']))
-        ->toThrow(QueryException::class, 'append-only');
-    expect(fn () => DB::table('people_training_cutover_windows')->where('id', $window->id)->delete())
-        ->toThrow(QueryException::class, 'append-only');
+    // Each attempt runs in its own DB::transaction() so the trigger's abort is
+    // confined to a savepoint. Pest already wraps the test in a transaction,
+    // and on PostgreSQL a raised exception poisons the whole one: the first
+    // refusal would leave the second reporting 25P02 "current transaction is
+    // aborted" instead of the trigger's message. SQLite does not care, which
+    // is exactly why this only shows up in the postgres mirror.
+    foreach ([
+        fn () => DB::table('people_training_cutover_windows')->where('id', $window->id)->update(['reason' => 'nope']),
+        fn () => DB::table('people_training_cutover_windows')->where('id', $window->id)->delete(),
+    ] as $attempt) {
+        expect(fn () => DB::transaction($attempt))
+            ->toThrow(QueryException::class, 'append-only');
+    }
+
     expect(TrainingCutoverWindow::query()->forCompany($f['tenantId'], $f['companyId'])->count())->toBe(1);
 });
 
