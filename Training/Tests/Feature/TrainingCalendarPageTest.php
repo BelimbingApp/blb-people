@@ -362,8 +362,6 @@ it('keeps the HR schedule return state in the New schedule link', function (): v
         'page' => 1,
     ];
 
-    $event = calendarEvent($f['company'], $f['trainerEmployee'], 'State-preserving revision');
-
     $page = Livewire::actingAs($f['hr'])->test(TrainingCalendar::class)
         ->call('showTable')
         ->set('search', $return['search'])
