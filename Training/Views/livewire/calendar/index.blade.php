@@ -28,7 +28,19 @@
         <div class="flex flex-wrap items-center gap-2">
             @if ($view === 'calendar')
                 <x-ui.button type="button" wire:click="previousMonth" variant="secondary" aria-label="{{ __('Previous month') }}">&larr;</x-ui.button>
-                <h2 class="text-lg font-semibold">{{ $monthLabel }}</h2>
+                <div class="flex flex-wrap items-center gap-2" aria-label="{{ __('Calendar month') }}">
+                    <x-ui.select id="training-schedule-month" wire:model.live="month" aria-label="{{ __('Month') }}">
+                        @foreach (range(1, 12) as $monthNumber)
+                            <option value="{{ $monthNumber }}">{{ \Carbon\CarbonImmutable::create($year, $monthNumber, 1)->format('F') }}</option>
+                        @endforeach
+                    </x-ui.select>
+                    <x-ui.select id="training-schedule-year" wire:model.live="year" aria-label="{{ __('Year') }}">
+                        @foreach ($yearOptions as $yearOption)
+                            <option value="{{ $yearOption }}">{{ $yearOption }}</option>
+                        @endforeach
+                    </x-ui.select>
+                    <h2 class="sr-only">{{ $monthLabel }}</h2>
+                </div>
                 <x-ui.button type="button" wire:click="nextMonth" variant="secondary" aria-label="{{ __('Next month') }}">&rarr;</x-ui.button>
             @endif
             <span class="flex gap-2 {{ $view === 'calendar' ? 'ml-auto' : '' }}">

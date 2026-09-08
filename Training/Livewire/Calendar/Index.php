@@ -89,6 +89,7 @@ final class Index extends Component
         $date = CarbonImmutable::create($this->year, $this->month, 1)->subMonth();
         $this->year = $date->year;
         $this->month = $date->month;
+        $this->syncTableDateRange();
     }
 
     public function nextMonth(): void
@@ -96,6 +97,25 @@ final class Index extends Component
         $date = CarbonImmutable::create($this->year, $this->month, 1)->addMonth();
         $this->year = $date->year;
         $this->month = $date->month;
+        $this->syncTableDateRange();
+    }
+
+    public function selectMonth(int $year, int $month): void
+    {
+        abort_unless($year >= 2000 && $year <= 2100 && $month >= 1 && $month <= 12, 404);
+        $this->year = $year;
+        $this->month = $month;
+        $this->syncTableDateRange();
+    }
+
+    public function updatedYear(): void
+    {
+        $this->selectMonth($this->year, $this->month);
+    }
+
+    public function updatedMonth(): void
+    {
+        $this->selectMonth($this->year, $this->month);
     }
 
     public function showCalendar(): void
@@ -112,6 +132,7 @@ final class Index extends Component
     public function showTable(): void
     {
         $this->view = 'table';
+        $this->syncTableDateRange();
         $this->resetPage();
     }
 
@@ -190,6 +211,7 @@ final class Index extends Component
         $counts = [];
         $departments = collect();
         $canManage = false;
+        $canSelfManageParticipation = false;
 
         if ($company !== null && array_key_exists($company, $companies)) {
             $canManage = $audience->canManage(Auth::user(), $company);
@@ -212,6 +234,7 @@ final class Index extends Component
                 ->map(intval(...))
                 ->all();
             $enrolled = $this->enrolledEventIds($company);
+            $canSelfManageParticipation = $this->canSelfManageParticipation($company);
             $departments = $canManage ? $this->departmentOptions($company) : collect();
         }
 
@@ -225,8 +248,10 @@ final class Index extends Component
             'counts' => $counts,
             'departments' => $departments,
             'canManage' => $canManage,
+            'canSelfManageParticipation' => $canSelfManageParticipation,
             'weeks' => $this->weeks($monthStart, $events),
             'monthLabel' => $monthStart->format('F Y'),
+            'yearOptions' => range(now()->year - 10, now()->year + 20),
         ]);
     }
 
@@ -285,6 +310,18 @@ final class Index extends Component
             ->when($this->until !== '', fn (Builder $builder) => $builder->whereDate('starts_at', '<=', $this->until));
     }
 
+    private function syncTableDateRange(): void
+    {
+        if ($this->view !== 'table') {
+            return;
+        }
+
+        $month = CarbonImmutable::create($this->year, $this->month, 1);
+        $this->from = $month->startOfMonth()->toDateString();
+        $this->until = $month->endOfMonth()->toDateString();
+        $this->resetPage();
+    }
+
     /** @return array<int, string> */
     private function allowedCompanies(TrainingAudience $audience): array
     {
@@ -313,6 +350,11 @@ final class Index extends Component
             ->where('employee_subject_id', (string) $bound)
             ->whereNull('withdrawn_at')
             ->pluck('event_id')->map(intval(...))->all();
+    }
+
+    private function canSelfManageParticipation(int $company): bool
+    {
+        return app(SkillAudience::class)->boundEmployeeEntityId(Auth::user(), $company) !== null;
     }
 
     /** @return Collection<int, object> */
