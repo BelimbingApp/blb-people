@@ -2,6 +2,7 @@
 
 use App\Domains\People\Training\Http\Controllers\TrainingPassportDocumentController;
 use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingAudience;
+use App\Domains\People\Training\Http\Middleware\AuthorizeTrainingBudgetAudience;
 use App\Domains\People\Training\Livewire\Budget\Index as BudgetIndex;
 use App\Domains\People\Training\Livewire\Calendar\Index as CalendarIndex;
 use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
@@ -68,7 +69,7 @@ Route::middleware(['auth'])->group(function (): void {
     // Both are the same page and the same capability to reach it — only
     // people.training.budget.manage decides who may change an amount.
     Route::get('people/training/budget', BudgetIndex::class)
-        ->middleware('authz:'.BudgetIndex::VIEW_CAPABILITY)
+        ->middleware('authz:'.BudgetIndex::VIEW_CAPABILITY, AuthorizeTrainingBudgetAudience::class)
         ->name('people.training.budget.index');
 
     // The HOD's own 30/60/90-day questions. The department check lives in the
