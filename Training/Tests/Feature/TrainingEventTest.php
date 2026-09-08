@@ -241,6 +241,9 @@ test('HR can maintain the company-scoped course catalog without exposing a cours
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)
         ->call('startCourse')
+        ->assertSee('Skills covered')
+        ->assertSee('Select at least one skill')
+        ->assertSee('Select one or more active skills this course develops.')
         ->set('courseForm.code', 'confined.space')
         ->set('courseForm.title', 'Confined space entry')
         ->set('courseForm.delivery_mode', DeliveryMode::InternalOjt->value)
@@ -271,6 +274,7 @@ test('course creation explains the active-skill prerequisite before opening an u
     Livewire::actingAs($hr)->test(CatalogIndex::class)
         ->assertSee('Add an active skill before defining a course.')
         ->assertSee('Set up skills')
+        ->assertSeeHtml('href="'.route('people.skill.catalog.index').'"')
         ->assertDontSee('New course')
         ->call('startCourse')
         ->assertHasErrors('courseForm')
