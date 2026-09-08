@@ -278,8 +278,23 @@ final class Index extends Component
         $skillNames = collect();
         $history = collect();
         $eligibleReassessments = collect();
+        $hasFinalizedAssessments = false;
+        $mayViewAssessments = false;
         if ($companyId !== null && array_key_exists($companyId, $companies)) {
             $visibleEmployeeIds = $this->visibleEmployeeIds(manage: false);
+            $hasFinalizedAssessments = SkillAssessment::query()
+                ->forCompany(app(TenantContext::class)->requireTenantId(), $companyId)
+                ->whereIn('employee_entity_id', $visibleEmployeeIds)
+                ->where('status', AssessmentStatus::Finalized->value)
+                ->exists();
+            try {
+                $mayViewAssessments = array_key_exists(
+                    $companyId,
+                    app(SkillAudience::class)->allowedCompanies($this->user(), 'people.skill.assessment.view'),
+                );
+            } catch (AuthorizationDeniedException) {
+                $mayViewAssessments = false;
+            }
             $employees = collect(app(WorkforceSubjects::class)->employees($companyId))
                 ->filter(fn ($employee): bool => in_array((int) $employee->reference->externalId, $visibleEmployeeIds, true))
                 ->map(fn ($employee): object => (object) [
@@ -355,6 +370,8 @@ final class Index extends Component
             'history' => $history,
             'eligibleReassessments' => $eligibleReassessments,
             'canManage' => $this->canManage(),
+            'hasFinalizedAssessments' => $hasFinalizedAssessments,
+            'mayViewAssessments' => $mayViewAssessments,
         ]);
     }
 
