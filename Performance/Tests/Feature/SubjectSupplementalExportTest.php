@@ -202,7 +202,7 @@ test('every people table with employee_entity_id is claimed by an exporter list 
     sort($claimed);
 
     $found = [];
-    foreach (Schema::getTableListing() as $table) {
+    foreach (Schema::getTableListing(schemaQualified: false) as $table) {
         if (! str_starts_with($table, 'people_')) {
             continue;
         }
