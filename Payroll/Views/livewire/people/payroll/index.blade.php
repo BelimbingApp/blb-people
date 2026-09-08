@@ -462,7 +462,7 @@
                                                 <td class="px-table-cell-x py-table-cell-y text-right tabular-nums text-ink">{{ $row->levy_rate ?? '-' }}</td>
                                             </tr>
                                         @endforeach
-                                    
+
                             </x-ui.table>
                         </div>
                     @empty

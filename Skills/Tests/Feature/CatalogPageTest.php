@@ -15,6 +15,7 @@ use App\Domains\People\Skills\Models\SkillCategory;
 use App\Domains\People\Skills\Services\ProficiencyScaleStore;
 use App\Domains\People\Skills\Services\SkillCatalogDefaults;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Livewire;
 
 afterEach(function (): void {
@@ -99,6 +100,113 @@ test('the catalog page uses the actor platform company through the native workfo
         ->assertViewHas('companies', [(int) $company->id => (string) $company->name]);
 });
 
+test('the skill register uses the shared filter table sorting and pagination composition', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    $companyEntityId = catalogPageCompanyEntity($tenantId, 'Sortable Catalog Co', (int) $admin->company_id);
+    $category = app(SkillCatalogStore::class)->defineCategory($companyEntityId, 'operations', 'Operations');
+
+    foreach (range(1, 27) as $number) {
+        app(SkillCatalogStore::class)->defineSkill($companyEntityId, new SkillDraft(
+            code: sprintf('skill.%02d', $number),
+            name: sprintf('Skill %02d', 28 - $number),
+            definition: 'A sortable and paginated catalog skill.',
+            categoryId: (int) $category->id,
+        ));
+    }
+
+    $page = Livewire::actingAs($admin)
+        ->test(Index::class)
+        ->assertSeeHtml('id="skills-search"')
+        ->assertSeeHtml('id="skills-per-page"')
+        ->assertSeeHtml('aria-label="Search skills"')
+        ->assertViewHas('skills', fn ($skills): bool => $skills instanceof LengthAwarePaginator
+            && $skills->total() === 27
+            && $skills->count() === 25)
+        ->call('sortSkills', 'name')
+        ->call('sortSkills', 'name');
+
+    expect($page->viewData('skills')->first()->name)->toBe('Skill 27');
+
+    $page->call('setPage', 2)
+        ->assertSet('paginators.page', 2)
+        ->set('search', 'does not exist')
+        ->assertSet('paginators.page', 1)
+        ->assertSee('No skills match your search and filters.')
+        ->assertDontSee('No skills have been added yet.');
+});
+
+test('skill and category forms replace the register and return to the owning tab', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    $companyEntityId = catalogPageCompanyEntity($tenantId, 'Separate Form Co', (int) $admin->company_id);
+    app(SkillCatalogStore::class)->defineCategory($companyEntityId, 'operations', 'Operations');
+    PrincipalCapability::query()->create([
+        'company_id' => $admin->company_id,
+        'principal_type' => PrincipalType::USER->value,
+        'principal_id' => $admin->id,
+        'capability_key' => 'admin.audit.log.list',
+        'is_allowed' => true,
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test(Index::class)
+        ->call('startSkill')
+        ->assertSee('Create skill')
+        ->assertDontSee('No skills have been added yet.')
+        ->call('cancelForm')
+        ->assertSee('No skills have been added yet.')
+        ->set('tab', 'categories')
+        ->call('startCategory')
+        ->assertSee('Create category')
+        ->assertDontSee('Skill categories')
+        ->set('categoryForm.code', 'safety')
+        ->set('categoryForm.name', 'Safety')
+        ->call('saveCategory')
+        ->assertSee('Category created successfully.')
+        ->assertSee('Safety')
+        ->call('startCategory', (int) SkillCategory::query()->forCompany($tenantId, $companyEntityId)->where('code', 'operations')->valueOrFail('id'))
+        ->assertSee('Edit Operations')
+        ->assertSee('History')
+        ->call('cancelForm')
+        ->assertSee('Skill categories');
+
+    $this->actingAs($admin)
+        ->get(route('people.skill.catalog.index', ['view' => 'skill-form', 'company' => $companyEntityId]))
+        ->assertOk()
+        ->assertSee('Create skill');
+});
+
+test('the category register is server sorted and paginated with aggregate skill counts', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    $companyEntityId = catalogPageCompanyEntity($tenantId, 'Category Register Co', (int) $admin->company_id);
+
+    foreach (range(1, 27) as $number) {
+        app(SkillCatalogStore::class)->defineCategory(
+            $companyEntityId,
+            sprintf('category.%02d', $number),
+            sprintf('Category %02d', $number),
+        );
+    }
+
+    $page = Livewire::actingAs($admin)
+        ->test(Index::class)
+        ->set('tab', 'categories')
+        ->assertSeeHtml('id="categories-per-page"')
+        ->assertViewHas('categories', fn ($categories): bool => $categories instanceof LengthAwarePaginator
+            && $categories->total() === 27
+            && $categories->count() === 25)
+        ->call('sortCategories', 'code')
+        ->call('sortCategories', 'code');
+
+    expect($page->viewData('categories')->first()->code)->toBe('category.27')
+        ->and($page->viewData('categories')->first()->skills_count)->toBe(0);
+});
+
 test('HR can install the starter pack and administer the catalog end to end', function (): void {
     $admin = createAdminUser();
     catalogPageGrantHr($admin);
@@ -135,6 +243,75 @@ test('HR can install the starter pack and administer the catalog end to end', fu
         ->set('skillForm.definition', 'Duplicate code.')
         ->call('saveSkill')
         ->assertHasErrors('skillForm');
+});
+
+test('HR can publish the standard scale from an empty or category-only catalog without overwriting existing data', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    $companyEntityId = catalogPageCompanyEntity($tenantId, 'Partial Catalog Co', (int) $admin->company_id);
+    $custom = app(SkillCatalogStore::class)->defineCategory($companyEntityId, 'demo', 'Edited Demo Category');
+
+    $component = Livewire::actingAs($admin)
+        ->test(Index::class)
+        ->set('tab', 'scale')
+        ->assertSee('Publish the standard 0–5 proficiency scale')
+        ->assertSee('Adds any missing standard skill categories without changing existing categories.')
+        ->assertSee('Level 0 is an assessed result; an employee with no score remains not yet assessed.')
+        ->call('installStarterPack')
+        ->assertHasNoErrors()
+        ->assertSee('Not trained')
+        ->assertSee('Expert / Authoriser')
+        ->assertDontSee('Publish the standard 0–5 proficiency scale');
+
+    expect($custom->refresh()->name)->toBe('Edited Demo Category')
+        ->and(SkillCategory::query()->forCompany($tenantId, $companyEntityId)->count())->toBe(11)
+        ->and(ProficiencyScale::query()->forCompany($tenantId, $companyEntityId)->count())->toBe(1);
+
+    $component->call('installStarterPack')->assertHasNoErrors();
+
+    expect($custom->refresh()->name)->toBe('Edited Demo Category')
+        ->and(SkillCategory::query()->forCompany($tenantId, $companyEntityId)->count())->toBe(11)
+        ->and(ProficiencyScale::query()->forCompany($tenantId, $companyEntityId)->count())->toBe(1);
+});
+
+test('a read-only catalog explains who can publish a missing scale without offering an unavailable action', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    catalogPageCompanyEntity($tenantId, 'Read-only Catalog Co', (int) $admin->company_id);
+    $viewer = catalogPageViewer((int) $admin->company_id);
+    app(TenantContext::class)->set($tenantId);
+
+    Livewire::actingAs($viewer)
+        ->test(Index::class)
+        ->set('tab', 'scale')
+        ->assertSee('Ask a People HR administrator to publish the standard proficiency scale before assessments begin.')
+        ->assertDontSee('Publish the standard 0–5 proficiency scale');
+});
+
+test('an existing published scale needs no starter setup even when the category catalog is empty', function (): void {
+    $admin = createAdminUser();
+    catalogPageGrantHr($admin);
+    $tenantId = (int) app(TenantContext::class)->currentTenantId();
+    $companyEntityId = catalogPageCompanyEntity($tenantId, 'Scale-only Catalog Co', (int) $admin->company_id);
+    $defaults = app(SkillCatalogDefaults::class);
+    $draft = app(ProficiencyScaleStore::class)->draft(
+        $companyEntityId,
+        SkillCatalogDefaults::SCALE_CODE,
+        'Standard Proficiency Scale',
+        $defaults->standardLevels(),
+    );
+    app(ProficiencyScaleStore::class)->publish($companyEntityId, (int) $draft->id);
+
+    Livewire::actingAs($admin)
+        ->test(Index::class)
+        ->set('tab', 'scale')
+        ->assertSee('Not trained')
+        ->assertSee('Expert / Authoriser')
+        ->assertDontSee('Publish the standard 0–5 proficiency scale');
+
+    expect(SkillCategory::query()->forCompany($tenantId, $companyEntityId)->count())->toBe(0);
 });
 
 test('a viewer can read the catalog but every manage action is refused', function (): void {
@@ -187,10 +364,13 @@ test('a viewer can read the catalog but every manage action is refused', functio
     $refused('saveSkill');
     $refused('saveCategory');
     $refused('toggleSkillActive', [(int) $skill->id]);
-    $refused('renameCategory', [(int) $category->id, 'Renamed By Viewer']);
     $refused('toggleCategoryActive', [(int) $category->id]);
     $refused('publishScale', [(int) $draft->id]);
     $refused('draftNewScaleVersion', [(int) $scale->id]);
+
+    Livewire::actingAs($viewer)->test(Index::class)
+        ->set('catalogView', 'skill-form')
+        ->assertForbidden();
 
     expect($skill->refresh()->active)->toBeTrue()
         ->and($category->refresh()->name)->not->toBe('Renamed By Viewer')
@@ -350,7 +530,6 @@ test('every mutating catalog action refuses a company the actor may not act for'
     $refuses('saveSkill');
     $refuses('saveCategory');
     $refuses('toggleSkillActive', [(int) $betaSkill->id]);
-    $refuses('renameCategory', [(int) $betaCategory->id, 'Renamed By Alpha']);
     $refuses('toggleCategoryActive', [(int) $betaCategory->id]);
     $refuses('publishScale', [(int) $betaDraft->id]);
     $refuses('draftNewScaleVersion', [(int) $betaScale->id]);

@@ -31,6 +31,8 @@ use App\Domains\People\Training\Enums\TrainingEventStatus;
 use App\Domains\People\Training\Exceptions\InvalidTrainingCatalogException;
 use App\Domains\People\Training\Exceptions\InvalidTrainingEventException;
 use App\Domains\People\Training\Exceptions\TrainingEventNotFoundException;
+use App\Domains\People\Training\Livewire\Catalog\Create as CatalogCreate;
+use App\Domains\People\Training\Livewire\Catalog\Edit as CatalogEdit;
 use App\Domains\People\Training\Livewire\Catalog\Index as CatalogIndex;
 use App\Domains\People\Training\Livewire\Event\Index;
 use App\Domains\People\Training\Models\TrainingCourse;
@@ -239,8 +241,7 @@ test('HR can maintain the company-scoped course catalog without exposing a cours
     $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
     trainingEventRole($hr, 'people_hr');
 
-    Livewire::actingAs($hr)->test(CatalogIndex::class)
-        ->call('startCourse')
+    Livewire::actingAs($hr)->test(CatalogCreate::class)
         ->assertSee('Skills covered')
         ->assertSee('Select at least one skill')
         ->assertSee('Select one or more active skills this course develops.')
@@ -251,7 +252,7 @@ test('HR can maintain the company-scoped course catalog without exposing a cours
         ->set('courseForm.internal_trainer_employee_entity_id', (int) $fixture['trainer']->id)
         ->call('saveCourse')
         ->assertHasNoErrors()
-        ->assertSee('Confined space entry');
+        ->assertRedirect(route('people.training.catalog.index', ['company' => $fixture['company']->id]));
 
     $saved = TrainingCourse::query()->forCompany($fixture['tenantId'], (int) $fixture['company']->id)
         ->where('code', 'confined.space')->sole();
@@ -275,10 +276,10 @@ test('course creation explains the active-skill prerequisite before opening an u
         ->assertSee('Add an active skill before defining a course.')
         ->assertSee('Set up skills')
         ->assertSeeHtml('href="'.route('people.skill.catalog.index').'"')
-        ->assertDontSee('New course')
-        ->call('startCourse')
-        ->assertHasErrors('courseForm')
-        ->assertDontSee('Define course');
+        ->assertDontSee('New course');
+
+    Livewire::actingAs($hr)->test(CatalogCreate::class)
+        ->assertRedirect(route('people.training.catalog.index', ['company' => $company->id]));
 });
 
 test('course creation does not offer skill setup to an HR actor denied skill catalog management', function (): void {
@@ -326,18 +327,58 @@ test('a HOD cannot reveal catalog management state or invoke catalog mutations',
     trainingEventBindHod($hr, $hod, $fixture, 'review:training-catalog-hod');
 
     Livewire::actingAs($hod)->test(CatalogIndex::class)
-        ->set('courseForm', ['code' => 'forced.course'])
         ->assertDontSee('New course')
         ->assertDontSee('Define course')
         ->assertDontSee('Operations Worker')
         ->assertSee('Forklift induction');
 
-    expect(fn () => Livewire::actingAs($hod)->test(CatalogIndex::class)->call('startCourse'))
-        ->toThrow(AuthorizationDeniedException::class)
-        ->and(fn () => Livewire::actingAs($hod)->test(CatalogIndex::class)->call('saveCourse'))
-        ->toThrow(AuthorizationDeniedException::class)
-        ->and(fn () => Livewire::actingAs($hod)->test(CatalogIndex::class)->call('toggleCourseActive', (int) $fixture['course']->id))
+    $this->withoutVite();
+    $this->actingAs($hod)->get(route('people.training.catalog.create'))->assertForbidden();
+    $this->actingAs($hod)
+        ->get(route('people.training.catalog.edit', ['courseId' => $fixture['course']->id]))
+        ->assertForbidden();
+
+    expect(fn () => Livewire::actingAs($hod)->test(CatalogIndex::class)->call('toggleCourseActive', (int) $fixture['course']->id))
         ->toThrow(AuthorizationDeniedException::class);
+});
+
+test('saved course History is available on the revise form for HR and withheld from HOD', function (): void {
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    $hod = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    trainingEventRole($hod, 'people_hod');
+    // History opens on the page capability alone (`require-audit-list-capability=false`
+    // after belimbing #926). Do not grant admin.audit.log.list — that would mask a broken
+    // local integration and contradict #433's "without granting broad admin audit access".
+    trainingEventBindHod($hr, $hod, $fixture, 'review:training-catalog-history');
+
+    $courseId = (int) $fixture['course']->id;
+
+    Livewire::actingAs($hr)->test(CatalogEdit::class, ['courseId' => $courseId])
+        ->assertSee('Revise course')
+        ->assertSee('History')
+        ->set('courseForm.title', 'Forklift induction (revised)')
+        ->call('saveCourse')
+        ->assertHasNoErrors()
+        ->assertRedirect(route('people.training.catalog.index', ['company' => $fixture['company']->id]));
+
+    expect(TrainingCourse::query()->forCompany($fixture['tenantId'], (int) $fixture['company']->id)->whereKey($courseId)->value('title'))
+        ->toBe('Forklift induction (revised)');
+
+    Livewire::actingAs($hr)->test(CatalogEdit::class, ['courseId' => $courseId])
+        ->assertSee('Revise course')
+        ->assertSee('History');
+
+    Livewire::actingAs($hod)->test(CatalogIndex::class)
+        ->assertSee('Forklift induction (revised)')
+        ->assertDontSee('Revise course')
+        ->assertDontSee('New course');
+
+    $this->withoutVite();
+    $this->actingAs($hod)
+        ->get(route('people.training.catalog.edit', ['courseId' => $courseId]))
+        ->assertForbidden();
 });
 
 test('skill and training catalog routes resolve their distinct Livewire components', function (): void {
@@ -348,6 +389,8 @@ test('skill and training catalog routes resolve their distinct Livewire componen
 
     $this->actingAs($hr)->get(route('people.skill.catalog.index'))->assertOk();
     $this->actingAs($hr)->get(route('people.training.catalog.index'))->assertOk();
+    $this->actingAs($hr)->get(route('people.training.catalog.create'))->assertOk();
+    $this->actingAs($hr)->get(route('people.training.catalog.edit', ['courseId' => $fixture['course']->id]))->assertOk();
 });
 
 test('event schedule and transitions obey the event clock at the store boundary', function (): void {
@@ -537,18 +580,12 @@ test('catalog selectCompany switches to an attributable company and refuses an u
 
     // Native attribution: a user may act for exactly one company, the platform
     // company they belong to (CompanyAttribution::allowedCompanyEntities). A
-    // sibling company in the same tenant is therefore not selectable, which the
-    // connector's projection-based attribution allowed; the discard-on-select
-    // behaviour is proven on the one attributable company instead.
+    // sibling company in the same tenant is therefore not selectable.
     $siblingCompany = trainingEventCompany($fixture['tenantId'], 'Second Training Company');
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)
-        ->set('editingCourseId', (int) $fixture['course']->id)
-        ->set('courseForm', ['title' => 'Discard me'])
         ->call('selectCompany', (int) $fixture['company']->id)
-        ->assertSet('companyEntityId', (int) $fixture['company']->id)
-        ->assertSet('editingCourseId', null)
-        ->assertSet('courseForm', []);
+        ->assertSet('companyEntityId', (int) $fixture['company']->id);
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)
         ->call('selectCompany', (int) $siblingCompany->id)
@@ -559,36 +596,112 @@ test('catalog selectCompany switches to an attributable company and refuses an u
         ->assertStatus(404);
 });
 
-test('catalog editCourse loads the company course and refuses a user without manage capability', function (): void {
+test('catalog edit page loads the company course and refuses a user without manage capability', function (): void {
     $fixture = trainingEventFixture();
     $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
     $hod = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
     trainingEventRole($hr, 'people_hr');
     trainingEventRole($hod, 'people_hod');
 
-    Livewire::actingAs($hr)->test(CatalogIndex::class)
-        ->call('editCourse', (int) $fixture['course']->id)
-        ->assertSet('editingCourseId', (int) $fixture['course']->id)
+    Livewire::actingAs($hr)->test(CatalogEdit::class, ['courseId' => (int) $fixture['course']->id])
+        ->assertSet('courseId', (int) $fixture['course']->id)
         ->assertSet('courseForm.code', 'forklift.induction')
         ->assertSet('courseForm.title', 'Forklift induction');
 
-    expect(fn () => Livewire::actingAs($hod)->test(CatalogIndex::class)
-        ->call('editCourse', (int) $fixture['course']->id))->toThrow(AuthorizationDeniedException::class);
+    $this->withoutVite();
+    $this->actingAs($hod)
+        ->get(route('people.training.catalog.edit', ['courseId' => $fixture['course']->id]))
+        ->assertForbidden();
 });
 
-test('catalog cancelCourse discards local editing state without mutating the course', function (): void {
+test('catalog cancel returns to the list without mutating the course', function (): void {
     $fixture = trainingEventFixture();
     $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
     trainingEventRole($hr, 'people_hr');
 
-    Livewire::actingAs($hr)->test(CatalogIndex::class)
-        ->call('editCourse', (int) $fixture['course']->id)
+    Livewire::actingAs($hr)->test(CatalogEdit::class, ['courseId' => (int) $fixture['course']->id])
         ->set('courseForm.title', 'Unsaved title')
-        ->call('cancelCourse')
-        ->assertSet('editingCourseId', null)
-        ->assertSet('courseForm', []);
+        ->call('cancel')
+        ->assertRedirect(route('people.training.catalog.index', ['company' => $fixture['company']->id]));
 
     expect($fixture['course']->refresh()->title)->toBe('Forklift induction');
+});
+
+test('catalog search excludes non-matching codes and titles and resets pagination', function (): void {
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    $store = app(TrainingCatalogStore::class);
+    $store->defineCourse((int) $fixture['company']->id, new TrainingCourseDraft(
+        code: 'first.aid',
+        title: 'First aid basics',
+        deliveryMode: DeliveryMode::Elearning,
+        skillIds: [(int) $fixture['course']->skillIds()[0]],
+    ));
+
+    Livewire::actingAs($hr)->test(CatalogIndex::class)
+        ->set('search', 'forklift')
+        ->assertSee('Forklift induction')
+        ->assertDontSee('First aid basics')
+        ->set('search', 'first.aid')
+        ->assertSee('First aid basics')
+        ->assertDontSee('Forklift induction')
+        ->call('gotoPage', 2)
+        ->set('search', 'aid')
+        ->assertSet('paginators.page', 1);
+});
+
+test('catalog status and delivery filters combine and exclude non-matches', function (): void {
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    $store = app(TrainingCatalogStore::class);
+    $inactive = $store->defineCourse((int) $fixture['company']->id, new TrainingCourseDraft(
+        code: 'dormant.module',
+        title: 'Dormant module',
+        deliveryMode: DeliveryMode::Coaching,
+        skillIds: [(int) $fixture['course']->skillIds()[0]],
+    ));
+    $store->deactivateCourse((int) $fixture['company']->id, (int) $inactive->id);
+
+    Livewire::actingAs($hr)->test(CatalogIndex::class)
+        ->set('status', 'active')
+        ->assertSee('Forklift induction')
+        ->assertDontSee('Dormant module')
+        ->set('status', 'inactive')
+        ->assertSee('Dormant module')
+        ->assertDontSee('Forklift induction')
+        ->set('status', '')
+        ->set('delivery', DeliveryMode::Coaching->value)
+        ->assertSee('Dormant module')
+        ->assertDontSee('Forklift induction')
+        ->set('delivery', DeliveryMode::InternalClassroom->value)
+        ->set('status', 'active')
+        ->assertSee('Forklift induction')
+        ->assertDontSee('Dormant module');
+});
+
+test('catalog list links to dedicated create and edit pages without inline forms', function (): void {
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    $this->withoutVite();
+
+    Livewire::actingAs($hr)->test(CatalogIndex::class)
+        ->assertSee('New course')
+        ->assertDontSee('Define course')
+        ->assertDontSee('Revise course')
+        ->assertSeeHtml('href="'.e(route('people.training.catalog.create', ['company' => $fixture['company']->id])).'"')
+        ->assertSeeHtml('href="'.e(route('people.training.catalog.edit', [
+            'courseId' => $fixture['course']->id,
+            'company' => $fixture['company']->id,
+        ])).'"');
+
+    $this->actingAs($hr)
+        ->get(route('people.training.catalog.create', ['company' => $fixture['company']->id]))
+        ->assertOk()
+        ->assertSee('Define course')
+        ->assertDontSee('Training courses');
 });
 
 test('event selectCompany switches to an attributable company and refuses an unknown company', function (): void {

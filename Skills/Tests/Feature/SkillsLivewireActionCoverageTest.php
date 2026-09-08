@@ -248,7 +248,7 @@ function coverageFinalizedAssessment(int $tenantId, int $companyId, int $employe
 
 // ─── Catalog: skills and categories ───────────────────────────────────────────
 
-test('cancelSkill discards the open skill form without persisting anything', function (): void {
+test('cancelForm discards the open skill form without persisting anything', function (): void {
     ['tenant' => $tenantId, 'company' => $companyId, 'hr' => $hr] = coverageHrTenant('Cancel Skill');
     coverageCatalog($companyId);
 
@@ -256,7 +256,7 @@ test('cancelSkill discards the open skill form without persisting anything', fun
         ->call('startSkill')
         ->set('skillForm.code', 'abandoned.skill')
         ->set('skillForm.name', 'Abandoned')
-        ->call('cancelSkill')
+        ->call('cancelForm')
         ->assertSet('editingSkillId', null)
         ->assertSet('skillForm', []);
 
@@ -300,47 +300,55 @@ test('saveCategory defines a category, clears the form, and refuses a duplicate 
     ['company' => $companyId, 'hr' => $hr] = coverageHrTenant('Save Category');
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)
-        ->set('newCategoryCode', 'quality')
-        ->set('newCategoryName', 'Quality')
+        ->call('startCategory')
+        ->set('categoryForm.code', 'quality')
+        ->set('categoryForm.name', 'Quality')
         ->call('saveCategory')
         ->assertHasNoErrors()
-        ->assertSet('newCategoryCode', null)
-        ->assertSet('newCategoryName', null);
+        ->assertSet('categoryForm', [])
+        ->assertSet('catalogView', 'list');
 
     expect(SkillCategory::query()->where('company_entity_id', $companyId)->where('code', 'quality')->exists())->toBeTrue();
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)
-        ->set('newCategoryCode', 'quality')
-        ->set('newCategoryName', 'Quality Again')
+        ->call('startCategory')
+        ->set('categoryForm.code', 'quality')
+        ->set('categoryForm.name', 'Quality Again')
         ->call('saveCategory')
         ->assertHasErrors(['categoryForm' => 'Skill category code [quality] already exists for this company.'])
-        ->assertSet('newCategoryCode', 'quality');
+        ->assertSet('categoryForm.code', 'quality');
 
     Livewire::actingAs(coverageViewer($companyId, 'people.skill.catalog.view'))->test(CatalogIndex::class)
-        ->set('newCategoryCode', 'blocked')
-        ->set('newCategoryName', 'Blocked')
+        ->set('categoryForm.code', 'blocked')
+        ->set('categoryForm.name', 'Blocked')
         ->call('saveCategory')
         ->assertForbidden();
 
     expect(SkillCategory::query()->where('company_entity_id', $companyId)->count())->toBe(1);
 });
 
-test('renameCategory renames, refuses a blank name, and denies non-managers', function (): void {
+test('saveCategory renames, refuses a blank name, and denies non-managers', function (): void {
     ['company' => $companyId, 'hr' => $hr] = coverageHrTenant('Rename Category');
     ['category' => $category] = coverageCatalog($companyId);
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)
-        ->call('renameCategory', $category->id, '  Safety and Health  ')
+        ->call('startCategory', $category->id)
+        ->set('categoryForm.name', '  Safety and Health  ')
+        ->call('saveCategory')
         ->assertHasNoErrors();
 
     expect($category->refresh()->name)->toBe('Safety and Health');
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)
-        ->call('renameCategory', $category->id, '   ')
+        ->call('startCategory', $category->id)
+        ->set('categoryForm.name', '   ')
+        ->call('saveCategory')
         ->assertHasErrors(['categoryForm' => 'A skill category needs a name.']);
 
     Livewire::actingAs(coverageViewer($companyId, 'people.skill.catalog.view'))->test(CatalogIndex::class)
-        ->call('renameCategory', $category->id, 'Hijacked')
+        ->set('editingCategoryId', $category->id)
+        ->set('categoryForm.name', 'Hijacked')
+        ->call('saveCategory')
         ->assertForbidden();
 
     expect($category->refresh()->name)->toBe('Safety and Health');

@@ -4,6 +4,7 @@ namespace App\Domains\People\Training\Livewire\Budget;
 
 use App\Base\Authz\Contracts\AuthorizationService;
 use App\Base\Authz\DTO\Actor;
+use App\Core\User\Models\User;
 use App\Domains\People\Training\Exceptions\InvalidTrainingBudgetException;
 use App\Domains\People\Training\Services\TrainingBudgetStore;
 use Illuminate\Contracts\View\View;
@@ -50,11 +51,18 @@ final class Index extends Component
         $actor = Auth::user();
         $companyEntityId = (int) $this->companyEntityId;
         $rows = $budgets->rollUp($actor, $companyEntityId, $this->year);
+        $history = $budgets->allocationHistory($actor, $companyEntityId, $this->year);
+        $historyActors = $history->flatten(1)->pluck('actor_user_id')->filter()->unique()->values();
+        $historyActors = $historyActors->isEmpty()
+            ? collect()
+            : User::query()->whereIn('id', $historyActors->all())->get()->keyBy('id');
         $mayManage = $budgets->mayManage($actor, $companyEntityId);
         $eligibleDepartments = $mayManage ? $budgets->eligibleDepartments($actor, $companyEntityId) : [];
 
         return view('people::livewire.budget.index', [
             'rows' => $rows,
+            'history' => $history,
+            'historyActors' => $historyActors,
             'mayManage' => $mayManage,
             'eligibleDepartments' => $eligibleDepartments,
             'unallocatedDepartments' => $mayManage
