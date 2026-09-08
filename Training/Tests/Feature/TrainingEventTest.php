@@ -2,6 +2,7 @@
 
 use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Exceptions\AuthorizationDeniedException;
+use App\Base\Authz\Models\PrincipalCapability;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
@@ -240,6 +241,9 @@ test('HR can maintain the company-scoped course catalog without exposing a cours
 
     Livewire::actingAs($hr)->test(CatalogIndex::class)
         ->call('startCourse')
+        ->assertSee('Skills covered')
+        ->assertSee('Select at least one skill')
+        ->assertSee('Select one or more active skills this course develops.')
         ->set('courseForm.code', 'confined.space')
         ->set('courseForm.title', 'Confined space entry')
         ->set('courseForm.delivery_mode', DeliveryMode::InternalOjt->value)
@@ -256,6 +260,47 @@ test('HR can maintain the company-scoped course catalog without exposing a cours
     $sibling = trainingEventCompany($fixture['tenantId']);
     expect(TrainingCourse::query()->forCompany($fixture['tenantId'], (int) $sibling->id)->where('code', 'confined.space')->exists())
         ->toBeFalse();
+});
+
+test('course creation explains the active-skill prerequisite before opening an unsaveable form', function (): void {
+    [$tenant, $company] = createTenantWithCompany(
+        ['name' => 'Empty Training Tenant'],
+        ['name' => 'Empty Training Company'],
+    );
+    app(TenantContext::class)->set((int) $tenant->id);
+    $hr = User::factory()->create(['company_id' => $company->id]);
+    trainingEventRole($hr, 'people_hr');
+
+    Livewire::actingAs($hr)->test(CatalogIndex::class)
+        ->assertSee('Add an active skill before defining a course.')
+        ->assertSee('Set up skills')
+        ->assertSeeHtml('href="'.route('people.skill.catalog.index').'"')
+        ->assertDontSee('New course')
+        ->call('startCourse')
+        ->assertHasErrors('courseForm')
+        ->assertDontSee('Define course');
+});
+
+test('course creation does not offer skill setup to an HR actor denied skill catalog management', function (): void {
+    [$tenant, $company] = createTenantWithCompany(
+        ['name' => 'Restricted Training Tenant'],
+        ['name' => 'Restricted Training Company'],
+    );
+    app(TenantContext::class)->set((int) $tenant->id);
+    $hr = User::factory()->create(['company_id' => $company->id]);
+    trainingEventRole($hr, 'people_hr');
+    PrincipalCapability::query()->create([
+        'company_id' => $company->id,
+        'principal_type' => PrincipalType::USER->value,
+        'principal_id' => $hr->id,
+        'capability_key' => 'people.skill.catalog.manage',
+        'is_allowed' => false,
+    ]);
+
+    Livewire::actingAs($hr)->test(CatalogIndex::class)
+        ->assertSee('Ask a People skills administrator to add an active skill.')
+        ->assertDontSee('Set up skills')
+        ->assertDontSee('New course');
 });
 
 test('catalog rejects a sibling-company trainer at the store boundary', function (): void {

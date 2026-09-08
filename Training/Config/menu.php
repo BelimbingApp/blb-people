@@ -21,6 +21,7 @@ return [
         'icon' => 'heroicon-o-banknotes',
         'route' => 'people.training.budget.index',
         'permission' => 'people.training.budget.view',
+        'condition' => 'people.training.budget-audience',
         'parent' => 'people',
     ], [
         'id' => 'people.training-evaluations',
