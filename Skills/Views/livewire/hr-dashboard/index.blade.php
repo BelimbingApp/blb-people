@@ -1,4 +1,34 @@
-<div class="space-y-section-gap">
+<div
+    class="space-y-section-gap"
+    x-data="{
+        syncAsOfText() {
+            this.$el.querySelectorAll('[data-kpi-title]').forEach((cell) => {
+                const description = cell.querySelector('[data-kpi-title-description]');
+
+                if (description) {
+                    cell.title = description.textContent.trim();
+                }
+            });
+
+            const summary = this.$el.querySelector('[data-kpi-summary-message]');
+            const moment = this.$el.querySelector('[data-kpi-summary-moment]');
+
+            if (summary && moment) {
+                const message = summary.dataset.template.replace('__BLB_MOMENT__', moment.textContent.trim());
+
+                if (summary.textContent !== message) {
+                    summary.textContent = message;
+                }
+            }
+        },
+    }"
+    x-init="
+        const observer = new MutationObserver(() => syncAsOfText());
+        observer.observe($el, { childList: true, characterData: true, subtree: true });
+        syncAsOfText();
+        $cleanup(() => observer.disconnect());
+    "
+>
     <x-ui.page-header
         :title="__('HR skill KPI dashboard')"
         :subtitle="__('The contractual workbook metrics for this company and each department, with the definition and as-of behind every number.')"
@@ -17,15 +47,25 @@
         @endif
 
         @php
+            $dateTimes = app(\App\Base\DateTime\Contracts\DateTimeDisplayService::class);
             $format = static fn (array $metric, string $kind): string => $kind === 'rate'
                 ? ($metric['value'] === null ? __('n/a') : number_format($metric['value'] * 100, 1).'%')
                 : (string) $metric['value'];
-            $title = static fn (array $metric): string => $metric['definition'].' '.__('As of :moment.', ['moment' => $metric['as_of']->format('Y-m-d H:i')]);
+            $title = static fn (array $metric): string => $metric['definition'].' '.__('As of :moment.', [
+                'moment' => $dateTimes->formatDateTime($metric['as_of']),
+            ]);
+            $machineAsOf = static fn (\DateTimeInterface $value): string => \Carbon\CarbonImmutable::instance($value)
+                ->utc()
+                ->toIso8601String();
         @endphp
 
         <x-ui.card>
-            <p class="text-sm text-muted" data-kpi-as-of="{{ $summary->asOf->format('Y-m-d H:i:s') }}">
-                {{ __('As of :moment. Rates read n/a when nothing was expected or recorded.', ['moment' => $summary->asOf->format('Y-m-d H:i')]) }}
+            <p class="text-sm text-muted" data-kpi-as-of="{{ $machineAsOf($summary->asOf) }}">
+                <span
+                    data-kpi-summary-message
+                    data-template="{{ __('As of :moment. Rates read n/a when nothing was expected or recorded.', ['moment' => '__BLB_MOMENT__']) }}"
+                >{{ __('As of :moment. Rates read n/a when nothing was expected or recorded.', ['moment' => $dateTimes->formatDateTime($summary->asOf)]) }}</span>
+                <span class="sr-only" aria-hidden="true" data-kpi-summary-moment><x-ui.datetime :value="$summary->asOf" format="datetime" /></span>
             </p>
             <x-ui.table container="flush" :caption="__('Company skill KPIs')">
                 <x-slot name="head">
@@ -37,10 +77,21 @@
                     </tr>
                 </x-slot>
                 @foreach ($metrics as $key => [$label, $definition, $kind])
-                    @php($metric = $summary->company[$key])
+                    @php
+                        $metric = $summary->company[$key];
+                        $descriptionId = 'company-kpi-'.$key.'-description';
+                    @endphp
                     <tr wire:key="company-{{ $key }}" data-kpi="{{ $key }}" data-kpi-value="{{ $metric['value'] ?? 'null' }}">
                         <td class="px-table-cell-x py-table-cell-y text-sm font-medium text-ink">{{ __($label) }}</td>
-                        <td class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-ink" title="{{ $title($metric) }}">
+                        <td
+                            class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-ink"
+                            title="{{ $title($metric) }}"
+                            aria-describedby="{{ $descriptionId }}"
+                            data-kpi-title
+                        >
+                            <span id="{{ $descriptionId }}" class="sr-only" data-kpi-title-description>
+                                {{ $metric['definition'] }} {{ __('As of') }} <x-ui.datetime :value="$metric['as_of']" format="datetime" />.
+                            </span>
                             @if (isset($links['company'][$key]))
                                 <x-ui.link :href="$links['company'][$key]">{{ $format($metric, $kind) }}</x-ui.link>
                             @else
@@ -82,12 +133,27 @@
                     </tr>
                 </x-slot>
                 @forelse ($departmentRows as $row)
-                    @php($scope = (string) ($row['department_entity_id'] ?? 'none'))
+                    @php
+                        $scope = (string) ($row['department_entity_id'] ?? 'none');
+                    @endphp
                     <tr wire:key="department-{{ $scope }}" data-kpi-department="{{ $scope }}">
                         <td class="px-table-cell-x py-table-cell-y text-sm font-medium text-ink">{{ $row['department'] }}</td>
                         @foreach ($metrics as $key => [$label, $definition, $kind])
-                            @php($metric = $row['metrics'][$key])
-                            <td class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-ink" title="{{ $title($metric) }}" data-kpi="{{ $key }}" data-kpi-value="{{ $metric['value'] ?? 'null' }}">
+                            @php
+                                $metric = $row['metrics'][$key];
+                                $descriptionId = 'department-'.$scope.'-kpi-'.$key.'-description';
+                            @endphp
+                            <td
+                                class="px-table-cell-x py-table-cell-y text-right text-sm tabular-nums text-ink"
+                                title="{{ $title($metric) }}"
+                                aria-describedby="{{ $descriptionId }}"
+                                data-kpi-title
+                                data-kpi="{{ $key }}"
+                                data-kpi-value="{{ $metric['value'] ?? 'null' }}"
+                            >
+                                <span id="{{ $descriptionId }}" class="sr-only" data-kpi-title-description>
+                                    {{ $metric['definition'] }} {{ __('As of') }} <x-ui.datetime :value="$metric['as_of']" format="datetime" />.
+                                </span>
                                 @if (isset($links[$scope][$key]))
                                     <x-ui.link :href="$links[$scope][$key]">{{ $format($metric, $kind) }}</x-ui.link>
                                 @else

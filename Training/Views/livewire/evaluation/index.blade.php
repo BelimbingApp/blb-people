@@ -24,7 +24,14 @@
             <x-ui.alert variant="danger">{{ $message }}</x-ui.alert>
         @enderror
 
-        @if ($events === [])
+        @if ($employeeIdentityMissing)
+            {{-- An identity failure is not an empty training list, and #434 is
+                 explicit that it must not be dressed as one. --}}
+            <x-ui.alert variant="warning">
+                <p class="font-medium">{{ __('Your account is not linked to an employee record in this company.') }}</p>
+                <p class="mt-1 text-sm">{{ __('Training evaluations belong to the employee who attended, so this page needs that link before it can show anything. Ask your HR administrator to link your account to your employee record if you expect to have one.') }}</p>
+            </x-ui.alert>
+        @elseif ($events === [])
             <x-ui.alert variant="info">{{ __('No attended training is ready for evaluation. It will appear here after attendance is recorded.') }}</x-ui.alert>
         @else
             <section class="space-y-4">
@@ -47,6 +54,9 @@
                                     <x-ui.badge variant="success">{{ __('Open until') }} <x-ui.datetime :value="$event['closes_at']" format="date" /></x-ui.badge>
                                 @else
                                     <x-ui.badge variant="neutral">{{ __('Closed') }}</x-ui.badge>
+                                @endif
+                                @if ($event['evaluation']?->enteredFromPaper())
+                                    <x-ui.badge variant="neutral">{{ __('Entered from paper by HR') }}</x-ui.badge>
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-right">

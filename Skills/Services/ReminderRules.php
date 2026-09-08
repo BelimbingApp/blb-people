@@ -50,7 +50,7 @@ final class ReminderRules
         $overdue = EmployeeSkillScore::query()
             ->forCompany($tenantId, $companyEntityId)
             ->whereNotNull('next_assessment_due')
-            ->where('next_assessment_due', '<=', $asOf->format('Y-m-d'))
+            ->whereDate('next_assessment_due', '<=', $asOf->format('Y-m-d'))
             ->orderBy('id')
             ->get();
 
@@ -60,7 +60,7 @@ final class ReminderRules
         $expiring = EmployeeSkillScore::query()
             ->forCompany($tenantId, $companyEntityId)
             ->whereNotNull('valid_until')
-            ->where('valid_until', '<=', $horizon->format('Y-m-d'))
+            ->whereDate('valid_until', '<=', $horizon->format('Y-m-d'))
             ->orderBy('id')
             ->get();
 
