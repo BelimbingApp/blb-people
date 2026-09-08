@@ -13,8 +13,12 @@ use Illuminate\Support\Facades\Schema;
  *
  * Keys match the connector's vocabulary: tenant id, owning company entity id,
  * and subject stable id as the employee entity id Skills stores. Catalog
- * tables are omitted — they are not about one person. Restorable is false:
- * Skills owns restore; the connector records the block as not_restored.
+ * tables are omitted — they are not about one person. Audience / delivery
+ * ledgers with employee_entity_id (portal bindings, assessor roster, reminder
+ * ticks) are deliberately excluded from the DSAR payload; they are named in
+ * DELIBERATE_EMPLOYEE_ENTITY_EXCLUSIONS so a coverage ratchet cannot forget
+ * them. Restorable is false: Skills owns restore; the connector records the
+ * block as not_restored.
  */
 final class SkillsSubjectExporter implements ExportsSupplementalSubjectRecords
 {
