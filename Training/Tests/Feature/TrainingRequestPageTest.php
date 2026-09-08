@@ -265,3 +265,62 @@ test('the page and its route refuse a user outside the training audiences', func
     $this->actingAs($trainer)->get(route('people.training.requests.index'))->assertForbidden();
     $this->actingAs($f['employee'])->get(route('people.training.requests.index'))->assertOk()->assertSee('Training requests');
 });
+
+function trainingReqRejected(array $f, Employee $requestor, PeopleReferenceEntry $unit, string $need): TrainingRequest
+{
+    $store = app(TrainingRequestStore::class);
+    $request = trainingReqStoreRequest($f, $requestor, $unit, $need);
+
+    return $store->reject($f['hod'], (int) $f['company']->id, (int) $request->id, 'Not this quarter.');
+}
+
+test('an employee revises a rejected request back to draft from the page', function (): void {
+    $f = trainingReqFixture();
+    $rejected = trainingReqRejected($f, $f['member'], $f['opsEntry'], 'Member request.');
+
+    $page = Livewire::actingAs($f['employee'])->test(Index::class)
+        ->assertSeeHtml('data-status="rejected"')->assertSee('Revise');
+    expect($page->viewData('revisable'))->toBe([$rejected->id]);
+
+    // Opening the revision preloads the row's substance; saving writes a
+    // new draft of the same request through the store.
+    $page->call('startRevision', $rejected->id)->assertHasNoErrors()
+        ->assertSet('revisingRequestId', $rejected->id)
+        ->assertSet('need', 'Member request.')
+        ->assertSet('revisionNotes', '')
+        ->set('need', 'Member request, narrowed to line 3.')
+        ->set('revisionNotes', 'Narrowed to line 3.')
+        ->call('draft')->assertHasNoErrors()
+        ->assertSeeHtml('data-status="draft"')->assertSee('revised');
+
+    $rejected->refresh();
+    expect($rejected->status)->toBe(TrainingRequestStatus::Draft)
+        ->and($rejected->need)->toBe('Member request, narrowed to line 3.')
+        ->and($rejected->requestor_subject_id)->toBe((string) $f['member']->id)
+        ->and($rejected->department_subject_id)->toBe((string) $f['opsEntry']->id)
+        ->and($rejected->decisions->pluck('decision')->all())->toBe(['created', 'submitted', 'rejected', 'revised'])
+        ->and($rejected->decisions->last()->notes)->toBe('Narrowed to line 3.');
+});
+
+test('a revision refuses a request that is not rejected, and refuses silence', function (): void {
+    $f = trainingReqFixture();
+    $pending = trainingReqStoreRequest($f, $f['member'], $f['opsEntry'], 'Pending request.');
+    $rejected = trainingReqRejected($f, $f['member'], $f['opsEntry'], 'Rejected request.');
+
+    // The employee's own pending request is tracked but not rejected.
+    Livewire::actingAs($f['employee'])->test(Index::class)->call('startRevision', $pending->id)->assertForbidden();
+    expect($pending->fresh()->status)->toBe(TrainingRequestStatus::PendingHod);
+
+    // Without notes the revision is a form error and the row stays rejected.
+    $hod = Livewire::actingAs($f['hod'])->test(Index::class);
+    expect($hod->viewData('revisable'))->toBe([$rejected->id]);
+    $hod->call('startRevision', $rejected->id)->assertHasNoErrors()
+        ->call('draft')->assertHasErrors(['revisionNotes' => 'required']);
+    expect($rejected->fresh()->status)->toBe(TrainingRequestStatus::Rejected)
+        ->and($rejected->fresh()->decisions()->count())->toBe(3);
+
+    // A request outside both audiences is unreachable by id.
+    $foreign = trainingReqStoreRequest($f, $f['qaMember'], $f['qaEntry'], 'Quality request.');
+    Livewire::actingAs($f['employee'])->test(Index::class)->call('startRevision', $foreign->id)->assertNotFound();
+    expect($foreign->fresh()->status)->toBe(TrainingRequestStatus::PendingHod);
+});

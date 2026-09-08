@@ -176,3 +176,66 @@ test('request queries require an explicit company axis', function (): void {
     requestFixture();
     expect(fn () => TrainingRequest::query()->count())->toThrow(MissingCompanyScopeException::class);
 });
+
+function requestRejected(array $f): TrainingRequest
+{
+    $store = app(TrainingRequestStore::class);
+    $request = $store->create($f['actors']['hr'], (int) $f['company']->id, requestDraft($f));
+    $store->submit($f['actors']['hr'], (int) $f['company']->id, (int) $request->id);
+
+    return $store->reject($f['actors']['hod'], (int) $f['company']->id, (int) $request->id, 'Not this quarter.');
+}
+
+test('a rejected request revises back to draft with new substance and keeps its identity', function (): void {
+    $f = requestFixture();
+    $store = app(TrainingRequestStore::class);
+    $rejected = requestRejected($f);
+
+    // The revision draft names other live subjects: the store still keeps
+    // the row's own requestor and department, because a revision is the
+    // same request, not a new one.
+    $tenantId = (int) $f['tenant']->id;
+    $companyId = (int) $f['company']->id;
+    $draft = requestDraft($f, [
+        'requestor' => new WorkforceSubject($tenantId, $companyId, WorkforceResourceType::Employee,
+            (string) NativeWorkforceFixture::create($tenantId, WorkforceResourceType::Employee, $companyId)->id),
+        'department' => new WorkforceSubject($tenantId, $companyId, WorkforceResourceType::OrganizationUnit,
+            (string) NativeWorkforceFixture::create($tenantId, WorkforceResourceType::OrganizationUnit, $companyId)->id),
+        'need' => 'Line 3 needs the same control-system course.',
+    ]);
+
+    $revised = $store->revise($f['actors']['hr'], $companyId, (int) $rejected->id, $draft, 'Narrowed to line 3.');
+
+    expect($revised->id)->toBe((int) $rejected->id)
+        ->and($revised->request_key)->toBe($rejected->request_key)
+        ->and($revised->status)->toBe(TrainingRequestStatus::Draft)
+        ->and($revised->need)->toBe('Line 3 needs the same control-system course.')
+        ->and($revised->requestor_subject_id)->toBe($rejected->requestor_subject_id)
+        ->and($revised->department_subject_id)->toBe($rejected->department_subject_id)
+        ->and($revised->created_by_user_id)->toBe($rejected->created_by_user_id)
+        ->and($revised->decisions()->pluck('decision')->all())->toBe(['created', 'submitted', 'rejected', 'revised'])
+        ->and($revised->decisions()->where('decision', 'rejected')->sole()->notes)->toBe('Not this quarter.')
+        ->and($revised->decisions()->where('decision', 'revised')->sole()->notes)->toBe('Narrowed to line 3.');
+
+    // The revised request rejoins the lifecycle where a draft does.
+    $store->submit($f['actors']['hr'], $companyId, (int) $revised->id);
+    expect($revised->fresh()->status)->toBe(TrainingRequestStatus::PendingHod);
+});
+
+test('a revision refuses anything but a rejected request, and refuses silence', function (): void {
+    $f = requestFixture();
+    $store = app(TrainingRequestStore::class);
+    $companyId = (int) $f['company']->id;
+    $draft = $store->create($f['actors']['hr'], $companyId, requestDraft($f));
+
+    expect(fn () => $store->revise($f['actors']['hr'], $companyId, (int) $draft->id, requestDraft($f), 'Notes.'))
+        ->toThrow(InvalidTrainingRequestException::class, 'Only a rejected training request can be revised.');
+    expect(fn () => $store->revise($f['actors']['hr'], $companyId, (int) $draft->id, requestDraft($f), '   '))
+        ->toThrow(InvalidTrainingRequestException::class, 'Revision notes are required.');
+
+    $rejected = requestRejected($f);
+    expect(fn () => $store->revise($f['actors']['hr'], $companyId, (int) $rejected->id, requestDraft($f, ['need' => '']), 'Notes.'))
+        ->toThrow(InvalidTrainingRequestException::class, 'need, learning objective');
+    expect($rejected->fresh()->status)->toBe(TrainingRequestStatus::Rejected)
+        ->and($rejected->fresh()->decisions()->pluck('decision')->all())->toBe(['created', 'submitted', 'rejected']);
+});

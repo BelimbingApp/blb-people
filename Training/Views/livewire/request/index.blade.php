@@ -22,7 +22,13 @@
         @enderror
 
         <section class="space-y-4">
-            <h2 class="text-lg font-semibold">{{ __('New request') }}</h2>
+            <h2 class="text-lg font-semibold">
+                @if ($revisingRequestId !== null)
+                    {{ __('Revise rejected request #:id', ['id' => $revisingRequestId]) }}
+                @else
+                    {{ __('New request') }}
+                @endif
+            </h2>
             @if ($employees === [])
                 <p class="text-sm text-muted">{{ __('No employee record is bound to your account in this company, so there is nobody you may request training for.') }}</p>
             @else
@@ -47,10 +53,18 @@
                     <x-ui.input type="text" wire:model="learningObjective" :label="__('Learning objective')" />
                     <x-ui.input type="text" wire:model="expectedResult" :label="__('Expected result')" />
                     <div class="md:col-span-2 space-y-2">
-                        @foreach (['requestorEntityId', 'needSource', 'priority', 'need', 'learningObjective', 'expectedResult'] as $field)
+                        @foreach (['requestorEntityId', 'needSource', 'priority', 'need', 'learningObjective', 'expectedResult', 'revisionNotes'] as $field)
                             @error($field)<p class="text-sm text-danger">{{ $message }}</p>@enderror
                         @endforeach
-                        <x-ui.button type="submit" variant="primary">{{ __('Save draft') }}</x-ui.button>
+                        @if ($revisingRequestId !== null)
+                            <x-ui.input type="text" wire:model="revisionNotes" :label="__('What changed in this revision')" />
+                            <div class="flex flex-wrap gap-2">
+                                <x-ui.button type="submit" variant="primary">{{ __('Save revision') }}</x-ui.button>
+                                <x-ui.button type="button" variant="secondary" wire:click="cancelRevision">{{ __('Cancel revision') }}</x-ui.button>
+                            </div>
+                        @else
+                            <x-ui.button type="submit" variant="primary">{{ __('Save draft') }}</x-ui.button>
+                        @endif
                     </div>
                 </form>
             @endif
@@ -94,6 +108,8 @@
                                     @elseif (in_array($request->id, $recommendable, true))
                                         <x-ui.input type="text" wire:model="recommendNotes.{{ $request->id }}" :placeholder="__('Recommendation notes (optional)')" />
                                         <x-ui.button type="button" variant="primary" wire:click="recommend({{ $request->id }})">{{ __('Recommend') }}</x-ui.button>
+                                    @elseif (in_array($request->id, $revisable, true))
+                                        <x-ui.button type="button" variant="primary" wire:click="startRevision({{ $request->id }})">{{ __('Revise') }}</x-ui.button>
                                     @else
                                         <span class="text-muted">{{ __('Awaiting the next reviewer') }}</span>
                                     @endif
