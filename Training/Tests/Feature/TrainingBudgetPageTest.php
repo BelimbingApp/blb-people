@@ -585,3 +585,33 @@ test('company axis: a sibling company in the same tenant is not rolled up', func
         ->and($rows[0]->approved)->toBe('100.0000')
         ->and($rows[0]->budget)->toBeNull();
 });
+
+test('budget history names the actor and stays company-scoped for HR and HOD', function (): void {
+    $f = budgetFixture();
+    budgetBindHod($f);
+    $otherDepartment = PeopleReferenceEntry::query()->create([
+        'company_id' => $f['companyId'],
+        'type' => PeopleReferenceEntry::TYPE_ORGANIZATION_UNIT,
+        'code' => 'FIN-Hist',
+        'name' => 'Finance History',
+        'status' => PeopleReferenceEntry::STATUS_ACTIVE,
+    ]);
+    $store = app(TrainingBudgetStore::class);
+    $store->setBudget($f['hr'], $f['companyId'], (int) $f['department']->id, (int) now()->year, '5000.0000', 'Operations allocation.');
+    $store->setBudget($f['hr'], $f['companyId'], (int) $otherDepartment->id, (int) now()->year, '9000.0000', 'Finance allocation.');
+
+    $hrHistory = $store->allocationHistory($f['hr'], $f['companyId'], (int) now()->year);
+    expect($hrHistory)->toHaveCount(2)
+        ->and($hrHistory[(int) $f['department']->id]->sole()->reason)->toBe('Operations allocation.')
+        ->and((int) $hrHistory[(int) $f['department']->id]->sole()->actor_user_id)->toBe((int) $f['hr']->id);
+
+    $hodHistory = $store->allocationHistory($f['viewer'], $f['companyId'], (int) now()->year);
+    expect($hodHistory)->toHaveCount(1)
+        ->and($hodHistory->keys()->all())->toBe([(int) $f['department']->id]);
+
+    $this->actingAs($f['hr'])
+        ->get(route('people.training.budget.index'))
+        ->assertOk()
+        ->assertSee('Operations allocation.')
+        ->assertSee(__('by :actor', ['actor' => $f['hr']->name]));
+});

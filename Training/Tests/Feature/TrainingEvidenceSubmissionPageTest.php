@@ -352,7 +352,7 @@ test('HR confirms a submission from the governance queue', function (): void {
         ->test(GovernanceIndex::class)
         ->assertSee('I can now inspect and operate the forklift safely.')
         ->call('confirmEvidence', (int) $submission->id)
-        ->assertSee('No evidence submission awaits HR decision.');
+        ->assertSee('No decisions are waiting for HR in this company.');
 
     expect($submission->refresh()->status)->toBe('confirmed');
 });
@@ -365,7 +365,7 @@ test('HR returns a submission with a note from the governance queue', function (
         ->test(GovernanceIndex::class)
         ->set('evidenceReturnNotes.'.$submission->id, 'Queue return note.')
         ->call('returnEvidence', (int) $submission->id)
-        ->assertSee('No evidence submission awaits HR decision.');
+        ->assertSee('No decisions are waiting for HR in this company.');
 
     expect($submission->refresh()->status)->toBe('draft');
 });

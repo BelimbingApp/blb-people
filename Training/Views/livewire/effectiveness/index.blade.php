@@ -4,6 +4,8 @@
         :subtitle="__('Thirty, sixty and ninety days after your team attended a course, say whether it is being used.')"
     />
 
+    @include('people::livewire.effectiveness.partials.tabs')
+
     @if (session('training-effectiveness-status'))
         <x-ui.alert variant="success">{{ session('training-effectiveness-status') }}</x-ui.alert>
     @endif
@@ -15,7 +17,17 @@
     @enderror
 
     @if ($rows === [])
-        <x-ui.alert variant="info">{{ __('No effectiveness question is open for your department.') }}</x-ui.alert>
+        {{-- Two different answers, and the second one is the one that tells a
+             reader they are looking at somebody else's queue (#436). --}}
+        @if ($companyHasOpenCheckpoints)
+            <x-ui.alert variant="info">
+                {{ __('No effectiveness question is open for your department. Questions are open for other departments; each one is answered by the head it was assigned to.') }}
+            </x-ui.alert>
+        @else
+            <x-ui.alert variant="info">
+                {{ __('No attended training has reached a checkpoint yet, so there is nothing to answer in any department.') }}
+            </x-ui.alert>
+        @endif
     @else
         @foreach ($rows as $row)
             <x-ui.card wire:key="checkpoint-{{ $row->participantId }}">

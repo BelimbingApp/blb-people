@@ -25,7 +25,9 @@ use App\Domains\People\Skills\Services\RequirementProfileDataShareDestinationMap
 use App\Domains\People\Skills\Services\RequirementResolver;
 use App\Domains\People\Skills\Services\RequirementVersionGuard;
 use App\Domains\People\Skills\Services\SkillAudience;
+use App\Domains\People\Skills\Services\SkillsSubjectExporter;
 use App\Domains\People\Skills\Workflow\RequirementProfileTransitionAuthority;
+use App\Domains\PeopleConnector\Connector\Contracts\ExportsSupplementalSubjectRecords;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider as BaseServiceProvider;
@@ -40,6 +42,11 @@ class ServiceProvider extends BaseServiceProvider
         $this->app->bind(ReadsOwnSkillStanding::class, OwnSkillStandingReader::class);
         $this->app->bind(SummarizesOrganisationSkillCoverage::class, OrganisationSkillCoverage::class);
         $this->app->singleton(RequirementProfileTransitionAuthority::class);
+        // Connector #308: tag only when the connector contract is mounted.
+        if (interface_exists(ExportsSupplementalSubjectRecords::class)) {
+            $this->app->singleton(SkillsSubjectExporter::class);
+            $this->app->tag([SkillsSubjectExporter::class], ExportsSupplementalSubjectRecords::class);
+        }
         $this->app->extend(
             DataShareDestinationMapper::class,
             fn (): RequirementProfileDataShareDestinationMapper => new RequirementProfileDataShareDestinationMapper(
