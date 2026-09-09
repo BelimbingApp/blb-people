@@ -121,6 +121,11 @@ return new class extends Migration
                 SQL);
         } elseif ($driver === 'sqlite') {
             DB::unprepared(<<<'SQL'
+                DROP TRIGGER IF EXISTS pcs_skill_certification_update_guard;
+                DROP TRIGGER IF EXISTS pcs_skill_certification_delete_guard;
+                DROP TRIGGER IF EXISTS pcs_skill_certification_skill_update_guard;
+                DROP TRIGGER IF EXISTS pcs_skill_certification_skill_delete_guard;
+
                 CREATE TRIGGER pcs_skill_certification_update_guard
                 BEFORE UPDATE ON people_connector_skill_certifications
                 BEGIN SELECT RAISE(ABORT, 'skill certification records are append-only'); END;
