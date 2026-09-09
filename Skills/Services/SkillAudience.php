@@ -439,6 +439,28 @@ class SkillAudience
         }
     }
 
+    /**
+     * Certification records are managed under the existing Skills assessment
+     * management capability. They are evidence about an employee's skills,
+     * not catalogue definitions, and retain the same HR/HOD/assessor audience
+     * and employee boundary as an assessment submission.
+     */
+    public function authorizeCertificationManagement(
+        User $user,
+        int $companyEntityId,
+        int $employeeEntityId,
+    ): void {
+        if (! $this->mayForEmployee(
+            $user,
+            'people.skill.assessment.manage',
+            $companyEntityId,
+            $employeeEntityId,
+            [self::HR, self::HOD, self::ASSESSOR],
+        )) {
+            $this->deny();
+        }
+    }
+
     public function authorizeHodVerification(
         User $user,
         int $companyEntityId,
