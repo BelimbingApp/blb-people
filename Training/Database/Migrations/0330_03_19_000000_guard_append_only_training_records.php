@@ -63,13 +63,29 @@ return new class extends Migration
             $$ LANGUAGE plpgsql;
             SQL);
 
-        foreach (self::APPEND_ONLY_TABLES as $table => $prefix) {
-            DB::unprepared(<<<SQL
-                DROP TRIGGER IF EXISTS {$prefix}_append_only ON {$table};
-                CREATE TRIGGER {$prefix}_append_only BEFORE UPDATE OR DELETE ON {$table}
-                    FOR EACH ROW EXECUTE FUNCTION people_training_append_only_guard();
-                SQL);
-        }
+        DB::unprepared(<<<'SQL'
+            DROP TRIGGER IF EXISTS ptps_append_only ON people_training_pilot_signoffs;
+            CREATE TRIGGER ptps_append_only BEFORE UPDATE OR DELETE ON people_training_pilot_signoffs
+                FOR EACH ROW EXECUTE FUNCTION people_training_append_only_guard();
+            DROP TRIGGER IF EXISTS ptefa_append_only ON people_training_evaluation_followup_audits;
+            CREATE TRIGGER ptefa_append_only BEFORE UPDATE OR DELETE ON people_training_evaluation_followup_audits
+                FOR EACH ROW EXECUTE FUNCTION people_training_append_only_guard();
+            DROP TRIGGER IF EXISTS ptpda_append_only ON people_training_passport_document_audits;
+            CREATE TRIGGER ptpda_append_only BEFORE UPDATE OR DELETE ON people_training_passport_document_audits
+                FOR EACH ROW EXECUTE FUNCTION people_training_append_only_guard();
+            DROP TRIGGER IF EXISTS ptmms_append_only ON people_training_migration_mapping_signoffs;
+            CREATE TRIGGER ptmms_append_only BEFORE UPDATE OR DELETE ON people_training_migration_mapping_signoffs
+                FOR EACH ROW EXECUTE FUNCTION people_training_append_only_guard();
+            DROP TRIGGER IF EXISTS ptmfm_append_only ON people_training_migration_field_mappings;
+            CREATE TRIGGER ptmfm_append_only BEFORE UPDATE OR DELETE ON people_training_migration_field_mappings
+                FOR EACH ROW EXECUTE FUNCTION people_training_append_only_guard();
+            DROP TRIGGER IF EXISTS ptdba_append_only ON people_training_department_budget_audits;
+            CREATE TRIGGER ptdba_append_only BEFORE UPDATE OR DELETE ON people_training_department_budget_audits
+                FOR EACH ROW EXECUTE FUNCTION people_training_append_only_guard();
+            DROP TRIGGER IF EXISTS ptmww_append_only ON people_training_migration_writer_windows;
+            CREATE TRIGGER ptmww_append_only BEFORE UPDATE OR DELETE ON people_training_migration_writer_windows
+                FOR EACH ROW EXECUTE FUNCTION people_training_append_only_guard();
+            SQL);
 
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION ptpi_released_guard() RETURNS trigger AS $$
@@ -101,16 +117,36 @@ return new class extends Migration
 
     private function installSqliteGuards(): void
     {
-        foreach (self::APPEND_ONLY_TABLES as $table => $prefix) {
-            DB::unprepared(<<<SQL
-                CREATE TRIGGER {$prefix}_update_guard BEFORE UPDATE ON {$table}
-                FOR EACH ROW BEGIN SELECT RAISE(ABORT, '{$table} records are append-only'); END;
-                SQL);
-            DB::unprepared(<<<SQL
-                CREATE TRIGGER {$prefix}_delete_guard BEFORE DELETE ON {$table}
-                FOR EACH ROW BEGIN SELECT RAISE(ABORT, '{$table} records are append-only'); END;
-                SQL);
-        }
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER ptps_update_guard BEFORE UPDATE ON people_training_pilot_signoffs
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_pilot_signoffs records are append-only'); END;
+            CREATE TRIGGER ptps_delete_guard BEFORE DELETE ON people_training_pilot_signoffs
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_pilot_signoffs records are append-only'); END;
+            CREATE TRIGGER ptefa_update_guard BEFORE UPDATE ON people_training_evaluation_followup_audits
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_evaluation_followup_audits records are append-only'); END;
+            CREATE TRIGGER ptefa_delete_guard BEFORE DELETE ON people_training_evaluation_followup_audits
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_evaluation_followup_audits records are append-only'); END;
+            CREATE TRIGGER ptpda_update_guard BEFORE UPDATE ON people_training_passport_document_audits
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_passport_document_audits records are append-only'); END;
+            CREATE TRIGGER ptpda_delete_guard BEFORE DELETE ON people_training_passport_document_audits
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_passport_document_audits records are append-only'); END;
+            CREATE TRIGGER ptmms_update_guard BEFORE UPDATE ON people_training_migration_mapping_signoffs
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_migration_mapping_signoffs records are append-only'); END;
+            CREATE TRIGGER ptmms_delete_guard BEFORE DELETE ON people_training_migration_mapping_signoffs
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_migration_mapping_signoffs records are append-only'); END;
+            CREATE TRIGGER ptmfm_update_guard BEFORE UPDATE ON people_training_migration_field_mappings
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_migration_field_mappings records are append-only'); END;
+            CREATE TRIGGER ptmfm_delete_guard BEFORE DELETE ON people_training_migration_field_mappings
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_migration_field_mappings records are append-only'); END;
+            CREATE TRIGGER ptdba_update_guard BEFORE UPDATE ON people_training_department_budget_audits
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_department_budget_audits records are append-only'); END;
+            CREATE TRIGGER ptdba_delete_guard BEFORE DELETE ON people_training_department_budget_audits
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_department_budget_audits records are append-only'); END;
+            CREATE TRIGGER ptmww_update_guard BEFORE UPDATE ON people_training_migration_writer_windows
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_migration_writer_windows records are append-only'); END;
+            CREATE TRIGGER ptmww_delete_guard BEFORE DELETE ON people_training_migration_writer_windows
+            FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'people_training_migration_writer_windows records are append-only'); END;
+            SQL);
 
         DB::unprepared(<<<'SQL'
             CREATE TRIGGER ptpi_released_update_guard
