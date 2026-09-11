@@ -29,6 +29,12 @@ final class SkillsSubjectExporter implements ExportsSupplementalSubjectRecords
         'people_connector_skill_reassessment_requests',
         'people_connector_skill_development_actions',
         'people_connector_skill_assessment_decisions',
+        // A certificate is the subject's own qualification evidence -- issuer,
+        // reference, validity, evidence link -- so it belongs in the payload
+        // rather than in the deliberate exclusions beneath. The table carries
+        // id/tenant_id/company_entity_id/employee_entity_id, so the generic
+        // loop below exports it with no special case.
+        'people_connector_skill_certifications',
     ];
 
     /**

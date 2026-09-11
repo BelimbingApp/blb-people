@@ -28,6 +28,48 @@ use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Provoke a write the database itself must refuse, inside its own savepoint.
+ *
+ * Two things have to be true here and only one of them is visible. The write
+ * must throw, and it must throw because *this* write was refused -- not because
+ * an earlier refusal in the same test already poisoned the connection.
+ * PostgreSQL aborts the whole transaction on the first constraint violation, so
+ * every later statement fails with SQLSTATE 25P02, which is itself a
+ * QueryException. A bare toThrow(QueryException::class) therefore goes green
+ * without the guard under test ever running.
+ *
+ * That is not hypothetical. On this branch the mirror's server log showed
+ * `pcs_skill_certification_skill_immutable` never firing, while the assertion
+ * that exists to prove it passed anyway; the delete had received 25P02 from the
+ * preceding refused update. SQLite has no such abort, so the same suite was
+ * honest on one required driver and vacuous on the other.
+ *
+ * The nested DB::transaction() is a SAVEPOINT: rolling back to it leaves the
+ * outer RefreshDatabase transaction usable, so the next refused write and any
+ * trailing count still mean something. Translating 25P02 into a different
+ * exception class is what keeps the vacuum from ever being green again -- a
+ * savepoint removed later fails loudly instead of silently proving nothing.
+ *
+ * Helper names are global across the composed Pest suite, hence the prefix.
+ */
+function skillCertificationRefusedWrite(Closure $write): Closure
+{
+    return static function () use ($write): void {
+        try {
+            DB::transaction($write);
+        } catch (QueryException $e) {
+            if ($e->getCode() === '25P02') {
+                throw new RuntimeException(
+                    'this write never reached its guard: the transaction was already aborted by an earlier statement'
+                );
+            }
+
+            throw $e;
+        }
+    };
+}
+
 afterEach(function (): void {
     app(TenantContext::class)->clear();
 });
@@ -295,15 +337,15 @@ test('certification and mappings are append-only', function (): void {
         ->toThrow(InvalidSkillCertificationException::class)
         ->and(fn () => $mapping->delete())
         ->toThrow(InvalidSkillCertificationException::class)
-        ->and(fn () => SkillCertification::query()
+        ->and(skillCertificationRefusedWrite(fn () => SkillCertification::query()
             ->forCompany($fixture['tenantId'], $fixture['company']->id)
             ->whereKey($certification->id)
-            ->update(['issuer' => 'Changed']))
+            ->update(['issuer' => 'Changed'])))
         ->toThrow(QueryException::class)
-        ->and(fn () => SkillCertificationSkill::query()
+        ->and(skillCertificationRefusedWrite(fn () => SkillCertificationSkill::query()
             ->forCompany($fixture['tenantId'], $fixture['company']->id)
             ->whereKey($mapping->id)
-            ->delete())
+            ->delete()))
         ->toThrow(QueryException::class);
 });
 
@@ -441,7 +483,7 @@ test('raw inserts cannot fork one predecessor or attach an employee from another
     );
     $now = now();
 
-    expect(fn () => DB::table('people_connector_skill_certifications')->insert([
+    expect(skillCertificationRefusedWrite(fn () => DB::table('people_connector_skill_certifications')->insert([
         'tenant_id' => $fixture['tenantId'],
         'company_entity_id' => $fixture['company']->id,
         'employee_entity_id' => $fixture['employee']->id,
@@ -454,8 +496,8 @@ test('raw inserts cannot fork one predecessor or attach an employee from another
         'supersedes_certification_id' => $original->id,
         'created_at' => $now,
         'updated_at' => $now,
-    ]))->toThrow(QueryException::class)
-        ->and(fn () => DB::table('people_connector_skill_certifications')->insert([
+    ])))->toThrow(QueryException::class)
+        ->and(skillCertificationRefusedWrite(fn () => DB::table('people_connector_skill_certifications')->insert([
             'tenant_id' => $fixture['tenantId'],
             'company_entity_id' => $fixture['company']->id,
             'employee_entity_id' => $foreignEmployee->id,
@@ -468,7 +510,7 @@ test('raw inserts cannot fork one predecessor or attach an employee from another
             'supersedes_certification_id' => null,
             'created_at' => $now,
             'updated_at' => $now,
-        ]))->toThrow(QueryException::class)
+        ])))->toThrow(QueryException::class)
         ->and(SkillCertification::query()->forCompany($fixture['tenantId'], $fixture['company']->id)->count())
         ->toBe(2);
 });
