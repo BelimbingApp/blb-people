@@ -197,14 +197,14 @@ final class CriticalSkillBackupCoverage
         array $departmentOf,
         string $today,
     ): array {
-        // Superseded ids come from EVERY certificate of the company, before any
-        // date filter. Deriving them from the date-filtered set means a renewal
-        // that expires before the certificate it replaced drops out, stops
-        // hiding its predecessor, and the predecessor returns as current cover
-        // -- stale qualification evidence counted as live (#476 review).
+        // Superseded ids come from the company's lineage, not from the
+        // date-filtered current set: an expired successor must keep hiding its
+        // predecessor. A successor that has not been issued yet must not hide
+        // anything until its issue date (#476 review).
         $superseded = SkillCertification::query()
             ->forCompany($tenantId, $companyEntityId)
             ->whereNotNull('supersedes_certification_id')
+            ->whereDate('issued_on', '<=', $today)
             ->pluck('supersedes_certification_id')
             ->filter()
             ->map(intval(...))

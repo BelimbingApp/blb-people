@@ -26,6 +26,7 @@ use App\Domains\People\Skills\Services\SkillCatalogStore;
 use App\Domains\People\Skills\Services\SkillCertificationStore;
 use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 
 afterEach(function (): void {
     app(TenantContext::class)->clear();
@@ -230,7 +231,12 @@ test('only a current certification explicitly mapped to the skill supplements ba
         ]),
     );
 
-    $row = app(CriticalSkillBackupCoverage::class)->rows($fixture['tenantId'], $fixture['company']->id)[0];
+    $row = app(CriticalSkillBackupCoverage::class)->rows(
+        $fixture['tenantId'],
+        $fixture['company']->id,
+        null,
+        new DateTimeImmutable('2026-06-01'),
+    )[0];
 
     expect($row['holders'])->toBe(2)->and($row['covered'])->toBeTrue();
 });
@@ -262,7 +268,12 @@ test('an expired mapped certification and an unmapped certification cannot claim
         ]),
     );
 
-    $row = app(CriticalSkillBackupCoverage::class)->rows($fixture['tenantId'], $fixture['company']->id)[0];
+    $row = app(CriticalSkillBackupCoverage::class)->rows(
+        $fixture['tenantId'],
+        $fixture['company']->id,
+        null,
+        new DateTimeImmutable('2026-06-01'),
+    )[0];
 
     expect($row['holders'])->toBe(1)->and($row['covered'])->toBeFalse();
 });
@@ -373,4 +384,91 @@ test('an employee whose only evidence is a certificate still counts as a holder'
         ->rows($fixture['tenantId'], $fixture['company']->id, null, new DateTimeImmutable('2026-06-01'))[0];
 
     expect($row['holders'])->toBe(2);
+});
+
+test('a future-dated successor does not suppress the predecessor before its issue date', function (): void {
+    // desktop-sol's companion to the resurrection case: supersession must be
+    // as-of the evaluation day. A renewal recorded with a future issued_on
+    // must not hide the still-current predecessor until that day arrives.
+    $fixture = certificationFixture();
+    allowCertificationManagement();
+    certificationScore($fixture, $fixture['employee'], current: 4);
+    certificationScore($fixture, $fixture['otherEmployee'], current: 1);
+    $store = app(SkillCertificationStore::class);
+
+    $original = $store->record($fixture['actor'], $fixture['company']->id, certificationDraft($fixture, [
+        'employeeEntityId' => (int) $fixture['otherEmployee']->id,
+        'issuedOn' => new DateTimeImmutable('2026-01-01'),
+        'expiresOn' => new DateTimeImmutable('2027-12-31'),
+        'skillIds' => [$fixture['skillId']],
+    ]));
+
+    $store->renew($fixture['actor'], $fixture['company']->id, (int) $original->id, certificationDraft($fixture, [
+        'employeeEntityId' => (int) $fixture['otherEmployee']->id,
+        'externalReference' => 'CERT-FUTURE',
+        'issuedOn' => new DateTimeImmutable('2027-06-01'),
+        'expiresOn' => new DateTimeImmutable('2028-06-01'),
+        'skillIds' => [$fixture['skillId']],
+    ]));
+
+    $row = app(CriticalSkillBackupCoverage::class)
+        ->rows($fixture['tenantId'], $fixture['company']->id, null, new DateTimeImmutable('2027-01-15'))[0];
+
+    expect($row['holders'])->toBe(2);
+});
+
+test('raw inserts cannot fork one predecessor or attach an employee from another company', function (): void {
+    $fixture = certificationFixture();
+    allowCertificationManagement();
+    $store = app(SkillCertificationStore::class);
+    $original = $store->record($fixture['actor'], $fixture['company']->id, certificationDraft($fixture));
+    $store->renew(
+        $fixture['actor'],
+        $fixture['company']->id,
+        (int) $original->id,
+        certificationDraft($fixture, [
+            'externalReference' => 'CERT-002',
+            'issuedOn' => new DateTimeImmutable('2027-01-02'),
+            'expiresOn' => new DateTimeImmutable('2028-01-01'),
+            'evidenceLink' => 'https://evidence.example.test/cert-002',
+        ]),
+    );
+    $siblingCompany = NativeWorkforceFixture::create($fixture['tenantId'], WorkforceResourceType::Company);
+    $foreignEmployee = NativeWorkforceFixture::create(
+        $fixture['tenantId'],
+        WorkforceResourceType::Employee,
+        (int) $siblingCompany->id,
+    );
+    $now = now();
+
+    expect(fn () => DB::table('people_connector_skill_certifications')->insert([
+        'tenant_id' => $fixture['tenantId'],
+        'company_entity_id' => $fixture['company']->id,
+        'employee_entity_id' => $fixture['employee']->id,
+        'issuer' => 'Forked Board',
+        'external_reference' => 'CERT-FORK',
+        'issued_on' => '2027-02-01',
+        'expires_on' => '2028-02-01',
+        'renewal_status' => 'current',
+        'evidence_link' => 'https://evidence.example.test/fork',
+        'supersedes_certification_id' => $original->id,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ]))->toThrow(QueryException::class)
+        ->and(fn () => DB::table('people_connector_skill_certifications')->insert([
+            'tenant_id' => $fixture['tenantId'],
+            'company_entity_id' => $fixture['company']->id,
+            'employee_entity_id' => $foreignEmployee->id,
+            'issuer' => 'Foreign Board',
+            'external_reference' => 'CERT-FOREIGN',
+            'issued_on' => '2026-02-01',
+            'expires_on' => '2027-02-01',
+            'renewal_status' => 'current',
+            'evidence_link' => 'https://evidence.example.test/foreign',
+            'supersedes_certification_id' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]))->toThrow(QueryException::class)
+        ->and(SkillCertification::query()->forCompany($fixture['tenantId'], $fixture['company']->id)->count())
+        ->toBe(2);
 });
