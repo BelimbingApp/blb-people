@@ -59,7 +59,19 @@ final class CriticalSkillBackupCoverage
             return [];
         }
 
-        $departmentOf = $this->departmentByEmployee($scores);
+        // Employees holding a mapped certificate belong in the department map
+        // even when they carry no critical score row of their own. Building it
+        // from scores alone made a certificate-only holder fail the
+        // array_key_exists check in certificationHolders() and vanish (#476
+        // review). This widens who can be *counted*; it does not widen which
+        // skill rows exist -- those still come from the score projection, so a
+        // certificate still cannot invent a critical requirement.
+        $departmentOf = $this->departmentByEmployee(
+            $scores->pluck('employee_entity_id')
+                ->merge(SkillCertification::query()
+                    ->forCompany($tenantId, $companyEntityId)
+                    ->pluck('employee_entity_id'))
+        );
         $skillNames = $this->skillNames($tenantId, $companyEntityId, $scores);
         $departmentNames = $this->departmentNames($departmentOf);
         $minimum = $this->minimum($tenantId);
@@ -110,13 +122,13 @@ final class CriticalSkillBackupCoverage
     }
 
     /**
-     * @param  Collection<int, EmployeeSkillScore>  $scores
+     * @param  Collection<int, mixed>  $employeeEntityIds
      * @return array<int, int|null>
      */
-    private function departmentByEmployee(Collection $scores): array
+    private function departmentByEmployee(Collection $employeeEntityIds): array
     {
         return Employee::query()
-            ->whereIn('id', $scores->pluck('employee_entity_id')->unique()->all())
+            ->whereIn('id', $employeeEntityIds->map(intval(...))->unique()->all())
             ->pluck('department_id', 'id')
             ->map(static fn (mixed $id): ?int => $id === null ? null : (int) $id)
             ->all();
@@ -185,23 +197,36 @@ final class CriticalSkillBackupCoverage
         array $departmentOf,
         string $today,
     ): array {
+        // Superseded ids come from EVERY certificate of the company, before any
+        // date filter. Deriving them from the date-filtered set means a renewal
+        // that expires before the certificate it replaced drops out, stops
+        // hiding its predecessor, and the predecessor returns as current cover
+        // -- stale qualification evidence counted as live (#476 review).
+        $superseded = SkillCertification::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->whereNotNull('supersedes_certification_id')
+            ->pluck('supersedes_certification_id')
+            ->filter()
+            ->map(intval(...))
+            ->flip();
+
+        // A certificate issued in the future is not evidence today. The
+        // expires_on filter alone let one that does not exist yet raise the
+        // holder count.
         $certifications = SkillCertification::query()
             ->forCompany($tenantId, $companyEntityId)
+            ->whereDate('issued_on', '<=', $today)
             ->whereDate('expires_on', '>=', $today)
             ->get()
             ->merge(SkillCertification::query()
                 ->forCompany($tenantId, $companyEntityId)
+                ->whereDate('issued_on', '<=', $today)
                 ->whereNull('expires_on')
                 ->get());
 
         if ($certifications->isEmpty()) {
             return [];
         }
-
-        $superseded = $certifications->pluck('supersedes_certification_id')
-            ->filter()
-            ->map(intval(...))
-            ->flip();
         $certificationIds = $certifications->pluck('id')->map(intval(...))->all();
         $asOf = DateTimeImmutable::createFromFormat('!Y-m-d', $today) ?: new DateTimeImmutable('today');
         $holders = [];

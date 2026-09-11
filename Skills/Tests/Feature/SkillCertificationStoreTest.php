@@ -295,3 +295,82 @@ test('certification and mappings are append-only', function (): void {
             ->delete())
         ->toThrow(QueryException::class);
 });
+
+test('a predecessor certificate does not return to coverage when its renewal expires first', function (): void {
+    // astra's and composer's [P1] on #476, reproduced verbatim from astra's
+    // case. certificationHolders() derived $superseded from the already
+    // date-filtered certification set, so an expired successor stopped hiding
+    // its predecessor and stale qualification evidence counted as current
+    // cover. Derive superseded ids from every company-scoped certificate.
+    $fixture = certificationFixture();
+    allowCertificationManagement();
+    certificationScore($fixture, $fixture['employee'], current: 4);
+    certificationScore($fixture, $fixture['otherEmployee'], current: 1);
+    $store = app(SkillCertificationStore::class);
+
+    $original = $store->record($fixture['actor'], $fixture['company']->id, certificationDraft($fixture, [
+        'employeeEntityId' => (int) $fixture['otherEmployee']->id,
+        'expiresOn' => new DateTimeImmutable('2027-12-31'),
+        'skillIds' => [$fixture['skillId']],
+    ]));
+
+    // The renewal expires BEFORE the certificate it replaced.
+    $store->renew($fixture['actor'], $fixture['company']->id, (int) $original->id, certificationDraft($fixture, [
+        'employeeEntityId' => (int) $fixture['otherEmployee']->id,
+        'externalReference' => 'CERT-RENEW',
+        'issuedOn' => new DateTimeImmutable('2026-06-01'),
+        'expiresOn' => new DateTimeImmutable('2027-01-31'),
+        'skillIds' => [$fixture['skillId']],
+    ]));
+
+    $row = app(CriticalSkillBackupCoverage::class)
+        ->rows($fixture['tenantId'], $fixture['company']->id, null, new DateTimeImmutable('2027-02-01'))[0];
+
+    // One holder: the scored employee. The superseded original must stay
+    // buried even though its own expiry has not arrived.
+    expect($row['holders'])->toBe(1);
+});
+
+test('a certificate issued in the future does not count as cover today', function (): void {
+    // desktop-sol's [P1] on #476: the candidate query filters on expires_on
+    // only, and isCurrent() checks renewal_status and expires_on but never
+    // requires issued_on <= asOf, so a certificate that does not exist yet
+    // raises today's holder count.
+    $fixture = certificationFixture();
+    allowCertificationManagement();
+    certificationScore($fixture, $fixture['employee'], current: 4);
+    certificationScore($fixture, $fixture['otherEmployee'], current: 1);
+
+    app(SkillCertificationStore::class)->record($fixture['actor'], $fixture['company']->id, certificationDraft($fixture, [
+        'employeeEntityId' => (int) $fixture['otherEmployee']->id,
+        'issuedOn' => new DateTimeImmutable('2030-01-01'),
+        'expiresOn' => new DateTimeImmutable('2031-01-01'),
+        'skillIds' => [$fixture['skillId']],
+    ]));
+
+    $row = app(CriticalSkillBackupCoverage::class)
+        ->rows($fixture['tenantId'], $fixture['company']->id, null, new DateTimeImmutable('2026-06-01'))[0];
+
+    expect($row['holders'])->toBe(1);
+});
+
+test('an employee whose only evidence is a certificate still counts as a holder', function (): void {
+    // desktop-sol's [P1] on #476: departmentByEmployee() is built solely from
+    // employee ids present in critical score rows, so a certificate-only
+    // holder fails the array_key_exists check and is silently skipped. A
+    // certificate is qualification evidence in its own right.
+    $fixture = certificationFixture();
+    allowCertificationManagement();
+    // Only the first employee has a score; otherEmployee has none at all.
+    certificationScore($fixture, $fixture['employee'], current: 4);
+
+    app(SkillCertificationStore::class)->record($fixture['actor'], $fixture['company']->id, certificationDraft($fixture, [
+        'employeeEntityId' => (int) $fixture['otherEmployee']->id,
+        'skillIds' => [$fixture['skillId']],
+    ]));
+
+    $row = app(CriticalSkillBackupCoverage::class)
+        ->rows($fixture['tenantId'], $fixture['company']->id, null, new DateTimeImmutable('2026-06-01'))[0];
+
+    expect($row['holders'])->toBe(2);
+});

@@ -59,8 +59,17 @@ class SkillCertification extends TenantOwnedModel implements ReferencesWorkforce
             return false;
         }
 
+        $at = ($asOf ?? now())->format('Y-m-d');
+
+        // Currency has two ends. Without the issue date this returned true for
+        // a certificate that has not been issued yet, which is not "current"
+        // in any sense a reader of this method would expect (#476 review).
+        if ($this->issued_on !== null && $this->issued_on->format('Y-m-d') > $at) {
+            return false;
+        }
+
         return $this->expires_on === null
-            || $this->expires_on->format('Y-m-d') >= ($asOf ?? now())->format('Y-m-d');
+            || $this->expires_on->format('Y-m-d') >= $at;
     }
 
     public function getAuditSubject(): ?array
