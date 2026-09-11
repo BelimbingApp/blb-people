@@ -11,6 +11,7 @@ use App\Domains\People\Provider\Enums\WorkforceResourceType;
 use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
 use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
+use App\Domains\People\Tests\Support\DatabaseImmutability;
 use App\Domains\People\Training\Data\TrainingCourseDraft;
 use App\Domains\People\Training\Data\TrainingEventDraft;
 use App\Domains\People\Training\Enums\DeliveryMode;
@@ -145,6 +146,8 @@ test('hr opens a support follow-up and one audit entry records the transition', 
         ->and($audits[0]->status)->toBe('open')
         ->and((int) TrainingEvaluationFollowup::query()->forCompany($fixture['tenantId'], $fixture['companyId'])->whereKey($audits[0]->training_evaluation_followup_id)->sole()->evaluation_id)
         ->toBe($fixture['evaluationId']);
+
+    DatabaseImmutability::assertUpdateAndDeleteAreRefused($audits[0], ['action_taken' => 'Rewritten']);
 });
 
 test('opening a follow-up in another company is refused and writes nothing', function (): void {
