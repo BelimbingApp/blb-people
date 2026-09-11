@@ -83,53 +83,31 @@ test('assessment gap math runs against fixture requirements with no profile impl
  * - Livewire\Assessment (HOD matrix)
  * - SkillAssessment / EmployeeSkillScore models
  */
-test('assessment surface must not import requirement-profile internals', function (): void {
-    $skillRoot = dirname(__DIR__, 2);
-    $surfacePaths = [
-        'Services/AssessmentStore.php',
-        'Livewire/Assessment/Matrix.php',
-        'Models/SkillAssessment.php',
-        'Models/EmployeeSkillScore.php',
-    ];
-    $profileInternals = [
-        'App\\Domains\\People\\Skills\\Models\\RequirementProfile',
-        'App\\Domains\\People\\Skills\\Models\\RequirementProfileSelector',
-        'App\\Domains\\People\\Skills\\Models\\RequirementItem',
-        'App\\Domains\\People\\Skills\\Services\\RequirementProfileStore',
-        'App\\Domains\\People\\Skills\\Services\\RequirementResolver',
-    ];
-
-    foreach ($surfacePaths as $relativePath) {
-        $contents = file_get_contents($skillRoot.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relativePath));
-        expect($contents)->not->toBeFalse();
-
-        foreach ($profileInternals as $profileInternal) {
-            expect($contents)->not->toContain($profileInternal);
-        }
-    }
-});
-
-// Avoid toOnlyBeUsedIn: full-app dependency scans OOM composed platform CI (512MB).
-// Targeted not->toBeUsedIn against the assessment surface above is the load-bearing guard.
-
 /**
- * Arch rules catch use/import edges; they do not see raw table-name strings.
- * Scan assessment-surface PHP sources for the profile tables so a
- * DB::table('people_connector_skill_requirement_…') breach also goes red.
+ * The assessment surface, resolved once.
+ *
+ * Both boundary guards below scan this and nothing else. They used to build
+ * their own lists and the lists disagreed: the import guard read four hardcoded
+ * paths while the table guard recursed `Livewire/Assessment`, so a new
+ * component under that directory was covered against table names and invisible
+ * to the import rule (#480). Two neighbouring guards with different considered
+ * sets leave the gap between them unguarded, and nothing fails to say so.
+ *
+ * One list, resolved by directory rather than by remembering to append, means a
+ * new assessment-surface file is covered by construction.
+ *
+ * Helper names are global across the composed Pest suite, hence the prefix.
+ *
+ * @return list<string>
  */
-test('assessment surface php sources never name requirement-profile tables', function (): void {
+function resolvesSkillRequirementsSurfaceFiles(): array
+{
     $skillRoot = dirname(__DIR__, 2);
     $relativePaths = [
         'Services/AssessmentStore.php',
         'Livewire/Assessment',
         'Models/SkillAssessment.php',
         'Models/EmployeeSkillScore.php',
-    ];
-
-    $forbidden = [
-        'people_connector_skill_requirement_profiles',
-        'people_connector_skill_requirement_profile_selectors',
-        'people_connector_skill_requirement_items',
     ];
 
     $files = [];
@@ -152,6 +130,54 @@ test('assessment surface php sources never name requirement-profile tables', fun
         }
     }
 
+    sort($files);
+
+    return $files;
+}
+
+test('assessment surface must not import requirement-profile internals', function (): void {
+    $profileInternals = [
+        'App\\Domains\\People\\Skills\\Models\\RequirementProfile',
+        'App\\Domains\\People\\Skills\\Models\\RequirementProfileSelector',
+        'App\\Domains\\People\\Skills\\Models\\RequirementItem',
+        'App\\Domains\\People\\Skills\\Services\\RequirementProfileStore',
+        'App\\Domains\\People\\Skills\\Services\\RequirementResolver',
+    ];
+
+    $files = resolvesSkillRequirementsSurfaceFiles();
+    expect($files)->not->toBeEmpty();
+
+    foreach ($files as $file) {
+        $contents = file_get_contents($file);
+        expect($contents)->not->toBeFalse();
+
+        foreach ($profileInternals as $profileInternal) {
+            // One needle per negated assertion: not->toContain(a, b) fails only
+            // when EVERY needle is present, so a multi-needle form would pass
+            // while a single internal leaked.
+            expect(str_contains((string) $contents, $profileInternal))
+                ->toBeFalse("assessment surface must not import profile internal [{$profileInternal}] in {$file}");
+        }
+    }
+});
+
+// Avoid toOnlyBeUsedIn: full-app dependency scans OOM composed platform CI (512MB).
+// Targeted not->toBeUsedIn against the assessment surface above is the load-bearing guard.
+
+/**
+ * Arch rules catch use/import edges; they do not see raw table-name strings.
+ * Scan assessment-surface PHP sources for the profile tables so a
+ * DB::table('people_connector_skill_requirement_…') breach also goes red.
+ */
+test('assessment surface php sources never name requirement-profile tables', function (): void {
+    $forbidden = [
+        'people_connector_skill_requirement_profiles',
+        'people_connector_skill_requirement_profile_selectors',
+        'people_connector_skill_requirement_items',
+    ];
+
+    $files = resolvesSkillRequirementsSurfaceFiles();
+
     expect($files)->not->toBeEmpty();
 
     foreach ($files as $file) {
@@ -162,4 +188,37 @@ test('assessment surface php sources never name requirement-profile tables', fun
                 ->toBeFalse("assessment surface must not name profile table [{$table}] in {$file}");
         }
     }
+});
+
+/**
+ * Guards the guards: a file that did not exist when the guards were written
+ * must still be considered by them.
+ *
+ * The first version of this test compared the helper's output against the
+ * directory listing — and passed even when the helper was narrowed back to a
+ * single hardcoded path, because `Livewire/Assessment` holds exactly one file
+ * today, so both forms produce the same list. It compared two things that
+ * happened to agree and proved nothing, which is the same defect shape as #480
+ * itself.
+ *
+ * The property that matters is not "the sets match now", it is "a NEW component
+ * is covered by construction". That can only be shown by introducing one.
+ */
+test('a new assessment Livewire source is considered without being listed', function (): void {
+    $directory = dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'Livewire'.DIRECTORY_SEPARATOR.'Assessment';
+    $probe = $directory.DIRECTORY_SEPARATOR.'ZzConsideredSetProbe.php';
+
+    expect(is_dir($directory))->toBeTrue();
+    expect(file_exists($probe))->toBeFalse();
+
+    file_put_contents($probe, "<?php\n\nnamespace App\\Domains\\People\\Skills\\Livewire\\Assessment;\n\nclass ZzConsideredSetProbe {}\n");
+
+    try {
+        expect(in_array($probe, resolvesSkillRequirementsSurfaceFiles(), true))
+            ->toBeTrue('a new Livewire/Assessment source is not considered by the boundary guards');
+    } finally {
+        @unlink($probe);
+    }
+
+    expect(file_exists($probe))->toBeFalse();
 });
