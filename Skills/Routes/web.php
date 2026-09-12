@@ -8,6 +8,7 @@ use App\Domains\People\Skills\Livewire\DevelopmentAction\Index as DevelopmentAct
 use App\Domains\People\Skills\Livewire\HrDashboard\Index as HrDashboardIndex;
 use App\Domains\People\Skills\Livewire\MyHistory\Index as MyHistoryIndex;
 use App\Domains\People\Skills\Livewire\Planning\Index as HodPlanningIndex;
+use App\Domains\People\Skills\Livewire\Reassessment\Index as ReassessmentQueueIndex;
 use App\Domains\People\Skills\Livewire\Register\Index as SkillRegisterIndex;
 use App\Domains\People\Skills\Livewire\RequirementProfile\Show as RequirementProfileShow;
 use App\Domains\People\Skills\Livewire\TeamGaps\Index as TeamGapsIndex;
@@ -33,6 +34,10 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('people/skills/register', SkillRegisterIndex::class)
         ->middleware('authz:'.SkillRegisterIndex::VIEW_CAPABILITY)
         ->name('people.skill.register.index');
+
+    Route::get('people/skills/reassessments', ReassessmentQueueIndex::class)
+        ->middleware('authz:'.ReassessmentQueueIndex::VIEW_CAPABILITY)
+        ->name('people.skill.reassessment.index');
 
     Route::get('people/skills/team-gaps', TeamGapsIndex::class)
         ->middleware('authz:'.TeamGapsIndex::VIEW_CAPABILITY)
