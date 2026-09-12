@@ -39,6 +39,17 @@
             <span class="text-xs text-muted">{{ __('Generated') }} <x-ui.datetime :value="$selected['passport']->generatedAt" format="datetime" /></span>
         </div>
 
+        {{-- Workforce context freshness (0014-d): always the selected
+             subject's record, never the viewing HOD's. --}}
+        @if ($selected['passport']->context->unavailable)
+            <x-ui.alert variant="warning">{{ __('Workforce context unavailable') }}</x-ui.alert>
+        @else
+            <p class="text-xs text-muted">{{ __('Workforce context as of') }} <x-ui.datetime :value="$selected['passport']->context->observedAt" format="datetime" /> · {{ $selected['passport']->context->displayName }}@if ($selected['passport']->context->department !== null), {{ $selected['passport']->context->department }}@endif @if ($selected['passport']->context->manager !== null)· {{ __('Manager') }}: {{ $selected['passport']->context->manager }}@endif</p>
+            @if ($selected['passport']->context->stale)
+                <x-ui.alert variant="warning">{{ __('This workforce context may be out of date.') }}</x-ui.alert>
+            @endif
+        @endif
+
         <x-ui.card>
             <h2 class="mb-3 text-lg font-medium tracking-tight text-ink">{{ __('Training events') }}</h2>
             <x-ui.table container="flush" :caption="__('Training events')" :row-hover="false">

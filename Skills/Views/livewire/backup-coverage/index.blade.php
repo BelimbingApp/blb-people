@@ -2,7 +2,13 @@
     <x-ui.page-header
         :title="__('Critical skill backup coverage')"
         :subtitle="__('How many people can currently cover each critical skill, and where that is only one.')"
-    />
+    >
+        @if ($canExport)
+            <x-slot name="actions">
+                <x-ui.button type="button" variant="secondary" wire:click="export">{{ __('Export CSV') }}</x-ui.button>
+            </x-slot>
+        @endif
+    </x-ui.page-header>
 
     <x-ui.card>
         <x-ui.table container="flush" :caption="__('Critical skill coverage')">
