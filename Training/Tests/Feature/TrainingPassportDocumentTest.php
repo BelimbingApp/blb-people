@@ -24,6 +24,7 @@ use App\Domains\People\Skills\Models\EmployeeSkillScore;
 use App\Domains\People\Skills\Models\SkillActorBinding;
 use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
+use App\Domains\People\Tests\Support\DatabaseImmutability;
 use App\Domains\People\Training\Data\TrainingCourseDraft;
 use App\Domains\People\Training\Data\TrainingEventDraft;
 use App\Domains\People\Training\Enums\AttendanceStatus;
@@ -455,4 +456,6 @@ it('keeps audit rows append-only', function (): void {
 
     expect(fn () => $audit->update(['event_type' => 'tampered']))->toThrow(TrainingPassportDenied::class)
         ->and(fn () => $audit->delete())->toThrow(TrainingPassportDenied::class);
+
+    DatabaseImmutability::assertUpdateAndDeleteAreRefused($audit, ['event_type' => 'tampered']);
 });

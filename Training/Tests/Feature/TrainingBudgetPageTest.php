@@ -20,6 +20,7 @@ use App\Domains\People\Settings\Models\EmployeeWorkProfile;
 use App\Domains\People\Settings\Models\PeopleReferenceEntry;
 use App\Domains\People\Skills\Models\SkillActorBinding;
 use App\Domains\People\Skills\Tests\Support\NativeWorkforceFixture;
+use App\Domains\People\Tests\Support\DatabaseImmutability;
 use App\Domains\People\Training\Data\TrainingRequestDraft;
 use App\Domains\People\Training\Enums\TrainingNeedSource;
 use App\Domains\People\Training\Enums\TrainingPriority;
@@ -546,6 +547,8 @@ test('an audit row cannot be rewritten or deleted', function (): void {
         ->toThrow(InvalidTrainingBudgetException::class)
         ->and(fn () => $audit->delete())
         ->toThrow(InvalidTrainingBudgetException::class);
+
+    DatabaseImmutability::assertUpdateAndDeleteAreRefused($audit, ['amount' => '9999.0000']);
 });
 
 test('company axis: a sibling company in the same tenant is not rolled up', function (): void {

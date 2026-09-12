@@ -15,6 +15,7 @@ use App\Domains\People\Skills\Data\SkillDraft;
 use App\Domains\People\Skills\Enums\AssessmentMethod;
 use App\Domains\People\Skills\Services\SkillAudienceAssignmentStore;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
+use App\Domains\People\Tests\Support\DatabaseImmutability;
 use App\Domains\People\Training\Data\TrainingCourseDraft;
 use App\Domains\People\Training\Data\TrainingEventDraft;
 use App\Domains\People\Training\Data\TrainingPlanDraft;
@@ -248,6 +249,17 @@ test('a plan item whose revision is not approved cannot be executed', function (
         ->execute($company, (int) $draft->items()->sole()->id, planExecEventDraft($f)))
         ->toThrow(InvalidTrainingPlanExecutionException::class, 'approved');
     expect(TrainingEvent::query()->forCompany((int) $f['tenant']->id, $company)->count())->toBe(0);
+});
+
+test('a submitted plan item refuses event-bypassing builder updates and deletes', function (): void {
+    $f = planExecFixture();
+    $plan = planExecApprovedPlan($f, ['need:LOTO-1']);
+    $item = $plan->items()->sole();
+
+    DatabaseImmutability::assertUpdateAndDeleteAreRefused(
+        $item,
+        ['expected_result' => 'Quietly rewritten after approval.'],
+    );
 });
 
 test('amending one plan lineage leaves another lineage\'s events alone', function (): void {

@@ -15,6 +15,7 @@ use App\Domains\People\Performance\Exceptions\PerformanceReviewException;
 use App\Domains\People\Performance\Models\PerformanceObservation;
 use App\Domains\People\Performance\Models\PerformanceReview;
 use App\Domains\People\Performance\Services\PerformanceReviewStore;
+use App\Domains\People\Tests\Support\DatabaseImmutability;
 
 afterEach(fn () => app(TenantContext::class)->clear());
 
@@ -101,6 +102,11 @@ test('a finalized review cannot be rewritten', function (): void {
     expect($review->status)->toBe(PerformanceReviewStatus::Finalized)
         ->and(fn () => $review->update(['rationale' => 'Quietly reworded after release.']))
         ->toThrow(PerformanceReviewException::class, 'finalized');
+
+    DatabaseImmutability::assertUpdateAndDeleteAreRefused(
+        $review,
+        ['rationale' => 'Builder-level rewrite after release.'],
+    );
 });
 
 test('JP-A07: a correction supersedes the original and leaves its released rationale readable', function (): void {

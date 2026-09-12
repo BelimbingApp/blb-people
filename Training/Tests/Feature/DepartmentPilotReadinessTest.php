@@ -33,6 +33,7 @@ use App\Domains\People\Skills\Models\SkillAssessment;
 use App\Domains\People\Skills\Services\RequirementProfileStore;
 use App\Domains\People\Skills\Services\SkillAudienceAssignmentStore;
 use App\Domains\People\Skills\Services\SkillCatalogStore;
+use App\Domains\People\Tests\Support\DatabaseImmutability;
 use App\Domains\People\Training\Enums\PilotSignoffRole;
 use App\Domains\People\Training\Exceptions\InvalidPilotSignoffException;
 use App\Domains\People\Training\Livewire\Migration\Index;
@@ -458,7 +459,7 @@ test('a second HOD sign-off for the same unit is refused and the ledger keeps ex
     $store = app(PilotSignoffStore::class);
     pilotRdMakeGreen($a);
 
-    $store->signAsHod($a['hod'], $a['companyId'], (int) $a['unit']->id);
+    $signoff = $store->signAsHod($a['hod'], $a['companyId'], (int) $a['unit']->id);
     expect(fn () => $store->signAsHod($a['hod'], $a['companyId'], (int) $a['unit']->id))
         ->toThrow(InvalidPilotSignoffException::class);
 
@@ -466,6 +467,8 @@ test('a second HOD sign-off for the same unit is refused and the ledger keeps ex
         ->where('organization_unit_entity_id', $a['unit']->id)
         ->where('role', PilotSignoffRole::Hod->value)
         ->count())->toBe(1);
+
+    DatabaseImmutability::assertUpdateAndDeleteAreRefused($signoff, ['note' => 'Rewritten']);
 });
 
 test('a sibling tenant\'s sign-offs and readiness are never visible', function (): void {

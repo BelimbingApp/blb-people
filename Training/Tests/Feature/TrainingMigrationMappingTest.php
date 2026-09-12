@@ -7,6 +7,7 @@ use App\Base\Authz\Models\Role;
 use App\Base\Tenancy\Contracts\TenantContext;
 use App\Core\Company\Models\Company;
 use App\Core\User\Models\User;
+use App\Domains\People\Tests\Support\DatabaseImmutability;
 use App\Domains\People\Training\Data\TrainingMigrationFieldMappingDraft;
 use App\Domains\People\Training\Data\TrainingMigrationSourceDraft;
 use App\Domains\People\Training\Enums\MigrationSourceKind;
@@ -250,6 +251,30 @@ test('after signMappings(), map() and declareWriter() are refused for that compa
     expect($store->signedMappings($b['companyId']))->toBeFalse();
     migMapDeclare($b, 'people', '2026-01-01', null);
     expect(migMapWindows($b))->toBe(1);
+});
+
+test('a field mapping refuses event-bypassing builder updates and deletes', function (): void {
+    $a = migMapFixture()['alpha'];
+    $mapping = app(TrainingMigrationMappingStore::class)->map($a['hr'], $a['companyId'], migMapDraft($a));
+
+    DatabaseImmutability::assertUpdateAndDeleteAreRefused($mapping, ['dedup_rule' => 'Rewritten']);
+});
+
+test('a writer window refuses event-bypassing builder updates and deletes', function (): void {
+    $a = migMapFixture()['alpha'];
+    $window = migMapDeclare($a, 'legacy', '2026-01-01', '2026-03-31');
+
+    DatabaseImmutability::assertUpdateAndDeleteAreRefused($window, ['writer' => MigrationWriter::People->value]);
+});
+
+test('a mapping sign-off refuses event-bypassing builder updates and deletes', function (): void {
+    $a = migMapFixture()['alpha'];
+    $store = app(TrainingMigrationMappingStore::class);
+    $store->map($a['hr'], $a['companyId'], migMapDraft($a));
+    migMapDeclare($a, 'legacy', '2026-01-01', '2026-03-31');
+    $signoff = $store->signMappings($a['hr'], $a['companyId'], 'Mapping set agreed.');
+
+    DatabaseImmutability::assertUpdateAndDeleteAreRefused($signoff, ['note' => 'Rewritten']);
 });
 
 test('a sibling company\'s and a sibling tenant\'s windows do not constrain the acting company and are never listed', function (): void {
