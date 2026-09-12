@@ -18,5 +18,6 @@ final readonly class TrainingPassport
         public array $events,
         public array $certificates,
         public array $skills,
+        public TrainingPassportContext $context,
     ) {}
 }

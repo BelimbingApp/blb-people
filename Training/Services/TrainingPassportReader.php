@@ -3,10 +3,13 @@
 namespace App\Domains\People\Training\Services;
 
 use App\Core\User\Models\User;
+use App\Domains\People\Provider\Contracts\ReadsWorkforceDirectory;
 use App\Domains\People\Provider\Data\WorkforceSubject;
+use App\Domains\People\Provider\Exceptions\WorkforceProjectionException;
 use App\Domains\People\Skills\Models\Skill;
 use App\Domains\People\Training\Data\TrainingPassport;
 use App\Domains\People\Training\Data\TrainingPassportCertificate;
+use App\Domains\People\Training\Data\TrainingPassportContext;
 use App\Domains\People\Training\Data\TrainingPassportEvent;
 use App\Domains\People\Training\Data\TrainingPassportSkill;
 use App\Domains\People\Training\Models\TrainingCourseSkill;
@@ -22,12 +25,15 @@ final class TrainingPassportReader
 
     public function __construct(
         private readonly TrainingPassportAccess $access,
+        private readonly ReadsWorkforceDirectory $directory,
     ) {}
 
     public function read(User $actor, WorkforceSubject $subject): TrainingPassport
     {
         $this->access->authorize($actor, $subject);
         $tenantId = $subject->tenantId;
+        $generatedAt = now()->toImmutable();
+        $context = $this->context($subject, $generatedAt);
 
         $participants = TrainingParticipant::query()
             ->forCompany($tenantId, (int) $subject->companyId)
@@ -38,7 +44,7 @@ final class TrainingPassportReader
         $eventIds = $participants->pluck('event_id')->map(intval(...))->unique()->values()->all();
 
         if ($eventIds === []) {
-            return new TrainingPassport($subject, now()->toImmutable(), [], [], []);
+            return new TrainingPassport($subject, $generatedAt, [], [], [], $context);
         }
 
         $events = TrainingEvent::query()
@@ -108,10 +114,73 @@ final class TrainingPassportReader
 
         return new TrainingPassport(
             $subject,
-            now()->toImmutable(),
+            $generatedAt,
             $passportEvents,
             $passportCertificates,
             $skills,
+            $context,
+        );
+    }
+
+    /**
+     * Who the workforce record describes and how fresh that description is
+     * (0014-d). A dead directory marks the context unavailable instead of
+     * failing the passport: events, certificates and skills are governed
+     * records of their own and stay readable.
+     */
+    private function context(WorkforceSubject $subject, CarbonImmutable $generatedAt): TrainingPassportContext
+    {
+        try {
+            $employees = $this->directory->employees((string) $subject->companyId);
+            $units = $this->directory->organizationUnits((string) $subject->companyId);
+        } catch (WorkforceProjectionException) {
+            return TrainingPassportContext::unavailable();
+        }
+
+        $record = null;
+        foreach ($employees as $employee) {
+            if ($employee->active && $employee->companyReference->externalId === (string) $subject->companyId
+                && $employee->reference->externalId === $subject->stableId) {
+                $record = $employee;
+
+                break;
+            }
+        }
+        if ($record === null) {
+            return TrainingPassportContext::unavailable();
+        }
+
+        $manager = null;
+        if ($record->managerReference !== null) {
+            foreach ($employees as $employee) {
+                if ($employee->reference->externalId === $record->managerReference->externalId) {
+                    $manager = $employee->displayName;
+
+                    break;
+                }
+            }
+        }
+        $department = null;
+        if ($record->organizationReference !== null) {
+            foreach ($units as $unit) {
+                if ($unit->reference->externalId === $record->organizationReference->externalId) {
+                    $department = $unit->name;
+
+                    break;
+                }
+            }
+        }
+
+        $threshold = (int) config('people-training.passport.workforce_context_max_age_hours', 24);
+
+        return new TrainingPassportContext(
+            displayName: $record->displayName,
+            department: $department,
+            position: $record->positionReference?->externalId,
+            manager: $manager,
+            observedAt: $record->observedAt,
+            stale: $record->observedAt < $generatedAt->subHours($threshold),
+            unavailable: false,
         );
     }
 }
