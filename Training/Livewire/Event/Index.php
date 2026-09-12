@@ -8,6 +8,7 @@ use App\Core\User\Models\User;
 use App\Domains\People\Skills\Services\SkillAudience;
 use App\Domains\People\Skills\Services\WorkforceSubjects;
 use App\Domains\People\Training\Contracts\SummarizesTrainingParticipation;
+use App\Domains\People\Training\Data\AttendanceSheet;
 use App\Domains\People\Training\Data\ParticipationFactDraft;
 use App\Domains\People\Training\Data\TrainingEventDraft;
 use App\Domains\People\Training\Enums\AttendanceStatus;
@@ -30,10 +31,14 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class Index extends Component
 {
+    use WithFileUploads;
+
     /** One audit action per attendance register download (0011-f). */
     public const EXPORT_EVENT = 'people.training.participation.exported';
 
@@ -126,6 +131,26 @@ final class Index extends Component
 
     /** @var array<int, string> */
     public array $comment = [];
+
+    /**
+     * The attendance sheet chosen for import (0011-c), shared by every
+     * event's import row and consumed by the next import: each import resets
+     * it, so a file never lingers for a later click to reuse by accident. It
+     * never touches the model layer directly — the import action parses it
+     * through AttendanceSheet first.
+     */
+    public ?TemporaryUploadedFile $attendanceSheet = null;
+
+    /** @var array<int, int> The session each event's sheet is imported into, by event id. */
+    public array $importSession = [];
+
+    /**
+     * The last import outcome per event, for display: created/skipped/refused
+     * counts plus the per-row defects, if any.
+     *
+     * @var array<int, array{created: int, skipped: int, refused: int, defects: list<array{row: int, message: string}>}>
+     */
+    public array $importOutcomes = [];
 
     /**
      * Drill-down filters from the HR skill KPI dashboard (#363): comma-separated
@@ -274,6 +299,55 @@ final class Index extends Component
         }
     }
 
+    /**
+     * Import the chosen attendance sheet into the chosen session (0011-c).
+     *
+     * The page is HR-facing: managedCompany admits only HR, and the store
+     * admits an assigned trainer through its own seam. The session is read
+     * under the company and the event, so an id from a sibling row is a 404
+     * rather than an import into the wrong session. Row defects are an
+     * outcome table, not an error: the store writes nothing when any row is
+     * refused, so there is nothing to roll back here.
+     */
+    public function importAttendance(int $eventId, TrainingAudience $audience): void
+    {
+        $companyId = $this->managedCompany($audience);
+        $tenant = app(TenantContext::class)->requireTenantId();
+        $event = TrainingEvent::query()->forCompany($tenant, $companyId)->whereKey($eventId)->firstOrFail();
+
+        $this->validate([
+            'attendanceSheet' => ['required', 'file', 'max:4096', 'extensions:csv,txt', 'mimes:csv,txt,plain'],
+            'importSession.'.$eventId => ['required', 'integer'],
+        ]);
+
+        $session = TrainingSession::query()->forCompany($tenant, $companyId)
+            ->where('event_id', $event->id)->find($this->importSession[$eventId]);
+        abort_if($session === null, 404);
+
+        $file = $this->attendanceSheet;
+        abort_unless($file instanceof TemporaryUploadedFile, 422);
+        $contents = file_get_contents($file->getRealPath());
+        abort_unless($contents !== false, 422);
+        try {
+            $sheet = AttendanceSheet::fromCsv($contents);
+        } catch (InvalidTrainingParticipationException $refused) {
+            $this->addError('attendanceSheet', $refused->getMessage());
+
+            return;
+        }
+
+        try {
+            $result = app(TrainingParticipationStore::class)->importSheet(Auth::user(), $companyId, (int) $session->id, $sheet);
+        } catch (InvalidTrainingParticipationException $refused) {
+            $this->addError('attendanceSheet', $refused->getMessage());
+
+            return;
+        }
+
+        $this->reset('attendanceSheet');
+        $this->importOutcomes[$eventId] = $result->toArray();
+    }
+
     public function render(TrainingAudience $audience, SummarizesTrainingParticipation $participation): View
     {
         $companies = $this->allowedCompanies($audience);
@@ -343,9 +417,14 @@ final class Index extends Component
         $facts = $company !== null && array_key_exists($company, $companies)
             ? $this->confirmedFactRows($company, $events->modelKeys(), $employees)
             : collect();
+        $eventSessions = collect();
+        if ($company !== null && array_key_exists($company, $companies) && $canManage) {
+            $eventSessions = TrainingSession::query()->forCompany(app(TenantContext::class)->requireTenantId(), $company)
+                ->whereIn('event_id', $events->modelKeys())->orderBy('id')->get()->groupBy('event_id');
+        }
 
         return view('people::livewire.event.index', compact(
-            'companies', 'events', 'courses', 'departments', 'employees', 'history', 'historyActors', 'summaries', 'canManage', 'canExport', 'facts',
+            'companies', 'events', 'courses', 'departments', 'employees', 'history', 'historyActors', 'summaries', 'canManage', 'canExport', 'facts', 'eventSessions',
         ));
     }
 
@@ -684,7 +763,8 @@ final class Index extends Component
     private function resetForm(): void
     {
         $this->reset('editingEventId', 'courseId', 'targetDepartmentEntityId', 'organizerEmployeeEntityId',
-            'internalTrainerEmployeeEntityId', 'deliveryMode', 'externalTrainerReference', 'externalTrainerName', 'venue');
+            'internalTrainerEmployeeEntityId', 'deliveryMode', 'externalTrainerReference', 'externalTrainerName', 'venue',
+            'attendanceSheet', 'importSession', 'importOutcomes');
         $this->capacity = 1;
     }
 }

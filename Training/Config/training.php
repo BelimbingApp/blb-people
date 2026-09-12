@@ -71,4 +71,15 @@ return [
          */
         'unlinked_reminder_days' => 14,
     ],
+
+    'passport' => [
+        /*
+         * Hours a workforce observation stays fresh on a training passport
+         * (0014-d). Past this age as of generation, the context is marked
+         * stale and the pages warn; the directory being unreadable marks it
+         * unavailable instead. One day: workforce data moves daily, so
+         * anything older deserves a warning but not a failure.
+         */
+        'workforce_context_max_age_hours' => 24,
+    ],
 ];

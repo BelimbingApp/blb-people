@@ -35,6 +35,15 @@ return [
         'people.skill.coverage.view',
 
         /*
+         * Downloading the backup-coverage rows as CSV (0007-d, #350).
+         * HR-only: the file leaves the authorization boundary, so exporting
+         * is a separate gate from viewing and is audited as one export
+         * action. Uses the platform 'export' verb: verbs are a closed
+         * platform vocabulary.
+         */
+        'people.skill.coverage.export',
+
+        /*
          * Reading the HR-wide register of current released levels (0014-b).
          * HR-only: the page and its CSV export share this gate because the
          * file carries the same rows under the same filters, audited as one
@@ -87,6 +96,7 @@ return [
                 'people.skill-requirement-publication.approve',
                 'people.skill-requirement-retirement.approve',
                 'people.skill.coverage.view',
+                'people.skill.coverage.export',
                 'people.skill.register.view',
                 'people.skill.development-action.view',
                 'people.skill.development-action.manage',
