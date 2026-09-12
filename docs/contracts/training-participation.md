@@ -216,6 +216,28 @@ supersedes the correction and the chain stays linear. Readers that answer what
 happened use `TrainingParticipationFact::current()`; readers asking whether
 anything here was ever confirmed deliberately do not.
 
+## Bulk attendance-sheet import slice (0011-c, issue #331)
+
+One CSV per session, parsed into `Training/Data/AttendanceSheet` with columns
+`employee_number, attendance, actual_minutes, pre_test_score, post_test_score,
+certificate_reference, certificate_valid_until`; extra columns are ignored so
+the attendance export round-trips. Every row is validated before anything is
+written — unknown employee number in the acting company, unknown attendance,
+minutes outside the session length (blank means zero), scores outside 0–100,
+a certificate validity in the past by date, or a row for an employee or
+session cell that already has a fact — and on any defect the per-row defect
+list is returned with nothing written.
+
+Each valid row travels `recordAttendance`, so every fact keeps its recorder,
+capability, and session rules. Facts carry `source = attendance_sheet` with
+`<sha256 of the file>:<session id>:<row number>` as the reference: the triple
+names the exact cell, so a second import of the same file is reported as
+skipped, while the same sheet for another session still records. A recorded
+score arrives with the 0–100 scale and no declared pass mark, so it carries
+no verdict rather than an invented one. HR uploads from the event page;
+an assigned trainer imports through the store under the same event assignment
+rule as single-row recording.
+
 ## Employee evidence submission slice (issue #267)
 
 An authenticated employee with the explicit self-service capability may submit
