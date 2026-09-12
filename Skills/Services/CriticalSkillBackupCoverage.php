@@ -10,6 +10,9 @@ use App\Core\Employee\Models\Employee;
 use App\Domains\People\Skills\Enums\RequirementCriticality;
 use App\Domains\People\Skills\Models\EmployeeSkillScore;
 use App\Domains\People\Skills\Models\Skill;
+use App\Domains\People\Skills\Models\SkillCertification;
+use App\Domains\People\Skills\Models\SkillCertificationSkill;
+use DateTimeImmutable;
 use Illuminate\Support\Collection;
 
 /**
@@ -56,11 +59,29 @@ final class CriticalSkillBackupCoverage
             return [];
         }
 
-        $departmentOf = $this->departmentByEmployee($scores);
+        // Employees holding a mapped certificate belong in the department map
+        // even when they carry no critical score row of their own. Building it
+        // from scores alone made a certificate-only holder fail the
+        // array_key_exists check in certificationHolders() and vanish (#476
+        // review). This widens who can be *counted*; it does not widen which
+        // skill rows exist -- those still come from the score projection, so a
+        // certificate still cannot invent a critical requirement.
+        $departmentOf = $this->departmentByEmployee(
+            $scores->pluck('employee_entity_id')
+                ->merge(SkillCertification::query()
+                    ->forCompany($tenantId, $companyEntityId)
+                    ->pluck('employee_entity_id'))
+        );
         $skillNames = $this->skillNames($tenantId, $companyEntityId, $scores);
         $departmentNames = $this->departmentNames($departmentOf);
         $minimum = $this->minimum($tenantId);
         $today = ($asOf ?? now())->format('Y-m-d');
+        $certificationHolders = $this->certificationHolders(
+            $tenantId,
+            $companyEntityId,
+            $departmentOf,
+            $today,
+        );
         $rows = [];
 
         $groups = $scores->groupBy(fn (EmployeeSkillScore $score): string => ($departmentOf[(int) $score->employee_entity_id] ?? 'none').':'.$score->skill_id);
@@ -78,9 +99,10 @@ final class CriticalSkillBackupCoverage
             // to satisfy the higher, so the count is measured against it too.
             // Somebody at 3 is doing their own job, not covering the other's.
             $requiredLevel = (int) $group->max('required_level');
-            $holders = $group->filter(
+            $scoreHolders = $group->filter(
                 static fn (EmployeeSkillScore $score): bool => $score->coversRequirement($today, $requiredLevel)
-            )->count();
+            )->pluck('employee_entity_id')->map(intval(...))->flip()->all();
+            $holders = count($scoreHolders + ($certificationHolders[($departmentOf[(int) $first->employee_entity_id] ?? 'none').':'.$first->skill_id] ?? []));
 
             $rows[] = [
                 'department_id' => $employeeDepartment,
@@ -100,13 +122,13 @@ final class CriticalSkillBackupCoverage
     }
 
     /**
-     * @param  Collection<int, EmployeeSkillScore>  $scores
+     * @param  Collection<int, mixed>  $employeeEntityIds
      * @return array<int, int|null>
      */
-    private function departmentByEmployee(Collection $scores): array
+    private function departmentByEmployee(Collection $employeeEntityIds): array
     {
         return Employee::query()
-            ->whereIn('id', $scores->pluck('employee_entity_id')->unique()->all())
+            ->whereIn('id', $employeeEntityIds->map(intval(...))->unique()->all())
             ->pluck('department_id', 'id')
             ->map(static fn (mixed $id): ?int => $id === null ? null : (int) $id)
             ->all();
@@ -157,5 +179,78 @@ final class CriticalSkillBackupCoverage
             ->pluck('name', 'id')
             ->map(static fn (mixed $name): string => (string) $name)
             ->all();
+    }
+
+    /**
+     * Current, explicitly mapped certifications supplement a score holder.
+     * They only participate for a skill already represented by a critical
+     * score group: a certificate is qualification evidence, not a way to
+     * invent a critical requirement that the requirement/score projection did
+     * not establish. Multiple records for one employee and skill count once.
+     *
+     * @param  array<int, int|null>  $departmentOf
+     * @return array<string, array<int, bool>>
+     */
+    private function certificationHolders(
+        int $tenantId,
+        int $companyEntityId,
+        array $departmentOf,
+        string $today,
+    ): array {
+        // Superseded ids come from the company's lineage, not from the
+        // date-filtered current set: an expired successor must keep hiding its
+        // predecessor. A successor that has not been issued yet must not hide
+        // anything until its issue date (#476 review).
+        $superseded = SkillCertification::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->whereNotNull('supersedes_certification_id')
+            ->whereDate('issued_on', '<=', $today)
+            ->pluck('supersedes_certification_id')
+            ->filter()
+            ->map(intval(...))
+            ->flip();
+
+        // A certificate issued in the future is not evidence today. The
+        // expires_on filter alone let one that does not exist yet raise the
+        // holder count.
+        $certifications = SkillCertification::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->whereDate('issued_on', '<=', $today)
+            ->whereDate('expires_on', '>=', $today)
+            ->get()
+            ->merge(SkillCertification::query()
+                ->forCompany($tenantId, $companyEntityId)
+                ->whereDate('issued_on', '<=', $today)
+                ->whereNull('expires_on')
+                ->get());
+
+        if ($certifications->isEmpty()) {
+            return [];
+        }
+        $certificationIds = $certifications->pluck('id')->map(intval(...))->all();
+        $asOf = DateTimeImmutable::createFromFormat('!Y-m-d', $today) ?: new DateTimeImmutable('today');
+        $holders = [];
+
+        $mappings = SkillCertificationSkill::query()
+            ->forCompany($tenantId, $companyEntityId)
+            ->whereIn('certification_id', $certificationIds)
+            ->get(['certification_id', 'skill_id']);
+
+        foreach ($mappings as $mapping) {
+            $certification = $certifications->firstWhere('id', (int) $mapping->certification_id);
+
+            if ($certification === null
+                || $superseded->has((int) $certification->id)
+                || ! $certification->isCurrent($asOf)
+                || ! array_key_exists((int) $certification->employee_entity_id, $departmentOf)) {
+                continue;
+            }
+
+            $department = $departmentOf[(int) $certification->employee_entity_id] ?? 'none';
+            $key = $department.':'.$mapping->skill_id;
+            $holders[$key][(int) $certification->employee_entity_id] = true;
+        }
+
+        return $holders;
     }
 }
