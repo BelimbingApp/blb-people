@@ -78,12 +78,21 @@ final class Index extends Component
         );
 
         $asOf = now()->toDateString();
-        $rows = $this->rows($tenantId, $companyId, $visible, $asOf);
+        // Resolved once and handed down: rows() needed the same map, and
+        // calling the helper in both places cost four queries per render where
+        // two do -- paid on every keystroke, since the filters are wire:live.
+        $departmentNames = $this->departmentNames($companyId);
+        $rows = $this->rows($tenantId, $companyId, $visible, $asOf, $departmentNames);
 
         return view('people::livewire.reassessment.index', [
             'rows' => $rows,
             'asOf' => $asOf,
-            'departments' => $this->departmentNames($companyId),
+            // Only departments this viewer's own rows can come from. The helper
+            // was copied from BackupCoverage, which is HR-only; this page is
+            // also granted to a head, and offering them a filter listing every
+            // department in the company discloses names their audience does not
+            // otherwise reach.
+            'departments' => $this->visibleDepartments($departmentNames, $visible),
             'statuses' => ReassessmentRequestStatus::cases(),
             'overdueCount' => count(array_filter($rows, static fn (array $r): bool => $r['overdue'])),
         ]);
@@ -94,7 +103,8 @@ final class Index extends Component
      * @return list<array{id:int,employee:string,skill:string,department:string,reason:string,
      *                    due_at:string,days:int,overdue:bool,status:string,source:string}>
      */
-    private function rows(int $tenantId, int $companyId, array $visible, string $asOf): array
+    private function rows(int $tenantId, int $companyId, array $visible, string $asOf,
+        array $departmentNames): array
     {
         if ($visible === []) {
             return [];
@@ -111,11 +121,17 @@ final class Index extends Component
             $query->where('source', $this->source);
         }
         if ($this->overdueOnly === '1') {
-            // Strictly before today. A request due today still has today to be
-            // done in, so the boundary belongs on the day itself, and whereDate
-            // is required because these columns carry a time component -- a
-            // bare string compare silently answers the wrong question here.
-            $query->whereDate('due_at', '<', $asOf);
+            // Strictly before today: a request due today still has today to be
+            // done in, so the boundary sits on the day itself.
+            //
+            // whereDate is defensive rather than strictly required here. These
+            // columns do carry a time component, but for a '<' comparison
+            // against a date-only bound both spellings agree; the two diverge
+            // at '<=', which is where a bare compare would answer the wrong
+            // question. Spelled this way so changing the operator later cannot
+            // quietly introduce that.
+            $query->whereDate('due_at', '<', $asOf)
+                ->whereIn('status', $this->openStatuses());
         }
 
         $requests = $query->orderBy('due_at')->orderBy('id')->get();
@@ -129,7 +145,6 @@ final class Index extends Component
             ->get(['id', 'full_name', 'department_id']);
         $names = $employees->pluck('full_name', 'id');
         $departmentOf = $employees->pluck('department_id', 'id');
-        $departmentNames = $this->departmentNames($companyId);
         $skills = Skill::query()->forCompany($tenantId, $companyId)
             ->whereIn('id', $requests->pluck('skill_id')->unique()->all())
             ->pluck('name', 'id');
@@ -145,9 +160,15 @@ final class Index extends Component
                 continue;
             }
 
-            $due = $request->due_at?->copy()->startOfDay();
+            $due = $request->due_at->copy()->startOfDay();
             // Signed whole days: negative is time remaining, positive is lateness.
-            $days = $due === null ? 0 : (int) $due->diffInDays($today, false);
+            $days = (int) $due->diffInDays($today, false);
+            // Only an open request can be late. A resolved or cancelled one is
+            // past its due date and nobody's problem -- labelling it "3 days
+            // late" and returning it under "overdue only" would send someone to
+            // chase work that is already closed. Reachable from this page's own
+            // status filter, so the default of 'pending' was hiding it.
+            $isOpen = $request->isOpen();
 
             $rows[] = [
                 'id' => (int) $request->id,
@@ -157,7 +178,8 @@ final class Index extends Component
                 'reason' => (string) $request->reason,
                 'due_at' => $due?->toDateString() ?? '',
                 'days' => $days,
-                'overdue' => $days > 0,
+                'overdue' => $isOpen && $days > 0,
+                'open' => $isOpen,
                 'status' => $request->status instanceof ReassessmentRequestStatus
                     ? $request->status->label()
                     : (string) $request->status,
@@ -166,6 +188,47 @@ final class Index extends Component
         }
 
         return $rows;
+    }
+
+    /**
+     * The departments this viewer's audience covers, for the filter.
+     *
+     * Derived from the visible employee set, not from the rendered rows: rows
+     * are already narrowed by the department filter itself, so building the
+     * list from them would collapse it to the current selection and leave no
+     * way back. Not from the company either -- this page is granted to a head,
+     * and listing every department would disclose names their audience does
+     * not otherwise reach.
+     *
+     * @param  array<int, string>  $departmentNames
+     * @param  list<int>  $visible
+     * @return array<int, string>
+     */
+    private function visibleDepartments(array $departmentNames, array $visible): array
+    {
+        if ($visible === []) {
+            return [];
+        }
+
+        $ids = Employee::query()->whereIn('id', $visible)
+            ->pluck('department_id')->filter()->map(intval(...))->unique()->all();
+
+        return array_intersect_key($departmentNames, array_flip($ids));
+    }
+
+    /**
+     * Status values that can still be late. Derived from the enum rather than
+     * listed here, so a new state cannot silently become permanently overdue.
+     *
+     * @return list<string>
+     */
+    private function openStatuses(): array
+    {
+        return array_values(array_map(
+            static fn (ReassessmentRequestStatus $case): string => $case->value,
+            array_filter(ReassessmentRequestStatus::cases(),
+                static fn (ReassessmentRequestStatus $case): bool => $case->isOpen()),
+        ));
     }
 
     /** @return array<int, string> */

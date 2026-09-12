@@ -245,3 +245,97 @@ it('leaves a resolved request out of the pending queue', function (): void {
     // ...but it is reachable, so a closed request is not simply lost.
     expect($page->set('status', '')->viewData('rows'))->toHaveCount(2);
 });
+
+it('never calls a closed request late, however far past its due date', function (): void {
+    // The defect this pins: overdue was computed from due_at alone. With the
+    // status filter cleared -- which this page offers -- a cancelled request
+    // rendered a red "3 days late" badge, counted toward the overdue total, and
+    // came back under "Overdue only" as work to chase. The default status of
+    // 'pending' was hiding all of it.
+    $this->withoutVite();
+    Carbon\Carbon::setTestNow('2026-06-15 09:00:00');
+    $f = rqFixture();
+
+    rqRequest($f, $f['report'], rqSkill($f, 'rq.open'), '2026-06-10');
+    rqRequest($f, $f['outsider'], rqSkill($f, 'rq.resolved'), '2026-06-11', status: 'resolved');
+    rqRequest($f, $f['outsider'], rqSkill($f, 'rq.cancelled'), '2026-06-12', status: 'cancelled');
+
+    $page = Livewire::actingAs($f['hr'])->test(ReassessmentQueue::class)->set('status', '');
+    $byDue = collect($page->viewData('rows'))->keyBy('due_at');
+
+    expect($byDue)->toHaveCount(3)
+        ->and($byDue['2026-06-10']['overdue'])->toBeTrue()
+        ->and($byDue['2026-06-11']['overdue'])->toBeFalse()
+        ->and($byDue['2026-06-12']['overdue'])->toBeFalse()
+        // The summary counts what it shows, and a closed request is not late.
+        ->and($page->viewData('overdueCount'))->toBe(1);
+
+    // ...and the filter agrees with the label, rather than each deciding alone.
+    $late = $page->set('overdueOnly', '1')->viewData('rows');
+    expect($late)->toHaveCount(1)->and($late[0]['due_at'])->toBe('2026-06-10');
+});
+
+it('narrows by department and offers only departments the viewer can reach', function (): void {
+    $this->withoutVite();
+    Carbon\Carbon::setTestNow('2026-06-15 09:00:00');
+    $f = rqFixture();
+
+    rqRequest($f, $f['report'], rqSkill($f, 'rq.dept'), '2026-06-10');
+    rqRequest($f, $f['outsider'], rqSkill($f, 'rq.other'), '2026-06-11');
+
+    $hr = Livewire::actingAs($f['hr'])->test(ReassessmentQueue::class);
+    expect($hr->viewData('rows'))->toHaveCount(2);
+
+    $narrowed = $hr->set('department', (string) $f['department']->id)->viewData('rows');
+    expect($narrowed)->toHaveCount(1)
+        ->and($narrowed[0]['employee'])->toBe('Queue Report')
+        // The list must survive its own filter: built from the rendered rows it
+        // would collapse to the current choice and leave no way back.
+        ->and($hr->viewData('departments'))->toHaveKey($f['department']->id);
+
+    expect($hr->set('department', '999999')->viewData('rows'))->toBeEmpty();
+
+    // A head is offered their own department only, not a directory of the company.
+    $hodDepartments = Livewire::actingAs($f['hod'])->test(ReassessmentQueue::class)->viewData('departments');
+    expect($hodDepartments)->toHaveCount(1)->toHaveKey($f['department']->id);
+});
+
+it('refuses a platform administrator who holds no Skills capability', function (): void {
+    // Pins the component's own guard. The route middleware alone does not
+    // refuse a grant_all role, so without authorizeView() this request stops
+    // being a clean 403.
+    $this->withoutVite();
+    $f = rqFixture();
+
+    $admin = User::factory()->create(['company_id' => $f['companyId']]);
+    PrincipalRole::query()->create([
+        'company_id' => $f['companyId'],
+        'principal_type' => PrincipalType::USER->value,
+        'principal_id' => $admin->id,
+        'role_id' => Role::query()->whereNull('company_id')->where('code', 'core_admin')->valueOrFail('id'),
+    ]);
+
+    $this->actingAs($admin)->get(route('people.skill.reassessment.index'))->assertForbidden();
+});
+
+it('renders lateness, the due-today case and the source in the page itself', function (): void {
+    // Every other test reads viewData, so the blade could lose a column and the
+    // suite would stay green. This one reads what a person actually sees.
+    $this->withoutVite();
+    Carbon\Carbon::setTestNow('2026-06-15 09:00:00');
+    $f = rqFixture();
+
+    rqRequest($f, $f['report'], rqSkill($f, 'rq.late'), '2026-06-12');
+    rqRequest($f, $f['outsider'], rqSkill($f, 'rq.today'), '2026-06-15', source: 'training');
+
+    Livewire::actingAs($f['hr'])->test(ReassessmentQueue::class)
+        ->assertSee('Queue Report')
+        ->assertSee('3 days late')
+        ->assertSee('Due today')
+        ->assertSee('Training result')
+        ->assertSee('Head of department')
+        // The reason is why anyone would act on the row; it was computed and
+        // never displayed until this test asked for it.
+        ->assertSee('Recheck after coaching.')
+        ->assertSee('1 request in this view is past its due date as of 2026-06-15');
+});

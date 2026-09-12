@@ -49,7 +49,7 @@
              bare figure whose definition the reader has to guess (#16). --}}
         <p class="text-sm text-muted" data-overdue-count="{{ $overdueCount }}">
             {{ trans_choice(
-                '{0}No request in this view is past its due date as of :date|{1}:count request is past its due date as of :date|[2,*]:count requests are past their due date as of :date',
+                '{0}No request in this view is past its due date as of :date|{1}:count request in this view is past its due date as of :date|[2,*]:count requests in this view are past their due date as of :date',
                 $overdueCount,
                 ['count' => $overdueCount, 'date' => $asOf],
             ) }}
@@ -75,7 +75,10 @@
                     data-days="{{ $row['days'] }}"
                     data-overdue="{{ $row['overdue'] ? '1' : '0' }}">
                     <td class="px-table-cell-x py-table-cell-y text-sm font-medium text-ink">{{ $row['employee'] }}</td>
-                    <td class="px-table-cell-x py-table-cell-y text-sm text-ink">{{ $row['skill'] }}</td>
+                    <td class="px-table-cell-x py-table-cell-y text-sm text-ink">
+                        {{ $row['skill'] }}
+                        <span class="block text-xs text-muted">{{ $row['reason'] }}</span>
+                    </td>
                     <td class="px-table-cell-x py-table-cell-y text-sm text-muted">{{ $row['department'] }}</td>
                     <td class="px-table-cell-x py-table-cell-y text-sm tabular-nums text-ink">{{ $row['due_at'] }}</td>
                     <td class="px-table-cell-x py-table-cell-y text-sm">
@@ -94,7 +97,18 @@
                         @endif
                     </td>
                     <td class="px-table-cell-x py-table-cell-y text-sm text-muted">
-                        {{ $row['source'] === 'training' ? __('Training result') : __('Head of department') }}
+                        @switch ($row['source'])
+                            @case (\App\Domains\People\Skills\Models\SkillReassessmentRequest::SOURCE_TRAINING)
+                                {{ __('Training result') }}
+                                @break
+                            @case (\App\Domains\People\Skills\Models\SkillReassessmentRequest::SOURCE_HOD)
+                                {{ __('Head of department') }}
+                                @break
+                            @default
+                                {{-- A source this page does not know is shown as itself,
+                                     rather than mislabelled as one of the two it does. --}}
+                                {{ $row['source'] }}
+                        @endswitch
                     </td>
                     <td class="px-table-cell-x py-table-cell-y text-sm text-muted">{{ $row['status'] }}</td>
                 </tr>
