@@ -60,6 +60,15 @@ return [
         'people.skill.reassessment.submit',
 
         /*
+         * Reading the reassessment queue (0007-g). Distinct from submitting
+         * and from performing: HR reads the queue without being able to
+         * request one, which is exactly what the submit note above describes,
+         * and a head reads their own reports' rows through the same audience
+         * scoping every other Skills list uses.
+         */
+        'people.skill.reassessment.view',
+
+        /*
          * Performing a requested reassessment (0006-c). HR-only: recording
          * the new released level closes the request and never rewrites
          * the previous assessment row. Uses the platform 'execute' verb:
@@ -103,6 +112,7 @@ return [
                 'people.skill.assessment.submit',
                 'people.skill.hr.view',
                 'people.skill.reassessment.execute',
+                'people.skill.reassessment.view',
             ],
         ],
         'people_hod' => [
@@ -121,6 +131,7 @@ return [
                 'people.skill.assessment.approve',
                 'people.skill.hod.view',
                 'people.skill.reassessment.submit',
+                'people.skill.reassessment.view',
             ],
         ],
         'people_assessor' => [

@@ -43,6 +43,21 @@ return [
             'parent' => 'people',
         ],
         [
+            // 0007-g (#482): the reassessment queue. Granted to HR and to a
+            // head, each seeing their own audience, so it carries no audience
+            // condition of its own -- the capability is the gate.
+            //
+            // Without this entry the page is reachable only by typing the URL,
+            // which would leave the queue as invisible as the requests it was
+            // built to surface.
+            'id' => 'people.skill-reassessments',
+            'label' => 'Reassessments',
+            'icon' => 'heroicon-o-arrow-path',
+            'route' => 'people.skill.reassessment.index',
+            'permission' => 'people.skill.reassessment.view',
+            'parent' => 'people',
+        ],
+        [
             // 0014-b (#319): HR-wide register of current released levels,
             // gated on its own capability like the other Skills surfaces.
             'id' => 'people.skill-register',
