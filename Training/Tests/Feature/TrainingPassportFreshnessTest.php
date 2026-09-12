@@ -177,6 +177,48 @@ function ppfObserve(Employee $employee, int $hoursAgo): void
     Employee::query()->whereKey($employee->id)->update(['updated_at' => now()->subHours($hoursAgo)]);
 }
 
+/** Rebinds the directory to one that throws on every read: a provider outage. */
+function ppfDeadDirectory(): void
+{
+    $real = app(ReadsWorkforceDirectory::class);
+    app()->instance(ReadsWorkforceDirectory::class, new class($real) implements ReadsWorkforceDirectory
+    {
+        public function __construct(private readonly ReadsWorkforceDirectory $inner) {}
+
+        public function companyForPlatform(int $platformCompanyId): ?WorkforceCompany
+        {
+            return $this->inner->companyForPlatform($platformCompanyId);
+        }
+
+        public function company(string $companyStableId): ?WorkforceCompany
+        {
+            return $this->inner->company($companyStableId);
+        }
+
+        /** @return list<WorkforceEmployee> */
+        public function employees(string $companyStableId): array
+        {
+            throw new WorkforceProjectionException('Provider outage.');
+        }
+
+        /** @return list<WorkforceOrganizationUnit> */
+        public function organizationUnits(string $companyStableId): array
+        {
+            throw new WorkforceProjectionException('Provider outage.');
+        }
+
+        public function employeeForUser(string $companyStableId, int $platformUserId): ?WorkforceEmployee
+        {
+            throw new WorkforceProjectionException('Provider outage.');
+        }
+
+        public function remap(WorkforceResourceType $type, string $fromStableId, string $toStableId): ?WorkforceRemapFact
+        {
+            throw new WorkforceProjectionException('Provider outage.');
+        }
+    });
+}
+
 test('a freshly observed passport carries context and the page shows no warning', function (): void {
     $f = ppfFixture();
     ppfObserve($f['member'], 1);
@@ -219,43 +261,7 @@ test('raising the threshold flips a stale observation back to fresh', function (
 
 test('a dead directory still returns the passport marked unavailable, and the page answers 200', function (): void {
     $f = ppfFixture();
-    $real = app(ReadsWorkforceDirectory::class);
-    app()->instance(ReadsWorkforceDirectory::class, new class($real) implements ReadsWorkforceDirectory
-    {
-        public function __construct(private readonly ReadsWorkforceDirectory $inner) {}
-
-        public function companyForPlatform(int $platformCompanyId): ?WorkforceCompany
-        {
-            return $this->inner->companyForPlatform($platformCompanyId);
-        }
-
-        public function company(string $companyStableId): ?WorkforceCompany
-        {
-            return $this->inner->company($companyStableId);
-        }
-
-        /** @return list<WorkforceEmployee> */
-        public function employees(string $companyStableId): array
-        {
-            throw new WorkforceProjectionException('Provider outage.');
-        }
-
-        /** @return list<WorkforceOrganizationUnit> */
-        public function organizationUnits(string $companyStableId): array
-        {
-            throw new WorkforceProjectionException('Provider outage.');
-        }
-
-        public function employeeForUser(string $companyStableId, int $platformUserId): ?WorkforceEmployee
-        {
-            throw new WorkforceProjectionException('Provider outage.');
-        }
-
-        public function remap(WorkforceResourceType $type, string $fromStableId, string $toStableId): ?WorkforceRemapFact
-        {
-            throw new WorkforceProjectionException('Provider outage.');
-        }
-    });
+    ppfDeadDirectory();
 
     $passport = app(TrainingPassportReader::class)->read($f['memberUser'], ppfSubject($f, $f['member']));
 
@@ -265,6 +271,22 @@ test('a dead directory still returns the passport marked unavailable, and the pa
 
     Livewire::actingAs($f['memberUser'])->test(EmployeePassportPage::class)->assertOk()
         ->assertSee('Workforce context unavailable');
+});
+
+test('a non-self read during a directory outage stays refused while self-read still works', function (): void {
+    $f = ppfFixture();
+    ppfDeadDirectory();
+
+    // Self degrades open: both ids are local records, not directory data.
+    expect(app(TrainingPassportReader::class)->read($f['memberUser'], ppfSubject($f, $f['member']))->context->unavailable)
+        ->toBeTrue();
+
+    // Anyone else stays refused: without the directory the visible set
+    // cannot be resolved, so no cross-employee read may pass.
+    expect(fn () => app(TrainingPassportReader::class)->read($f['hod'], ppfSubject($f, $f['member'])))
+        ->toThrow(TrainingPassportDenied::class);
+    expect(fn () => app(TrainingPassportReader::class)->read($f['memberUser'], ppfSubject($f, $f['head'])))
+        ->toThrow(TrainingPassportDenied::class);
 });
 
 test('the team page shows the subject workforce context, not the acting HOD', function (): void {

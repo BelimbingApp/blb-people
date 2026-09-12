@@ -68,11 +68,17 @@ final class TrainingPassportAccess
         } catch (AuthorizationDeniedException) {
             $this->deny();
         } catch (WorkforceProjectionException) {
-            // The provider directory is down: the tenant, company, type and
-            // capability checks above still hold, so the passport stays
-            // readable instead of failing — but the directory-derived
-            // visibility refinement cannot run, and the reader marks the
-            // workforce context unavailable. (0014-d)
+            // The provider directory is down, so the per-employee visible
+            // set cannot be resolved. Degrade to self-only: the actor's
+            // employee id and the subject stable id are both local records,
+            // never directory data. Anything else stays refused, or any
+            // same-company employee could read anyone's passport during an
+            // outage. (0014-d)
+            if ($actor->employee_id === null
+                || (string) $actor->employee_id !== $subject->stableId) {
+                $this->deny();
+            }
+
             return;
         }
 
