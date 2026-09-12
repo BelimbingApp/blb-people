@@ -45,6 +45,16 @@
                 </div>
             </x-ui.alert>
         @else
+        @if ($canAssess)
+            <x-ui.alert variant="info">
+                <div class="space-y-2">
+                    <p class="font-medium text-ink">{{ __('Assessor of record: :name', ['name' => $assessorName]) }}</p>
+                    <p>{{ __('This signed-in account will be recorded as the assessor of record and is responsible for every submitted score and its evidence.') }}</p>
+                    <p>{{ __('If another trainer made the assessment, do not enter their judgement under your account. An assessor who can stand behind it must review the evidence and submit from their own authorized assessor access. Already verified historical records belong in the governed assessment-log import.') }}</p>
+                </div>
+            </x-ui.alert>
+        @endif
+
         <div class="flex flex-wrap gap-3 text-sm">
             <label>{{ __('Cycle') }}
                 <select wire:model="cycle" class="ms-1">

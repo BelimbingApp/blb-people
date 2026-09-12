@@ -20,5 +20,9 @@ final readonly class TrainingRequestDraft
         public ?int $requirementVersion = null,
         /** Decimal string with 4 places, or null when nobody has priced it. */
         public ?string $estimatedCost = null,
+        public ?string $proposedDeliveryMethod = null,
+        public ?string $proposedProvider = null,
+        public ?string $proposedStartDate = null,
+        public ?string $proposedEndDate = null,
     ) {}
 }

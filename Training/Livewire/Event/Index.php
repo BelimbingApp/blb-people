@@ -50,7 +50,45 @@ final class Index extends Component
         'pre_test_score', 'post_test_score', 'improvement', 'pass_result', 'certificate_reference', 'certificate_valid_from',
         'certificate_valid_until', 'confirmed_at', 'source', 'corrected'];
 
+    #[Url(as: 'company')]
     public ?int $companyEntityId = null;
+
+    /** The Schedule area opens this editor with an explicit return path. */
+    #[Url(as: 'edit')]
+    public ?int $requestedEditId = null;
+
+    #[Url(as: 'return')]
+    public string $returnTo = '';
+
+    #[Url(as: 'view')]
+    public string $calendarView = 'calendar';
+
+    #[Url(as: 'search')]
+    public string $calendarSearch = '';
+
+    #[Url(as: 'lifecycle')]
+    public string $calendarLifecycle = '';
+
+    #[Url(as: 'from')]
+    public string $calendarFrom = '';
+
+    #[Url(as: 'until')]
+    public string $calendarUntil = '';
+
+    #[Url(as: 'sortBy')]
+    public string $calendarSortBy = 'starts_at';
+
+    #[Url(as: 'sortDir')]
+    public string $calendarSortDir = 'asc';
+
+    #[Url(as: 'year')]
+    public int $calendarYear = 0;
+
+    #[Url(as: 'month')]
+    public int $calendarMonth = 0;
+
+    #[Url(as: 'page')]
+    public int $calendarPage = 1;
 
     public ?int $editingEventId = null;
 
@@ -130,9 +168,17 @@ final class Index extends Component
     public function mount(TrainingAudience $audience): void
     {
         $companies = $this->allowedCompanies($audience);
-        $this->companyEntityId = count($companies) > 0 ? (int) array_key_first($companies) : null;
+        if ($this->companyEntityId === null) {
+            $this->companyEntityId = count($companies) > 0 ? (int) array_key_first($companies) : null;
+        } else {
+            abort_unless(array_key_exists($this->companyEntityId, $companies), 404);
+        }
         $this->startsAt = now()->addWeek()->startOfHour()->format('Y-m-d\TH:i');
         $this->endsAt = now()->addWeek()->addHours(2)->startOfHour()->format('Y-m-d\TH:i');
+
+        if ($this->requestedEditId !== null) {
+            $this->editEvent($this->requestedEditId, $audience);
+        }
     }
 
     public function selectCompany(int $companyEntityId, TrainingAudience $audience): void
@@ -205,6 +251,10 @@ final class Index extends Component
 
         $this->resetForm();
         session()->flash('status', __('Training event saved.'));
+
+        if ($this->returnTo === 'calendar') {
+            $this->redirectRoute('people.training.calendar', $this->calendarReturnParameters());
+        }
     }
 
     public function start(int $eventId, TrainingAudience $audience, TrainingEventStore $store): void
@@ -685,6 +735,29 @@ final class Index extends Component
     public function cancelEdit(): void
     {
         $this->resetForm();
+
+        if ($this->returnTo === 'calendar') {
+            $this->redirectRoute('people.training.calendar', $this->calendarReturnParameters());
+        }
+    }
+
+    /** @return array<string, int|string|null> */
+    private function calendarReturnParameters(): array
+    {
+        return [
+            'company' => $this->companyEntityId,
+            'view' => $this->calendarView,
+            'search' => $this->calendarSearch,
+            'lifecycle' => $this->calendarLifecycle,
+            'department' => $this->department,
+            'from' => $this->calendarFrom,
+            'until' => $this->calendarUntil,
+            'sortBy' => $this->calendarSortBy,
+            'sortDir' => $this->calendarSortDir,
+            'year' => $this->calendarYear,
+            'month' => $this->calendarMonth,
+            'page' => $this->calendarPage,
+        ];
     }
 
     private function resetForm(): void

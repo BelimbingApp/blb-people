@@ -16,6 +16,7 @@ use App\Domains\People\Training\Services\TrainingEventStore;
 use App\Domains\People\Training\Services\TrainingSubjectExporter;
 use App\Domains\PeopleConnector\Connector\Contracts\ExportsSupplementalSubjectRecords;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /*
@@ -169,4 +170,103 @@ test('training export carries only the subject participant rows for that company
 
     $sibling = app(TrainingSubjectExporter::class)->sections($a['sibling'], $a['tenantId'], $a['companyId']);
     expect(array_column($sibling['people_training_participants'] ?? [], 'employee_subject_id'))->toBe([$a['sibling']->stableId]);
+});
+
+test('every Skills or Training table with employee_entity_id is claimed by an exporter list or a deliberate exclusion', function (): void {
+    $claimed = [
+        ...SkillsSubjectExporter::EMPLOYEE_ENTITY_TABLES,
+        ...SkillsSubjectExporter::DELIBERATE_EMPLOYEE_ENTITY_EXCLUSIONS,
+        ...TrainingSubjectExporter::EMPLOYEE_ENTITY_TABLES,
+        ...TrainingSubjectExporter::DELIBERATE_EMPLOYEE_ENTITY_EXCLUSIONS,
+    ];
+    $claimed = array_values(array_unique($claimed));
+    sort($claimed);
+
+    $found = [];
+    foreach (Schema::getTableListing(schemaQualified: false) as $table) {
+        if (! str_starts_with($table, 'people_connector_skill_') && ! str_starts_with($table, 'people_training_')) {
+            continue;
+        }
+        if (Schema::hasColumn($table, 'employee_entity_id')) {
+            $found[] = $table;
+        }
+    }
+    sort($found);
+
+    expect(array_values(array_diff($found, $claimed)))->toBe([]);
+});
+
+test('training export carries effectiveness reviews, which key training_participant_id not participant_id', function (): void {
+    // desktop-luna's [P1] on #411: appendByParticipantIds() returns early
+    // unless the table has a `participant_id` column, and this table declares
+    // `training_participant_id`, so every effectiveness review was silently
+    // omitted from every supplemental export. Silent omission is the failure
+    // mode a DSAR export can least afford.
+    $a = subjectExportSide('TrainingEffectivenessExport');
+    subjectExportSeedParticipant($a, $a['subject'], 'EFFECTIVENESS-EXPORT');
+
+    app(TenantContext::class)->set($a['tenantId']);
+    $participantId = (int) DB::table('people_training_participants')
+        ->where('tenant_id', $a['tenantId'])
+        ->where('employee_subject_id', $a['subject']->stableId)
+        ->value('id');
+    expect($participantId)->toBeGreaterThan(0);
+
+    DB::table('people_training_effectiveness_reviews')->insert([
+        'tenant_id' => $a['tenantId'],
+        'company_entity_id' => $a['companyId'],
+        'training_participant_id' => $participantId,
+        'stage' => 'day_30',
+        'due_on' => now()->addMonth()->toDateString(),
+        'due_date_policy' => 'export.fixture.policy',
+        // A conflict guard refuses a reviewer who is the reviewed participant,
+        // so the sibling employee reviews this one.
+        'reviewer_employee_entity_id' => $a['siblingEmployeeId'],
+        'state' => 'open',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $sections = app(TrainingSubjectExporter::class)->sections($a['subject'], $a['tenantId'], $a['companyId']);
+
+    expect($sections)->toHaveKey('people_training_effectiveness_reviews');
+    expect($sections['people_training_effectiveness_reviews'])->toHaveCount(1);
+    expect((int) $sections['people_training_effectiveness_reviews'][0]['training_participant_id'])->toBe($participantId);
+});
+
+test('training export carries an employee-keyed passport document when the employee has no participation', function (): void {
+    // desktop-luna's second [P1] on #411: sections() returned [] when the
+    // employee had no participant rows, before the employee-keyed passport
+    // query ever ran. TrainingPassportReader returns an empty passport for an
+    // employee with no training events, so such a document legitimately exists
+    // and was dropped from the export.
+    $a = subjectExportSide('TrainingPassportNoParticipation');
+    app(TenantContext::class)->set($a['tenantId']);
+
+    // The precondition stated out loud: this subject has no participation.
+    expect(DB::table('people_training_participants')
+        ->where('tenant_id', $a['tenantId'])
+        ->where('employee_subject_id', $a['subject']->stableId)
+        ->count())->toBe(0);
+
+    DB::table('people_training_passport_documents')->insert([
+        'tenant_id' => $a['tenantId'],
+        'company_entity_id' => $a['companyId'],
+        'employee_entity_id' => $a['subjectEmployeeId'],
+        'template_version' => 'passport.v1',
+        'data_version' => 'export-fixture',
+        'sha256' => str_repeat('a', 64),
+        'bytes' => 1024,
+        'generated_by_user_id' => 1,
+        'generated_at' => now(),
+        'expires_at' => now()->addYear(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $sections = app(TrainingSubjectExporter::class)->sections($a['subject'], $a['tenantId'], $a['companyId']);
+
+    expect($sections)->toHaveKey('people_training_passport_documents');
+    expect($sections['people_training_passport_documents'])->toHaveCount(1);
+    expect((int) $sections['people_training_passport_documents'][0]['employee_entity_id'])->toBe($a['subjectEmployeeId']);
 });

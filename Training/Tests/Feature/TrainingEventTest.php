@@ -730,6 +730,69 @@ test('event selectCompany switches to an attributable company and refuses an unk
         ->assertStatus(404);
 });
 
+test('event editor route refuses a company query outside the HR attribution scope', function (): void {
+    $this->withoutVite();
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    $siblingCompany = trainingEventCompany($fixture['tenantId'], 'Unattributed Event Company');
+
+    $this->actingAs($hr)
+        ->get(route('people.training.events.index', ['company' => $fixture['company']->id]))
+        ->assertOk()
+        ->assertSee('Schedule an event');
+
+    $this->actingAs($hr)
+        ->get(route('people.training.events.index', ['company' => $siblingCompany->id]))
+        ->assertNotFound();
+});
+
+test('schedule editor returns to the combined schedule instead of rendering a register beneath the form', function (): void {
+    $this->withoutVite();
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+
+    Livewire::withQueryParams(['return' => 'calendar'])->actingAs($hr)->test(Index::class)
+        ->assertSee('Schedule an event')
+        ->assertSee('Back to schedule')
+        ->assertDontSee('Event register');
+});
+
+test('schedule editor returns the Calendar table state after saving or cancelling', function (): void {
+    $this->withoutVite();
+    $fixture = trainingEventFixture();
+    $hr = User::factory()->create(['company_id' => $fixture['platformCompany']->id]);
+    trainingEventRole($hr, 'people_hr');
+    $event = app(TrainingEventStore::class)->schedule((int) $fixture['company']->id, trainingEventDraft($fixture));
+    $return = [
+        'company' => (int) $fixture['company']->id,
+        'view' => 'table',
+        'search' => 'Safety',
+        'lifecycle' => TrainingEventStatus::Scheduled->value,
+        'department' => (string) $fixture['departments'][0],
+        'from' => '2026-10-01',
+        'until' => '2026-10-31',
+        'sortBy' => 'course_title_snapshot',
+        'sortDir' => 'desc',
+        'year' => 2026,
+        'month' => 10,
+        'page' => 2,
+    ];
+    $expected = route('people.training.calendar', $return);
+
+    Livewire::withQueryParams(['return' => 'calendar', 'edit' => (int) $event->id] + $return)
+        ->actingAs($hr)->test(Index::class)
+        ->call('cancelEdit')
+        ->assertRedirect($expected);
+
+    Livewire::withQueryParams(['return' => 'calendar', 'edit' => (int) $event->id] + $return)
+        ->actingAs($hr)->test(Index::class)
+        ->set('venue', 'Updated training room')
+        ->call('save')
+        ->assertRedirect($expected);
+});
+
 test('event editEvent loads a scheduled event and refuses users without manage capability or a non-scheduled event', function (): void {
     $this->withoutVite();
     $fixture = trainingEventFixture();

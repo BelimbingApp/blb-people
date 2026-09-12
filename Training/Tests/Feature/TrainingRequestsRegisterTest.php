@@ -6,9 +6,12 @@ use App\Base\Authz\Enums\PrincipalType;
 use App\Base\Authz\Models\PrincipalCapability;
 use App\Base\Authz\Models\PrincipalRole;
 use App\Base\Authz\Models\Role;
+use App\Base\Locale\Contracts\CurrencyDisplayService;
 use App\Base\Tenancy\Contracts\TenantContext;
+use App\Core\Address\Models\Address;
 use App\Core\Company\Models\Company;
 use App\Core\Employee\Models\Employee;
+use App\Core\Geonames\Models\Country;
 use App\Core\User\Models\User;
 use App\Domains\People\Provider\Data\WorkforceSubject;
 use App\Domains\People\Provider\Enums\WorkforceResourceType;
@@ -70,6 +73,28 @@ function reqRegisterEmployee(Company $company, PeopleReferenceEntry $unit, strin
     EmployeeWorkProfile::query()->create(['employee_id' => $employee->id, 'organization_unit_id' => $unit->id]);
 
     return $employee;
+}
+
+function reqRegisterCompanyCurrency(Company $company, string $countryIso = 'MY', string $currencyCode = 'MYR'): void
+{
+    Country::query()->create([
+        'iso' => $countryIso,
+        'iso3' => $countryIso.'X',
+        'iso_numeric' => '458',
+        'country' => 'Malaysia',
+        'continent' => 'AS',
+        'currency_code' => $currencyCode,
+    ]);
+
+    $address = Address::factory()->create([
+        'tenant_id' => (int) $company->tenant_id,
+        'country_iso' => $countryIso,
+    ]);
+    $company->addresses()->attach($address->id, [
+        'kind' => json_encode(['headquarters']),
+        'is_primary' => true,
+        'priority' => 0,
+    ]);
 }
 
 /**
@@ -176,7 +201,7 @@ test('the CSV export contains exactly the filtered rows and writes one audit act
     $csv = base64_decode($page->effects['download']['content']);
     $lines = array_values(array_filter(explode("\n", trim($csv))));
     expect($lines)->toHaveCount(2)
-        ->and($lines[0])->toBe('id,created_at,requestor,subjects,department,need,priority,status,estimated_cost,approver,decided_at,linked_event_id,linked_event_title')
+        ->and($lines[0])->toBe('id,created_at,requestor,subjects,department,need,priority,status,estimated_cost,approved_budget,proposed_delivery_method,proposed_provider,proposed_start_date,proposed_end_date,approver,decided_at,linked_event_id,linked_event_title')
         ->and($lines[1])->toStartWith($f['approved']->id.',')
         ->and($lines[1])->toContain('"Ops One",1,Operations', '"Approved ops need"', 'approved', '1250.5000', '"Alpha Approver"', '2026-03-15')
         ->and($csv)->not->toContain('Pending ops need')
@@ -233,4 +258,101 @@ test('setting the company property to another company is refused on render, and 
         ->assertNotFound();
     expect($page->html())->not->toContain('Beta need')
         ->and(AuditAction::query()->where('event', Register::EXPORT_EVENT)->count())->toBe(0);
+});
+
+test('the register uses shared list controls and human-readable locale-aware values', function (): void {
+    $f = reqRegisterFixture();
+    reqRegisterCompanyCurrency($f['alpha']);
+
+    $page = Livewire::actingAs($f['hr'])->test(Register::class)->assertOk();
+    $html = html_entity_decode($page->html());
+    $formattedCost = app(CurrencyDisplayService::class)->format(1250.5, 'MYR', 2);
+
+    expect($html)
+        ->toContain('id="training-requests-search"')
+        ->toContain('wire:model.live.debounce.300ms="search"')
+        ->toContain('data-status="pending_hod"')
+        ->toContain('Pending HOD')
+        ->toContain($formattedCost)
+        ->toContain('Estimated cost (MYR)')
+        ->toContain('Export 3 requests to CSV')
+        ->toContain('training-requests-per-page')
+        ->toContain('wire:click="sort(\'created_at\')"');
+
+    $menu = require dirname(__DIR__, 2).'/Config/menu.php';
+    expect(collect($menu['items'])->firstWhere('id', 'people.training-requests-register'))
+        ->toMatchArray([
+            'route' => 'people.training.requests.register',
+            'permission' => Register::VIEW_CAPABILITY,
+            'parent' => 'people',
+        ]);
+});
+
+test('a company with no authoritative currency shows costs without inventing one', function (): void {
+    $f = reqRegisterFixture();
+    // Deliberately no reqRegisterCompanyCurrency(): no country currency exists.
+
+    $html = html_entity_decode(Livewire::actingAs($f['hr'])->test(Register::class)->assertOk()->html());
+
+    expect($html)->toContain('Estimated cost (currency unavailable)')
+        ->and($html)->not->toContain('Estimated cost (USD)')
+        ->and($html)->not->toContain('Estimated cost (MYR)');
+});
+
+test('search sorting and pagination keep the register bounded to the selected company and year', function (): void {
+    $f = reqRegisterFixture();
+    $employee = reqRegisterEmployee($f['alpha'], $f['ops'], 'Paging Employee');
+
+    foreach (range(1, 9) as $number) {
+        reqRegisterRequest(
+            $f['tenantId'],
+            $f['alpha'],
+            $f['hr'],
+            $employee,
+            $f['ops'],
+            'Paging need '.str_pad((string) $number, 2, '0', STR_PAD_LEFT),
+            TrainingRequestStatus::PendingHod,
+        );
+    }
+
+    $page = Livewire::actingAs($f['hr'])->test(Register::class)->set('perPage', 10);
+    expect($page->viewData('rows')->count())->toBe(10)
+        ->and($page->viewData('rows')->total())->toBe(12);
+
+    $page->set('search', 'Approved ops');
+    expect($page->viewData('rows')->pluck('id')->all())->toBe([$f['approved']->id]);
+
+    $page->set('search', '')->call('sort', 'estimated_cost');
+    expect($page->get('sortBy'))->toBe('estimated_cost')
+        ->and($page->get('sortDir'))->toBe('desc')
+        ->and($page->viewData('rows')->first()['id'])->toBe($f['approved']->id);
+});
+
+test('request details expose scoped history without duplicating the decision workflow', function (): void {
+    $f = reqRegisterFixture();
+
+    $page = Livewire::actingAs($f['hr'])->test(Register::class)
+        ->call('openDetails', (int) $f['approved']->id)
+        ->assertSet('selectedRequestId', (int) $f['approved']->id)
+        ->assertSee('Objective.')
+        ->assertSee('Result.')
+        ->assertSee('Alpha Approver')
+        ->assertSee('Approved');
+
+    $page->call('closeDetails')->assertSet('selectedRequestId', null);
+    Livewire::actingAs($f['hr'])->test(Register::class)
+        ->call('openDetails', (int) $f['foreign']->id)
+        ->assertNotFound();
+});
+
+test('the register distinguishes an empty year from filters with no matches', function (): void {
+    $f = reqRegisterFixture();
+    TrainingRequest::query()
+        ->forCompany($f['tenantId'], (int) $f['alpha']->id)
+        ->update(['created_at' => (now()->year - 1).'-06-01 09:00:00']);
+
+    Livewire::actingAs($f['hr'])->test(Register::class)
+        ->assertSee('No training requests were recorded for '.now()->year.'.')
+        ->set('search', 'no-such-request')
+        ->assertSee('No training requests match the current filters.');
 });
